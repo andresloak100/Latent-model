@@ -42,6 +42,8 @@ class ModelConfig:
     dropout: float = 0.0
     max_res_pos: int = 1024
     coord_scale: float = 10.0
+    encoder_type: str = "baseline"   # "baseline" (raw-coord) | "invariant" (SE(3)-invariant)
+    k_neighbors: int = 8             # neighbours for the invariant encoder
 
 
 class AtomFeaturizer(nn.Module):

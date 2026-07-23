@@ -26,7 +26,8 @@ sys.path.insert(0, str(ROOT))
 
 from molae.config import ExperimentConfig  # noqa: E402
 from molae.dataset import ProteinStructureDataset, collate_fn  # noqa: E402
-from molae.model import MolecularAutoencoder  # noqa: E402
+from molae.model import MolecularAutoencoder  # noqa: E402,F401
+from molae.model_equivariant import make_autoencoder  # noqa: E402
 from molae.metrics import build_topology_info, compute_all_metrics  # noqa: E402
 from molae.baselines import build_backbone_cohort, evaluate_baselines, structure_backbone  # noqa: E402
 from molae.alignment import kabsch_rmsd_numpy  # noqa: E402
@@ -65,7 +66,7 @@ def main():
     dataset = ProteinStructureDataset(paths)
     print(f"[eval] {len(dataset)} structures")
 
-    model = MolecularAutoencoder(cfg.model).to(device)
+    model = make_autoencoder(cfg.model).to(device)
     ckpt_path = Path(args.ckpt) if args.ckpt else (out_dir / "final.pt")
     if not ckpt_path.exists():
         ckpt_path = out_dir / "latest.pt"

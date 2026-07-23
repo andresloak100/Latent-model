@@ -24,7 +24,8 @@ sys.path.insert(0, str(ROOT))
 
 from molae.config import ExperimentConfig  # noqa: E402
 from molae.dataset import ProteinStructureDataset, collate_fn  # noqa: E402
-from molae.model import MolecularAutoencoder  # noqa: E402
+from molae.model import MolecularAutoencoder  # noqa: E402,F401
+from molae.model_equivariant import make_autoencoder  # noqa: E402
 from molae.losses import LossComputer  # noqa: E402
 from molae.alignment import aligned_rmsd_torch  # noqa: E402
 from molae import utils  # noqa: E402
@@ -90,7 +91,7 @@ def main():
     print(f"[train] {len(dataset)} structures on {device} (amp={use_amp}); "
           f"{'first ids: ' + str(keys[:8]) if len(keys) > 8 else keys}")
 
-    model = MolecularAutoencoder(cfg.model).to(device)
+    model = make_autoencoder(cfg.model).to(device)
     print(f"[train] model params: {model.num_parameters():,}  latent floats: {model.latent_floats}")
     opt = torch.optim.Adam(model.parameters(), lr=cfg.train.lr,
                            weight_decay=cfg.train.weight_decay)
