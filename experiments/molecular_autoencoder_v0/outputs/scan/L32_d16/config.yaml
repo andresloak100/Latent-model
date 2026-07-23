@@ -1,0 +1,37 @@
+name: scan_L32_d16
+data:
+  processed_dir: data/processed
+  splits_file: data/splits.json
+  min_residues: 20
+  max_residues: 120
+  max_atoms: 1200
+model:
+  d_model: 128
+  n_heads: 4
+  n_latent_tokens: 32
+  latent_dim: 16
+  enc_self_layers: 2
+  dec_self_layers: 2
+  ff_mult: 4
+  dropout: 0.0
+  max_res_pos: 1024
+  coord_scale: 10.0
+loss:
+  coord: 1.0
+  distance: 1.0
+  bond: 1.0
+  clash: 0.5
+  chirality: 0.2
+train:
+  seed: 0
+  epochs: 500
+  batch_size: 8
+  lr: 0.001
+  weight_decay: 0.0001
+  grad_clip: 1.0
+  log_every: 50
+  eval_every: 200
+  ckpt_every: 200
+  clash_dist: 1.5
+  out_dir: outputs/scan/L32_d16
+  overfit: false

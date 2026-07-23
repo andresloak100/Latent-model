@@ -1,0 +1,45 @@
+{
+  "rows": [
+    {
+      "n_latent_tokens": 8,
+      "latent_dim": 4,
+      "latent_floats": 32,
+      "mean_compression_ratio": 38.94375,
+      "heldout_all_atom_rmsd": 11.638657324501029,
+      "heldout_backbone_rmsd": 11.16720123755013,
+      "heldout_bond_length_error": 1.76558077994801,
+      "heldout_contact_f1": 0.135655152913217
+    },
+    {
+      "n_latent_tokens": 16,
+      "latent_dim": 8,
+      "latent_floats": 128,
+      "mean_compression_ratio": 9.7359375,
+      "heldout_all_atom_rmsd": 11.152744778578693,
+      "heldout_backbone_rmsd": 10.705115413187427,
+      "heldout_bond_length_error": 1.4997677137063898,
+      "heldout_contact_f1": 0.17646530809092384
+    },
+    {
+      "n_latent_tokens": 16,
+      "latent_dim": 16,
+      "latent_floats": 256,
+      "mean_compression_ratio": 4.86796875,
+      "heldout_all_atom_rmsd": 10.778230859893535,
+      "heldout_backbone_rmsd": 10.190240551781605,
+      "heldout_bond_length_error": 1.335435909077376,
+      "heldout_contact_f1": 0.16670860119216302
+    },
+    {
+      "n_latent_tokens": 32,
+      "latent_dim": 16,
+      "latent_floats": 512,
+      "mean_compression_ratio": 2.433984375,
+      "heldout_all_atom_rmsd": 11.459106335682208,
+      "heldout_backbone_rmsd": 10.925798000060109,
+      "heldout_bond_length_error": 1.5756903382904237,
+      "heldout_contact_f1": 0.1544277316106057
+    }
+  ],
+  "epochs": 500
+}

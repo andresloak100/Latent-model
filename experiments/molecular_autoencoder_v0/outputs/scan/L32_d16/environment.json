@@ -1,0 +1,15 @@
+{
+  "python": "3.11.15",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "processor": "x86_64",
+  "torch_num_threads": 4,
+  "cuda_available": false,
+  "packages": {
+    "torch": "2.13.0+cpu",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "sklearn": "1.9.0",
+    "gemmi": "0.7.5"
+  },
+  "git_commit": "507ddbfe8eb44ed64960ec0c74c58a6f71d083df"
+}

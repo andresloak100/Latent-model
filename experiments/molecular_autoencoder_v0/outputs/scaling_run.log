@@ -1,0 +1,100 @@
+[scan] L=8 d=4 (latent floats=32)
+  $ /usr/local/bin/python3 scripts/train.py --config /home/user/Latent-model/experiments/molecular_autoencoder_v0/configs/_scan/L8_d4.yaml
+[train] 16 structures: ['1BDD_A', '1BPI_A', '1CRN_A', '1CTF_A', '1E0L_A', '1ENH_A', '1FKB_A', '1FSD_A', '1R69_A', '1SHG_A', '1TEN_A', '1UBI_A', '1UBQ_A', '1VII_A', '2CI2_I', '5PTI_A']
+[train] model params: 1,492,359  latent floats: 32
+  epoch     0  total=134.0046  coord=121.6874  bond=1.5224  clash=0.0215  rmsd=10.689A
+  epoch    50  total=27.9508  coord=24.2904  bond=0.9889  clash=0.0022  rmsd=4.757A
+  epoch   100  total=13.9435  coord=11.4835  bond=0.7952  clash=0.0017  rmsd=3.346A
+  epoch   150  total=8.4685  coord=6.5976  bond=0.6709  clash=0.0014  rmsd=2.574A
+  epoch   200  total=5.6338  coord=4.1443  bond=0.5863  clash=0.0010  rmsd=1.911A
+  epoch   250  total=4.1381  coord=2.8546  bond=0.5720  clash=0.0007  rmsd=1.704A
+  epoch   300  total=3.5395  coord=2.4534  bond=0.4554  clash=0.0006  rmsd=1.441A
+  epoch   350  total=2.4617  coord=1.6288  bond=0.3677  clash=0.0004  rmsd=1.224A
+  epoch   400  total=2.6114  coord=1.7378  bond=0.3840  clash=0.0004  rmsd=1.263A
+  epoch   450  total=1.9247  coord=1.2370  bond=0.3233  clash=0.0003  rmsd=1.171A
+  epoch   499  total=2.3765  coord=1.5821  bond=0.3349  clash=0.0002  rmsd=1.120A
+[train] done in 197.2s -> /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L8_d4
+  $ /usr/local/bin/python3 scripts/eval.py --config /home/user/Latent-model/experiments/molecular_autoencoder_v0/configs/_scan/L8_d4.yaml --n-examples 0
+[eval] 5 structures
+[eval] loaded final.pt  (1,492,359 params)
+[eval] wrote /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L8_d4/metrics.json and metrics_table.md
+[eval] learned all-atom RMSD: 11.639 A  backbone RMSD: 11.167 A
+[eval] example reconstructions -> /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L8_d4/reconstructions
+[scan] L=16 d=8 (latent floats=128)
+  $ /usr/local/bin/python3 scripts/train.py --config /home/user/Latent-model/experiments/molecular_autoencoder_v0/configs/_scan/L16_d8.yaml
+[train] 16 structures: ['1BDD_A', '1BPI_A', '1CRN_A', '1CTF_A', '1E0L_A', '1ENH_A', '1FKB_A', '1FSD_A', '1R69_A', '1SHG_A', '1TEN_A', '1UBI_A', '1UBQ_A', '1VII_A', '2CI2_I', '5PTI_A']
+[train] model params: 1,494,411  latent floats: 128
+  epoch     0  total=133.9722  coord=122.2386  bond=1.2876  clash=0.0327  rmsd=10.676A
+  epoch    50  total=28.6930  coord=24.9889  bond=0.9516  clash=0.0025  rmsd=4.818A
+  epoch   100  total=11.3684  coord=9.0902  bond=0.7548  clash=0.0019  rmsd=2.917A
+  epoch   150  total=5.8189  coord=4.2541  bond=0.6176  clash=0.0013  rmsd=1.984A
+  epoch   200  total=4.2601  coord=2.9681  bond=0.5430  clash=0.0009  rmsd=1.634A
+  epoch   250  total=2.8760  coord=1.9187  bond=0.4201  clash=0.0006  rmsd=1.371A
+  epoch   300  total=2.8691  coord=1.9346  bond=0.3951  clash=0.0005  rmsd=1.265A
+  epoch   350  total=2.1886  coord=1.4159  bond=0.3607  clash=0.0004  rmsd=1.142A
+  epoch   400  total=2.1471  coord=1.3938  bond=0.3312  clash=0.0003  rmsd=1.255A
+  epoch   450  total=1.6369  coord=1.0424  bond=0.2815  clash=0.0002  rmsd=1.014A
+  epoch   499  total=1.5859  coord=1.0296  bond=0.2526  clash=0.0002  rmsd=0.907A
+[train] done in 184.6s -> /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L16_d8
+  $ /usr/local/bin/python3 scripts/eval.py --config /home/user/Latent-model/experiments/molecular_autoencoder_v0/configs/_scan/L16_d8.yaml --n-examples 0
+[eval] 5 structures
+[eval] loaded final.pt  (1,494,411 params)
+[eval] wrote /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L16_d8/metrics.json and metrics_table.md
+[eval] learned all-atom RMSD: 11.153 A  backbone RMSD: 10.705 A
+[eval] example reconstructions -> /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L16_d8/reconstructions
+[scan] L=16 d=16 (latent floats=256)
+  $ /usr/local/bin/python3 scripts/train.py --config /home/user/Latent-model/experiments/molecular_autoencoder_v0/configs/_scan/L16_d16.yaml
+[train] 16 structures: ['1BDD_A', '1BPI_A', '1CRN_A', '1CTF_A', '1E0L_A', '1ENH_A', '1FKB_A', '1FSD_A', '1R69_A', '1SHG_A', '1TEN_A', '1UBI_A', '1UBQ_A', '1VII_A', '2CI2_I', '5PTI_A']
+[train] model params: 1,496,467  latent floats: 256
+  epoch     0  total=131.6606  coord=119.9044  bond=0.9857  clash=0.0384  rmsd=10.559A
+  epoch    50  total=19.6338  coord=16.4115  bond=0.9667  clash=0.0022  rmsd=3.857A
+  epoch   100  total=6.3118  coord=4.6117  bond=0.6677  clash=0.0015  rmsd=2.110A
+  epoch   150  total=4.2149  coord=2.9281  bond=0.5252  clash=0.0010  rmsd=1.839A
+  epoch   200  total=3.0129  coord=1.9790  bond=0.4634  clash=0.0007  rmsd=1.438A
+  epoch   250  total=3.0526  coord=2.0471  bond=0.4262  clash=0.0005  rmsd=1.315A
+  epoch   300  total=3.3071  coord=2.2915  bond=0.4166  clash=0.0004  rmsd=1.393A
+  epoch   350  total=1.8805  coord=1.1815  bond=0.3326  clash=0.0003  rmsd=1.054A
+  epoch   400  total=1.7102  coord=1.1084  bond=0.2657  clash=0.0002  rmsd=1.045A
+  epoch   450  total=1.7584  coord=1.1566  bond=0.2623  clash=0.0002  rmsd=1.081A
+  epoch   499  total=1.3645  coord=0.8058  bond=0.2758  clash=0.0002  rmsd=0.876A
+[train] done in 183.4s -> /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L16_d16
+  $ /usr/local/bin/python3 scripts/eval.py --config /home/user/Latent-model/experiments/molecular_autoencoder_v0/configs/_scan/L16_d16.yaml --n-examples 0
+[eval] 5 structures
+[eval] loaded final.pt  (1,496,467 params)
+[eval] wrote /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L16_d16/metrics.json and metrics_table.md
+[eval] learned all-atom RMSD: 10.778 A  backbone RMSD: 10.190 A
+[eval] example reconstructions -> /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L16_d16/reconstructions
+[scan] L=32 d=16 (latent floats=512)
+  $ /usr/local/bin/python3 scripts/train.py --config /home/user/Latent-model/experiments/molecular_autoencoder_v0/configs/_scan/L32_d16.yaml
+[train] 16 structures: ['1BDD_A', '1BPI_A', '1CRN_A', '1CTF_A', '1E0L_A', '1ENH_A', '1FKB_A', '1FSD_A', '1R69_A', '1SHG_A', '1TEN_A', '1UBI_A', '1UBQ_A', '1VII_A', '2CI2_I', '5PTI_A']
+[train] model params: 1,498,515  latent floats: 512
+  epoch     0  total=130.9726  coord=118.7613  bond=0.9541  clash=0.0431  rmsd=10.578A
+  epoch    50  total=29.8820  coord=26.0867  bond=0.9781  clash=0.0021  rmsd=4.956A
+  epoch   100  total=12.8761  coord=10.4543  bond=0.7995  clash=0.0018  rmsd=3.054A
+  epoch   150  total=6.8506  coord=5.0293  bond=0.6978  clash=0.0014  rmsd=2.128A
+  epoch   200  total=4.8587  coord=3.4251  bond=0.5810  clash=0.0010  rmsd=1.767A
+  epoch   250  total=3.6698  coord=2.5183  bond=0.4787  clash=0.0008  rmsd=1.522A
+  epoch   300  total=2.8442  coord=1.8756  bond=0.4406  clash=0.0006  rmsd=1.328A
+  epoch   350  total=2.5142  coord=1.6358  bond=0.4040  clash=0.0004  rmsd=1.324A
+  epoch   400  total=2.4853  coord=1.6619  bond=0.3529  clash=0.0003  rmsd=1.211A
+  epoch   450  total=1.8172  coord=1.1149  bond=0.3457  clash=0.0003  rmsd=1.036A
+  epoch   499  total=1.8141  coord=1.1364  bond=0.3172  clash=0.0002  rmsd=0.998A
+[train] done in 182.9s -> /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L32_d16
+  $ /usr/local/bin/python3 scripts/eval.py --config /home/user/Latent-model/experiments/molecular_autoencoder_v0/configs/_scan/L32_d16.yaml --n-examples 0
+[eval] 5 structures
+[eval] loaded final.pt  (1,498,515 params)
+[eval] wrote /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L32_d16/metrics.json and metrics_table.md
+[eval] learned all-atom RMSD: 11.459 A  backbone RMSD: 10.926 A
+[eval] example reconstructions -> /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/L32_d16/reconstructions
+# Stage C (small): latent-budget scaling (held-out)
+
+Epochs per point: 500. Held-out val split.
+
+| latent tokens | latent dim | latent floats | mean compression | held-out all-atom RMSD (A) | held-out backbone RMSD (A) | bond err (A) | contact F1 |
+|---|---|---|---|---|---|---|---|
+| 8 | 4 | 32 | 38.9 | 11.6 | 11.2 | 1.77 | 0.136 |
+| 16 | 8 | 128 | 9.74 | 11.2 | 10.7 | 1.5 | 0.176 |
+| 16 | 16 | 256 | 4.87 | 10.8 | 10.2 | 1.34 | 0.167 |
+| 32 | 16 | 512 | 2.43 | 11.5 | 10.9 | 1.58 | 0.154 |
+
+[scan] wrote /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/scan/scaling_table.md

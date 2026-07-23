@@ -1,0 +1,164 @@
+{
+  "n_structures": 5,
+  "checkpoint": "final.pt",
+  "latent_floats": 512,
+  "learned_model": {
+    "all_atom_rmsd": 11.459106335682208,
+    "backbone_rmsd": 10.925798000060109,
+    "pairwise_distance_error": 5.63136313528628,
+    "bond_length_error": 1.5756903382904237,
+    "chirality_violation_rate": 0.4368587545567495,
+    "clashes_per_1000_atoms": 380.7963677675229,
+    "contact_f1": 0.1544277316106057,
+    "compression_ratio": 2.433984375
+  },
+  "trivial_all_atom_baselines": {
+    "identity_all_atom_rmsd": 0.0,
+    "centroid_all_atom_rmsd": 10.216469386973223,
+    "learned_all_atom_rmsd": 11.459106335682208
+  },
+  "per_structure": [
+    {
+      "all_atom_rmsd": 11.907248686388309,
+      "backbone_rmsd": 11.720772069888977,
+      "pairwise_distance_error": 5.783656017277259,
+      "bond_length_error": 1.5946469463434438,
+      "chirality_violation_rate": 0.46551724137931033,
+      "n_atoms": 505,
+      "clash_count": 204,
+      "clashes_per_1000_atoms": 403.96039603960395,
+      "contact_f1": 0.12345679012345678,
+      "contact_precision": 0.0970873786407767,
+      "contact_recall": 0.1694915254237288,
+      "compression_ratio": 2.958984375,
+      "latent_floats": 512,
+      "input_coord_floats": 1515,
+      "pdb_id": "1CSP",
+      "chain_id": "A",
+      "n_residues": 67
+    },
+    {
+      "all_atom_rmsd": 11.858771776130194,
+      "backbone_rmsd": 11.399641027969228,
+      "pairwise_distance_error": 6.228654403093731,
+      "bond_length_error": 1.485437507116437,
+      "chirality_violation_rate": 0.5087719298245614,
+      "n_atoms": 468,
+      "clash_count": 202,
+      "clashes_per_1000_atoms": 431.62393162393164,
+      "contact_f1": 0.15172413793103448,
+      "contact_precision": 0.11262798634812286,
+      "contact_recall": 0.2323943661971831,
+      "compression_ratio": 2.7421875,
+      "latent_floats": 512,
+      "input_coord_floats": 1404,
+      "pdb_id": "1IGD",
+      "chain_id": "A",
+      "n_residues": 61
+    },
+    {
+      "all_atom_rmsd": 9.471862633130542,
+      "backbone_rmsd": 8.461654184356338,
+      "pairwise_distance_error": 5.007163497903478,
+      "bond_length_error": 1.747232466095852,
+      "chirality_violation_rate": 0.4117647058823529,
+      "n_atoms": 154,
+      "clash_count": 46,
+      "clashes_per_1000_atoms": 298.7012987012987,
+      "contact_f1": 0.22641509433962265,
+      "contact_precision": 0.3,
+      "contact_recall": 0.18181818181818182,
+      "compression_ratio": 0.90234375,
+      "latent_floats": 512,
+      "input_coord_floats": 462,
+      "pdb_id": "1L2Y",
+      "chain_id": "A",
+      "n_residues": 20
+    },
+    {
+      "all_atom_rmsd": 12.017111901469532,
+      "backbone_rmsd": 11.629188596943935,
+      "pairwise_distance_error": 5.686117764334405,
+      "bond_length_error": 1.4824501711333384,
+      "chirality_violation_rate": 0.3559322033898305,
+      "n_atoms": 514,
+      "clash_count": 207,
+      "clashes_per_1000_atoms": 402.7237354085603,
+      "contact_f1": 0.09999999999999999,
+      "contact_precision": 0.07045454545454545,
+      "contact_recall": 0.17222222222222222,
+      "compression_ratio": 3.01171875,
+      "latent_floats": 512,
+      "input_coord_floats": 1542,
+      "pdb_id": "1MJC",
+      "chain_id": "A",
+      "n_residues": 69
+    },
+    {
+      "all_atom_rmsd": 12.04053668129246,
+      "backbone_rmsd": 11.41773412114206,
+      "pairwise_distance_error": 5.451223993822531,
+      "bond_length_error": 1.5686846007630473,
+      "chirality_violation_rate": 0.4423076923076923,
+      "n_atoms": 436,
+      "clash_count": 160,
+      "clashes_per_1000_atoms": 366.9724770642202,
+      "contact_f1": 0.17054263565891473,
+      "contact_precision": 0.132,
+      "contact_recall": 0.24087591240875914,
+      "compression_ratio": 2.5546875,
+      "latent_floats": 512,
+      "input_coord_floats": 1308,
+      "pdb_id": "1PGB",
+      "chain_id": "A",
+      "n_residues": 56
+    }
+  ],
+  "cohort": {
+    "n_res": 20,
+    "n_atoms": 80,
+    "ids": [
+      "1CSP",
+      "1IGD",
+      "1L2Y",
+      "1MJC",
+      "1PGB"
+    ],
+    "learned_autoencoder": {
+      "mean_backbone_rmsd": 9.362292364816705,
+      "latent_floats": 512,
+      "compression_ratio": 0.46875
+    },
+    "baselines": {
+      "identity": {
+        "mean_backbone_rmsd": 0.0,
+        "latent_floats": 240,
+        "compression_ratio": 1.0
+      },
+      "mean_shape": {
+        "mean_backbone_rmsd": 4.9662444689509595,
+        "latent_floats": 0,
+        "compression_ratio": Infinity
+      },
+      "pca_k2": {
+        "mean_backbone_rmsd": 1.7268361882867054,
+        "latent_floats": 2,
+        "compression_ratio": 120.0
+      },
+      "pca_k4": {
+        "mean_backbone_rmsd": 4.7116355792442186e-15,
+        "latent_floats": 4,
+        "compression_ratio": 60.0
+      }
+    }
+  },
+  "timing": {
+    "mean_inference_s_per_structure": 0.008862543106079101,
+    "n_structures_timed": 5
+  },
+  "memory": {
+    "peak_host_rss_mb": 440.55078125,
+    "peak_gpu_mb": null,
+    "gpu_note": "N/A (CPU-only run)"
+  }
+}
