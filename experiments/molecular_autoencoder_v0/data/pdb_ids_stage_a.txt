@@ -1,0 +1,26 @@
+# Stage A curated set: small, mostly single-chain proteins (standard amino
+# acids). Lines starting with '#' are ignored. The prepare script downloads
+# each mmCIF, selects one peptide chain, filters, and keeps those within the
+# configured residue band. Whatever passes is recorded in manifest.json.
+1CRN
+1UBQ
+1PGB
+1ENH
+1SHG
+1CSP
+1MJC
+1IGD
+1BPI
+5PTI
+2CI2
+1VII
+1L2Y
+1FSD
+1E0L
+1PIN
+1BDD
+1R69
+1CTF
+1FKB
+1TEN
+1UBI

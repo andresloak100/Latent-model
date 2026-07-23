@@ -1,0 +1,9 @@
+# Downloaded structures and derived data (reproducible via prepare_dataset.py)
+data/raw/
+data/processed/
+# Training outputs, but keep the committed Stage A benchmark under outputs/stage_a
+outputs/**/latest.pt
+outputs/**/final.pt
+__pycache__/
+*.pyc
+.pytest_cache/

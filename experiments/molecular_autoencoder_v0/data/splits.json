@@ -1,0 +1,29 @@
+{
+  "train": [
+    "1BDD_A",
+    "1BPI_A",
+    "1CRN_A",
+    "1CTF_A",
+    "1E0L_A",
+    "1ENH_A",
+    "1FKB_A",
+    "1FSD_A",
+    "1R69_A",
+    "1SHG_A",
+    "1TEN_A",
+    "1UBI_A",
+    "1UBQ_A",
+    "1VII_A",
+    "2CI2_I",
+    "5PTI_A"
+  ],
+  "val": [
+    "1CSP_A",
+    "1IGD_A",
+    "1L2Y_A",
+    "1MJC_A",
+    "1PGB_A"
+  ],
+  "sim_threshold": 0.4,
+  "val_fraction": 0.25
+}

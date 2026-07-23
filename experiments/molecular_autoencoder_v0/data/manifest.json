@@ -1,0 +1,452 @@
+{
+  "kept": [
+    {
+      "pdb_id": "1CRN",
+      "chain_id": "A",
+      "n_atoms": 327,
+      "n_residues": 46,
+      "chains_present": {
+        "A": 46
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 334,
+      "n_models": 1,
+      "n_water_atoms": 0,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "1UBQ",
+      "chain_id": "A",
+      "n_atoms": 602,
+      "n_residues": 76,
+      "chains_present": {
+        "A": 76
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 608,
+      "n_models": 1,
+      "n_water_atoms": 58,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "1PGB",
+      "chain_id": "A",
+      "n_atoms": 436,
+      "n_residues": 56,
+      "chains_present": {
+        "A": 56
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 442,
+      "n_models": 1,
+      "n_water_atoms": 24,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "1ENH",
+      "chain_id": "A",
+      "n_atoms": 466,
+      "n_residues": 54,
+      "chains_present": {
+        "A": 54
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 472,
+      "n_models": 1,
+      "n_water_atoms": 33,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "1SHG",
+      "chain_id": "A",
+      "n_atoms": 472,
+      "n_residues": 57,
+      "chains_present": {
+        "A": 57
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 481,
+      "n_models": 1,
+      "n_water_atoms": 0,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "1CSP",
+      "chain_id": "A",
+      "n_atoms": 505,
+      "n_residues": 67,
+      "chains_present": {
+        "A": 67
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 515,
+      "n_models": 1,
+      "n_water_atoms": 40,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "1MJC",
+      "chain_id": "A",
+      "n_atoms": 514,
+      "n_residues": 69,
+      "chains_present": {
+        "A": 69
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 525,
+      "n_models": 1,
+      "n_water_atoms": 36,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "1IGD",
+      "chain_id": "A",
+      "n_atoms": 468,
+      "n_residues": 61,
+      "chains_present": {
+        "A": 61
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 475,
+      "n_models": 1,
+      "n_water_atoms": 120,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "1BPI",
+      "chain_id": "A",
+      "n_atoms": 454,
+      "n_residues": 58,
+      "chains_present": {
+        "A": 58
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 465,
+      "n_models": 1,
+      "n_water_atoms": 167,
+      "n_hetero_atoms": 10,
+      "n_altloc_atoms": 22,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "5PTI",
+      "chain_id": "A",
+      "n_atoms": 454,
+      "n_residues": 58,
+      "chains_present": {
+        "A": 58
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 465,
+      "n_models": 1,
+      "n_water_atoms": 189,
+      "n_hetero_atoms": 6,
+      "n_altloc_atoms": 34,
+      "n_hydrogen_atoms": 344
+    },
+    {
+      "pdb_id": "2CI2",
+      "chain_id": "I",
+      "n_atoms": 521,
+      "n_residues": 65,
+      "chains_present": {
+        "I": 65
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 528,
+      "n_models": 1,
+      "n_water_atoms": 64,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "1VII",
+      "chain_id": "A",
+      "n_atoms": 295,
+      "n_residues": 36,
+      "chains_present": {
+        "A": 36
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 301,
+      "n_models": 1,
+      "n_water_atoms": 0,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 301
+    },
+    {
+      "pdb_id": "1L2Y",
+      "chain_id": "A",
+      "n_atoms": 154,
+      "n_residues": 20,
+      "chains_present": {
+        "A": 20
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 160,
+      "n_models": 38,
+      "n_water_atoms": 0,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 150
+    },
+    {
+      "pdb_id": "1FSD",
+      "chain_id": "A",
+      "n_atoms": 247,
+      "n_residues": 28,
+      "chains_present": {
+        "A": 28
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 250,
+      "n_models": 41,
+      "n_water_atoms": 0,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 257
+    },
+    {
+      "pdb_id": "1E0L",
+      "chain_id": "A",
+      "n_atoms": 309,
+      "n_residues": 37,
+      "chains_present": {
+        "A": 37
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 317,
+      "n_models": 10,
+      "n_water_atoms": 0,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 288
+    },
+    {
+      "pdb_id": "1BDD",
+      "chain_id": "A",
+      "n_atoms": 478,
+      "n_residues": 60,
+      "chains_present": {
+        "A": 60
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 485,
+      "n_models": 1,
+      "n_water_atoms": 0,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 463
+    },
+    {
+      "pdb_id": "1R69",
+      "chain_id": "A",
+      "n_atoms": 484,
+      "n_residues": 63,
+      "chains_present": {
+        "A": 63
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 488,
+      "n_models": 1,
+      "n_water_atoms": 34,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "1CTF",
+      "chain_id": "A",
+      "n_atoms": 487,
+      "n_residues": 68,
+      "chains_present": {
+        "A": 68
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 488,
+      "n_models": 1,
+      "n_water_atoms": 62,
+      "n_hetero_atoms": 5,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    },
+    {
+      "pdb_id": "1FKB",
+      "chain_id": "A",
+      "n_atoms": 832,
+      "n_residues": 107,
+      "chains_present": {
+        "A": 107
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 851,
+      "n_models": 1,
+      "n_water_atoms": 133,
+      "n_hetero_atoms": 68,
+      "n_altloc_atoms": 14,
+      "n_hydrogen_atoms": 192
+    },
+    {
+      "pdb_id": "1TEN",
+      "chain_id": "A",
+      "n_atoms": 698,
+      "n_residues": 90,
+      "chains_present": {
+        "A": 90
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 1,
+      "missing_residue_gaps": 0,
+      "n_bonds": 709,
+      "n_models": 1,
+      "n_water_atoms": 216,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 38,
+      "n_hydrogen_atoms": 292
+    },
+    {
+      "pdb_id": "1UBI",
+      "chain_id": "A",
+      "n_atoms": 602,
+      "n_residues": 76,
+      "chains_present": {
+        "A": 76
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 0,
+      "n_bonds": 608,
+      "n_models": 1,
+      "n_water_atoms": 81,
+      "n_hetero_atoms": 0,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    }
+  ],
+  "rejected": [
+    {
+      "pdb_id": "1PIN",
+      "reason": "residues_out_of_band(153)",
+      "chain_id": "A",
+      "n_atoms": 1213,
+      "n_residues": 153,
+      "chains_present": {
+        "A": 153
+      },
+      "multi_chain_entry": false,
+      "dropped_nonstandard_residues": {},
+      "dropped_unknown_atoms": 0,
+      "residues_incomplete_backbone": 0,
+      "missing_residue_gaps": 5,
+      "n_bonds": 1238,
+      "n_models": 1,
+      "n_water_atoms": 204,
+      "n_hetero_atoms": 41,
+      "n_altloc_atoms": 0,
+      "n_hydrogen_atoms": 0
+    }
+  ],
+  "filters": {
+    "min_residues": 20,
+    "max_residues": 120,
+    "max_atoms": 1200
+  }
+}
