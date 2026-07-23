@@ -56,16 +56,26 @@ def quick_rmsd(model, loader, device, max_batches=4):
     return sum(vals) / max(len(vals), 1)
 
 
+def resolve_device(name):
+    if name in ("auto", None):
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    return torch.device(name)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
-    ap.add_argument("--device", default="cpu")
+    ap.add_argument("--device", default="auto", help="auto|cpu|cuda")
+    ap.add_argument("--amp", action="store_true", help="mixed precision (GPU; experimental)")
+    ap.add_argument("--num-workers", type=int, default=0)
+    ap.add_argument("--pin-memory", action="store_true")
     args = ap.parse_args()
 
     cfg = ExperimentConfig.from_yaml(args.config)
     out_dir = ROOT / cfg.train.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-    device = torch.device(args.device)
+    device = resolve_device(args.device)
+    use_amp = args.amp and device.type == "cuda"
 
     utils.set_seed(cfg.train.seed)
     cfg.save(out_dir / "config.yaml")
@@ -75,13 +85,16 @@ def main():
     if len(dataset) == 0:
         raise SystemExit("No processed structures found. Run prepare_dataset.py first.")
     loader = DataLoader(dataset, batch_size=cfg.train.batch_size, shuffle=True,
-                        collate_fn=collate_fn, num_workers=0)
-    print(f"[train] {len(dataset)} structures: {keys}")
+                        collate_fn=collate_fn, num_workers=args.num_workers,
+                        pin_memory=(args.pin_memory and device.type == "cuda"))
+    print(f"[train] {len(dataset)} structures on {device} (amp={use_amp}); "
+          f"{'first ids: ' + str(keys[:8]) if len(keys) > 8 else keys}")
 
     model = MolecularAutoencoder(cfg.model).to(device)
     print(f"[train] model params: {model.num_parameters():,}  latent floats: {model.latent_floats}")
     opt = torch.optim.Adam(model.parameters(), lr=cfg.train.lr,
                            weight_decay=cfg.train.weight_decay)
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     loss_fn = LossComputer(cfg.loss, clash_dist=cfg.train.clash_dist)
 
     start_epoch = 0
@@ -106,12 +119,15 @@ def main():
         ep_comps, n_batches = {}, 0
         for batch in loader:
             gb = {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in batch.items()}
-            preds, _ = model(gb)
-            loss, comp = loss_fn(preds, gb)
             opt.zero_grad()
-            loss.backward()
+            with torch.autocast(device_type=device.type, enabled=use_amp):
+                preds, _ = model(gb)
+                loss, comp = loss_fn(preds, gb)
+            scaler.scale(loss).backward()
+            scaler.unscale_(opt)
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.train.grad_clip)
-            opt.step()
+            scaler.step(opt)
+            scaler.update()
             for k, v in comp.items():
                 ep_comps[k] = ep_comps.get(k, 0.0) + v
             n_batches += 1

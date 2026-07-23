@@ -51,6 +51,27 @@ def download_cif(pdb_id: str, cache_dir: Path, retries: int = 4) -> Path:
     raise RuntimeError(f"failed to download {pdb_id}: {r.stderr.strip()}")
 
 
+def prefetch_cifs(ids, cache_dir: Path, jobs: int):
+    """Download all CIFs concurrently (I/O bound) before parsing."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    todo = [p for p in ids if not (cache_dir / f"{p}.cif").exists()]
+    if not todo:
+        return
+    print(f"[prefetch] downloading {len(todo)} CIFs with {jobs} workers...")
+    done = 0
+    with ThreadPoolExecutor(max_workers=jobs) as ex:
+        futs = {ex.submit(download_cif, p, cache_dir): p for p in todo}
+        for f in as_completed(futs):
+            done += 1
+            try:
+                f.result()
+            except Exception as e:
+                print(f"  [prefetch] {futs[f]} failed: {e}")
+            if done % 200 == 0:
+                print(f"  [prefetch] {done}/{len(todo)}")
+
+
 def read_id_list(path: Path):
     ids = []
     for line in path.read_text().splitlines():
@@ -60,10 +81,42 @@ def read_id_list(path: Path):
     return ids
 
 
+def _cluster_split(clusters, keys, val_fraction, seed):
+    cluster_list = sorted(clusters.values(), key=lambda c: (-len(c), c[0]))
+    rng = np.random.default_rng(seed)
+    order = rng.permutation(len(cluster_list))
+    n_val_target = max(1, int(round(val_fraction * len(keys)))) if val_fraction > 0 else 0
+    val_keys, train_keys = [], []
+    for idx in order:
+        c = cluster_list[idx]
+        if len(val_keys) < n_val_target:
+            val_keys.extend(c)
+        else:
+            train_keys.extend(c)
+    if not train_keys:  # tiny datasets: keep everything in train
+        train_keys, val_keys = keys, []
+    return sorted(train_keys), sorted(val_keys)
+
+
+def exact_sequence_split(sequences: dict, val_fraction: float, seed: int):
+    """O(N) leakage-control split: group *identical* sequences into clusters.
+
+    Scales to thousands of structures. Catches the dominant PDB leakage source
+    (the same protein deposited many times) but NOT near-duplicates -- a proper
+    structural clustering (MMseqs2 / Foldseek) is the production solution and is
+    noted as future work.
+    """
+    clusters = {}
+    for k, seq in sequences.items():
+        clusters.setdefault(seq, []).append(k)
+    return _cluster_split(clusters, list(sequences.keys()), val_fraction, seed)
+
+
 def similarity_split(sequences: dict, val_fraction: float, threshold: float, seed: int):
     """Single-linkage cluster by sequence similarity, then split clusters.
 
-    ``sequences`` maps key -> one-letter sequence. Returns (train_keys, val_keys).
+    O(N^2) -- suitable for a few hundred structures. For larger sets use
+    ``exact_sequence_split``. Returns (train_keys, val_keys).
     """
     keys = list(sequences.keys())
     parent = {k: k for k in keys}
@@ -87,21 +140,17 @@ def similarity_split(sequences: dict, val_fraction: float, threshold: float, see
     clusters = {}
     for k in keys:
         clusters.setdefault(find(k), []).append(k)
-    cluster_list = sorted(clusters.values(), key=lambda c: (-len(c), c[0]))
+    return _cluster_split(clusters, keys, val_fraction, seed)
 
-    rng = np.random.default_rng(seed)
-    order = rng.permutation(len(cluster_list))
-    n_val_target = max(1, int(round(val_fraction * len(keys)))) if val_fraction > 0 else 0
-    val_keys, train_keys = [], []
-    for idx in order:
-        c = cluster_list[idx]
-        if len(val_keys) < n_val_target:
-            val_keys.extend(c)
-        else:
-            train_keys.extend(c)
-    if not train_keys:  # tiny datasets: keep everything in train
-        train_keys, val_keys = keys, []
-    return sorted(train_keys), sorted(val_keys)
+
+def split_dataset(sequences, val_fraction, threshold, seed, method="auto"):
+    """Choose a leakage-control split scalable to the dataset size."""
+    n = len(sequences)
+    if method == "auto":
+        method = "similarity" if n <= 400 else "exact"
+    if method == "similarity":
+        return method, similarity_split(sequences, val_fraction, threshold, seed)
+    return method, exact_sequence_split(sequences, val_fraction, seed)
 
 
 def main():
@@ -111,6 +160,8 @@ def main():
     ap.add_argument("--cache-dir", default=None)
     ap.add_argument("--val-fraction", type=float, default=0.25)
     ap.add_argument("--sim-threshold", type=float, default=0.4)
+    ap.add_argument("--split-method", default="auto", choices=["auto", "similarity", "exact"])
+    ap.add_argument("--jobs", type=int, default=8, help="parallel download workers")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
@@ -129,6 +180,9 @@ def main():
         "max_atoms": cfg.data.max_atoms,
     }}
     sequences = {}
+
+    if args.jobs > 1:
+        prefetch_cifs(ids, cache_dir, args.jobs)
 
     for pid in ids:
         try:
@@ -168,16 +222,16 @@ def main():
         print(f"  {pid}: kept chain {ps.chain_id}  {nres} res  {natoms} atoms  {ps.record['n_bonds']} bonds")
 
     # Split.
-    train_keys, val_keys = similarity_split(
-        sequences, args.val_fraction, args.sim_threshold, args.seed
+    method, (train_keys, val_keys) = split_dataset(
+        sequences, args.val_fraction, args.sim_threshold, args.seed, args.split_method
     )
-    splits = {"train": train_keys, "val": val_keys,
+    splits = {"train": train_keys, "val": val_keys, "split_method": method,
               "sim_threshold": args.sim_threshold, "val_fraction": args.val_fraction}
     utils.save_json(splits, ROOT / cfg.data.splits_file)
     utils.save_json(manifest, ROOT / "data" / "manifest.json")
 
     print(f"\n[prepare] kept {len(manifest['kept'])}, rejected {len(manifest['rejected'])}")
-    print(f"[prepare] split: {len(train_keys)} train / {len(val_keys)} val")
+    print(f"[prepare] split ({method}): {len(train_keys)} train / {len(val_keys)} val")
     print(f"[prepare] processed -> {processed_dir}")
 
 

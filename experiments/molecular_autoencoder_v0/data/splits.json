@@ -24,6 +24,7 @@
     "1MJC_A",
     "1PGB_A"
   ],
+  "split_method": "similarity",
   "sim_threshold": 0.4,
   "val_fraction": 0.25
 }

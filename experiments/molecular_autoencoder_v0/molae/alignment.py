@@ -48,11 +48,13 @@ def kabsch_align_torch(
     # gradients when H is degenerate (collapsed/collinear predictions or
     # repeated singular values from symmetric inputs).
     with torch.no_grad():
-        u, _, vh = torch.linalg.svd(h)
+        # SVD in float32 for stability and AMP/fp16 safety, then cast back.
+        hf = h.float()
+        u, _, vh = torch.linalg.svd(hf)
         d = torch.sign(torch.linalg.det(torch.matmul(u, vh)))
-        diag = torch.eye(3, device=pred.device, dtype=pred.dtype).unsqueeze(0).repeat(pred.shape[0], 1, 1)
+        diag = torch.eye(3, device=pred.device, dtype=hf.dtype).unsqueeze(0).repeat(pred.shape[0], 1, 1)
         diag[:, 2, 2] = d
-        rot = torch.matmul(torch.matmul(u, diag), vh)  # (B, 3, 3)
+        rot = torch.matmul(torch.matmul(u, diag), vh).to(pred.dtype)  # (B, 3, 3)
 
     aligned = torch.matmul(pred - pred_c.detach(), rot) + tgt_c.detach()
     return aligned * w
