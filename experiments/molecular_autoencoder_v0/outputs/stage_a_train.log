@@ -1,0 +1,28 @@
+[train] 21 structures: ['1BDD_A', '1BPI_A', '1CRN_A', '1CTF_A', '1E0L_A', '1ENH_A', '1FKB_A', '1FSD_A', '1R69_A', '1SHG_A', '1TEN_A', '1UBI_A', '1UBQ_A', '1VII_A', '2CI2_I', '5PTI_A', '1CSP_A', '1IGD_A', '1L2Y_A', '1MJC_A', '1PGB_A']
+[train] model params: 1,494,411  latent floats: 128
+  epoch     0  total=127.5704  coord=116.1874  bond=1.0895  clash=0.0353  rmsd=10.365A
+  epoch    50  total=30.5991  coord=26.7750  bond=0.8955  clash=0.0029  rmsd=4.992A
+  epoch   100  total=11.5920  coord=9.2837  bond=0.7521  clash=0.0019  rmsd=2.916A
+  epoch   150  total=6.0710  coord=4.4376  bond=0.6096  clash=0.0012  rmsd=2.008A
+  epoch   200  total=4.4090  coord=3.1071  bond=0.5079  clash=0.0009  rmsd=1.620A
+  epoch   250  total=3.2343  coord=2.2054  bond=0.4266  clash=0.0006  rmsd=1.518A
+  epoch   300  total=2.5072  coord=1.6789  bond=0.3313  clash=0.0004  rmsd=1.251A
+  epoch   350  total=1.6915  coord=1.0929  bond=0.2661  clash=0.0002  rmsd=1.126A
+  epoch   400  total=1.4279  coord=0.9195  bond=0.2247  clash=0.0001  rmsd=0.917A
+  epoch   450  total=1.3325  coord=0.8582  bond=0.1995  clash=0.0001  rmsd=0.861A
+  epoch   500  total=1.3203  coord=0.8703  bond=0.1865  clash=0.0001  rmsd=0.846A
+  epoch   550  total=1.2111  coord=0.8004  bond=0.1654  clash=0.0001  rmsd=0.750A
+  epoch   600  total=0.8968  coord=0.5714  bond=0.1429  clash=0.0001  rmsd=0.665A
+  epoch   650  total=0.8595  coord=0.5462  bond=0.1371  clash=0.0000  rmsd=0.685A
+  epoch   700  total=0.9918  coord=0.6287  bond=0.1400  clash=0.0000  rmsd=0.723A
+  epoch   750  total=1.0134  coord=0.6602  bond=0.1335  clash=0.0001  rmsd=0.789A
+  epoch   800  total=0.5681  coord=0.3422  bond=0.1110  clash=0.0000  rmsd=0.528A
+  epoch   850  total=0.6560  coord=0.4142  bond=0.1106  clash=0.0000  rmsd=0.605A
+  epoch   900  total=0.5990  coord=0.3663  bond=0.1086  clash=0.0000  rmsd=0.489A
+  epoch   950  total=0.4596  coord=0.2780  bond=0.0848  clash=0.0000  rmsd=0.483A
+  epoch  1000  total=0.4577  coord=0.2721  bond=0.0933  clash=0.0000  rmsd=0.558A
+  epoch  1050  total=0.3845  coord=0.2227  bond=0.0781  clash=0.0000  rmsd=0.460A
+  epoch  1100  total=0.3795  coord=0.2249  bond=0.0757  clash=0.0000  rmsd=0.446A
+  epoch  1150  total=0.4137  coord=0.2400  bond=0.0887  clash=0.0000  rmsd=0.461A
+  epoch  1199  total=0.4641  coord=0.2718  bond=0.0941  clash=0.0000  rmsd=0.428A
+[train] done in 1053.9s -> /home/user/Latent-model/experiments/molecular_autoencoder_v0/outputs/stage_a
