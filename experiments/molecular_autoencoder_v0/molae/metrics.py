@@ -142,14 +142,26 @@ def clash_metrics(coords, bonds, radii, clash_dist=1.2, max_atoms=2000, seed=0):
         pa, pb = int(pair_a[k]), int(pair_b[k])
         if (pa, pb) not in bonded:
             n_clash += 1
-    per_1000 = 1000.0 * n_clash / max(n, 1)
-    return {"clash_count": int(n_clash), "clashes_per_1000_atoms": float(per_1000)}
+    # When subsampled we examined only C(m,2) of C(n,2) pairs; scale the count
+    # up so the per-1000-atoms rate is an unbiased, size-comparable estimate.
+    m = idx.shape[0]
+    total_pairs = n * (n - 1) / 2.0
+    examined_pairs = m * (m - 1) / 2.0
+    scale = (total_pairs / examined_pairs) if examined_pairs > 0 else 1.0
+    n_clash_est = n_clash * scale
+    per_1000 = 1000.0 * n_clash_est / max(n, 1)
+    return {
+        "clash_count": int(round(n_clash_est)),
+        "clashes_per_1000_atoms": float(per_1000),
+        "clash_subsampled": bool(m < n),
+    }
 
 
 def contact_map_recovery(pred, target, topo: TopologyInfo, cutoff=8.0, seq_sep=3):
     ca = topo.ca_per_residue
     ca = ca[ca >= 0]
-    if ca.shape[0] < seq_sep + 2:
+    # A valid contact pair (i, i+seq_sep) exists once L >= seq_sep + 1.
+    if ca.shape[0] < seq_sep + 1:
         return {"contact_f1": float("nan"), "contact_precision": float("nan"),
                 "contact_recall": float("nan")}
     cp, ct = pred[ca], target[ca]

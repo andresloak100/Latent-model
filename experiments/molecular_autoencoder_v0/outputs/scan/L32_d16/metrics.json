@@ -27,6 +27,7 @@
       "n_atoms": 505,
       "clash_count": 204,
       "clashes_per_1000_atoms": 403.96039603960395,
+      "clash_subsampled": false,
       "contact_f1": 0.12345679012345678,
       "contact_precision": 0.0970873786407767,
       "contact_recall": 0.1694915254237288,
@@ -46,6 +47,7 @@
       "n_atoms": 468,
       "clash_count": 202,
       "clashes_per_1000_atoms": 431.62393162393164,
+      "clash_subsampled": false,
       "contact_f1": 0.15172413793103448,
       "contact_precision": 0.11262798634812286,
       "contact_recall": 0.2323943661971831,
@@ -65,6 +67,7 @@
       "n_atoms": 154,
       "clash_count": 46,
       "clashes_per_1000_atoms": 298.7012987012987,
+      "clash_subsampled": false,
       "contact_f1": 0.22641509433962265,
       "contact_precision": 0.3,
       "contact_recall": 0.18181818181818182,
@@ -84,6 +87,7 @@
       "n_atoms": 514,
       "clash_count": 207,
       "clashes_per_1000_atoms": 402.7237354085603,
+      "clash_subsampled": false,
       "contact_f1": 0.09999999999999999,
       "contact_precision": 0.07045454545454545,
       "contact_recall": 0.17222222222222222,
@@ -103,6 +107,7 @@
       "n_atoms": 436,
       "clash_count": 160,
       "clashes_per_1000_atoms": 366.9724770642202,
+      "clash_subsampled": false,
       "contact_f1": 0.17054263565891473,
       "contact_precision": 0.132,
       "contact_recall": 0.24087591240875914,
@@ -117,12 +122,36 @@
   "cohort": {
     "n_res": 20,
     "n_atoms": 80,
-    "ids": [
+    "eval_ids": [
       "1CSP",
       "1IGD",
       "1L2Y",
       "1MJC",
       "1PGB"
+    ],
+    "pca_fit_ids": [
+      "1BDD",
+      "1BPI",
+      "1CRN",
+      "1CTF",
+      "1E0L",
+      "1ENH",
+      "1FKB",
+      "1FSD",
+      "1R69",
+      "1SHG",
+      "1UBI",
+      "1UBQ",
+      "1VII",
+      "2CI2",
+      "5PTI"
+    ],
+    "pca_fit_on_train_scored_on_eval": true,
+    "pca_k_skipped_capped_by_n_train": [
+      16,
+      32,
+      64,
+      512
     ],
     "learned_autoencoder": {
       "mean_backbone_rmsd": 9.362292364816705,
@@ -136,28 +165,33 @@
         "compression_ratio": 1.0
       },
       "mean_shape": {
-        "mean_backbone_rmsd": 4.9662444689509595,
+        "mean_backbone_rmsd": 6.406955572863872,
         "latent_floats": 0,
         "compression_ratio": Infinity
       },
       "pca_k2": {
-        "mean_backbone_rmsd": 1.7268361882867054,
+        "mean_backbone_rmsd": 4.6029159877843195,
         "latent_floats": 2,
         "compression_ratio": 120.0
       },
       "pca_k4": {
-        "mean_backbone_rmsd": 4.7116355792442186e-15,
+        "mean_backbone_rmsd": 3.786853329437487,
         "latent_floats": 4,
         "compression_ratio": 60.0
+      },
+      "pca_k8": {
+        "mean_backbone_rmsd": 3.244078726715769,
+        "latent_floats": 8,
+        "compression_ratio": 30.0
       }
     }
   },
   "timing": {
-    "mean_inference_s_per_structure": 0.008862543106079101,
+    "mean_inference_s_per_structure": 0.008658885955810547,
     "n_structures_timed": 5
   },
   "memory": {
-    "peak_host_rss_mb": 440.55078125,
+    "peak_host_rss_mb": 434.69140625,
     "peak_gpu_mb": null,
     "gpu_note": "N/A (CPU-only run)"
   }

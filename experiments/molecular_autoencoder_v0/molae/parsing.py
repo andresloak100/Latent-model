@@ -5,7 +5,8 @@ Design decisions (recorded per structure so filtering is auditable):
   * A single polymer (peptide) chain is selected; other chains are dropped
     and recorded.
   * Waters, ligands, ions, and hydrogens are removed.
-  * Alternate conformations are collapsed (highest occupancy kept by gemmi).
+  * Alternate conformations are collapsed to a single conformer (gemmi's
+    ``remove_alternative_conformations`` keeps one altloc per atom).
   * Only the 20 standard amino acids are kept; non-standard residues are
     dropped and recorded (this prototype does not model modified residues).
   * Only heavy atoms whose names are in the fixed vocabulary are kept.
@@ -27,6 +28,10 @@ import numpy as np
 import gemmi
 
 from . import constants as C
+
+
+class AllResiduesFiltered(ValueError):
+    """Raised when a peptide chain exists but nothing survives filtering."""
 
 
 @dataclass
@@ -146,8 +151,10 @@ def parse_structure(
 
     model = st[0]
 
-    # Enumerate peptide chains and their lengths.
-    chain_lengths = {}
+    # Enumerate all chains (peptide and non-peptide) so the audit trail records
+    # everything that was present and which chains were dropped.
+    chain_lengths = {}          # peptide chains only (selection candidates)
+    all_chains = {}             # name -> {"type", "length"} for every chain
     for chain in model:
         poly = chain.get_polymer()
         ptype = poly.check_polymer_type()
@@ -155,6 +162,7 @@ def parse_structure(
             gemmi.PolymerType.PeptideL,
             gemmi.PolymerType.PeptideD,
         )
+        all_chains[chain.name] = {"polymer_type": str(ptype), "length": len(poly)}
         if is_peptide:
             chain_lengths[chain.name] = len(poly)
 
@@ -225,7 +233,12 @@ def parse_structure(
         pos += 1
 
     if not coords:
-        return None
+        # A peptide chain existed but every residue/atom was filtered out
+        # (non-standard residues, unknown atom names). Distinguish this from
+        # the no-peptide-chain case so the manifest is accurate.
+        raise AllResiduesFiltered(
+            f"{pdb_id}: peptide chain {selected} had no usable standard-AA heavy atoms"
+        )
 
     coords = np.asarray(coords, dtype=np.float32)
     res_pos = np.asarray(res_pos, dtype=np.int64)
@@ -237,6 +250,8 @@ def parse_structure(
         "n_atoms": int(coords.shape[0]),
         "n_residues": int(res_pos.max()) + 1,
         "chains_present": dict(chain_lengths),
+        "all_chains": all_chains,
+        "dropped_non_peptide_chains": [n for n in all_chains if n not in chain_lengths],
         "multi_chain_entry": len(chain_lengths) > 1,
         "dropped_nonstandard_residues": dropped_nonstandard,
         "dropped_unknown_atoms": dropped_unknown_atoms,

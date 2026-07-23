@@ -48,6 +48,21 @@ def test_overfits_single_structure():
     assert rmsd < 1.5, f"model failed to overfit: RMSD={rmsd:.3f}"
 
 
+def test_checkpoint_rng_state_restores_stream(tmp_path):
+    """Regression: restoring the saved RNG continues the same random stream."""
+    model, _ = _tiny_model()
+    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    utils.set_seed(0)
+    _ = torch.rand(5)                      # advance the stream
+    path = tmp_path / "c.pt"
+    utils.save_checkpoint(path, model, opt, epoch=1)   # captures rng state here
+    expected = torch.rand(4)               # the "next" draws after the save
+    ckpt = torch.load(path, weights_only=False)
+    torch.set_rng_state(ckpt["rng_torch"].to("cpu", torch.uint8))
+    got = torch.rand(4)
+    assert torch.allclose(expected, got)
+
+
 def test_checkpoint_roundtrip(tmp_path):
     model, cfg = _tiny_model()
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)

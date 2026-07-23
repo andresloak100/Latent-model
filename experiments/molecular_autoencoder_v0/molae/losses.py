@@ -26,6 +26,8 @@ def coord_loss_single(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
 
 def distance_loss_single(pred, target, max_atoms=1200):
     n = pred.shape[0]
+    if n < 2:  # no atom pairs -> empty reduction would be NaN
+        return pred.new_zeros(())
     if n > max_atoms:
         idx = torch.linspace(0, n - 1, max_atoms, device=pred.device).long()
         pred, target = pred[idx], target[idx]

@@ -91,6 +91,13 @@ def main():
         ckpt = utils.load_checkpoint(latest, model, opt)
         start_epoch = ckpt["epoch"] + 1
         log = ckpt["extra"].get("log", [])
+        # Restore RNG *after* set_seed above, so a resumed run continues the
+        # same random stream instead of restarting it from the base seed.
+        if ckpt.get("rng_torch") is not None:
+            torch.set_rng_state(ckpt["rng_torch"].to("cpu", torch.uint8))
+        if ckpt.get("rng_numpy") is not None:
+            import numpy as _np
+            _np.random.set_state(ckpt["rng_numpy"])
         print(f"[train] resumed from epoch {start_epoch}")
 
     t0 = time.time()

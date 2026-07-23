@@ -40,14 +40,21 @@ def kabsch_align_torch(
 
     # Covariance matrix H = p^T q, (B, 3, 3).
     h = torch.einsum("bni,bnj->bij", p, q)
-    u, _, vh = torch.linalg.svd(h)
-    # Correct for reflection so we get a proper rotation (det = +1).
-    d = torch.sign(torch.linalg.det(torch.matmul(u, vh)))
-    diag = torch.eye(3, device=pred.device, dtype=pred.dtype).unsqueeze(0).repeat(pred.shape[0], 1, 1)
-    diag[:, 2, 2] = d
-    rot = torch.matmul(torch.matmul(u, diag), vh)  # (B, 3, 3)
+    # SVD is computed under no_grad and the resulting rigid transform is
+    # detached. By the envelope theorem the gradient of min_R ||R.pred - tgt||
+    # w.r.t. pred equals the partial gradient at the optimal R (treating R as
+    # constant), so detaching gives the *correct* gradient -- and it avoids the
+    # SVD-backward singularity (division by s_i^2 - s_j^2) that produces NaN
+    # gradients when H is degenerate (collapsed/collinear predictions or
+    # repeated singular values from symmetric inputs).
+    with torch.no_grad():
+        u, _, vh = torch.linalg.svd(h)
+        d = torch.sign(torch.linalg.det(torch.matmul(u, vh)))
+        diag = torch.eye(3, device=pred.device, dtype=pred.dtype).unsqueeze(0).repeat(pred.shape[0], 1, 1)
+        diag[:, 2, 2] = d
+        rot = torch.matmul(torch.matmul(u, diag), vh)  # (B, 3, 3)
 
-    aligned = torch.matmul(pred - pred_c, rot) + tgt_c
+    aligned = torch.matmul(pred - pred_c.detach(), rot) + tgt_c.detach()
     return aligned * w
 
 

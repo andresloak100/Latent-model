@@ -66,3 +66,24 @@ def test_torch_alignment_differentiable():
     loss = aligned_rmsd_torch(x, y, mask).sum()
     loss.backward()
     assert x.grad is not None and torch.isfinite(x.grad).all()
+
+
+def test_gradient_finite_on_collapsed_prediction():
+    """Regression: degenerate cross-covariance (H=0) must not NaN the grad."""
+    x = torch.zeros(1, 10, 3, requires_grad=True)   # all atoms coincide -> H=0
+    y = torch.randn(1, 10, 3)
+    mask = torch.ones(1, 10)
+    loss = aligned_rmsd_torch(x, y, mask).sum()
+    loss.backward()
+    assert torch.isfinite(x.grad).all()
+
+
+def test_gradient_finite_on_collinear_prediction():
+    """Regression: rank-1 H (collinear points, repeated singular values)."""
+    line = torch.linspace(0, 1, 8).unsqueeze(-1) * torch.tensor([1.0, 0.0, 0.0])
+    x = line.unsqueeze(0).clone().requires_grad_(True)
+    y = torch.randn(1, 8, 3)
+    mask = torch.ones(1, 8)
+    loss = aligned_rmsd_torch(x, y, mask).sum()
+    loss.backward()
+    assert torch.isfinite(x.grad).all()

@@ -149,9 +149,28 @@ def main():
     # ---- Baseline comparison on a fixed-length backbone cohort ----
     n_res_cohort = min(d["res_pos"].max() + 1 for d in struct_dicts)
     n_res_cohort = int(min(n_res_cohort, cfg.data.min_residues))
-    X, cohort_ids, _ = build_backbone_cohort(struct_dicts, n_res_cohort)
+
+    # Fit PCA / mean-shape on the TRAIN cohort and score on the EVAL cohort so
+    # the comparison is not data-leaked. Both cohorts are aligned to the same
+    # reference frame (required for a fitted PCA basis to transfer).
+    splits = utils.load_json(ROOT / cfg.data.splits_file)
+    train_dicts = []
+    for k in splits["train"]:
+        p = processed / f"{k}.npz"
+        if p.exists():
+            dd = np.load(p, allow_pickle=True)
+            c = dd["coords"].astype(np.float64)
+            train_dicts.append({"coords": c - c.mean(0, keepdims=True),
+                                "atom_name_idx": dd["atom_name_idx"],
+                                "res_pos": dd["res_pos"], "pdb_id": str(dd["pdb_id"])})
+    X_train, train_ids, ref = build_backbone_cohort(train_dicts, n_res_cohort)
+    X_test, cohort_ids, _ = build_backbone_cohort(struct_dicts, n_res_cohort, ref=ref)
     k_list = [2, 4, 8, 16, 32, 64, latent_floats]
-    baseline_results = evaluate_baselines(X, X, n_res_cohort, k_list) if X.shape[0] else {}
+    baseline_results = (evaluate_baselines(X_train, X_test, n_res_cohort, k_list)
+                        if X_train.shape[0] and X_test.shape[0] else {})
+    ran_k = {int(v["latent_floats"]) for name, v in baseline_results.items() if name.startswith("pca_k")}
+    skipped_k = [k for k in k_list if k not in ran_k and k > 0]
+    X = X_test  # for downstream references
 
     # Learned model on the SAME cohort (backbone RMSD over first n_res residues).
     ae_cohort_rmsds = []
@@ -179,7 +198,10 @@ def main():
         "cohort": {
             "n_res": n_res_cohort,
             "n_atoms": 4 * n_res_cohort,
-            "ids": cohort_ids,
+            "eval_ids": cohort_ids,
+            "pca_fit_ids": train_ids,
+            "pca_fit_on_train_scored_on_eval": True,
+            "pca_k_skipped_capped_by_n_train": skipped_k,
             "learned_autoencoder": ae_cohort,
             "baselines": baseline_results,
         },

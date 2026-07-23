@@ -27,6 +27,7 @@
       "n_atoms": 478,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.9312977099236641,
       "contact_precision": 0.9384615384615385,
       "contact_recall": 0.9242424242424242,
@@ -46,6 +47,7 @@
       "n_atoms": 454,
       "clash_count": 15,
       "clashes_per_1000_atoms": 33.03964757709251,
+      "clash_subsampled": false,
       "contact_f1": 0.934640522875817,
       "contact_precision": 0.9166666666666666,
       "contact_recall": 0.9533333333333334,
@@ -65,6 +67,7 @@
       "n_atoms": 327,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.9606986899563318,
       "contact_precision": 0.9565217391304348,
       "contact_recall": 0.9649122807017544,
@@ -84,6 +87,7 @@
       "n_atoms": 487,
       "clash_count": 1,
       "clashes_per_1000_atoms": 2.0533880903490758,
+      "clash_subsampled": false,
       "contact_f1": 0.9815303430079155,
       "contact_precision": 0.9893617021276596,
       "contact_recall": 0.9738219895287958,
@@ -103,6 +107,7 @@
       "n_atoms": 309,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.9323308270676692,
       "contact_precision": 0.9253731343283582,
       "contact_recall": 0.9393939393939394,
@@ -122,6 +127,7 @@
       "n_atoms": 466,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.99,
       "contact_precision": 0.99,
       "contact_recall": 0.99,
@@ -141,6 +147,7 @@
       "n_atoms": 832,
       "clash_count": 1,
       "clashes_per_1000_atoms": 1.2019230769230769,
+      "clash_subsampled": false,
       "contact_f1": 0.9570552147239264,
       "contact_precision": 0.9629629629629629,
       "contact_recall": 0.9512195121951219,
@@ -160,6 +167,7 @@
       "n_atoms": 247,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.9818181818181818,
       "contact_precision": 0.9818181818181818,
       "contact_recall": 0.9818181818181818,
@@ -179,6 +187,7 @@
       "n_atoms": 484,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.9423076923076922,
       "contact_precision": 0.91875,
       "contact_recall": 0.9671052631578947,
@@ -198,6 +207,7 @@
       "n_atoms": 472,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.961038961038961,
       "contact_precision": 0.961038961038961,
       "contact_recall": 0.961038961038961,
@@ -217,6 +227,7 @@
       "n_atoms": 698,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.9543568464730291,
       "contact_precision": 0.9504132231404959,
       "contact_recall": 0.9583333333333334,
@@ -236,6 +247,7 @@
       "n_atoms": 602,
       "clash_count": 13,
       "clashes_per_1000_atoms": 21.59468438538206,
+      "clash_subsampled": false,
       "contact_f1": 0.9606741573033708,
       "contact_precision": 0.9661016949152542,
       "contact_recall": 0.9553072625698324,
@@ -255,6 +267,7 @@
       "n_atoms": 602,
       "clash_count": 13,
       "clashes_per_1000_atoms": 21.59468438538206,
+      "clash_subsampled": false,
       "contact_f1": 0.96045197740113,
       "contact_precision": 0.96045197740113,
       "contact_recall": 0.96045197740113,
@@ -274,6 +287,7 @@
       "n_atoms": 295,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.9664429530201343,
       "contact_precision": 0.96,
       "contact_recall": 0.972972972972973,
@@ -293,6 +307,7 @@
       "n_atoms": 521,
       "clash_count": 1,
       "clashes_per_1000_atoms": 1.9193857965451055,
+      "clash_subsampled": false,
       "contact_f1": 0.962962962962963,
       "contact_precision": 0.9470198675496688,
       "contact_recall": 0.9794520547945206,
@@ -312,6 +327,7 @@
       "n_atoms": 454,
       "clash_count": 12,
       "clashes_per_1000_atoms": 26.431718061674008,
+      "clash_subsampled": false,
       "contact_f1": 0.9354838709677419,
       "contact_precision": 0.90625,
       "contact_recall": 0.9666666666666667,
@@ -331,6 +347,7 @@
       "n_atoms": 505,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.961111111111111,
       "contact_precision": 0.9453551912568307,
       "contact_recall": 0.9774011299435028,
@@ -350,6 +367,7 @@
       "n_atoms": 468,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.9788732394366197,
       "contact_precision": 0.9788732394366197,
       "contact_recall": 0.9788732394366197,
@@ -369,6 +387,7 @@
       "n_atoms": 154,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.9705882352941176,
       "contact_precision": 0.9428571428571428,
       "contact_recall": 1.0,
@@ -388,6 +407,7 @@
       "n_atoms": 514,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.9586776859504132,
       "contact_precision": 0.9508196721311475,
       "contact_recall": 0.9666666666666667,
@@ -407,6 +427,7 @@
       "n_atoms": 436,
       "clash_count": 0,
       "clashes_per_1000_atoms": 0.0,
+      "clash_subsampled": false,
       "contact_f1": 0.9705882352941176,
       "contact_precision": 0.9777777777777777,
       "contact_recall": 0.9635036496350365,
@@ -421,7 +442,7 @@
   "cohort": {
     "n_res": 20,
     "n_atoms": 80,
-    "ids": [
+    "eval_ids": [
       "1BDD",
       "1BPI",
       "1CRN",
@@ -443,6 +464,30 @@
       "1MJC",
       "1PGB"
     ],
+    "pca_fit_ids": [
+      "1BDD",
+      "1BPI",
+      "1CRN",
+      "1CTF",
+      "1E0L",
+      "1ENH",
+      "1FKB",
+      "1FSD",
+      "1R69",
+      "1SHG",
+      "1UBI",
+      "1UBQ",
+      "1VII",
+      "2CI2",
+      "5PTI"
+    ],
+    "pca_fit_on_train_scored_on_eval": true,
+    "pca_k_skipped_capped_by_n_train": [
+      16,
+      32,
+      64,
+      128
+    ],
     "learned_autoencoder": {
       "mean_backbone_rmsd": 0.36360382755043885,
       "latent_floats": 128,
@@ -455,38 +500,33 @@
         "compression_ratio": 1.0
       },
       "mean_shape": {
-        "mean_backbone_rmsd": 4.917313915203964,
+        "mean_backbone_rmsd": 5.020240269106711,
         "latent_floats": 0,
         "compression_ratio": Infinity
       },
       "pca_k2": {
-        "mean_backbone_rmsd": 2.832206190782766,
+        "mean_backbone_rmsd": 3.110773686199695,
         "latent_floats": 2,
         "compression_ratio": 120.0
       },
       "pca_k4": {
-        "mean_backbone_rmsd": 2.0801401415692373,
+        "mean_backbone_rmsd": 2.33635691684131,
         "latent_floats": 4,
         "compression_ratio": 60.0
       },
       "pca_k8": {
-        "mean_backbone_rmsd": 1.267219621609297,
+        "mean_backbone_rmsd": 1.4757358223259984,
         "latent_floats": 8,
         "compression_ratio": 30.0
-      },
-      "pca_k16": {
-        "mean_backbone_rmsd": 0.1539764914318775,
-        "latent_floats": 16,
-        "compression_ratio": 15.0
       }
     }
   },
   "timing": {
-    "mean_inference_s_per_structure": 0.007482131322224935,
+    "mean_inference_s_per_structure": 0.007610843295142764,
     "n_structures_timed": 21
   },
   "memory": {
-    "peak_host_rss_mb": 478.8046875,
+    "peak_host_rss_mb": 477.96875,
     "peak_gpu_mb": null,
     "gpu_note": "N/A (CPU-only run)"
   }

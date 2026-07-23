@@ -70,3 +70,10 @@ def test_chirality_loss_detects_reflection():
 def test_distance_loss_zero_on_identity():
     _, coords, _ = _synth_tensors()
     assert distance_loss_single(coords, coords).item() < 1e-6
+
+
+def test_distance_loss_single_atom_is_zero_not_nan():
+    """Regression: n<2 has no atom pairs -> must return 0, not NaN."""
+    one = torch.zeros(1, 3)
+    v = distance_loss_single(one, one)
+    assert torch.isfinite(v).all() and v.item() == 0.0

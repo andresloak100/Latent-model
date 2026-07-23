@@ -62,22 +62,25 @@ contact recovery. Compression grows with protein size (19.5× on the
 832-atom `1FKB`), the key property of a fixed-size latent. Pipeline
 **validated**.
 
-### Baseline comparison on a fixed backbone cohort (train, 80 atoms, 240 floats)
+### Baseline comparison on a fixed backbone cohort (80 atoms, 240 floats)
+
+PCA fit on the **15 training** structures that have a complete 20-residue
+backbone, scored on the full cohort. (k ≥ 16 is skipped: with 15 training
+samples PCA has at most 15 components — the matched-budget 128-float row is
+simply not available at this data scale.)
 
 | method | latent floats | compression | backbone RMSD (Å) |
 |---|---|---|---|
 | learned AE (encodes the *whole* protein) | 128 | — | 0.364 |
-| PCA k=16 | 16 | 15× | 0.154 |
-| PCA k=8 | 8 | 30× | 1.27 |
-| PCA k=4 | 4 | 60× | 2.08 |
-| mean shape | 0 | ∞ | 4.92 |
+| PCA k=8 | 8 | 30× | 1.48 |
+| PCA k=4 | 4 | 60× | 2.34 |
+| PCA k=2 | 2 | 120× | 3.11 |
+| mean shape | 0 | ∞ | 5.02 |
 
-**Read this carefully.** On the *training* cohort PCA at k=16 beats the AE —
-but with only 21 structures, ~16 principal components reconstruct the
-training set almost perfectly (k ≈ n_samples is memorisation, not
-compression). Also the PCA cohort compresses only 80 backbone atoms while the
-AE compresses the entire all-atom structure. So this table is **not** a
-verdict; the meaningful test is held-out (below).
+The AE wins here, but this cohort *overlaps its training set* and the PCA
+cohort compresses only 80 backbone atoms while the AE compresses the entire
+all-atom structure — so this is **not** a verdict. The meaningful, leak-free
+test is held-out (below), and it tells a very different story.
 
 ---
 
@@ -96,29 +99,62 @@ budgets (500 epochs each).
 Held-out centroid (Rg) baseline on the val set ≈ **10.2 Å**.
 
 **Finding:** train RMSD is ~1 Å (the model *has* capacity and fits the
-training folds), but held-out RMSD is ~11 Å — **no better than predicting the
-centroid** — and essentially **flat across all latent sizes**. The bottleneck
-is therefore **not** the latent budget; it is the **number of training
-structures**. With 16 folds the encoder/decoder memorise seen structures and
-produce out-of-distribution garbage for unseen folds. This is a genuine,
-expected result at this scale, not an architecture failure.
+training folds), but held-out all-atom RMSD is ~11 Å — **no better than
+predicting the centroid** — and essentially **flat across all latent sizes**.
+The bottleneck is therefore **not** the latent budget; it is the **number of
+training structures**.
+
+### Leak-free held-out comparison vs PCA (backbone cohort, 5 val folds)
+
+PCA fit on the 16 training folds, scored on the 5 **unseen** val folds
+(same 80-backbone-atom cohort as above; both cohorts aligned to a common
+frame). This is the honest head-to-head:
+
+| method | latent floats | held-out backbone RMSD (Å) |
+|---|---|---|
+| PCA k=8 | 8 | **3.24** |
+| PCA k=4 | 4 | 3.79 |
+| PCA k=2 | 2 | 4.60 |
+| mean shape | 0 | 6.41 |
+| learned AE (whole protein) | 128 | 8.87 |
+
+**On held-out folds, PCA with 8 floats (3.24 Å) beats the neural
+autoencoder at 128 floats (8.87 Å) by a wide margin — and the AE even loses
+to the mean-shape baseline.** With 16 training structures the encoder/decoder
+memorise seen structures and produce near-random geometry for unseen folds,
+whereas a simple linear model at least captures the dominant backbone
+variance. This is a genuine, expected data-starvation result, not an
+architecture failure (the same model fits the training set to ~1 Å).
 
 ---
 
 ## Answer to the headline question
 
-- **Versus trivial baselines, in-distribution:** decisively better — 0.43 Å
-  vs ~11 Å (centroid), with correct chirality/bonds/contacts.
-- **Versus PCA, at matched budget:** not a clean win at this scale. PCA is a
-  very strong fixed-size linear compressor and trivially memorises tiny
-  datasets; a controlled, matched-task comparison needs held-out data at
-  larger scale.
-- **Generalisation (the property that actually matters for a latent MD
-  model):** **not yet achieved** with 16 structures. The codec must be
-  trained on many more structures before it learns a transferable
-  compression — which is precisely the pretraining step in the project plan.
+- **In-distribution (seen structures):** decisively better than every
+  baseline — 0.43 Å vs ~11 Å (centroid), with correct chirality/bonds/
+  contacts. The architecture and pipeline work.
+- **Held-out (unseen folds), which is what matters for a latent MD model:**
+  **worse than PCA and even worse than mean-shape.** At 16 training
+  structures the learned codec does not generalise; a linear baseline with
+  8 floats beats it. So at this data scale the answer is **no**.
+- **Why:** the limiter is **data**, not the latent budget or the model —
+  held-out error is flat from 32 to 512 latent floats. The codec must be
+  pretrained on *many* structures before it generalises. That is exactly the
+  pretraining step in the project plan, and this experiment quantifies why it
+  is necessary before any latent diffusion.
 
 **Nothing here claims physical accuracy.** All numbers are geometric.
+
+## Code audit
+
+An adversarial multi-agent audit of the codebase confirmed and **fixed 10
+bugs** (2 high-severity NaN/robustness issues in the differentiable Kabsch and
+distance loss; a clash-rate normalisation bias for >2000-atom proteins; a
+PCA-baseline data leak; a resume-RNG bug; and several audit-trail/edge-case
+issues). **None affected the reported learned-model numbers** (no structure
+here exceeds 832 atoms and no degenerate collapse occurred), but the baseline
+comparison above already reflects the leak-free fix, and 7 regression tests
+were added (33 tests total, all passing).
 
 ---
 

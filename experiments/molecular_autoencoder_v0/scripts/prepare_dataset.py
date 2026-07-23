@@ -25,7 +25,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 
-from molae.parsing import parse_structure, to_npz_dict  # noqa: E402
+from molae.parsing import parse_structure, to_npz_dict, AllResiduesFiltered  # noqa: E402
 from molae import utils  # noqa: E402
 from molae.config import ExperimentConfig  # noqa: E402
 
@@ -137,7 +137,12 @@ def main():
             manifest["rejected"].append({"pdb_id": pid, "reason": f"download_failed: {e}"})
             print(f"  {pid}: DOWNLOAD FAILED ({e})")
             continue
-        ps = parse_structure(str(cif), pdb_id=pid)
+        try:
+            ps = parse_structure(str(cif), pdb_id=pid)
+        except AllResiduesFiltered as e:
+            manifest["rejected"].append({"pdb_id": pid, "reason": "all_residues_filtered", "detail": str(e)})
+            print(f"  {pid}: all residues filtered")
+            continue
         if ps is None:
             manifest["rejected"].append({"pdb_id": pid, "reason": "no_peptide_chain"})
             print(f"  {pid}: no peptide chain")

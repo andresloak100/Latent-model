@@ -39,12 +39,13 @@ Backbone RMSD (A) vs latent-float budget; lower RMSD + higher compression is bet
 |---|---|---|---|
 | **learned_autoencoder** | 512 | 0.4688 | 9.362 |
 | identity | 240 | 1 | 0 |
-| mean_shape | 0 | inf | 4.966 |
-| pca_k2 | 2 | 120 | 1.727 |
-| pca_k4 | 4 | 60 | 4.712e-15 |
+| mean_shape | 0 | inf | 6.407 |
+| pca_k2 | 2 | 120 | 4.603 |
+| pca_k4 | 4 | 60 | 3.787 |
+| pca_k8 | 8 | 30 | 3.244 |
 
 ## Timing & memory
 
-- mean inference: 0.008863 s/structure
-- peak host RSS: 440.6 MB
+- mean inference: 0.008659 s/structure
+- peak host RSS: 434.7 MB
 - GPU memory: N/A (CPU-only run)

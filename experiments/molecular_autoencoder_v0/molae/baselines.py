@@ -43,11 +43,13 @@ def structure_backbone(coords, atom_name_idx, res_pos, n_res):
     return out
 
 
-def build_backbone_cohort(structures, n_res):
+def build_backbone_cohort(structures, n_res, ref=None):
     """structures: list of dicts (coords, atom_name_idx, res_pos, pdb_id).
 
     Returns (X, ids, ref) where X is (S, 12*n_res) aligned+flattened, ids the
-    kept pdb ids, ref the reference backbone used for alignment.
+    kept pdb ids, ref the reference backbone used for alignment. Pass ``ref``
+    to align a second cohort into the SAME frame as a first one (required so a
+    PCA fit on a train cohort transfers to a held-out cohort).
     """
     raw, ids = [], []
     for s in structures:
@@ -58,8 +60,9 @@ def build_backbone_cohort(structures, n_res):
         raw.append(bb)
         ids.append(s["pdb_id"])
     if not raw:
-        return np.zeros((0, 12 * n_res)), [], None
-    ref = raw[0]
+        return np.zeros((0, 12 * n_res)), [], ref
+    if ref is None:
+        ref = raw[0]
     aligned = [kabsch_transform_numpy(bb, ref) for bb in raw]
     X = np.stack([a.reshape(-1) for a in aligned], axis=0)
     return X, ids, ref

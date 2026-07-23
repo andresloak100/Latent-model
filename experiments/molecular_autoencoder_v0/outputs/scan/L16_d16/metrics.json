@@ -27,6 +27,7 @@
       "n_atoms": 505,
       "clash_count": 246,
       "clashes_per_1000_atoms": 487.1287128712871,
+      "clash_subsampled": false,
       "contact_f1": 0.14236111111111108,
       "contact_precision": 0.10275689223057644,
       "contact_recall": 0.23163841807909605,
@@ -46,6 +47,7 @@
       "n_atoms": 468,
       "clash_count": 200,
       "clashes_per_1000_atoms": 427.35042735042737,
+      "clash_subsampled": false,
       "contact_f1": 0.16636528028933095,
       "contact_precision": 0.11192214111922141,
       "contact_recall": 0.323943661971831,
@@ -65,6 +67,7 @@
       "n_atoms": 154,
       "clash_count": 33,
       "clashes_per_1000_atoms": 214.28571428571428,
+      "clash_subsampled": false,
       "contact_f1": 0.23076923076923078,
       "contact_precision": 0.3157894736842105,
       "contact_recall": 0.18181818181818182,
@@ -84,6 +87,7 @@
       "n_atoms": 514,
       "clash_count": 342,
       "clashes_per_1000_atoms": 665.3696498054475,
+      "clash_subsampled": false,
       "contact_f1": 0.12541993281075028,
       "contact_precision": 0.0785413744740533,
       "contact_recall": 0.3111111111111111,
@@ -103,6 +107,7 @@
       "n_atoms": 436,
       "clash_count": 200,
       "clashes_per_1000_atoms": 458.7155963302752,
+      "clash_subsampled": false,
       "contact_f1": 0.1686274509803921,
       "contact_precision": 0.11528150134048257,
       "contact_recall": 0.31386861313868614,
@@ -117,12 +122,36 @@
   "cohort": {
     "n_res": 20,
     "n_atoms": 80,
-    "ids": [
+    "eval_ids": [
       "1CSP",
       "1IGD",
       "1L2Y",
       "1MJC",
       "1PGB"
+    ],
+    "pca_fit_ids": [
+      "1BDD",
+      "1BPI",
+      "1CRN",
+      "1CTF",
+      "1E0L",
+      "1ENH",
+      "1FKB",
+      "1FSD",
+      "1R69",
+      "1SHG",
+      "1UBI",
+      "1UBQ",
+      "1VII",
+      "2CI2",
+      "5PTI"
+    ],
+    "pca_fit_on_train_scored_on_eval": true,
+    "pca_k_skipped_capped_by_n_train": [
+      16,
+      32,
+      64,
+      256
     ],
     "learned_autoencoder": {
       "mean_backbone_rmsd": 8.174654729898943,
@@ -136,28 +165,33 @@
         "compression_ratio": 1.0
       },
       "mean_shape": {
-        "mean_backbone_rmsd": 4.9662444689509595,
+        "mean_backbone_rmsd": 6.406955572863872,
         "latent_floats": 0,
         "compression_ratio": Infinity
       },
       "pca_k2": {
-        "mean_backbone_rmsd": 1.7268361882867054,
+        "mean_backbone_rmsd": 4.6029159877843195,
         "latent_floats": 2,
         "compression_ratio": 120.0
       },
       "pca_k4": {
-        "mean_backbone_rmsd": 4.7116355792442186e-15,
+        "mean_backbone_rmsd": 3.786853329437487,
         "latent_floats": 4,
         "compression_ratio": 60.0
+      },
+      "pca_k8": {
+        "mean_backbone_rmsd": 3.244078726715769,
+        "latent_floats": 8,
+        "compression_ratio": 30.0
       }
     }
   },
   "timing": {
-    "mean_inference_s_per_structure": 0.007612037658691406,
+    "mean_inference_s_per_structure": 0.006592750549316406,
     "n_structures_timed": 5
   },
   "memory": {
-    "peak_host_rss_mb": 434.6640625,
+    "peak_host_rss_mb": 434.37109375,
     "peak_gpu_mb": null,
     "gpu_note": "N/A (CPU-only run)"
   }
