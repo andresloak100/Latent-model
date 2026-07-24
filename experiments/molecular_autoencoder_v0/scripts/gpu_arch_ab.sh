@@ -35,7 +35,7 @@ python scripts/prepare_dataset.py --config configs/arch_ab_baseline.yaml \
     --pdb-list data/pdb_ids_scale.txt --val-fraction 0.15 --jobs 16
 
 echo "=== [4/5] three encoder sweeps on the SAME data (baseline / invariant / rope) ==="
-for arm in baseline invariant rope; do
+for arm in baseline invariant rope perresidue; do
   echo "--- $arm ---"
   python scripts/run_data_scaling.py --base "configs/arch_ab_${arm}.yaml" --tag "_${arm}" \
       --sizes "${SIZES}" --total-steps "${TOTAL_STEPS}" \
@@ -45,7 +45,7 @@ done
 echo "=== [5/5] three-way head-to-head ==="
 python - <<'PY'
 import json, os
-arms=["baseline","invariant","rope"]
+arms=["baseline","invariant","rope","perresidue"]
 def load(tag):
     p=f"outputs/data_scan_{tag}/data_scaling.json"
     return {r["n_train"]: r for r in json.load(open(p))["rows"]} if os.path.exists(p) else {}

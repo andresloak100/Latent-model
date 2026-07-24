@@ -171,11 +171,13 @@ class Decoder(nn.Module):
             nn.Linear(cfg.d_model, 3),
         )
 
-    def forward(self, latents, batch):
+    def forward(self, latents, batch, latent_key_padding_mask=None):
+        # latent_key_padding_mask (B, L): True where a latent token is padding
+        # (used by the per-residue latent, whose token count varies per sample).
         for blk in self.self_blocks:
-            latents = blk(latents)
+            latents = blk(latents, key_padding_mask=latent_key_padding_mask)
         q = self.feat(batch)                          # (B, N, d) identity only
-        h = self.cross(q, latents)                    # atoms attend to latents
+        h = self.cross(q, latents, key_padding_mask=latent_key_padding_mask)
         coords = self.head(h) * self.cfg.coord_scale  # (B, N, 3) angstrom
         return coords
 

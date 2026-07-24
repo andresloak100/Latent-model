@@ -47,6 +47,9 @@ def make_autoencoder(cfg: ModelConfig):
     if etype == "rope":
         from .model_rope import RoPEAutoencoder
         return RoPEAutoencoder(cfg)
+    if etype == "perresidue":
+        from .model_perresidue import PerResidueAutoencoder
+        return PerResidueAutoencoder(cfg)
     if etype == "baseline":
         return MolecularAutoencoder(cfg)
     raise ValueError(f"unknown encoder_type: {etype!r}")
