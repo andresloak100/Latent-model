@@ -1,0 +1,47 @@
+# A/B baseline config: raw-coordinate encoder, matched to the data-scale sweep
+# (128-float latent, <=800-atom band). Run vs arch_ab_invariant.yaml on the
+# SAME prepared dataset to isolate the effect of the encoder architecture.
+name: arch_ab_rope
+
+data:
+  processed_dir: data/processed
+  splits_file: data/splits.json
+  min_residues: 20
+  max_residues: 200
+  max_atoms: 800
+
+model:
+  d_model: 128
+  n_heads: 4
+  n_latent_tokens: 16
+  latent_dim: 8            # 16 x 8 = 128 latent floats (matches the sweep)
+  enc_self_layers: 2
+  dec_self_layers: 2
+  ff_mult: 4
+  dropout: 0.0
+  max_res_pos: 1024
+  coord_scale: 10.0
+  encoder_type: rope
+  rope_freqs: 128
+  rope_spherical: false
+
+loss:
+  coord: 1.0
+  distance: 1.0
+  bond: 1.0
+  clash: 0.5
+  chirality: 0.2
+
+train:
+  seed: 0
+  epochs: 900
+  batch_size: 16
+  lr: 0.001
+  weight_decay: 0.0
+  grad_clip: 1.0
+  log_every: 50
+  eval_every: 300
+  ckpt_every: 300
+  clash_dist: 1.5
+  out_dir: outputs/arch_ab/rope
+  overfit: false

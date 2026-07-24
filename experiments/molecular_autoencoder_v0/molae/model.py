@@ -42,8 +42,10 @@ class ModelConfig:
     dropout: float = 0.0
     max_res_pos: int = 1024
     coord_scale: float = 10.0
-    encoder_type: str = "baseline"   # "baseline" (raw-coord) | "invariant" (SE(3)-invariant)
+    encoder_type: str = "baseline"   # "baseline" (raw-coord) | "invariant" (SE(3)-invariant) | "rope" (LLM-style)
     k_neighbors: int = 8             # neighbours for the invariant encoder
+    rope_freqs: int = 128            # Fourier frequencies per axis for the rope encoder (3*2*F coord dims)
+    rope_spherical: bool = False     # rope: encode spherical (r/θ/φ) instead of Cartesian
 
 
 class AtomFeaturizer(nn.Module):

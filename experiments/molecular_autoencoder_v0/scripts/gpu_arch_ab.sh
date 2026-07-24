@@ -34,38 +34,38 @@ python scripts/fetch_rcsb_ids.py --n "${N_STRUCTURES}" --out data/pdb_ids_scale.
 python scripts/prepare_dataset.py --config configs/arch_ab_baseline.yaml \
     --pdb-list data/pdb_ids_scale.txt --val-fraction 0.15 --jobs 16
 
-echo "=== [4/5] baseline encoder sweep ==="
-python scripts/run_data_scaling.py --base configs/arch_ab_baseline.yaml --tag _baseline \
-    --sizes "${SIZES}" --total-steps "${TOTAL_STEPS}" \
-    --latent-tokens 16 --latent-dim 8 --device cuda --amp --num-workers 8
+echo "=== [4/5] three encoder sweeps on the SAME data (baseline / invariant / rope) ==="
+for arm in baseline invariant rope; do
+  echo "--- $arm ---"
+  python scripts/run_data_scaling.py --base "configs/arch_ab_${arm}.yaml" --tag "_${arm}" \
+      --sizes "${SIZES}" --total-steps "${TOTAL_STEPS}" \
+      --latent-tokens 16 --latent-dim 8 --device cuda --amp --num-workers 8
+done
 
-echo "=== [4b/5] invariant encoder sweep (same dataset/splits) ==="
-python scripts/run_data_scaling.py --base configs/arch_ab_invariant.yaml --tag _invariant \
-    --sizes "${SIZES}" --total-steps "${TOTAL_STEPS}" \
-    --latent-tokens 16 --latent-dim 8 --device cuda --amp --num-workers 8
-
-echo "=== [5/5] head-to-head ==="
+echo "=== [5/5] three-way head-to-head ==="
 python - <<'PY'
-import json, glob, os
+import json, os
+arms=["baseline","invariant","rope"]
 def load(tag):
     p=f"outputs/data_scan_{tag}/data_scaling.json"
     return {r["n_train"]: r for r in json.load(open(p))["rows"]} if os.path.exists(p) else {}
-b, i = load("baseline"), load("invariant")
-# mean-shape / PCA bars from the invariant run's per-n metrics (same cohort)
-def bars(tag, n):
-    f=f"outputs/data_scan_{tag}/n{n}/metrics.json"
-    if not os.path.exists(f): return (float('nan'),float('nan'))
-    c=json.load(open(f)).get("cohort",{}).get("baselines",{})
-    return (c.get("mean_shape",{}).get("mean_backbone_rmsd",float('nan')),
-            c.get("pca_k8",{}).get("mean_backbone_rmsd",float('nan')))
-print(f"{'n_train':>8} | {'baseline AE':>12} | {'invariant AE':>13} | {'mean-shape':>10} | {'PCA k8':>7}")
-print("-"*62)
-for n in sorted(set(b)|set(i)):
-    ms,pca=bars("invariant",n)
-    bb=b.get(n,{}).get("heldout_backbone_rmsd",float('nan'))
-    iv=i.get(n,{}).get("heldout_backbone_rmsd",float('nan'))
-    print(f"{n:>8} | {bb:>12.2f} | {iv:>13.2f} | {ms:>10.2f} | {pca:>7.2f}")
-print("\nWin condition: invariant AE drops below mean-shape and toward PCA k8,")
-print("where the baseline AE stayed flat/above mean-shape.")
+data={a:load(a) for a in arms}
+def bars(n):  # mean-shape / PCA bars from whichever arm has them (same cohort)
+    for a in arms:
+        f=f"outputs/data_scan_{a}/n{n}/metrics.json"
+        if os.path.exists(f):
+            c=json.load(open(f)).get("cohort",{}).get("baselines",{})
+            return (c.get("mean_shape",{}).get("mean_backbone_rmsd",float('nan')),
+                    c.get("pca_k8",{}).get("mean_backbone_rmsd",float('nan')))
+    return (float('nan'),float('nan'))
+ns=sorted({n for a in arms for n in data[a]})
+print(f"{'n_train':>8} | {'baseline':>9} | {'invariant':>9} | {'rope':>9} | {'mean-shape':>10} | {'PCA k8':>7}")
+print("-"*66)
+for n in ns:
+    ms,pca=bars(n)
+    def g(a): return data[a].get(n,{}).get("heldout_backbone_rmsd",float('nan'))
+    print(f"{n:>8} | {g('baseline'):>9.2f} | {g('invariant'):>9.2f} | {g('rope'):>9.2f} | {ms:>10.2f} | {pca:>7.2f}")
+print("\nWin condition: an encoder's held-out drops below mean-shape and toward PCA k8,")
+print("where the baseline stayed flat/above mean-shape. That encoder is the fix.")
 PY
-echo "Commit outputs/data_scan_baseline/ and outputs/data_scan_invariant/ and push."
+echo "Commit outputs/data_scan_baseline|invariant|rope/ and push."

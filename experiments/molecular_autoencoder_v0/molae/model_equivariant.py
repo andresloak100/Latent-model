@@ -44,6 +44,9 @@ def make_autoencoder(cfg: ModelConfig):
     etype = getattr(cfg, "encoder_type", "baseline")
     if etype == "invariant":
         return InvariantAutoencoder(cfg, k_neighbors=getattr(cfg, "k_neighbors", 8))
+    if etype == "rope":
+        from .model_rope import RoPEAutoencoder
+        return RoPEAutoencoder(cfg)
     if etype == "baseline":
         return MolecularAutoencoder(cfg)
     raise ValueError(f"unknown encoder_type: {etype!r}")
