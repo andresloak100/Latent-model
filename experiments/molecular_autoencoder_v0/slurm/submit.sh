@@ -25,9 +25,12 @@ EXPDIR="$(dirname "$HERE")"
 
 mkdir -p "$WORKROOT/logs" "$WORKROOT/results"
 
+# --requeue + --open-mode=append: this partition is preemptible, so a killed job
+# is automatically resubmitted and continues from its last checkpoint (which
+# job.sh keeps on shared storage), appending to the same log.
 sbatch --job-name="mae_$CFG_NAME" \
        --partition="$PARTITION" --gres=gpu:"$GPUS" --cpus-per-task="$CPUS" \
-       --mem="$MEM" --time="$TIME" \
+       --mem="$MEM" --time="$TIME" --requeue --open-mode=append \
        --output="$WORKROOT/logs/%x_%j.out" \
        --export=ALL,CFG_NAME="$CFG_NAME",WORKROOT="$WORKROOT",EXPDIR="$EXPDIR",PYTHON_MODULE="$PYTHON_MODULE",NO_AMP="${NO_AMP:-}" \
        "$HERE/job.sh"
