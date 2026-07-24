@@ -56,7 +56,11 @@ DEST="$WORKROOT/results/$CFG_NAME"
 mkdir -p "$DEST"
 cp "$RUN_DIR"/{metrics.json,metrics_table.md,config.yaml,train_log.json,environment.json} "$DEST/" 2>/dev/null || true
 cp -r "$RUN_DIR/reconstructions" "$DEST/" 2>/dev/null || true
-rm -f "$RUN_DIR"/latest.pt "$RUN_DIR"/final.pt    # free space once finished
+# Keep the trained model on $SCRATCH (5T quota) so it can be re-evaluated or
+# reused later; drop only the resume checkpoint, which is redundant once the
+# run has finished.
+mv -f "$RUN_DIR/final.pt" "$DEST/final.pt" 2>/dev/null || true
+rm -f "$RUN_DIR/latest.pt"
 
 echo "================ RESULT: $CFG_NAME ================"
 $PY - "$DEST/metrics.json" <<'PY'
