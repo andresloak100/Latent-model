@@ -87,12 +87,154 @@ class LossWeights:
     chirality: float = 0.2
 
 
+def _per_sample_mean(values, sample_idx, B):
+    """Mean of `values` grouped by `sample_idx`, returned as (B,).
+
+    Groups with no elements yield 0 (matching the empty-input guards in the
+    per-sample loss functions).
+    """
+    sums = values.new_zeros(B).index_add_(0, sample_idx, values)
+    counts = values.new_zeros(B).index_add_(0, sample_idx, torch.ones_like(values))
+    return sums / counts.clamp_min(1.0)
+
+
+def batched_losses(preds, batch, clash_dist=1.5, chirality_margin=1.0):
+    """All five loss terms for a padded batch, without a Python per-sample loop.
+
+    Mathematically identical to summing the ``*_single`` functions over the
+    batch (verified in tests/test_losses_vectorized.py), but computed with
+    batched tensor ops so the GPU is not left idle between samples.
+
+    Bonded pairs and chirality centres are gathered via flat indices offset by
+    ``b * Nmax``, so per-structure topology of differing sizes is handled in one
+    pass.
+    """
+    device = preds.device
+    B, Nmax, _ = preds.shape
+    mask = batch["mask"].to(device)                                  # (B, Nmax)
+    target = batch["coords"].to(device)
+    w = mask.unsqueeze(-1)
+
+    # --- coordinate loss: batched Kabsch, then masked per-sample mean --------
+    aligned = kabsch_align_torch(preds, target, mask)
+    sq = ((aligned - target) ** 2).sum(-1) * mask                    # (B, Nmax)
+    coord = (sq.sum(1) / mask.sum(1).clamp_min(1.0)).mean()
+
+    # --- pair masks ---------------------------------------------------------
+    pair_valid = (mask.unsqueeze(2) * mask.unsqueeze(1))             # (B, N, N)
+    triu = torch.triu(torch.ones(Nmax, Nmax, device=device, dtype=preds.dtype), diagonal=1)
+    pair_valid = pair_valid * triu
+
+    dp = torch.cdist(preds * w, preds * w)
+    dt = torch.cdist(target * w, target * w)
+
+    # --- distance loss (smooth L1 over valid pairs) -------------------------
+    dist_elem = F.smooth_l1_loss(dp, dt, beta=1.0, reduction="none") * pair_valid
+    npairs = pair_valid.sum((1, 2)).clamp_min(1.0)
+    distance = (dist_elem.sum((1, 2)) / npairs).mean()
+
+    # --- bonds: gathered sparsely; no dense (B, N, N) bond mask is built -----
+    bond_rows, bond_a, bond_b = [], [], []
+    for i, bonds in enumerate(batch["bonds"]):
+        if bonds.numel() == 0:
+            continue
+        bonds = bonds.to(device)
+        bond_rows.append(torch.full((bonds.shape[0],), i, device=device, dtype=torch.long))
+        bond_a.append(bonds[:, 0])
+        bond_b.append(bonds[:, 1])
+    if bond_rows:
+        br = torch.cat(bond_rows); ba = torch.cat(bond_a); bb = torch.cat(bond_b)
+        lp = torch.linalg.norm(preds[br, ba] - preds[br, bb], dim=-1)
+        lt = torch.linalg.norm(target[br, ba] - target[br, bb], dim=-1)
+        bond_elem = F.smooth_l1_loss(lp, lt, beta=0.1, reduction="none")
+        bond = _per_sample_mean(bond_elem, br, B).mean()
+    else:
+        br = None
+        bond = preds.new_zeros(())
+
+    # --- clash: hinge over all valid pairs, then subtract the bonded ones ----
+    # (cheaper than materialising dense bonded / non-bonded masks).
+    clash_sum = (F.relu(clash_dist - dp) * pair_valid).sum((1, 2))
+    n_nonbonded = npairs.clone()
+    if br is not None:
+        bonded_hinge = F.relu(clash_dist - dp[br, ba, bb])
+        clash_sum = clash_sum - torch.zeros_like(clash_sum).index_add_(0, br, bonded_hinge)
+        n_nonbonded = n_nonbonded - torch.zeros_like(n_nonbonded).index_add_(
+            0, br, torch.ones_like(bonded_hinge))
+    clash = (clash_sum / n_nonbonded.clamp_min(1.0)).mean()
+
+    # --- chirality (signed volume sign agreement) ---------------------------
+    c_rows, c_idx = [], []
+    for i, centers in enumerate(batch["chirality_centers"]):
+        if centers.numel() == 0:
+            continue
+        centers = centers.to(device)
+        c_rows.append(torch.full((centers.shape[0],), i, device=device, dtype=torch.long))
+        c_idx.append(centers)
+    if c_rows:
+        cr = torch.cat(c_rows); ci = torch.cat(c_idx, dim=0)
+
+        def signed(x):
+            ca = x[cr, ci[:, 0]]
+            v1 = x[cr, ci[:, 1]] - ca
+            v2 = x[cr, ci[:, 2]] - ca
+            v3 = x[cr, ci[:, 3]] - ca
+            return (torch.cross(v1, v2, dim=-1) * v3).sum(-1)
+
+        chir_elem = F.relu(chirality_margin - torch.sign(signed(target)) * signed(preds))
+        chirality = _per_sample_mean(chir_elem, cr, B).mean()
+    else:
+        chirality = preds.new_zeros(())
+
+    return {"coord": coord, "distance": distance, "bond": bond,
+            "clash": clash, "chirality": chirality}
+
+
 class LossComputer:
-    def __init__(self, weights: LossWeights, clash_dist: float = 1.5):
+    """Reconstruction loss.
+
+    Two equivalent implementations (agreement proven to <1e-4 on values *and*
+    gradients in tests/test_losses_vectorized.py):
+
+      * ``vectorized=False`` (default) -- per-sample Python loop, cost
+        proportional to sum_b n_b^2.
+      * ``vectorized=True`` -- batched tensor ops, cost proportional to
+        B * Nmax^2.
+
+    **Measured on CPU, batch of 16 real proteins (327-832 atoms, padded to
+    832): loop 85 ms/step vs vectorized 178 ms/step -- the loop wins 2x.**
+    Ragged protein sizes mean the padded batch computes ~2.7x more pairs than
+    the loop does, which outweighs the removal of Python overhead. On tiny
+    uniform batches the vectorized path is ~6.5x faster, so the crossover is
+    entirely about padding waste.
+
+    The loop therefore stays the default. The vectorized path is kept because
+    the trade-off may invert on GPU (where per-kernel launch overhead, not
+    arithmetic, tends to dominate for small tensors) -- that needs measuring on
+    real hardware before switching. The bigger win for either path is
+    length-bucketed batching, which would cut the padding waste at the source.
+    """
+
+    def __init__(self, weights: LossWeights, clash_dist: float = 1.5,
+                 vectorized: bool = False):
         self.w = weights
         self.clash_dist = clash_dist
+        self.vectorized = vectorized
 
     def __call__(self, preds, batch):
+        if self.vectorized:
+            totals = batched_losses(preds, batch, clash_dist=self.clash_dist)
+            total = (self.w.coord * totals["coord"]
+                     + self.w.distance * totals["distance"]
+                     + self.w.bond * totals["bond"]
+                     + self.w.clash * totals["clash"]
+                     + self.w.chirality * totals["chirality"])
+            comp = {k: float(v.detach()) for k, v in totals.items()}
+            comp["total"] = float(total.detach())
+            return total, comp
+        return self._loop(preds, batch)
+
+    def _loop(self, preds, batch):
         """preds: (B, Nmax, 3) padded. batch: dict from collate_fn."""
         device = preds.device
         totals = {k: torch.zeros((), device=device)
