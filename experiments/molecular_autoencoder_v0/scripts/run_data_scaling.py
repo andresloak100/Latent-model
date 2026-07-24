@@ -50,7 +50,9 @@ def main():
     ap.add_argument("--amp", action="store_true")
     ap.add_argument("--num-workers", type=int, default=4)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--tag", default="", help="suffix for the output dir, e.g. _invariant")
     args = ap.parse_args()
+    tag = args.tag
 
     base = ExperimentConfig.from_yaml(ROOT / args.base)
     master = utils.load_json(ROOT / base.data.splits_file)
@@ -81,7 +83,7 @@ def main():
         cfg.model.latent_dim = args.latent_dim
         cfg.train.epochs = epochs
         cfg.train.overfit = False
-        cfg.train.out_dir = f"outputs/data_scan/n{n}"
+        cfg.train.out_dir = f"outputs/data_scan{tag}/n{n}"
         cfg.train.log_every = max(1, epochs // 20)
         cfg.train.ckpt_every = max(1, epochs // 5)
         cfg_path = scan_dir / f"n{n}.yaml"
@@ -109,7 +111,7 @@ def main():
             "centroid_baseline_rmsd": m["trivial_all_atom_baselines"]["centroid_all_atom_rmsd"],
         })
 
-    out = ROOT / "outputs" / "data_scan"
+    out = ROOT / "outputs" / f"data_scan{tag}"
     out.mkdir(parents=True, exist_ok=True)
     utils.save_json({"rows": rows, "total_steps": args.total_steps,
                      "val_size": len(val_keys)}, out / "data_scaling.json")
