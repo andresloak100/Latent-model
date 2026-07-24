@@ -45,3 +45,4 @@ train:
   clash_dist: 1.5
   out_dir: outputs/arch_ab/rope
   overfit: false
+  augment_rotation: true

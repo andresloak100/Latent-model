@@ -49,3 +49,19 @@ def test_padding_does_not_leak_into_latent():
         batch2["element_idx"][0, 15:] = 2
         z2 = model.encode(batch2)
     assert torch.allclose(z1[0], z2[0], atol=1e-5)
+
+
+def test_random_rotate_preserves_geometry_and_is_proper():
+    import sys as _sys
+    from pathlib import Path as _P
+    _sys.path.insert(0, str(_P(__file__).resolve().parent.parent / "scripts"))
+    from train import random_rotate
+    coords = torch.randn(4, 20, 3)
+    rot = random_rotate(coords)
+    assert rot.shape == coords.shape
+    # rotation preserves pairwise distances (rigid)
+    d0 = torch.cdist(coords, coords)
+    d1 = torch.cdist(rot, rot)
+    assert torch.allclose(d0, d1, atol=1e-4)
+    # centroid-relative norms preserved
+    assert torch.allclose(coords.norm(dim=-1), rot.norm(dim=-1), atol=1e-4)

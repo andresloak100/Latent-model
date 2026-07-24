@@ -63,6 +63,20 @@ def resolve_device(name):
     return torch.device(name)
 
 
+def random_rotate(coords):
+    """Apply an independent random proper rotation (det=+1) per batch element.
+
+    Kabsch alignment already makes the loss rotation-invariant, so this is pure
+    input augmentation: it teaches non-equivariant encoders (baseline, rope) to
+    be rotation-robust. A no-op in effect for the invariant encoder.
+    """
+    B = coords.shape[0]
+    q, _ = torch.linalg.qr(torch.randn(B, 3, 3, device=coords.device))
+    det = torch.linalg.det(q)
+    q = torch.cat([q[:, :, :2], q[:, :, 2:] * det.view(B, 1, 1)], dim=2)  # force det=+1
+    return torch.einsum("bni,bij->bnj", coords, q)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
@@ -120,6 +134,8 @@ def main():
         ep_comps, n_batches = {}, 0
         for batch in loader:
             gb = {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in batch.items()}
+            if cfg.train.augment_rotation:
+                gb["coords"] = random_rotate(gb["coords"])
             opt.zero_grad()
             with torch.autocast(device_type=device.type, enabled=use_amp):
                 preds, _ = model(gb)

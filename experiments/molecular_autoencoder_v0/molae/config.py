@@ -34,6 +34,7 @@ class TrainConfig:
     clash_dist: float = 1.5
     out_dir: str = "outputs/stage_a"
     overfit: bool = False  # if true, train on train+val (Stage A sanity)
+    augment_rotation: bool = False  # random SO(3) input rotations (teaches non-equivariant encoders invariance)
 
 
 @dataclass
