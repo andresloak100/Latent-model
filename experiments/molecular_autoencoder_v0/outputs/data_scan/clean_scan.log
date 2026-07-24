@@ -1,0 +1,18 @@
+CLEAN_START 1784834274
+CLEAN_N=100 TRAIN_START
+CLEAN_N=100 TRAIN_FINAL   epoch   299  total=6.6438  coord=4.8657  bond=0.6441  clash=0.0011  rmsd=2.092A
+[eval] example reconstructions -> /root/latent-model/experiments/molecular_autoencoder_v0/outputs/clean_scan/n100/reconstructions
+CLEAN_N=100 EVAL_DONE
+CLEAN_N=300 TRAIN_START
+CLEAN_N=300 TRAIN_FINAL   epoch   299  total=12.5421  coord=10.1197  bond=0.7577  clash=0.0023  rmsd=2.913A
+[eval] example reconstructions -> /root/latent-model/experiments/molecular_autoencoder_v0/outputs/clean_scan/n300/reconstructions
+CLEAN_N=300 EVAL_DONE
+CLEAN_N=800 TRAIN_START
+CLEAN_N=800 TRAIN_FINAL   epoch   299  total=20.1816  coord=17.1269  bond=0.8318  clash=0.0035  rmsd=3.865A
+[eval] example reconstructions -> /root/latent-model/experiments/molecular_autoencoder_v0/outputs/clean_scan/n800/reconstructions
+CLEAN_N=800 EVAL_DONE
+CLEAN_N=1129 TRAIN_START
+CLEAN_N=1129 TRAIN_FINAL   epoch   299  total=19.5325  coord=16.5606  bond=0.8078  clash=0.0034  rmsd=3.860A
+[eval] example reconstructions -> /root/latent-model/experiments/molecular_autoencoder_v0/outputs/clean_scan/n1129/reconstructions
+CLEAN_N=1129 EVAL_DONE
+CLEAN_DONE 1784843417

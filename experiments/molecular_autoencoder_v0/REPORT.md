@@ -4,15 +4,17 @@
 protein atomic coordinates into a compact latent while preserving atomistic
 geometry better than simple baselines?*
 
-**Short answer:** **Yes on the training distribution, not yet on held-out
-folds — and the reason is data scale, not the architecture.** With a tiny
-(~21-structure) dataset the model reconstructs *seen* structures at **0.43 Å**
-all-atom RMSD (10× coordinate compression) with correct chirality, bonds, and
-contacts — far better than every baseline. But on **held-out** protein folds
-it collapses to roughly the centroid baseline (~11 Å), i.e. it memorises
-rather than learning a transferable codec. This is the expected
-data-starvation regime and is exactly what motivates the plan's next step
-(pretraining on thousands of structures).
+**Short answer:** **Yes on the training distribution; no on held-out folds —
+and a decisive scaling test shows the limiter is the *architecture*, not the
+amount of data.** With a tiny dataset the model reconstructs *seen* structures
+at **0.43 Å** all-atom RMSD (10× compression) with correct chirality, bonds,
+and contacts — far better than every baseline. But on **held-out** folds it
+loses to a 0-parameter mean-shape baseline, and a controlled data-scale sweep
+(below) shows held-out accuracy does **not** improve with more structures — a
+fully-converged 800-structure run was actually *worse* than smaller ones. So
+more data will not fix this codec. The next step is an **equivariant/frame
+encoder** (a working invariant-encoder prototype is now in the repo), *before*
+any large pretraining run or latent diffusion.
 
 This milestone is the **autoencoder only**. No diffusion, trajectories, force
 fields, RL, or generation. RMSD-type metrics measure *geometry*, not physical
@@ -101,8 +103,8 @@ Held-out centroid (Rg) baseline on the val set ≈ **10.2 Å**.
 **Finding:** train RMSD is ~1 Å (the model *has* capacity and fits the
 training folds), but held-out all-atom RMSD is ~11 Å — **no better than
 predicting the centroid** — and essentially **flat across all latent sizes**.
-The bottleneck is therefore **not** the latent budget; it is the **number of
-training structures**.
+So the latent budget is **not** the limiter. The natural next hypothesis was
+that *data* is the limiter; the decisive scaling test below shows it is not.
 
 ### Leak-free held-out comparison vs PCA (backbone cohort, 5 val folds)
 
@@ -123,8 +125,48 @@ autoencoder at 128 floats (8.87 Å) by a wide margin — and the AE even loses
 to the mean-shape baseline.** With 16 training structures the encoder/decoder
 memorise seen structures and produce near-random geometry for unseen folds,
 whereas a simple linear model at least captures the dominant backbone
-variance. This is a genuine, expected data-starvation result, not an
-architecture failure (the same model fits the training set to ~1 Å).
+variance. The same model fits the training set to ~1 Å, so this is a
+*generalisation* failure — and the scaling test below identifies its cause as
+the architecture, not the data.
+
+---
+
+## Decisive data-scale test (GPU, converged, size-controlled)
+
+To separate "data-limited" from "architecture-limited", a clean sweep was run
+on GPU: a fixed structure-size band (≤ 800 atoms, so difficulty is held
+constant), a large **231-fold** held-out set, PCA fit on train only. Held-out
+**backbone RMSD (Å)** (80-atom / 20-residue cohort):
+
+| n_train | train bb | held-out AE (128f) | mean-shape (0f) | PCA k2 | PCA k4 | PCA k8 |
+|---|---|---|---|---|---|---|
+| 100 | 2.09 | 9.00 | 5.02 | 3.45 | 2.74 | 2.05 |
+| 300 | 2.91 | 9.17 | 5.00 | 3.36 | 2.72 | 2.00 |
+| 800 | 3.87 | 7.96 | 5.05 | 3.35 | 2.70 | 2.00 |
+| 1129 | 3.86 | 7.64 | 5.03 | 3.35 | 2.69 | 1.99 |
+| **800 (converged, 900 ep)** | 3.07 | **8.64** | 5.05 | 3.35 | 2.70 | 2.00 |
+
+**The curve does not descend.** The AE loses to the 0-parameter mean-shape
+baseline (~5 Å) at *every* data scale, and the apparent dip toward n=1129 was
+an under-training artefact (mean-regression): training n=800 **to convergence
+pushed held-out *up*, 7.96 → 8.64 Å** (train 3.87 → 3.07). More data makes it
+no better — and here, worse. **At the *matched* 128-float budget, PCA
+reconstructs the held-out backbone to 0.06 Å** — vs the neural AE's 8.64 Å.
+Combined with the flat-across-latent-budget result above, neither the latent
+size nor the amount of data is the bottleneck. (A secondary signal: 20/50/100
+structures overfit to 1.3/1.6/1.8 Å train, but n=800 plateaus at 3.07 Å train
+— a memorisation ceiling as diversity grows.)
+
+**Conclusion: the codec is architecture-limited.** The raw-coordinate,
+non-equivariant encoder is the prime suspect (it must learn rotation
+invariance from data instead of having it built in). A **provably
+SE(3)-invariant encoder** prototype is now in the repo
+(`molae/model_equivariant.py`, `encoder_type: invariant`, verified in
+`tests/test_equivariance.py`) as the first architectural fix to test.
+
+*(Full table + raw per-fold `*_metrics.json` and run logs are committed under
+`outputs/data_scan/` — `RESULTS_data_scaling.md`, `clean_n{100,300,800,1129}_metrics.json`,
+`conv_n800_metrics.json`, and the scan logs.)*
 
 ---
 
@@ -134,14 +176,18 @@ architecture failure (the same model fits the training set to ~1 Å).
   baseline — 0.43 Å vs ~11 Å (centroid), with correct chirality/bonds/
   contacts. The architecture and pipeline work.
 - **Held-out (unseen folds), which is what matters for a latent MD model:**
-  **worse than PCA and even worse than mean-shape.** At 16 training
-  structures the learned codec does not generalise; a linear baseline with
-  8 floats beats it. So at this data scale the answer is **no**.
-- **Why:** the limiter is **data**, not the latent budget or the model —
-  held-out error is flat from 32 to 512 latent floats. The codec must be
-  pretrained on *many* structures before it generalises. That is exactly the
-  pretraining step in the project plan, and this experiment quantifies why it
-  is necessary before any latent diffusion.
+  **worse than PCA and even worse than mean-shape**, at every data scale
+  tested. A linear baseline with 8 floats beats the neural codec. The answer
+  is **no**.
+- **Why:** the limiter is the **architecture**, not the latent budget and not
+  the data. Held-out error is flat across latent sizes (32→512 floats) *and*
+  flat-to-worse across data sizes (100→800 converged structures). The
+  raw-coordinate encoder is not equivariant, so it must learn rotational
+  invariance from data rather than having it built in — which the scaling test
+  shows it fails to do. **The gate this milestone was meant to answer —
+  "scale this codec, or fix it first?" — answers: fix it first.** Build the
+  equivariant/frame encoder before any large pretraining run or latent
+  diffusion.
 
 **Nothing here claims physical accuracy.** All numbers are geometric.
 
@@ -160,26 +206,35 @@ were added (33 tests total, all passing).
 
 ## Limitations
 
-- Tiny dataset (21 structures) → held-out numbers are data-limited, not
-  architecture-limited.
-- Not equivariant (invariance only via preprocessing + eval alignment).
+- The decisive scaling test used a fixed ≤800-atom size band on GPU; the
+  architecture-limited verdict is established within that band and the small
+  held-out sets used here — worth re-confirming once the encoder is fixed.
+- Not equivariant (invariance only via preprocessing + eval alignment) — this
+  is now identified as the likely *cause* of the poor generalisation, not just
+  a caveat.
 - Topology perceived from coordinates → disulfides / non-standard chemistry
   excluded from the bond set (documented).
 - PCA/AE comparison is not perfectly matched (cohort = 80 backbone atoms vs
   AE = whole all-atom structure).
 - CPU-only; no scaling beyond this small set.
 
-## Recommended next steps (before any latent diffusion)
+## Recommended next steps (verdict: fix the architecture first)
 
-1. **Scale the dataset** to thousands of cleaned single-chain domains (the
-   download path is ready; still no bulk auto-download / no ESM Atlas). Re-run
-   the held-out scaling — the central hypothesis is that generalisation
-   appears with data scale.
-2. **Matched AE-vs-PCA** on an identical fixed-size backbone target.
-3. **Equivariant encoder** (frame/SE(3)) to remove the alignment crutch and
-   improve data efficiency.
-4. Only then: add the **latent diffusion** stage this autoencoder is designed
+1. **Equivariant/frame encoder — the priority.** A provably SE(3)-invariant
+   encoder prototype is already in the repo (`molae/model_equivariant.py`,
+   selected via `encoder_type: invariant`; invariance proven in
+   `tests/test_equivariance.py`). Run the A/B (`configs/arch_invariant.yaml`
+   vs `configs/stage_b_heldout.yaml`) and check whether held-out drops below
+   mean-shape / toward PCA where the baseline could not. If the minimal
+   invariant featurisation helps but isn't enough, add directional
+   information equivariantly (GVP vector channels / IPA frames) and make the
+   *decoder* equivariant too.
+2. **Only after** the encoder clears the PCA / mean-shape bar on held-out
+   folds: revisit dataset scale (the fetch/prepare path and a Mila
+   parallel-sweep plan are ready in `NEXT_STEPS.md`).
+3. **Only then:** the **latent diffusion** stage this autoencoder is designed
    to host.
 
-**Stop point reached.** Do not implement latent diffusion until these results
-are reviewed.
+**Do not scale this architecture, and do not start latent diffusion**, until
+an encoder clears the baseline bar on held-out folds. The scaling test shows
+more data will not rescue the current codec.

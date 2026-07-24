@@ -1,0 +1,33 @@
+CONV_START 1784843561
+config staged for n=800 (900 epochs, log every 45)
+CONV_N=800 TRAIN_START
+[train] 800 structures on cuda (amp=False); first ids: ['12LO_A', '1AB1_A', '1B0Y_A', '1B7I_A', '1BIR_A', '1BOX_A', '1BQ8_A', '1BRF_A']
+[train] model params: 1,494,411  latent floats: 128
+/root/mae-venv/lib/python3.12/site-packages/torch/autograd/graph.py:823: UserWarning: Memory Efficient attention defaults to a non-deterministic algorithm. To explicitly enable determinism call torch.use_deterministic_algorithms(True, warn_only=False). (Triggered internally at /pytorch/aten/src/ATen/native/transformers/cuda/attention_backward.cu:683.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+  epoch     0  total=127.1891  coord=117.9769  bond=0.6211  clash=0.0126  rmsd=10.432A
+  epoch    45  total=86.1450  coord=80.0491  bond=0.6732  clash=0.0044  rmsd=8.697A
+  epoch    90  total=49.5949  coord=44.9333  bond=0.9096  clash=0.0033  rmsd=6.044A
+  epoch   135  total=32.3373  coord=28.5109  bond=0.8977  clash=0.0034  rmsd=4.765A
+  epoch   180  total=24.4425  coord=21.0657  bond=0.8652  clash=0.0035  rmsd=4.436A
+  epoch   225  total=20.4670  coord=17.3752  bond=0.8383  clash=0.0035  rmsd=3.808A
+  epoch   270  total=17.3716  coord=14.5095  bond=0.8152  clash=0.0034  rmsd=3.571A
+  epoch   315  total=15.8991  coord=13.1618  bond=0.7996  clash=0.0033  rmsd=3.492A
+  epoch   360  total=14.3864  coord=11.7726  bond=0.7864  clash=0.0033  rmsd=3.103A
+  epoch   405  total=14.0494  coord=11.4798  bond=0.7777  clash=0.0032  rmsd=3.222A
+  epoch   450  total=12.3572  coord=9.9355  bond=0.7607  clash=0.0031  rmsd=3.181A
+  epoch   495  total=12.2933  coord=9.8975  bond=0.7555  clash=0.0031  rmsd=3.052A
+  epoch   540  total=11.4851  coord=9.1632  bond=0.7469  clash=0.0030  rmsd=2.691A
+  epoch   585  total=10.6885  coord=8.4418  bond=0.7337  clash=0.0029  rmsd=2.759A
+  epoch   630  total=11.4637  coord=9.1871  bond=0.7361  clash=0.0029  rmsd=2.970A
+  epoch   675  total=10.6103  coord=8.3916  bond=0.7305  clash=0.0029  rmsd=2.642A
+  epoch   720  total=10.1306  coord=7.9656  bond=0.7220  clash=0.0028  rmsd=2.637A
+  epoch   765  total=9.5394  coord=7.4248  bond=0.7145  clash=0.0027  rmsd=2.506A
+  epoch   810  total=8.9430  coord=6.8908  bond=0.7083  clash=0.0027  rmsd=2.689A
+  epoch   855  total=9.8872  coord=7.7688  bond=0.7104  clash=0.0027  rmsd=2.513A
+  epoch   899  total=9.8659  coord=7.7682  bond=0.7103  clash=0.0026  rmsd=3.072A
+[train] done in 8630.4s -> /root/latent-model/experiments/molecular_autoencoder_v0/outputs/conv_scan/n800
+CONV_N=800 TRAIN_END
+[eval] example reconstructions -> /root/latent-model/experiments/molecular_autoencoder_v0/outputs/conv_scan/n800/reconstructions
+CONV_N=800 EVAL_DONE
+CONV_DONE 1784852212
