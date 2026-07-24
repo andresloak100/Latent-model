@@ -41,6 +41,9 @@ def make_autoencoder(cfg: ModelConfig):
     "invariant" -> SE(3)-invariant encoder (this module)
     Default keeps existing behaviour, so all current configs are unchanged.
     """
+    if getattr(cfg, "objective", "reconstruct") == "flowmatch":
+        from .flow import FlowMatchingAutoencoder
+        return FlowMatchingAutoencoder(cfg)
     etype = getattr(cfg, "encoder_type", "baseline")
     if etype == "invariant":
         return InvariantAutoencoder(cfg, k_neighbors=getattr(cfg, "k_neighbors", 8))

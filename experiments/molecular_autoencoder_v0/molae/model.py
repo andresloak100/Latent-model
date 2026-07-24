@@ -42,10 +42,12 @@ class ModelConfig:
     dropout: float = 0.0
     max_res_pos: int = 1024
     coord_scale: float = 10.0
-    encoder_type: str = "baseline"   # "baseline" (raw-coord) | "invariant" (SE(3)-invariant) | "rope" (LLM-style)
+    encoder_type: str = "baseline"   # "baseline" | "invariant" | "rope" | "perresidue"
     k_neighbors: int = 8             # neighbours for the invariant encoder
     rope_freqs: int = 128            # Fourier frequencies per axis for the rope encoder (3*2*F coord dims)
     rope_spherical: bool = False     # rope: encode spherical (r/θ/φ) instead of Cartesian
+    objective: str = "reconstruct"   # "reconstruct" (direct coord + Kabsch loss) | "flowmatch" (diffusion AE)
+    flow_steps: int = 50             # ODE integration steps for flow-matching reconstruction
 
 
 class AtomFeaturizer(nn.Module):

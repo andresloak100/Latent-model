@@ -138,8 +138,11 @@ def main():
                 gb["coords"] = random_rotate(gb["coords"])
             opt.zero_grad()
             with torch.autocast(device_type=device.type, enabled=use_amp):
-                preds, _ = model(gb)
-                loss, comp = loss_fn(preds, gb)
+                if hasattr(model, "training_loss"):      # flow-matching objective
+                    loss, comp = model.training_loss(gb)
+                else:
+                    preds, _ = model(gb)
+                    loss, comp = loss_fn(preds, gb)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.train.grad_clip)
@@ -155,9 +158,10 @@ def main():
             rmsd = quick_rmsd(model, loader, device)
             row = {"epoch": epoch, "rmsd": rmsd, "elapsed_s": time.time() - t0, **ep_comps}
             log.append(row)
-            print(f"  epoch {epoch:5d}  total={ep_comps['total']:.4f}  "
-                  f"coord={ep_comps['coord']:.4f}  bond={ep_comps['bond']:.4f}  "
-                  f"clash={ep_comps['clash']:.4f}  rmsd={rmsd:.3f}A")
+            extra = " ".join(f"{k}={ep_comps[k]:.4f}" for k in
+                             ("coord", "bond", "clash", "flow_mse") if k in ep_comps)
+            print(f"  epoch {epoch:5d}  total={ep_comps.get('total', float('nan')):.4f}  "
+                  f"{extra}  rmsd={rmsd:.3f}A")
 
         if epoch % cfg.train.ckpt_every == 0 or epoch == cfg.train.epochs - 1:
             utils.save_checkpoint(latest, model, opt, epoch, extra={"log": log})
