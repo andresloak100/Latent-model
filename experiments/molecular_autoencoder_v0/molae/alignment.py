@@ -47,8 +47,13 @@ def kabsch_align_torch(
     # SVD-backward singularity (division by s_i^2 - s_j^2) that produces NaN
     # gradients when H is degenerate (collapsed/collinear predictions or
     # repeated singular values from symmetric inputs).
-    with torch.no_grad():
-        # SVD in float32 for stability and AMP/fp16 safety, then cast back.
+    # autocast must be disabled for the whole block, not merely the inputs cast
+    # to float32: under AMP, matmul is an autocast-to-half op, so `matmul(u, vh)`
+    # silently returns half even when u/vh are float32, and the subsequent
+    # `det` runs an LU factorisation on half -> "lu_factor_cusolver ... 'Half'"
+    # (or "lu_cpu not implemented for 'BFloat16'" on CPU). Disabling autocast
+    # here keeps the entire rigid-transform solve in float32.
+    with torch.no_grad(), torch.autocast(device_type=pred.device.type, enabled=False):
         hf = h.float()
         u, _, vh = torch.linalg.svd(hf)
         d = torch.sign(torch.linalg.det(torch.matmul(u, vh)))
