@@ -7,3 +7,6 @@ outputs/**/final.pt
 __pycache__/
 *.pyc
 .pytest_cache/
+# Throwaway scratch runs and temp configs (underscore-prefixed)
+configs/_*
+outputs/_*
