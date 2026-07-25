@@ -127,11 +127,19 @@ def parse_structure(
     path: str,
     pdb_id: Optional[str] = None,
     min_chain_len: int = 8,
+    model_index: int = 0,
 ) -> Optional[ParsedStructure]:
     """Parse one structure file into a cleaned :class:`ParsedStructure`.
 
     Returns ``None`` only if no usable peptide chain is found. All filtering
     counts are stored on ``.record``.
+
+    ``model_index`` selects which deposited model to keep (default 0, the
+    historical behaviour). NMR entries deposit many models of the *same*
+    molecule, so iterating this over ``record["n_models"]`` yields a
+    conformational ensemble with identical atom composition and no MD compute
+    — which is the distribution the latent-diffusion stage will actually run
+    on. Raises ``IndexError`` for an out-of-range model.
     """
     st = gemmi.read_structure(str(path))
     st.setup_entities()
@@ -140,9 +148,13 @@ def parse_structure(
 
     raw = _count_raw_stats(st)
 
-    # Keep only the first model (NMR ensembles -> model 1).
-    while len(st) > 1:
-        del st[len(st) - 1]
+    if not 0 <= model_index < len(st):
+        raise IndexError(
+            f"{pdb_id}: model_index {model_index} out of range (n_models={len(st)})")
+    # Keep exactly one model (NMR ensembles deposit many).
+    for i in range(len(st) - 1, -1, -1):
+        if i != model_index:
+            del st[i]
 
     st.remove_alternative_conformations()
     st.remove_hydrogens()
@@ -247,6 +259,7 @@ def parse_structure(
     record = {
         "pdb_id": pdb_id,
         "chain_id": selected,
+        "model_index": int(model_index),
         "n_atoms": int(coords.shape[0]),
         "n_residues": int(res_pos.max()) + 1,
         "chains_present": dict(chain_lengths),

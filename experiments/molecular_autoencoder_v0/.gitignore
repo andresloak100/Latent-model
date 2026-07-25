@@ -10,3 +10,4 @@ __pycache__/
 # Throwaway scratch runs and temp configs (underscore-prefixed)
 configs/_*
 outputs/_*
+data/raw_nmr/
