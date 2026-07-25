@@ -73,10 +73,19 @@ from molae import utils  # noqa: E402
 from latent_suitability import ensemble_resolution, smoothness  # noqa: E402
 
 
-def load_groups(processed_dir, min_members, min_common_atoms):
-    """Group processed structures by exact sequence; keep groups >= min_members."""
+def load_groups(processed_dir, min_members, min_common_atoms, allowed_keys=None):
+    """Group processed structures by exact sequence; keep groups >= min_members.
+
+    ``allowed_keys`` restricts membership to one split. This is NOT optional in
+    practice: same-sequence entries are clustered into the SAME split, so an
+    unfiltered run is dominated by training structures and reports a training
+    reconstruction number. Comparing that against a held-out NMR figure
+    conflates the domain gap with the train/test gap.
+    """
     by_seq = collections.defaultdict(list)
     for f in sorted(Path(processed_dir).glob("*.npz")):
+        if allowed_keys is not None and f.stem not in allowed_keys:
+            continue
         d = np.load(f, allow_pickle=True)
         by_seq[str(d["sequence"])].append((f.stem, {k: d[k] for k in d.files}))
 
@@ -133,6 +142,11 @@ def main():
     ap.add_argument("--processed-dir", default=None,
                     help="defaults to the config's data.processed_dir")
     ap.add_argument("--out", default="outputs/xray_ensemble_gate.json")
+    ap.add_argument("--split", default="val", choices=["val", "train", "all"],
+                    help="which split to draw group members from. Default val: "
+                         "same-sequence entries cluster into ONE split, so an "
+                         "unfiltered run reports a TRAINING reconstruction "
+                         "number and is not comparable to held-out figures.")
     ap.add_argument("--min-members", type=int, default=3)
     ap.add_argument("--min-common-atoms", type=int, default=100)
     ap.add_argument("--device", default="auto")
@@ -147,9 +161,16 @@ def main():
     utils.load_checkpoint(args.checkpoint, model, None)
     model.eval()
 
-    groups = load_groups(processed, args.min_members, args.min_common_atoms)
-    print(f"[xray_gate] {len(groups)} same-sequence groups with "
+    allowed = None
+    if args.split != "all":
+        splits = utils.load_json(ROOT / cfg.data.splits_file)
+        allowed = set(splits[args.split])
+    groups = load_groups(processed, args.min_members, args.min_common_atoms, allowed)
+    print(f"[xray_gate] split={args.split}  {len(groups)} same-sequence groups with "
           f">={args.min_members} members and >={args.min_common_atoms} common atoms")
+    if args.split == "all":
+        print("  WARNING: split=all mixes training structures into the measurement; "
+              "the result is NOT comparable to held-out numbers.")
     if not groups:
         raise SystemExit(
             "No same-sequence groups found. The corpus may have been "
@@ -180,6 +201,7 @@ def main():
         return float(np.mean(v)) if v else float("nan")
 
     summary = {
+        "split": args.split,
         "n_groups": len(rows), "n_structures": len(recon_all),
         "mean_recon_rmsd": float(np.mean(recon_all)),
         "mean_spread_true_conformers": m("spread_true_conformers"),
@@ -189,7 +211,7 @@ def main():
     }
     utils.save_json(summary, ROOT / args.out)
 
-    print("\n=== in-domain (crystal) conformational resolution ===")
+    print(f"\n=== in-domain (crystal) conformational resolution [split={args.split}] ===")
     print(f"groups {summary['n_groups']}  structures {summary['n_structures']}")
     print(f"reconstruction         : {summary['mean_recon_rmsd']:.3f} A")
     print(f"true spread            : {summary['mean_spread_true_conformers']:.3f} A")
