@@ -1,0 +1,566 @@
+{
+  "n_groups": 34,
+  "n_structures": 182,
+  "mean_recon_rmsd": 0.5740476216059559,
+  "mean_spread_true_conformers": 0.8412858393711924,
+  "mean_resolution_ratio": 0.8230336554080093,
+  "mean_smoothness_spearman": 0.45535911713621335,
+  "groups": [
+    {
+      "ids": [
+        "1AB1_A",
+        "1CBN_A",
+        "1JXT_A",
+        "1JXY_A",
+        "3U7T_A"
+      ],
+      "n_members": 5,
+      "n_common_atoms": 326,
+      "mean_recon_rmsd": 0.415290580305024,
+      "spread_true_conformers": 0.34529438145440416,
+      "spread_reconstructions": 0.24718067609931219,
+      "resolution_ratio": 0.7158549034541768,
+      "smoothness_spearman": 0.15151515151515152
+    },
+    {
+      "ids": [
+        "1BPI_A",
+        "4PTI_A",
+        "5PTI_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 454,
+      "mean_recon_rmsd": 0.7719835911116162,
+      "spread_true_conformers": 1.3645465892404616,
+      "spread_reconstructions": 1.133420004226604,
+      "resolution_ratio": 0.8306202317778626,
+      "smoothness_spearman": 0.5
+    },
+    {
+      "ids": [
+        "1BQ8_A",
+        "3KYU_A",
+        "3KYV_A",
+        "3KYW_A",
+        "4AR6_A",
+        "5AI3_A",
+        "5OME_A",
+        "9BKL_A"
+      ],
+      "n_members": 8,
+      "n_common_atoms": 287,
+      "mean_recon_rmsd": 0.3241960647921335,
+      "spread_true_conformers": 2.12501542334973,
+      "spread_reconstructions": 2.1295166393201588,
+      "resolution_ratio": 1.0021182039061785,
+      "smoothness_spearman": 0.0180623973727422
+    },
+    {
+      "ids": [
+        "1BQ9_A",
+        "9XZU_A",
+        "9Y00_A",
+        "9Y0Y_A",
+        "9Y0Z_A",
+        "9Y11_A",
+        "9Y28_A",
+        "9Y2E_A",
+        "9Y2G_A",
+        "9Y30_A",
+        "9Y32_A",
+        "9Y33_A",
+        "9Y38_A"
+      ],
+      "n_members": 13,
+      "n_common_atoms": 413,
+      "mean_recon_rmsd": 0.43499058990108125,
+      "spread_true_conformers": 1.0297700641785592,
+      "spread_reconstructions": 0.9282734374621237,
+      "resolution_ratio": 0.9014375827700927,
+      "smoothness_spearman": 0.6460248612147347
+    },
+    {
+      "ids": [
+        "1CNR_A",
+        "1EJG_A",
+        "2FD7_A",
+        "3NIR_A"
+      ],
+      "n_members": 4,
+      "n_common_atoms": 325,
+      "mean_recon_rmsd": 0.3887777030037398,
+      "spread_true_conformers": 0.6765589753667139,
+      "spread_reconstructions": 0.7147476487709015,
+      "resolution_ratio": 1.0564454464350106,
+      "smoothness_spearman": 0.8857142857142857
+    },
+    {
+      "ids": [
+        "1EYT_A",
+        "1IUA_A",
+        "2AMS_A",
+        "2FLA_A",
+        "3A38_A",
+        "3A39_A",
+        "5D8V_A",
+        "5WQR_A",
+        "6AIQ_A",
+        "6AIR_A",
+        "7VOS_A"
+      ],
+      "n_members": 11,
+      "n_common_atoms": 616,
+      "mean_recon_rmsd": 1.0832745281796443,
+      "spread_true_conformers": 0.47888071274701455,
+      "spread_reconstructions": 0.43022869844342365,
+      "resolution_ratio": 0.8984047321001775,
+      "smoothness_spearman": 0.5657287157287157
+    },
+    {
+      "ids": [
+        "1FHH_A",
+        "1FHM_A",
+        "1R0F_A",
+        "1R0G_A",
+        "1R0H_A"
+      ],
+      "n_members": 5,
+      "n_common_atoms": 412,
+      "mean_recon_rmsd": 0.46473224300992644,
+      "spread_true_conformers": 0.6320792634298096,
+      "spread_reconstructions": 0.3520864967157468,
+      "resolution_ratio": 0.5570290263997008,
+      "smoothness_spearman": 0.9757575757575757
+    },
+    {
+      "ids": [
+        "1I0X_A",
+        "1RGA_A",
+        "3BU4_A",
+        "4GSP_A",
+        "5BU4_A",
+        "9RNT_A"
+      ],
+      "n_members": 6,
+      "n_common_atoms": 769,
+      "mean_recon_rmsd": 0.4767134567009192,
+      "spread_true_conformers": 0.651826647206208,
+      "spread_reconstructions": 0.5565053673704663,
+      "resolution_ratio": 0.8537628367230798,
+      "smoothness_spearman": 0.5107142857142857
+    },
+    {
+      "ids": [
+        "1IQZ_A",
+        "1IR0_A",
+        "1WTF_A",
+        "7YL8_A"
+      ],
+      "n_members": 4,
+      "n_common_atoms": 608,
+      "mean_recon_rmsd": 1.0480557421921557,
+      "spread_true_conformers": 0.8369215144259124,
+      "spread_reconstructions": 0.6384271642829127,
+      "resolution_ratio": 0.76282799913543,
+      "smoothness_spearman": -0.02857142857142857
+    },
+    {
+      "ids": [
+        "1PLC_A",
+        "4DP7_X",
+        "4DP9_X",
+        "4DPA_X",
+        "4DPB_X"
+      ],
+      "n_members": 5,
+      "n_common_atoms": 738,
+      "mean_recon_rmsd": 0.4626761809189025,
+      "spread_true_conformers": 0.4131852569449608,
+      "spread_reconstructions": 0.34735869385483553,
+      "resolution_ratio": 0.8406851116207813,
+      "smoothness_spearman": 0.7212121212121212
+    },
+    {
+      "ids": [
+        "29KI_A",
+        "9TXE_A",
+        "9TXO_A",
+        "9TXQ_A"
+      ],
+      "n_members": 4,
+      "n_common_atoms": 757,
+      "mean_recon_rmsd": 0.49314447607461764,
+      "spread_true_conformers": 0.34987166026652833,
+      "spread_reconstructions": 0.3232913867698543,
+      "resolution_ratio": 0.9240285038335901,
+      "smoothness_spearman": 0.37142857142857144
+    },
+    {
+      "ids": [
+        "2FJZ_A",
+        "2FK1_A",
+        "2FMA_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 475,
+      "mean_recon_rmsd": 0.49076192826868037,
+      "spread_true_conformers": 0.3070894625212906,
+      "spread_reconstructions": 0.19277228584753595,
+      "resolution_ratio": 0.6277398262539569,
+      "smoothness_spearman": 0.5
+    },
+    {
+      "ids": [
+        "3N32_A",
+        "3NS8_A",
+        "5X3N_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 595,
+      "mean_recon_rmsd": 0.7659230203089494,
+      "spread_true_conformers": 1.8421262072247278,
+      "spread_reconstructions": 1.7308900188788494,
+      "resolution_ratio": 0.9396153271640045,
+      "smoothness_spearman": 0.5
+    },
+    {
+      "ids": [
+        "3SD6_A",
+        "3SWB_A",
+        "4GJE_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 667,
+      "mean_recon_rmsd": 1.0917214629103869,
+      "spread_true_conformers": 0.44458513107698133,
+      "spread_reconstructions": 0.4735782233356451,
+      "resolution_ratio": 1.0652138144800967,
+      "smoothness_spearman": -0.5
+    },
+    {
+      "ids": [
+        "3X33_A",
+        "3X34_A",
+        "3X35_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 705,
+      "mean_recon_rmsd": 0.6000095553511665,
+      "spread_true_conformers": 0.9856282907848192,
+      "spread_reconstructions": 0.7996537143640433,
+      "resolution_ratio": 0.8113136786356941,
+      "smoothness_spearman": 0.5
+    },
+    {
+      "ids": [
+        "4DP0_X",
+        "4DP1_X",
+        "4DP4_X",
+        "4DP6_X"
+      ],
+      "n_members": 4,
+      "n_common_atoms": 737,
+      "mean_recon_rmsd": 0.5133127935354832,
+      "spread_true_conformers": 0.5874334996655936,
+      "spread_reconstructions": 0.42305380662600306,
+      "resolution_ratio": 0.7201731036225097,
+      "smoothness_spearman": 0.9428571428571428
+    },
+    {
+      "ids": [
+        "4J74_A",
+        "4J7E_A",
+        "4LWT_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 698,
+      "mean_recon_rmsd": 0.570221114285638,
+      "spread_true_conformers": 0.6575067952710354,
+      "spread_reconstructions": 0.5080855676137062,
+      "resolution_ratio": 0.7727457286646973,
+      "smoothness_spearman": 1.0
+    },
+    {
+      "ids": [
+        "4LMM_A",
+        "4MPA_A",
+        "4N6X_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 691,
+      "mean_recon_rmsd": 0.5929365036966429,
+      "spread_true_conformers": 3.313585597974819,
+      "spread_reconstructions": 3.2231933640750667,
+      "resolution_ratio": 0.9727207186212428,
+      "smoothness_spearman": 1.0
+    },
+    {
+      "ids": [
+        "5HBO_A",
+        "5HBP_A",
+        "5HPA_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 781,
+      "mean_recon_rmsd": 0.646666741879829,
+      "spread_true_conformers": 0.10101968295628987,
+      "spread_reconstructions": 0.07514654044583263,
+      "resolution_ratio": 0.7438801849966975,
+      "smoothness_spearman": 1.0
+    },
+    {
+      "ids": [
+        "5KH3_A",
+        "5KH7_A",
+        "6CE6_A",
+        "6CE8_A"
+      ],
+      "n_members": 4,
+      "n_common_atoms": 769,
+      "mean_recon_rmsd": 1.0359211619797914,
+      "spread_true_conformers": 0.47123205102884197,
+      "spread_reconstructions": 0.46137517054617644,
+      "resolution_ratio": 0.9790827460459343,
+      "smoothness_spearman": 1.0
+    },
+    {
+      "ids": [
+        "5L87_A",
+        "5L8A_A",
+        "6S9Y_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 459,
+      "mean_recon_rmsd": 0.5032521958746571,
+      "spread_true_conformers": 0.693076503583911,
+      "spread_reconstructions": 0.660000833410309,
+      "resolution_ratio": 0.952277028578278,
+      "smoothness_spearman": -0.5
+    },
+    {
+      "ids": [
+        "5LAW_A",
+        "5LAZ_A",
+        "6I3S_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 773,
+      "mean_recon_rmsd": 0.555433983192019,
+      "spread_true_conformers": 0.9103018214032693,
+      "spread_reconstructions": 0.6784193163567235,
+      "resolution_ratio": 0.7452685476460005,
+      "smoothness_spearman": 0.5
+    },
+    {
+      "ids": [
+        "5SBG_C",
+        "5SBI_C",
+        "5SBJ_C",
+        "9G39_C"
+      ],
+      "n_members": 4,
+      "n_common_atoms": 188,
+      "mean_recon_rmsd": 0.7137121013971104,
+      "spread_true_conformers": 0.6245651852959168,
+      "spread_reconstructions": 0.37444582758860107,
+      "resolution_ratio": 0.5995304195689197,
+      "smoothness_spearman": 1.0
+    },
+    {
+      "ids": [
+        "5XX6_A",
+        "5XX7_A",
+        "5XX8_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 451,
+      "mean_recon_rmsd": 0.519714081051924,
+      "spread_true_conformers": 0.3900823908481669,
+      "spread_reconstructions": 0.22459166754997387,
+      "resolution_ratio": 0.5757544375731445,
+      "smoothness_spearman": 1.0
+    },
+    {
+      "ids": [
+        "6CEA_A",
+        "6CED_A",
+        "8G43_A",
+        "8G44_A",
+        "8G45_A"
+      ],
+      "n_members": 5,
+      "n_common_atoms": 763,
+      "mean_recon_rmsd": 0.4756084062116589,
+      "spread_true_conformers": 0.3788457293236088,
+      "spread_reconstructions": 0.2874201227188461,
+      "resolution_ratio": 0.7586732552905004,
+      "smoothness_spearman": 0.030303030303030304
+    },
+    {
+      "ids": [
+        "6HA4_A",
+        "6HAH_A",
+        "6HAJ_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 433,
+      "mean_recon_rmsd": 0.9993128634787419,
+      "spread_true_conformers": 1.37858195298776,
+      "spread_reconstructions": 1.1609316249760242,
+      "resolution_ratio": 0.8421201383493896,
+      "smoothness_spearman": 1.0
+    },
+    {
+      "ids": [
+        "6I09_A",
+        "6I0A_A",
+        "6I0N_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 576,
+      "mean_recon_rmsd": 0.5021430309578484,
+      "spread_true_conformers": 0.6170860500771397,
+      "spread_reconstructions": 0.41086875080269736,
+      "resolution_ratio": 0.6658208377119141,
+      "smoothness_spearman": 1.0
+    },
+    {
+      "ids": [
+        "7BNG_A",
+        "7BNH_A",
+        "7BNI_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 766,
+      "mean_recon_rmsd": 0.5590220195590739,
+      "spread_true_conformers": 0.8577563525406816,
+      "spread_reconstructions": 0.7095247845393887,
+      "resolution_ratio": 0.8271868607417133,
+      "smoothness_spearman": 1.0
+    },
+    {
+      "ids": [
+        "7HG0_A",
+        "7HG5_A",
+        "7HG6_A",
+        "7HG8_A",
+        "7HGC_A",
+        "7HGE_A",
+        "7HGG_A",
+        "7HGH_A",
+        "7HGI_A",
+        "7HGJ_A",
+        "7HGL_A",
+        "7HGM_A",
+        "7HGO_A",
+        "7HGP_A",
+        "7HGQ_A",
+        "7HGR_A",
+        "7HGS_A",
+        "7HGT_A",
+        "7HGU_A",
+        "7HGW_A",
+        "7HH0_A",
+        "7HH1_A",
+        "7HH2_A",
+        "7HH3_A",
+        "7HH4_A",
+        "7HH5_A",
+        "7HH6_A",
+        "7HHB_A",
+        "7HHC_A",
+        "7HHD_A",
+        "7HHG_A",
+        "7HHJ_A",
+        "7HHL_A",
+        "7HHM_A",
+        "7HHN_A",
+        "7HHO_A",
+        "7HHQ_A",
+        "9I7I_A"
+      ],
+      "n_members": 38,
+      "n_common_atoms": 738,
+      "mean_recon_rmsd": 0.4116978542637193,
+      "spread_true_conformers": 0.22800347525586204,
+      "spread_reconstructions": 0.1701020337478599,
+      "resolution_ratio": 0.7460501799675376,
+      "smoothness_spearman": 0.25380093472198734
+    },
+    {
+      "ids": [
+        "7KND_A",
+        "7KNJ_A",
+        "7L92_A",
+        "7LCB_A",
+        "7LEO_A"
+      ],
+      "n_members": 5,
+      "n_common_atoms": 416,
+      "mean_recon_rmsd": 0.8832596352738182,
+      "spread_true_conformers": 1.2877779490384997,
+      "spread_reconstructions": 0.9891885191013812,
+      "resolution_ratio": 0.7681359351120619,
+      "smoothness_spearman": -0.09090909090909091
+    },
+    {
+      "ids": [
+        "7PVQ_A",
+        "7PVR_A",
+        "7PVS_A"
+      ],
+      "n_members": 3,
+      "n_common_atoms": 438,
+      "mean_recon_rmsd": 0.4222320749560942,
+      "spread_true_conformers": 0.9060860900806714,
+      "spread_reconstructions": 0.8852209883498684,
+      "resolution_ratio": 0.9769722745341501,
+      "smoothness_spearman": -1.0
+    },
+    {
+      "ids": [
+        "9GRS_A",
+        "9GRT_A",
+        "9GRU_A",
+        "9GRV_A"
+      ],
+      "n_members": 4,
+      "n_common_atoms": 745,
+      "mean_recon_rmsd": 0.6149092302942784,
+      "spread_true_conformers": 0.6416394170092378,
+      "spread_reconstructions": 0.4142169388015608,
+      "resolution_ratio": 0.6455603066474285,
+      "smoothness_spearman": 0.9428571428571428
+    },
+    {
+      "ids": [
+        "9HBD_A",
+        "9HBE_A",
+        "9HRV_A",
+        "9HRX_A"
+      ],
+      "n_members": 4,
+      "n_common_atoms": 687,
+      "mean_recon_rmsd": 0.545786634803285,
+      "spread_true_conformers": 1.0028811412695349,
+      "spread_reconstructions": 0.945923520616704,
+      "resolution_ratio": 0.9432060108531617,
+      "smoothness_spearman": -0.5428571428571428
+    },
+    {
+      "ids": [
+        "9UNT_A",
+        "9VYS_A",
+        "9VYT_A",
+        "9VYV_A"
+      ],
+      "n_members": 4,
+      "n_common_atoms": 753,
+      "mean_recon_rmsd": 0.5277712076654069,
+      "spread_true_conformers": 1.0728772727915807,
+      "spread_reconstructions": 1.0309152666730368,
+      "resolution_ratio": 0.9608883446572033,
+      "smoothness_spearman": -0.37142857142857144
+    }
+  ]
+}
