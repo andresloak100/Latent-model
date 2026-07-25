@@ -97,10 +97,14 @@ class PerResidueAutoencoder(nn.Module):
 
     @property
     def latent_floats(self) -> int:
-        # Per-residue budget; TOTAL latent = latent_dim x n_residues (scales with
-        # protein size). Reported per-residue so the eval's compression column is
-        # interpreted per residue, not as a single global bottleneck.
+        # Per-residue budget only. The TOTAL latent is latent_dim x n_residues
+        # and therefore depends on the structure -- use latent_floats_for() for
+        # anything that reports compression, or the ratio is inflated by ~n_res.
         return self.cfg.latent_dim
+
+    def latent_floats_for(self, n_residues: int) -> int:
+        """Actual latent size for a structure with ``n_residues`` residues."""
+        return self.cfg.latent_dim * max(int(n_residues), 1)
 
     def num_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters())

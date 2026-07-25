@@ -98,7 +98,10 @@ def main():
                 s["atom_name_idx"].numpy(), s["res_pos"].numpy(),
                 s["bonds"].numpy(), s["element_symbol"],
             )
-            m = compute_all_metrics(pred, target, topo, latent_floats=latent_floats)
+            n_res_i = int(s["res_pos"].numpy().max()) + 1
+            lf_i = (model.latent_floats_for(n_res_i)
+                    if hasattr(model, "latent_floats_for") else latent_floats)
+            m = compute_all_metrics(pred, target, topo, latent_floats=lf_i)
             m["pdb_id"] = s["pdb_id"]
             m["chain_id"] = s["chain_id"]
             m["n_residues"] = int(s["res_pos"].numpy().max()) + 1

@@ -146,5 +146,11 @@ class FlowMatchingAutoencoder(nn.Module):
     def latent_floats(self) -> int:
         return self.cfg.latent_dim if self.per_residue else self.cfg.n_latent_tokens * self.cfg.latent_dim
 
+    def latent_floats_for(self, n_residues: int) -> int:
+        """Actual latent size for one structure (per-residue latents scale with it)."""
+        if self.per_residue:
+            return self.cfg.latent_dim * max(int(n_residues), 1)
+        return self.cfg.n_latent_tokens * self.cfg.latent_dim
+
     def num_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters())
