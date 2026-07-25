@@ -37,7 +37,7 @@ done
 [[ -f "$SRC/comparison.md" ]] && cp "$SRC/comparison.md" "$DEST/comparison.md"
 # Standalone experiment outputs that live outside results/ (e.g. the matched-task
 # AE-vs-PCA control) — small JSON summaries worth keeping in the repo.
-for extra in matched_task_pca.json; do
+for extra in matched_task_pca.json ablation_ladder.json; do
   [[ -f "$EXPDIR/outputs/$extra" ]] && cp "$EXPDIR/outputs/$extra" "$DEST/$extra"
 done
 echo "[push] staged $n result set(s) -> $DEST"
