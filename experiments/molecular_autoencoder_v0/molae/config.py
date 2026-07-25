@@ -32,6 +32,7 @@ class TrainConfig:
     eval_every: int = 200
     ckpt_every: int = 200
     clash_dist: float = 1.5
+    loss_max_atoms: int = 1200  # subsample cap for distance/clash loss (per-atom O(N^2)); raise for large proteins
     out_dir: str = "outputs/stage_a"
     overfit: bool = False  # if true, train on train+val (Stage A sanity)
     augment_rotation: bool = False  # random SO(3) input rotations (teaches non-equivariant encoders invariance)

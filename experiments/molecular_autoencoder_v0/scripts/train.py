@@ -110,7 +110,7 @@ def main():
     opt = torch.optim.Adam(model.parameters(), lr=cfg.train.lr,
                            weight_decay=cfg.train.weight_decay)
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
-    loss_fn = LossComputer(cfg.loss, clash_dist=cfg.train.clash_dist)
+    loss_fn = LossComputer(cfg.loss, clash_dist=cfg.train.clash_dist, max_atoms=cfg.train.loss_max_atoms)
 
     start_epoch = 0
     log = []

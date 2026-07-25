@@ -216,10 +216,11 @@ class LossComputer:
     """
 
     def __init__(self, weights: LossWeights, clash_dist: float = 1.5,
-                 vectorized: bool = False):
+                 vectorized: bool = False, max_atoms: int = 1200):
         self.w = weights
         self.clash_dist = clash_dist
         self.vectorized = vectorized
+        self.max_atoms = max_atoms  # subsample cap for distance/clash (loop path)
 
     def __call__(self, preds, batch):
         if self.vectorized:
@@ -248,9 +249,9 @@ class LossComputer:
             centers = batch["chirality_centers"][i].to(device)
             bonded_mask = batch["bonded_mask"][i].to(device)
             totals["coord"] = totals["coord"] + coord_loss_single(p, t)
-            totals["distance"] = totals["distance"] + distance_loss_single(p, t)
+            totals["distance"] = totals["distance"] + distance_loss_single(p, t, max_atoms=self.max_atoms)
             totals["bond"] = totals["bond"] + bond_loss_single(p, t, bonds)
-            totals["clash"] = totals["clash"] + clash_loss_single(p, bonded_mask, self.clash_dist)
+            totals["clash"] = totals["clash"] + clash_loss_single(p, bonded_mask, self.clash_dist, max_atoms=self.max_atoms)
             totals["chirality"] = totals["chirality"] + chirality_loss_single(p, t, centers)
         for k in totals:
             totals[k] = totals[k] / max(B, 1)
