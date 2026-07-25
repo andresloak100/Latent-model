@@ -97,36 +97,48 @@ def rmsd_rows(recon, truth, n_atoms):
 
 
 def train_ae(X_train, X_val, latent, n_atoms, epochs, seed=0, hidden=512, depth=3, lr=1e-3):
+    """Train an MLP autoencoder. Checkpoint selection uses a DEV split carved
+    out of train -- never the val set, which PCA also never sees. Selecting on
+    val would give the AE a peek at the test set that PCA does not get, and
+    would bias this comparison in the AE's favour.
+    """
     utils.set_seed(seed)
-    mu, sd = X_train.mean(0, keepdims=True), X_train.std() + 1e-8
-    xt = torch.tensor((X_train - mu) / sd, dtype=torch.float32)
+    n_dev = max(8, int(0.15 * X_train.shape[0]))
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(X_train.shape[0])
+    dev_idx, tr_idx = perm[:n_dev], perm[n_dev:]
+    X_dev, X_tr = X_train[dev_idx], X_train[tr_idx]
+
+    mu, sd = X_tr.mean(0, keepdims=True), X_tr.std() + 1e-8
+    xt = torch.tensor((X_tr - mu) / sd, dtype=torch.float32)
+    xd = torch.tensor((X_dev - mu) / sd, dtype=torch.float32)
     xv = torch.tensor((X_val - mu) / sd, dtype=torch.float32)
     model = MLPAutoencoder(xt.shape[1], latent, hidden, depth)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
-    best_val, best_state = float("inf"), None
+    best_dev, best_state = float("inf"), None
     for ep in range(epochs):
         model.train()
-        perm = torch.randperm(xt.shape[0])
+        order = torch.randperm(xt.shape[0])
         for i in range(0, xt.shape[0], 64):
-            b = xt[perm[i:i + 64]]
+            b = xt[order[i:i + 64]]
             loss = ((model(b) - b) ** 2).mean()
             opt.zero_grad(); loss.backward(); opt.step()
         sched.step()
         if ep % 25 == 0 or ep == epochs - 1:
             model.eval()
             with torch.no_grad():
-                v = ((model(xv) - xv) ** 2).mean().item()
-            if v < best_val:
-                best_val = v
+                d = ((model(xd) - xd) ** 2).mean().item()      # DEV, not val
+            if d < best_dev:
+                best_dev = d
                 best_state = {k: t.clone() for k, t in model.state_dict().items()}
     if best_state:
-        model.load_state_dict(best_state)          # early stopping on val MSE
+        model.load_state_dict(best_state)
     model.eval()
     with torch.no_grad():
         rec_t = (model(xt).numpy() * sd) + mu
         rec_v = (model(xv).numpy() * sd) + mu
-    return (rmsd_rows(rec_t, X_train, n_atoms),
+    return (rmsd_rows(rec_t, X_tr, n_atoms),
             rmsd_rows(rec_v, X_val, n_atoms),
             sum(p.numel() for p in model.parameters()))
 
@@ -150,6 +162,9 @@ def main():
         raise SystemExit("cohort too small — need a prepared multi-structure dataset")
 
     ks = [int(k) for k in args.latents.split(",")]
+    # PCA is fit on the FULL train set (it needs no checkpoint selection); the
+    # AE fits on train-minus-dev and selects on dev. If anything this now
+    # slightly favours PCA, which is the safe direction for this comparison.
     pca = evaluate_baselines(X_train, X_val, args.n_res, ks)
     mean_shape = pca.get("mean_shape", {}).get("mean_backbone_rmsd", float("nan"))
 
