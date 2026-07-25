@@ -119,3 +119,40 @@ def test_parse_structure_rejects_out_of_range_model():
             parse_structure(str(path), pdb_id="TEST", model_index=7)
     finally:
         path.unlink(missing_ok=True)
+
+
+def test_resolution_ratio_detects_collapse_where_rho_cannot():
+    """The failure mode smoothness is blind to.
+
+    A codec that maps every conformer to almost the same output, but preserves
+    their ORDER, scores rho ~ 1.0 -- rank correlation is scale-free. The
+    resolution ratio catches it because it compares magnitudes.
+    """
+    from latent_suitability import ensemble_resolution, smoothness
+    rng = np.random.default_rng(3)
+    base = rng.normal(size=(20, 3))
+    base -= base.mean(axis=0, keepdims=True)
+    # Deliberately unequal gaps: equal gaps create pairwise ties that floating
+    # point breaks arbitrarily, which would make rho noisy for reasons that
+    # have nothing to do with the property under test.
+    scales = (0.0, 1.0, 2.5, 4.5)
+    trues = [base * (1.0 + 0.3 * s) for s in scales]
+
+    # Faithful decoder: reconstructions differ as much as the truths do.
+    ratio_ok, _, _ = ensemble_resolution(trues, trues)
+    assert ratio_ok == pytest.approx(1.0)
+
+    # Collapsed decoder: every conformer decodes to ~the same structure, but
+    # with a tiny order-preserving offset so the RANKING is still perfect.
+    collapsed = [base * (1.0 + 1e-4 * s) for s in scales]
+    ratio_bad, spread_p, spread_t = ensemble_resolution(collapsed, trues)
+    assert ratio_bad < 0.01, "collapse must show up as a near-zero ratio"
+    assert spread_p < spread_t
+
+    # ...and smoothness is FOOLED by exactly this case: ranks are preserved, so
+    # rho is a perfect 1.0 while the codec is entirely useless. This is the
+    # whole reason ensemble_resolution has to be reported alongside it.
+    zs = [torch.from_numpy(c).unsqueeze(0) for c in collapsed]
+    rho, _ = smoothness(zs, trues)
+    assert rho == pytest.approx(1.0), (
+        "this test is only meaningful if rho stays high under collapse")

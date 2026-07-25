@@ -57,7 +57,14 @@ def build_query(min_res, max_res, start, rows):
         "request_options": {
             "paginate": {"start": start, "rows": rows},
             "results_content_type": ["experimental"],
-            "sort": [{"sort_by": "rcsb_entry_info.deposited_atom_count",
+            # Sort by ID, NOT by atom count. Sorting ascending by
+            # deposited_atom_count (copied from the X-ray fetcher) skims the
+            # very smallest entries in the PDB: it produced a cohort averaging
+            # 19 residues / 135 atoms against a training distribution of 78
+            # residues / 607 atoms, with half the cohort below the training
+            # minimum of 20 residues. Reconstruction numbers from that cohort
+            # are a domain-shift measurement, not an ensemble measurement.
+            "sort": [{"sort_by": "rcsb_entry_container_identifiers.entry_id",
                       "direction": "asc"}],
         },
     }
@@ -74,7 +81,10 @@ def main():
     ap.add_argument("--n", type=int, default=40)
     ap.add_argument("--out", default="data/nmr_ids.txt")
     ap.add_argument("--raw-dir", default="data/raw_nmr")
-    ap.add_argument("--min-residues", type=int, default=20)
+    # Defaults deliberately match the TRAINING distribution (20-200 residues,
+    # mean 78). Evaluating on 19-residue peptides measures domain shift, not
+    # conformational-ensemble compression.
+    ap.add_argument("--min-residues", type=int, default=40)
     ap.add_argument("--max-residues", type=int, default=200)
     ap.add_argument("--min-models", type=int, default=8,
                 help="enforced locally by load_ensemble, not in the query")

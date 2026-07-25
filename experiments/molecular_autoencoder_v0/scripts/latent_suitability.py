@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Is this latent space actually *diffusible*? The real gate for Step 2.
+"""Latent-space geometry diagnostics for the TRAINED autoencoder.
+
+Read-only analysis of a finished AE checkpoint: no training, no sampling, no
+noise schedule, no trajectories. Relevant to Step 2 because these are the
+properties latent diffusion would depend on, but nothing here builds one.
 
 Milestone 1 asked "can we reconstruct?" and the answer is yes (0.75 A held-out).
 But reconstruction accuracy is necessary and NOT sufficient for latent
@@ -153,8 +157,49 @@ def spearman(a, b):
     return float((ra * rb).sum() / denom) if denom > 0 else float("nan")
 
 
+def ensemble_resolution(preds, trues):
+    """Does the decoder RESOLVE conformers, or collapse them onto one structure?
+
+    THE decisive number for latent MD, and the one thing smoothness cannot tell
+    you. Spearman rho is a RANK correlation and therefore scale-free: a codec
+    that mapped every conformer of a molecule to nearly the same output, but
+    ordered them correctly, would score rho ~ 1.0 and be completely useless for
+    Step 2/3. Ranks survive collapse; magnitudes do not.
+
+    So measure magnitude directly:
+
+        ratio = mean pairwise RMSD among RECONSTRUCTIONS
+              / mean pairwise RMSD among the TRUE conformers
+
+      ~1.0  conformational differences survive the round trip
+      ~0.0  every conformer decodes to the same structure (mean collapse) --
+            fatal for latent MD regardless of how good single-structure
+            reconstruction looks
+
+    Also returns the true ensemble spread so reconstruction error can be read
+    against it: if per-conformer RMSD is comparable to the spread, the codec's
+    own error swamps the conformational signal it has to represent, which is
+    just as fatal as collapse and equally invisible in a reconstruction number.
+    """
+    n = len(preds)
+    pred_d, true_d = [], []
+    for i in range(n):
+        for j in range(i + 1, n):
+            if preds[i].shape != preds[j].shape:
+                continue
+            pred_d.append(kabsch_rmsd_numpy(preds[i], preds[j]))
+            true_d.append(kabsch_rmsd_numpy(trues[i], trues[j]))
+    if not true_d:
+        return float("nan"), float("nan"), float("nan")
+    mp, mt = float(np.mean(pred_d)), float(np.mean(true_d))
+    return (mp / mt if mt > 1e-9 else float("nan")), mp, mt
+
+
 def smoothness(zs, trues):
     """Spearman(pairwise latent distance, pairwise structural RMSD).
+
+    Necessary but NOT sufficient, and blind to collapse -- see
+    ``ensemble_resolution``, which must be read alongside it.
 
     Note the asymmetry this has to respect: structural distance is Kabsch RMSD
     (rotation-invariant) but our encoders are NOT rotation-invariant, so two
@@ -256,7 +301,7 @@ def main():
     raw_dir = ROOT / args.raw_dir
     ids = [ln.strip() for ln in open(args.pdb_list) if ln.strip()][: args.max_entries]
 
-    entries, recon, smooth_rows, ctrl_rows, interp = [], [], [], [], []
+    entries, recon, smooth_rows, ctrl_rows, res_rows, interp = [], [], [], [], [], []
     for pid in ids:
         path = raw_dir / f"{pid}.cif"
         if not path.exists():
@@ -273,6 +318,7 @@ def main():
         zs, preds, trues = encode_all(model, structs, device)
         rmsds = [kabsch_rmsd_numpy(p, t) for p, t in zip(preds, trues)]
         rho, n_pairs = smoothness(zs, trues)
+        res_ratio, spread_pred, spread_true = ensemble_resolution(preds, trues)
         rows = interpolation_physics(model, structs, zs, trues, device)
 
         zs_c, _, _ = encode_all(control, structs, device)
@@ -280,19 +326,26 @@ def main():
 
         entries.append({
             "pdb_id": pid, "n_models": len(structs),
+            "n_residues": structs[0].record["n_residues"],
             "n_atoms": structs[0].record["n_atoms"],
             "mean_recon_rmsd": float(np.mean(rmsds)),
             "smoothness_spearman": rho,
             "smoothness_spearman_random_init": rho_c, "n_pairs": n_pairs,
+            "resolution_ratio": res_ratio,
+            "spread_reconstructions": spread_pred,
+            "spread_true_conformers": spread_true,
         })
         recon.extend(rmsds)
         if not np.isnan(rho):
             smooth_rows.append(rho)
         if not np.isnan(rho_c):
             ctrl_rows.append(rho_c)
+        if not np.isnan(res_ratio):
+            res_rows.append((res_ratio, spread_pred, spread_true))
         interp.extend(rows)
-        print(f"  {pid}: {len(structs)} models, recon {np.mean(rmsds):.3f} A, "
-              f"smoothness rho={rho:.3f} (random-init control {rho_c:.3f})")
+        print(f"  {pid}: {len(structs)} models ({structs[0].record['n_residues']} res), "
+              f"recon {np.mean(rmsds):.3f} A vs spread {spread_true:.3f} A, "
+              f"resolution {res_ratio:.2f}, rho={rho:.3f} (ctrl {rho_c:.3f})")
 
     def mean(key, rows):
         """NaN-safe: a structure with no bonds or no stereocentres yields NaN
@@ -307,6 +360,12 @@ def main():
         "mean_smoothness_spearman": float(np.mean(smooth_rows)) if smooth_rows else float("nan"),
         "mean_smoothness_spearman_random_init": (
             float(np.mean(ctrl_rows)) if ctrl_rows else float("nan")),
+        "mean_resolution_ratio": (
+            float(np.mean([r[0] for r in res_rows])) if res_rows else float("nan")),
+        "mean_spread_reconstructions": (
+            float(np.mean([r[1] for r in res_rows])) if res_rows else float("nan")),
+        "mean_spread_true_conformers": (
+            float(np.mean([r[2] for r in res_rows])) if res_rows else float("nan")),
         "interpolation": {
             "n_pairs": len(interp),
             "endpoint_bond_err": mean("endpoint_bond_err", interp),
@@ -326,6 +385,11 @@ def main():
     print("\n=== latent suitability for diffusion ===")
     print(f"entries {summary['n_entries']}  conformers {summary['n_conformers']}")
     print(f"reconstruction on ensembles : {summary['mean_recon_rmsd']:.3f} A")
+    print(f"true conformational spread  : {summary['mean_spread_true_conformers']:.3f} A"
+          f"   <- recon error must be WELL BELOW this")
+    print(f"reconstruction spread       : {summary['mean_spread_reconstructions']:.3f} A")
+    print(f"RESOLUTION RATIO            : {summary['mean_resolution_ratio']:.3f}"
+          f"   (1.0 = conformers survive, 0.0 = collapsed)")
     rho_t = summary["mean_smoothness_spearman"]
     rho_c = summary["mean_smoothness_spearman_random_init"]
     print(f"latent/structure smoothness : rho = {rho_t:.3f}  "
@@ -333,12 +397,14 @@ def main():
     print(f"interp bond error  endpoint {ip['endpoint_bond_err']:.3f} -> midpoint {ip['midpoint_bond_err']:.3f} A")
     print(f"interp chirality   endpoint {ip['endpoint_chirality']:.3f} -> midpoint {ip['midpoint_chirality']:.3f}")
     print(f"interp clashes/1k  endpoint {ip['endpoint_clash_per_1k']:.1f} -> midpoint {ip['midpoint_clash_per_1k']:.1f}")
-    print("\nGATE: midpoints should be close to endpoints on ALL THREE physics")
-    print("rows, and rho must beat the random-init control -- a random")
-    print("projection already preserves distances, so positive rho alone means")
-    print("nothing. If midpoints degrade, the latent is pitted: fix the")
-    print("autoencoder (KL/VAE or contrastive smoothing) BEFORE building latent")
-    print("diffusion on top of it.")
+    print("\nGATE, in order of decisiveness:")
+    print(" 1. RESOLUTION RATIO near 1.0, and recon error well below the true")
+    print("    spread. If the codec cannot tell conformers apart, nothing else")
+    print("    matters -- rho is rank-based and stays high under collapse.")
+    print(" 2. Midpoints close to endpoints on ALL THREE physics rows.")
+    print(" 3. rho clearly above the random-init control (a random projection")
+    print("    already preserves distances, so bare rho means nothing).")
+    print("Failing 1 or 2 means fixing the autoencoder BEFORE latent diffusion.")
     print(f"-> {out}")
 
 
