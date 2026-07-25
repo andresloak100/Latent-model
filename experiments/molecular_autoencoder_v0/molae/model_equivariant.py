@@ -56,6 +56,9 @@ def make_autoencoder(cfg: ModelConfig):
     if etype == "perresidue":
         from .model_perresidue import PerResidueAutoencoder
         return PerResidueAutoencoder(cfg)
+    if etype in ("peratom", "peratom_elem"):
+        from .model_peratom import PerAtomAutoencoder
+        return PerAtomAutoencoder(cfg, element_only=(etype == "peratom_elem"))
     if etype == "baseline":
         return MolecularAutoencoder(cfg)
     raise ValueError(f"unknown encoder_type: {etype!r}")

@@ -99,8 +99,15 @@ def main():
                 s["bonds"].numpy(), s["element_symbol"],
             )
             n_res_i = int(s["res_pos"].numpy().max()) + 1
-            lf_i = (model.latent_floats_for(n_res_i)
-                    if hasattr(model, "latent_floats_for") else latent_floats)
+            # Per-atom latents scale with atoms, per-residue ones with residues,
+            # fixed bottlenecks with neither. Getting this wrong silently
+            # inflates the reported compression ratio (it once did, by ~60x).
+            if hasattr(model, "latent_floats_for_atoms"):
+                lf_i = model.latent_floats_for_atoms(int(s["n_atoms"]))
+            elif hasattr(model, "latent_floats_for"):
+                lf_i = model.latent_floats_for(n_res_i)
+            else:
+                lf_i = latent_floats
             m = compute_all_metrics(pred, target, topo, latent_floats=lf_i)
             m["pdb_id"] = s["pdb_id"]
             m["chain_id"] = s["chain_id"]

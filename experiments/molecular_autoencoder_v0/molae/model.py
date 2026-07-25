@@ -42,7 +42,10 @@ class ModelConfig:
     dropout: float = 0.0
     max_res_pos: int = 1024
     coord_scale: float = 10.0
-    encoder_type: str = "baseline"   # "baseline" | "invariant" | "rope" | "perresidue"
+    # "baseline" | "invariant" | "rope" | "perresidue" | "direct"
+    #   | "peratom" | "peratom_elem"   (per-atom latents; see model_peratom.py --
+    #     compression is 3/latent_dim, so only latent_dim 1-2 is meaningful)
+    encoder_type: str = "baseline"
     k_neighbors: int = 8             # neighbours for the invariant encoder
     rope_freqs: int = 128            # Fourier frequencies per axis for the rope encoder (3*2*F coord dims)
     rope_spherical: bool = False     # rope: encode spherical (r/θ/φ) instead of Cartesian
