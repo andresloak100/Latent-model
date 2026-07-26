@@ -1,52 +1,45 @@
-# MODEL-capacity arm. The latent ladder (d2/d4/d8/d16) varied LATENT size
-# and found the ~0.9 A all-atom floor flat from d4 up. But it never varied
-# MODEL capacity: every arm ran d_model=128 / 2+2 layers / 1.1M params. So
-# 'not capacity-limited' was only ever established along one axis.
-#
-# This sweep turns the untested dial. Latent stays at 8 floats/residue so
-# compression is unchanged (~2.9x) and the only variable is network size.
-
+name: cap_d256_l2
 data:
-  max_atoms: 800
-  max_residues: 200
-  min_residues: 20
   processed_dir: data/processed
   splits_file: data/splits.json
-loss:
-  bond: 1.0
-  chirality: 0.2
-  clash: 0.5
-  coord: 1.0
-  distance: 1.0
+  min_residues: 20
+  max_residues: 200
+  max_atoms: 800
 model:
-  coord_scale: 10.0
   d_model: 256
-  dec_self_layers: 2
-  dropout: 0.0
-  enc_self_layers: 2
-  encoder_type: direct
-  ff_mult: 4
-  flow_steps: 50
-  k_neighbors: 8
-  latent_dim: 8
-  max_res_pos: 1024
   n_heads: 8
   n_latent_tokens: 16
-  objective: reconstruct
+  latent_dim: 8
+  enc_self_layers: 2
+  dec_self_layers: 2
+  ff_mult: 4
+  dropout: 0.0
+  max_res_pos: 1024
+  coord_scale: 10.0
+  encoder_type: direct
+  k_neighbors: 8
   rope_freqs: 128
   rope_spherical: false
-name: cap_d256_l2
+  objective: reconstruct
+  flow_steps: 50
+loss:
+  coord: 1.0
+  distance: 1.0
+  bond: 1.0
+  clash: 0.5
+  chirality: 0.2
 train:
-  augment_rotation: true
-  batch_size: 16
-  ckpt_every: 300
-  clash_dist: 1.5
+  seed: 0
   epochs: 900
-  eval_every: 300
+  batch_size: 16
+  lr: 0.0003
+  weight_decay: 0.0
   grad_clip: 1.0
   log_every: 50
-  lr: 0.001
+  eval_every: 300
+  ckpt_every: 300
+  clash_dist: 1.5
+  loss_max_atoms: 1200
   out_dir: outputs/capacity/cap_d256_l2
   overfit: false
-  seed: 0
-  weight_decay: 0.0
+  augment_rotation: true
