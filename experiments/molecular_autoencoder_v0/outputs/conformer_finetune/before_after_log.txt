@@ -1,0 +1,21 @@
+=== conformer_finetune job 10208465 on cn-l056.server.mila.quebec ===
+|=========================================+========================+======================|
+|=========================================================================================|
+[finetune] BEFORE: val-group recon 0.929 A  resolution 0.848  (true spread 0.885 A)
+  step   500  margin 0.4216  ->  val-group recon 0.925 A (from 0.929)  resolution 0.863 (from 0.848)
+  step  1000  margin 0.3822  ->  val-group recon 0.925 A (from 0.929)  resolution 0.869 (from 0.848)
+  step  1500  margin 0.3760  ->  val-group recon 0.931 A (from 0.929)  resolution 0.891 (from 0.848)
+  step  2000  margin 0.3615  ->  val-group recon 0.923 A (from 0.929)  resolution 0.874 (from 0.848)
+  step  2500  margin 0.3426  ->  val-group recon 0.925 A (from 0.929)  resolution 0.884 (from 0.848)
+  step  3000  margin 0.3319  ->  val-group recon 0.929 A (from 0.929)  resolution 0.893 (from 0.848)
+  step  3500  margin 0.3295  ->  val-group recon 0.934 A (from 0.929)  resolution 0.898 (from 0.848)
+  step  4000  margin 0.3160  ->  val-group recon 0.935 A (from 0.929)  resolution 0.909 (from 0.848)
+=== conformer-margin fine-tune ===
+val-group recon      0.929 -> 0.935 A   (true spread 0.885 A)
+val-group resolution 0.848 -> 0.909
+not a resolution gain.
+=== conformer_finetune DONE -> /network/scratch/j/jacob-junqi.tian/latent-model-workspace/results/conformer_finetune ===
+======== GPU REPORT ========
+==============NVSMI LOG==============
+|=========================================+========================+======================|
+|=========================================================================================|
