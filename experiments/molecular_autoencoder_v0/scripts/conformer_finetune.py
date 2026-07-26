@@ -113,7 +113,8 @@ def margin_loss(model, group, i, j, device, margin_frac=1.0):
     d_AB = aligned_rmsd_torch(pA_c, tB_c, ones)[0]
     with torch.no_grad():                       # the true separation is a target
         m = aligned_rmsd_torch(tA_c, tB_c, ones)[0]
-    return torch.relu(margin_frac * m - (d_AB - d_AA)), float(m), float(d_AA), float(d_AB)
+    loss = torch.relu(margin_frac * m - (d_AB - d_AA))
+    return loss, float(m), float(d_AA.detach()), float(d_AB.detach())
 
 
 @torch.no_grad()
