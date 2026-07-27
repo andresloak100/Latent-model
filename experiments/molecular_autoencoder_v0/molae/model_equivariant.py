@@ -56,6 +56,10 @@ def make_autoencoder(cfg: ModelConfig):
     if etype == "perresidue":
         from .model_perresidue import PerResidueAutoencoder
         return PerResidueAutoencoder(cfg)
+    if etype == "perceiver_direct":
+        from .model_perceiver_direct import PerceiverDirectAutoencoder
+        return PerceiverDirectAutoencoder(
+            cfg, group_self_layers=getattr(cfg, "group_self_layers", 0))
     if etype in ("peratom", "peratom_elem"):
         from .model_peratom import PerAtomAutoencoder
         return PerAtomAutoencoder(cfg, element_only=(etype == "peratom_elem"))

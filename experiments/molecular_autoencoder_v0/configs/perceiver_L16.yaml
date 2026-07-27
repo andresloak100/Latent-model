@@ -1,0 +1,57 @@
+# Jacob's architecture: Perceiver encoder (atoms -> L latents, O(N.L)) plus the
+# group-mediated direct readout that fixed the codec. Latent size is DECOUPLED
+# from atom count and choosable at inference (see model_perceiver_direct.py).
+#
+# n_latent_tokens is L. Total latent = L * latent_dim floats REGARDLESS of
+# structure size, so compression grows without bound in N -- unlike the
+# per-residue codec, pinned at ~2.9x.
+#
+# For the inference-time quality dial to work, train with L VARYING; a model
+# trained at one L will not generalise to another just because the sinusoidal
+# index encoding admits it.
+
+data:
+  max_atoms: 800
+  max_residues: 200
+  min_residues: 20
+  processed_dir: data/processed
+  splits_file: data/splits.json
+loss:
+  bond: 1.0
+  chirality: 0.2
+  clash: 0.5
+  coord: 1.0
+  distance: 1.0
+model:
+  coord_scale: 10.0
+  d_model: 128
+  dec_self_layers: 2
+  dropout: 0.0
+  enc_self_layers: 2
+  encoder_type: perceiver_direct
+  ff_mult: 4
+  flow_steps: 50
+  k_neighbors: 8
+  latent_dim: 8
+  max_res_pos: 1024
+  n_heads: 4
+  n_latent_tokens: 16
+  objective: reconstruct
+  rope_freqs: 128
+  rope_spherical: false
+  group_self_layers: 0
+name: perceiver_L16
+train:
+  augment_rotation: true
+  batch_size: 16
+  ckpt_every: 300
+  clash_dist: 1.5
+  epochs: 900
+  eval_every: 300
+  grad_clip: 1.0
+  log_every: 50
+  lr: 0.001
+  out_dir: outputs/perceiver/perceiver_L16
+  overfit: false
+  seed: 0
+  weight_decay: 0.0

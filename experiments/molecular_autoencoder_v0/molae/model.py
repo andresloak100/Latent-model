@@ -54,6 +54,9 @@ class ModelConfig:
     rope_spherical: bool = False     # rope: encode spherical (r/θ/φ) instead of Cartesian
     objective: str = "reconstruct"   # "reconstruct" (direct coord + Kabsch loss) | "flowmatch" (diffusion AE)
     flow_steps: int = 50             # ODE integration steps for flow-matching reconstruction
+    # perceiver_direct only: >0 re-enables self-attention over group tokens,
+    # which costs O(R^2). Left at 0 the model is O(N.L) end to end.
+    group_self_layers: int = 0
 
 
 class AtomFeaturizer(nn.Module):
