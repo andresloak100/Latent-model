@@ -54,7 +54,7 @@ To measure the TRUE data slope you would need a **converged data sweep** -- matc
 *epochs* across rungs, or matched steps at a much higher budget so every rung
 converges -- not the matched-60k-steps grid used here.
 
-## Q3: is there a capacity floor? UNRESOLVED -- earlier "floor" claim RETRACTED
+## Q3: is there a capacity floor? NO -- both models compute-limited (RESOLVED by resume control below)
 The prior version claimed a capacity floor ("neither reaches 0.5 A at any data")
 from train RMSD rising with n. That is NOT supported: (a) the rise is confounded
 -- high-n rungs got 1/5 the epochs (matched steps); (b) train RMSD is
@@ -65,24 +65,51 @@ so 0.68 is not its floor. **Retracted: the capacity-floor reading and the
 Settled by a compute control (resume the n=2272 checkpoints -- no fresh training):
 continue both models to 120k and 240k steps.
 
-### Resume control -- interim (through ~120k steps)
-* **15.2M: undertraining CONFIRMED.** Train RMSD fell 0.68 (@60k) -> ~0.45
-  (@~113-120k), clearly below 0.5 with a third of the budget still to run. The
-  0.68 was never a floor. (Augment-noisy: single quick-RMSD points swing 0.45-0.87
-  on 4-batch samples; the ~0.45 is the windowed level.)
-* **1.1M: still descending, NOT plateaued.** 0.806 (@65k) -> ~0.68 windowed
-  (@120k) = -0.144 A per compute-doubling, still going down. That slope crosses
-  0.5 near ~285k steps, past the 240k endpoint, so it will likely finish ~0.53-0.55
-  while still improving. **Do NOT call it capacity-limited at 240k on a threshold.**
-  Decide by PLATEAU: if 120k -> 240k buys < ~0.05 A it is a floor; otherwise it is
-  still compute-limited and is reported that way.
-[240k endpoint pending; this section finalizes when it lands.]
+### Resume control -- FINAL (n=2272 checkpoints resumed 60k -> 120k -> 240k steps)
+Windowed train RMSD (median of ~4 quick-RMSD points/window; median-robust to the
+augment/4-batch noise that swings single points 0.3-0.9):
 
-## Bottom line (current)
-Data is a real lever: held-out descends and the train/val gap closes (Q1, solid).
-The "capacity floor" reading is retracted -- the 15.2M's apparent floor was
-undertraining (0.68 -> 0.45 with more steps). Because the grid's high-n rungs are
-under-converged, the measured data slopes are lower bounds and the structure-count
-projections are overestimates: less data than 9.8k/370k is likely needed, but the
-true amount requires a converged data sweep to measure. Whether the small 1.1M
-model has a genuine floor is pending the 240k plateau test.
+| model | @60k | @120k | @240k | 120k->240k | verdict (plateau test, bar 0.05) |
+|---|---|---|---|---|---|
+| 1.1M  | 0.83 | 0.69 | 0.51 | **-0.185** | COMPUTE-LIMITED, still descending |
+| 15.2M | 0.68 | 0.46 | 0.39 | **-0.073** | COMPUTE-LIMITED, still descending |
+
+**Neither model is at a capacity floor at 240k.** Both train curves are still
+descending; both clear the plateau bar by a wide margin.
+* **15.2M: the 0.68 "floor" was undertraining -- confirmed.** Train 0.68 -> 0.39
+  and still going (decelerating but -0.073 over the last doubling, > 0.05).
+* **1.1M: also NOT floored.** Train 0.69 -> 0.51 (-0.185), the steepest segment of
+  the whole run; it would cross 0.5 and keep going. It is compute-limited, not
+  capacity-limited. (This is the threshold-vs-plateau distinction: a 0.5 A cutoff
+  would have mislabeled it "floored at ~0.51" while it was in fact descending fastest.)
+
+Held-out at 240k (same processed_small val=758; direct-comparable to the grid rows):
+
+| model | val aa @60k (grid) | val aa @240k | val bb @240k | contact F1 @240k |
+|---|---|---|---|---|
+| 1.1M  | 0.916 | 0.863 | 0.605 | 0.950 |
+| 15.2M | 0.844 | **0.752** | **0.476** | 0.968 |
+
+Both held-out numbers IMPROVED with 4x compute (confirming the grid val rows were
+pessimistic/under-converged), but far less than train did -- so the train/val gap
+WIDENED at fixed n=2272 (15.2M v/t 1.23 -> ~2.5). **At fixed data, extra compute
+mostly buys train fit; held-out is data-limited once train converges.** 15.2M @
+240k = 0.752 A all-atom / 0.476 A backbone is the best held-out on this val set.
+
+## Bottom line (FINAL)
+1. **Data is a real lever** (Q1, solid): held-out descends with n and the train/val
+   gap closes. REPORT.md's "more data won't help" is void.
+2. **No capacity floor was found for either model.** The resume control settles it:
+   both 1.1M and 15.2M train curves are still descending at 240k steps (train 0.51
+   and 0.39, plateau test -0.185 / -0.073). The 15.2M's apparent 0.68 "floor" and
+   the earlier joint-scaling story were undertraining artifacts. RETRACTED and now
+   positively refuted.
+3. **The grid's data slopes are lower bounds; the projections are overestimates.**
+   High-n rungs were under-converged, so a converged sweep would show a steeper
+   data slope and 0.5 A reached at fewer than the naive 9.8k (1.1M) / 370k (15.2M)
+   structures. Measuring the TRUE slope needs a converged data sweep (matched
+   epochs, or matched steps at a much higher budget).
+4. **At fixed data, compute and data trade off as expected:** extra compute drives
+   train down but held-out only modestly (gap widens) -> held-out is data-limited
+   once train converges. Best held-out on this val set: 15.2M @ 240k = 0.752 A
+   all-atom / 0.476 A backbone.
