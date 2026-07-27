@@ -84,7 +84,8 @@ class ElementOnlyFeaturizer(nn.Module):
 def _featurizer(cfg: ModelConfig, element_only: bool, use_coords: bool):
     if element_only:
         return ElementOnlyFeaturizer(cfg.d_model, use_coords=use_coords)
-    return AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=use_coords)
+    return AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=use_coords,
+                          max_chains=cfg.max_chains)
 
 
 class PerAtomEncoder(nn.Module):

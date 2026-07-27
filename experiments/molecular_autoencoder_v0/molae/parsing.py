@@ -2,8 +2,11 @@
 
 Design decisions (recorded per structure so filtering is auditable):
   * First model only (matters for NMR ensembles).
-  * A single polymer (peptide) chain is selected; other chains are dropped
-    and recorded.
+  * By default a single polymer (peptide) chain is selected and the others
+    are dropped and recorded. ``multi_chain=True`` keeps every peptide
+    chain meeting the length floor (protein-protein complexes); res_pos is
+    then GLOBAL across kept chains, which the direct decoder requires --
+    per-chain numbering would alias chain B's residue 0 onto chain A's.
   * Waters, ligands, ions, and hydrogens are removed.
   * Alternate conformations are collapsed to a single conformer (gemmi's
     ``remove_alternative_conformations`` keeps one altloc per atom).
@@ -42,7 +45,8 @@ class ParsedStructure:
     element_idx: np.ndarray      # int64  (N,)
     residue_idx: np.ndarray      # int64  (N,)  standard-AA vocab index
     atom_name_idx: np.ndarray    # int64  (N,)
-    res_pos: np.ndarray          # int64  (N,)  0..L-1 position within chain
+    res_pos: np.ndarray          # int64  (N,)  GLOBAL residue index across kept chains
+    chain_idx: np.ndarray        # int64  (N,)  0-based index of the atom's chain
     res_seq: np.ndarray          # int64  (N,)  author seq id
     coords: np.ndarray           # float32 (N, 3)
     element_symbol: list         # list[str] length N (for bond perception)
@@ -64,6 +68,7 @@ def perceive_bonds(
     coords: np.ndarray,
     element_symbol: list,
     res_pos: np.ndarray,
+    chain_idx: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """Return (M, 2) array of bonded atom-index pairs (i < j).
 
@@ -83,6 +88,11 @@ def perceive_bonds(
     ia, ib = np.triu_indices(n, k=1)
     dres = np.abs(res_pos[ia] - res_pos[ib])
     keep = dres <= 1
+    if chain_idx is not None:
+        # res_pos is GLOBAL across chains, so the last residue of chain k and
+        # the first of chain k+1 are numerically adjacent. Without this guard
+        # they would be bonded across a chain break.
+        keep = keep & (chain_idx[ia] == chain_idx[ib])
     ia, ib = ia[keep], ib[keep]
     if ia.size == 0:
         return np.zeros((0, 2), dtype=np.int64)
@@ -128,6 +138,7 @@ def parse_structure(
     pdb_id: Optional[str] = None,
     min_chain_len: int = 8,
     model_index: int = 0,
+    multi_chain: bool = False,
 ) -> Optional[ParsedStructure]:
     """Parse one structure file into a cleaned :class:`ParsedStructure`.
 
@@ -181,80 +192,89 @@ def parse_structure(
     if not chain_lengths:
         return None
 
-    # Select the first peptide chain meeting the minimum length.
-    selected = None
-    for chain in model:
-        name = chain.name
-        if name in chain_lengths and chain_lengths[name] >= min_chain_len:
-            selected = name
-            break
-    if selected is None:  # fall back to the longest peptide chain
-        selected = max(chain_lengths, key=chain_lengths.get)
-
-    chain = model[selected]
-    poly = chain.get_polymer()
+    # Which chains to keep. Single-chain (default) preserves the historical
+    # behaviour exactly; multi_chain keeps every peptide chain meeting the
+    # minimum length, which is what protein-protein complexes need.
+    eligible = [c.name for c in model
+                if c.name in chain_lengths and chain_lengths[c.name] >= min_chain_len]
+    if multi_chain:
+        kept_chains = eligible or [max(chain_lengths, key=chain_lengths.get)]
+    else:
+        kept_chains = [eligible[0]] if eligible else [max(chain_lengths, key=chain_lengths.get)]
+    selected = kept_chains[0] if len(kept_chains) == 1 else ",".join(kept_chains)
 
     element_idx, residue_idx, atom_name_idx = [], [], []
     res_pos, res_seq, coords, element_symbol, atom_name = [], [], [], [], []
-    seq_one = []
+    chain_idx_list, seq_one, per_chain_seq = [], [], []
     dropped_nonstandard = {}
     dropped_unknown_atoms = 0
     incomplete_backbone = 0
-    prev_seqid = None
     missing_residue_gaps = 0
 
+    # res_pos is GLOBAL across kept chains. That matters for more than
+    # bookkeeping: the direct decoder indexes its output slot bank by
+    # (res_pos, atom_name), so per-chain numbering would make chain B's
+    # residue 0 alias onto chain A's residue 0 and silently share coordinates.
     pos = 0
-    for res in poly:
-        resname = res.name
-        seqid = res.seqid.num
-        # Count numbering gaps (missing/unmodelled residues) within the chain.
-        if prev_seqid is not None and seqid - prev_seqid > 1:
-            missing_residue_gaps += (seqid - prev_seqid - 1)
-        prev_seqid = seqid
+    for ci, cname in enumerate(kept_chains):
+        poly = model[cname].get_polymer()
+        prev_seqid = None
+        chain_seq = []
+        for res in poly:
+            resname = res.name
+            seqid = res.seqid.num
+            # Count numbering gaps (missing/unmodelled residues) within a chain.
+            if prev_seqid is not None and seqid - prev_seqid > 1:
+                missing_residue_gaps += (seqid - prev_seqid - 1)
+            prev_seqid = seqid
 
-        if resname not in C.STANDARD_AA_SET:
-            dropped_nonstandard[resname] = dropped_nonstandard.get(resname, 0) + 1
-            continue
-
-        kept_names = set()
-        res_atoms = []
-        for atom in res:
-            aname = atom.name
-            if aname not in C.ATOM_NAME_TO_IDX:
-                dropped_unknown_atoms += 1
+            if resname not in C.STANDARD_AA_SET:
+                dropped_nonstandard[resname] = dropped_nonstandard.get(resname, 0) + 1
                 continue
-            esym = atom.element.name.upper()
-            res_atoms.append((aname, esym, atom.pos))
-            kept_names.add(aname)
 
-        if not res_atoms:
-            continue
-        if not set(C.BACKBONE_ATOMS).issubset(kept_names):
-            incomplete_backbone += 1
+            kept_names = set()
+            res_atoms = []
+            for atom in res:
+                aname = atom.name
+                if aname not in C.ATOM_NAME_TO_IDX:
+                    dropped_unknown_atoms += 1
+                    continue
+                esym = atom.element.name.upper()
+                res_atoms.append((aname, esym, atom.pos))
+                kept_names.add(aname)
 
-        for aname, esym, p in res_atoms:
-            element_idx.append(C.ELEMENT_TO_IDX.get(esym, C.UNK_ELEMENT_IDX))
-            residue_idx.append(C.RESIDUE_TO_IDX[resname])
-            atom_name_idx.append(C.ATOM_NAME_TO_IDX[aname])
-            res_pos.append(pos)
-            res_seq.append(seqid)
-            coords.append([p.x, p.y, p.z])
-            element_symbol.append(esym)
-            atom_name.append(aname)
-        seq_one.append(C.THREE_TO_ONE[resname])
-        pos += 1
+            if not res_atoms:
+                continue
+            if not set(C.BACKBONE_ATOMS).issubset(kept_names):
+                incomplete_backbone += 1
+
+            for aname, esym, p in res_atoms:
+                element_idx.append(C.ELEMENT_TO_IDX.get(esym, C.UNK_ELEMENT_IDX))
+                residue_idx.append(C.RESIDUE_TO_IDX[resname])
+                atom_name_idx.append(C.ATOM_NAME_TO_IDX[aname])
+                res_pos.append(pos)
+                res_seq.append(seqid)
+                chain_idx_list.append(ci)
+                coords.append([p.x, p.y, p.z])
+                element_symbol.append(esym)
+                atom_name.append(aname)
+            seq_one.append(C.THREE_TO_ONE[resname])
+            chain_seq.append(C.THREE_TO_ONE[resname])
+            pos += 1
+        per_chain_seq.append("".join(chain_seq))
 
     if not coords:
         # A peptide chain existed but every residue/atom was filtered out
         # (non-standard residues, unknown atom names). Distinguish this from
         # the no-peptide-chain case so the manifest is accurate.
         raise AllResiduesFiltered(
-            f"{pdb_id}: peptide chain {selected} had no usable standard-AA heavy atoms"
+            f"{pdb_id}: peptide chain(s) {selected} had no usable standard-AA heavy atoms"
         )
 
     coords = np.asarray(coords, dtype=np.float32)
     res_pos = np.asarray(res_pos, dtype=np.int64)
-    bonds = perceive_bonds(coords, element_symbol, res_pos)
+    chain_idx = np.asarray(chain_idx_list, dtype=np.int64)
+    bonds = perceive_bonds(coords, element_symbol, res_pos, chain_idx)
 
     record = {
         "pdb_id": pdb_id,
@@ -266,6 +286,9 @@ def parse_structure(
         "all_chains": all_chains,
         "dropped_non_peptide_chains": [n for n in all_chains if n not in chain_lengths],
         "multi_chain_entry": len(chain_lengths) > 1,
+        "kept_chains": list(kept_chains),
+        "n_kept_chains": len(kept_chains),
+        "per_chain_sequence": list(per_chain_seq),
         "dropped_nonstandard_residues": dropped_nonstandard,
         "dropped_unknown_atoms": dropped_unknown_atoms,
         "residues_incomplete_backbone": incomplete_backbone,
@@ -281,6 +304,7 @@ def parse_structure(
         residue_idx=np.asarray(residue_idx, dtype=np.int64),
         atom_name_idx=np.asarray(atom_name_idx, dtype=np.int64),
         res_pos=res_pos,
+        chain_idx=chain_idx,
         res_seq=np.asarray(res_seq, dtype=np.int64),
         coords=coords,
         element_symbol=element_symbol,
@@ -298,6 +322,7 @@ def to_npz_dict(ps: ParsedStructure) -> dict:
         "residue_idx": ps.residue_idx,
         "atom_name_idx": ps.atom_name_idx,
         "res_pos": ps.res_pos,
+        "chain_idx": ps.chain_idx,
         "res_seq": ps.res_seq,
         "coords": ps.coords,
         "bonds": ps.bonds,

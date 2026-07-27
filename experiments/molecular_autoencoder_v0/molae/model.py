@@ -42,6 +42,9 @@ class ModelConfig:
     dropout: float = 0.0
     max_res_pos: int = 1024
     coord_scale: float = 10.0
+    # >1 adds a chain embedding for protein-protein complexes. Left at 1 the
+    # module is not created at all, so single-chain checkpoints load unchanged.
+    max_chains: int = 1
     # "baseline" | "invariant" | "rope" | "perresidue" | "direct"
     #   | "peratom" | "peratom_elem"   (per-atom latents; see model_peratom.py --
     #     compression is 3/latent_dim, so only latent_dim 1-2 is meaningful)
@@ -56,8 +59,10 @@ class ModelConfig:
 class AtomFeaturizer(nn.Module):
     """Embed atom identity (+ optional coordinates) into d_model tokens."""
 
-    def __init__(self, d_model: int, max_res_pos: int, use_coords: bool):
+    def __init__(self, d_model: int, max_res_pos: int, use_coords: bool,
+                 max_chains: int = 1):
         super().__init__()
+        self.chain_emb = nn.Embedding(max_chains, d_model) if max_chains > 1 else None
         self.elem_emb = nn.Embedding(C.N_ELEMENTS, d_model, padding_idx=C.PAD_ELEMENT_IDX)
         self.res_emb = nn.Embedding(C.N_RESIDUES, d_model, padding_idx=C.PAD_RESIDUE_IDX)
         self.atom_emb = nn.Embedding(C.N_ATOM_NAMES, d_model, padding_idx=C.PAD_ATOM_IDX)
@@ -76,6 +81,10 @@ class AtomFeaturizer(nn.Module):
             + self.atom_emb(batch["atom_name_idx"])
             + self.pos_emb(rp)
         )
+        if self.chain_emb is not None:
+            # Without this, two chains are only distinguishable by their global
+            # res_pos, so the model cannot tell a chain break from a peptide bond.
+            x = x + self.chain_emb(batch["chain_idx"].clamp(max=self.chain_emb.num_embeddings - 1))
         if self.use_coords and coords is not None:
             x = x + self.coord_proj(coords)
         return self.ln(x)
@@ -128,7 +137,8 @@ class Encoder(nn.Module):
     def __init__(self, cfg: ModelConfig):
         super().__init__()
         self.cfg = cfg
-        self.feat = AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=True)
+        self.feat = AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=True,
+                                   max_chains=cfg.max_chains)
         self.latents = nn.Parameter(torch.randn(cfg.n_latent_tokens, cfg.d_model) * 0.02)
         self.cross = CrossAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
         self.self_blocks = nn.ModuleList(
@@ -164,7 +174,8 @@ class Decoder(nn.Module):
     def __init__(self, cfg: ModelConfig):
         super().__init__()
         self.cfg = cfg
-        self.feat = AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=False)
+        self.feat = AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=False,
+                                   max_chains=cfg.max_chains)
         self.self_blocks = nn.ModuleList(
             [SelfAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
              for _ in range(cfg.dec_self_layers)]

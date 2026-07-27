@@ -53,7 +53,8 @@ class PerResidueEncoder(nn.Module):
     def __init__(self, cfg: ModelConfig):
         super().__init__()
         self.cfg = cfg
-        self.feat = AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=True)
+        self.feat = AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=True,
+                                   max_chains=cfg.max_chains)
         self.self_blocks = nn.ModuleList(
             [SelfAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
              for _ in range(cfg.enc_self_layers)]

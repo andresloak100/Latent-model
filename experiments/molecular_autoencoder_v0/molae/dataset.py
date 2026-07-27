@@ -55,6 +55,8 @@ def sample_from_arrays(d) -> dict:
     bonds = np.asarray(d["bonds"]).astype(np.int64).reshape(-1, 2)
     atom_name_idx = np.asarray(d["atom_name_idx"]).astype(np.int64)
     res_pos = np.asarray(d["res_pos"]).astype(np.int64)
+    chain_idx = (np.asarray(d["chain_idx"]).astype(np.int64)
+                 if "chain_idx" in d else np.zeros(len(res_pos), dtype=np.int64))
     res_seq = np.asarray(d["res_seq"]).astype(np.int64) if "res_seq" in d else res_pos
 
     bonded_mask = np.zeros((n, n), dtype=np.float32)
@@ -67,6 +69,7 @@ def sample_from_arrays(d) -> dict:
         "residue_idx": torch.from_numpy(np.asarray(d["residue_idx"]).astype(np.int64)),
         "atom_name_idx": torch.from_numpy(atom_name_idx),
         "res_pos": torch.from_numpy(res_pos),
+        "chain_idx": torch.from_numpy(chain_idx),
         "res_seq": torch.from_numpy(res_seq),
         "coords": torch.from_numpy(coords),
         "bonds": torch.from_numpy(bonds),
@@ -102,6 +105,7 @@ def collate_fn(samples):
         "residue_idx": pad_int("residue_idx", C.PAD_RESIDUE_IDX),
         "atom_name_idx": pad_int("atom_name_idx", C.PAD_ATOM_IDX),
         "res_pos": pad_int("res_pos", 0),
+        "chain_idx": pad_int("chain_idx", 0),
         "coords": coords,
         "mask": mask,
         "n_atoms": torch.tensor([s["n_atoms"] for s in samples], dtype=torch.long),

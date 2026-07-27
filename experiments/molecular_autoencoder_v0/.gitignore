@@ -11,3 +11,4 @@ __pycache__/
 configs/_*
 outputs/_*
 data/raw_nmr/
+data/raw_complex/
