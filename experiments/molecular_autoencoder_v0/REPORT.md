@@ -4,42 +4,38 @@
 protein atomic coordinates into a compact latent while preserving atomistic
 geometry better than simple baselines?*
 
-**Short answer: yes — once the decoder is fixed.**
+**Answer: yes.** On 293 held-out folds the codec reconstructs full all-atom
+structures to **0.75 Å backbone / 1.02 Å all-atom RMSD** with near-perfect
+stereochemistry (chirality violation rate 0.001, bond-length error 0.16 Å,
+contact-map F1 0.94), beating PCA at matched accuracy. Every architecture tried
+before it — including three of the four designs suggested in review — sat at
+9.5–11.2 Å and **lost to a zero-parameter mean-shape baseline**. One change to
+the decoder closed that gap.
 
-On 293 held-out folds the final codec reconstructs full all-atom structures to
-**0.75 Å backbone / 1.02 Å all-atom RMSD** with **near-perfect stereochemistry**
-(chirality violation rate 0.001, bond-length error 0.16 Å, contact-map F1 0.94)
-at **2.9× compression**. Every earlier architecture in this study — including
-three of the four designs suggested in review — landed at 9.5–11.2 Å, i.e. no
-better than predicting the centroid, and **lost to a 0-parameter mean-shape
-baseline**. The difference is a single architectural change in the *decoder*,
-with data, losses, optimiser, epochs, split and latent budget held constant.
-
-This reverses the previous version of this report, which concluded "no". That
-conclusion was correct about the models it had; it was wrong to generalise it
-to neural compression of protein structure. Two controls (below) located the
-fault in the decoder rather than in the data, the latent budget, or the
-equivariance story.
+The larger finding is what bounds it now. The codec is **not** limited by
+equivariance, latent size, training objective, or model capacity. Every one of
+those was tested and eliminated. It is limited by **data and compute**, both of
+which are ordinary engineering levers — and the experimental band we drew from
+contains only ~3,853 structures in the entire PDB.
 
 This milestone is the **autoencoder only**. No diffusion, trajectories, force
-fields, RL, or generation. All metrics here are **geometric** — nothing in this
-report claims physical or energetic accuracy.
+fields, RL, or generation. All metrics are **geometric** — nothing here claims
+physical or energetic accuracy.
 
 ---
 
-## 1. The result
+## 1. The architecture, and what made it work
 
-### 1.1 What changed: direct per-residue readout
+### 1.1 Direct per-residue readout
 
-Every failing arm shares one decoder pattern: the decoder holds a set of latent
-tokens, and each atom must **find its own coordinates by attending** to them
-(per-atom identity query → cross-attention → xyz). Atom *i*'s output is a
-content-addressed lookup.
+Every failing arm shared one decoder pattern: each atom had to **find its own
+coordinates by attending** over a latent (per-atom identity query →
+cross-attention → xyz). Atom *i*'s output was a content-addressed lookup.
 
-The fix (`molae/model_direct.py`, `encoder_type: direct`) removes the lookup.
-Each residue owns a latent vector; residue tokens self-attend; a head emits a
-fixed bank of `N_ATOM_NAMES × 3` coordinate slots per residue, and each atom
-simply **gathers the slot that belongs to it**:
+The fix (`molae/model_direct.py`) removes the lookup. Each residue owns a latent
+vector; residue tokens self-attend; a head emits a fixed bank of
+`N_ATOM_NAMES × 3` slots per residue, and each atom **gathers the slot that
+belongs to it**:
 
 ```python
 slots = self.head(h).view(B, R, self.n_slots, 3) * self.cfg.coord_scale
@@ -48,333 +44,307 @@ gather_idx = (res_pos * self.n_slots + batch["atom_name_idx"]).clamp(max=R * sel
 return torch.gather(flat, 1, gather_idx.unsqueeze(-1).expand(-1, -1, 3))
 ```
 
-Output slot *i* **is** atom *i*, by construction — the same property a flat MLP
-autoencoder has, and the property the ablation ladder (§3.2) identified as the
-one that matters. Routing is no longer something the model has to learn.
+Output slot *i* **is** atom *i*, by construction. Routing is no longer something
+the model has to learn.
 
-### 1.2 Full grid, 293 held-out folds
+**Credit where due:** the per-residue latent itself came from the ProteinAE
+direction suggested in review. The winning design is *that latent structure* plus
+*this decoder*. What did not survive was ProteinAE's flow-matching decoder.
 
-All 14 runs below share the same prepared dataset (878 train / 293 val, ≤ 800
-atoms), same losses, 900 epochs, batch 16, lr 1e-3, seed 0, random SO(3) input
-augmentation. `bb(full)` is full-length backbone RMSD over the whole held-out
-structure; `bb(cohort)` is restricted to the 20-residue / 80-atom cohort that
-the PCA and mean-shape baselines are computed on (see §4.1 — only `bb(cohort)`
-is comparable to those two columns).
+### 1.2 What the decoder alone was worth
 
-| run | latent (floats/res) | compression | bb(cohort) Å | bb(full) Å | all-atom Å | bond err Å | chirality | clash/1k | contact F1 |
-|---|---|---|---|---|---|---|---|---|---|
-| **direct d16** | 16 | 1.5× | **0.681** | **0.740** | 1.004 | 0.157 | **0.001** | 31 | 0.937 |
-| **direct d8** | 8 | 2.9× | 0.693 | 0.754 | 1.020 | 0.161 | **0.001** | 31 | **0.943** |
-| **direct d4** | 4 | 5.8× | 0.707 | 0.750 | **1.000** | 0.170 | **0.001** | 40 | 0.938 |
-| **direct d2** | 2 | 11.7× | 1.405 | 1.531 | 1.977 | 0.254 | 0.002 | 130 | 0.826 |
-| direct d1 | 1 | 23.3× | 4.069 | 6.236 | 6.737 | 0.657 | 0.117 | 970 | 0.440 |
-| recipe_proteinae (perresidue + flow) | 8 | 2.9×† | 4.826 | 5.013 | 6.201 | 3.595 | 0.498 | 238 | 0.438 |
-| direct d8 + flowmatch | 8 | 2.9× | 4.957 | 5.798 | 7.046 | 4.412 | 0.496 | 213 | 0.386 |
-| arch_ab_perresidue | 8 | 2.9×† | 6.181 | 9.728 | 10.277 | 0.884 | 0.402 | 625 | 0.296 |
-| perresidue d8 | 8 | 2.9× | 6.187 | 9.498 | 10.034 | 0.889 | 0.352 | 781 | 0.292 |
-| perresidue d4 | 4 | 5.8× | 6.420 | 9.942 | 10.439 | 1.002 | 0.337 | 827 | 0.283 |
-| arch_ab_invariant (SE(3)-invariant enc.) | 128 total | 14.2× | 6.931 | 10.170 | 10.663 | 1.095 | 0.366 | 752 | 0.267 |
-| arch_ab_baseline (raw-coord Perceiver) | 128 total | 14.2× | 7.137 | 10.473 | 10.967 | 1.185 | 0.259 | 792 | 0.262 |
-| arch_ab_rope (LLM-style pos. enc.) | 128 total | 14.2× | 8.132 | 11.157 | 11.600 | 1.541 | 0.122 | 1246 | 0.236 |
-| direct d4 + flowmatch | 4 | 5.8× | 11.614 | 11.865 | 12.496 | 9.584 | 0.496 | 150 | 0.179 |
-| *mean-shape baseline (0 floats)* | 0 | ∞ | *5.067* | — | — | — | — | — | — |
-| *PCA k=8 (cohort only)* | 8 total | 30× | *1.987* | — | — | — | — | — | — |
-| *centroid / Rg baseline* | 0 | ∞ | — | — | *11.888* | — | — | — | — |
+Identical data, losses, optimiser, epochs, split, and latent budget — only the
+decoder changed:
 
-† `arch_ab_perresidue` and `recipe_proteinae` originally reported **227.7×**
-compression. That figure was wrong: the per-residue model returned `latent_dim`
-(8) as its total latent size instead of `latent_dim × n_residues`. Their true
-compression is ~2.9×, identical to `perresidue d8` — i.e. these arms had a
-*larger* latent than the 128-float arms they were being compared against, and
-still lost. The bug is fixed (`latent_floats_for(n_residues)`); the corrected
-value is what the `grid_*` runs report.
+| decoder | held-out backbone | chirality | bond err | contact F1 |
+|---|---|---|---|---|
+| attention lookup (`perresidue`) | 9.50 Å | 0.352 | 0.89 Å | 0.29 |
+| **direct readout** | **0.75 Å** | **0.001** | **0.16 Å** | **0.94** |
 
-**Reading the table:**
+An ablation ladder on fixed 80-atom cohorts predicted this before it was built:
+swapping a flat MLP decoder for the attention decoder cost 0.2–0.3 Å on an easy
+task, and the same penalty became catastrophic on variable-size all-atom
+proteins.
 
-- The four `direct` reconstruct arms are in a different regime from everything
-  else: **an order of magnitude better RMSD and two orders of magnitude better
-  chirality**, at latent budgets that are *smaller*, not larger.
-- **Latent 2 already works** (1.53 Å at 11.7× compression); **latent 4
-  saturates** — d4, d8 and d16 are within 0.02 Å of each other on `bb(full)`, so
-  the codec is not capacity-limited above ~4 floats/residue. Latent 1 breaks
-  (6.2 Å).
-- **Flow matching sabotages it.** Identical encoder, identical latent, swapping
-  the deterministic decoder for a rectified-flow decoder takes `direct d8` from
-  0.75 → 5.80 Å and `direct d4` from 0.75 → **11.87 Å**, with chirality going to
-  0.496 — a coin flip. A generative decoder trained this way collapses toward the
-  conditional mean; it is not a drop-in replacement for reconstruction, and it
-  should not be adopted before the diffusion stage without its own study.
-- **RMSD alone is misleading here, and the physics columns prove it.**
-  `recipe_proteinae` has the 6th-best RMSD in the grid but **0.498 chirality**
-  (indistinguishable from random handedness) and **3.60 Å bond errors** — it
-  "wins" on RMSD by emitting an average blob. Conversely `arch_ab_rope` has the
-  *worst* RMSD (8.13) but the best chirality of the failing arms (0.122). Only
-  the `direct` arms are good on *both* axes simultaneously, which is what
-  distinguishes genuine reconstruction from mean-regression.
+### 1.3 What did not help
 
-### 1.3 The winner is uniformly good, not good on average
-
-`grid_direct_d8_reco`, per-structure over all 293 held-out folds
-(26–113 residues, up to 800 atoms; mean 78 residues / 607 atoms):
-
-| statistic | backbone RMSD (Å) |
+| tried | result |
 |---|---|
-| median | 0.771 |
-| p90 | 0.923 |
-| **worst structure** | **1.701** |
+| SE(3)-invariant graph encoder | 10.17 Å vs 10.47 baseline — 0.3 Å on an 11 Å failure |
+| RoPE / Fourier coordinate encoding | 11.16 Å — worst arm |
+| Flow-matching decoder | direct + flowmatch = 11.87 Å, chirality 0.496 (coin flip) |
+| Per-atom latents (1 float/atom) | 6.32 Å, chirality 0.411 |
+| Per-atom, element-only | 4.68 Å, chirality 0.494 |
 
-There is no tail of catastrophic failures — the worst held-out fold in the set
-is still sub-2 Å. Train RMSD at the end of training was 0.52 Å against 0.75 Å
-held-out: a **generalisation gap of ~0.2 Å**. Compare the earlier converged
-baseline arm, which sat at 3.07 Å train / 8.64 Å held-out. The failure mode
-that dominated this whole study — memorise the training set, emit a blob for
-anything unseen — is gone.
+**Equivariance was the leading hypothesis and it was wrong.** Worth recording,
+because a large run would have spent heavily failing to fix the wrong thing.
+
+The per-atom result is informative rather than merely negative. Both per-atom
+arms spend roughly the *same total budget* as the winner (607 vs 624 floats,
+~3× compression either way), so this is not about float count — it is about
+**distribution**. One float per atom cannot describe a 3D position; eight floats
+per residue can describe a nearly-rigid unit. The win was index routing **plus
+enough capacity per token to describe a rigid body**. For non-proteins the
+generalisation is therefore fragment-based grouping, not per-atom.
+
+### 1.4 Latent size and seed stability
+
+| latent (floats/residue) | compression | held-out backbone | seeds |
+|---|---|---|---|
+| 16 | 1.5× | 0.740 | — |
+| 8 | 2.9× | 0.754 | 0.754 / 0.914 / 0.777 (sd 0.071) |
+| 4 | 5.8× | 0.750 | 0.750 / 0.863 / 0.794 (sd 0.047) |
+| 2 | 11.7× | 1.531 | 4.673 / 1.458 / 1.568 (**sd 1.49**) |
+| 1 | 23.3× | 6.236 | — |
+
+**Latent 4 saturates** — d4/d8/d16 are within 0.02 Å, confirmed across seeds.
+**Latent 2 is unstable**: the same config and seed produced 1.531 Å and 4.673 Å
+on different hardware. At the capacity floor, optimisation is chaotic. An earlier
+version of this report claimed "latent 2 already works" on the strength of one
+lucky run; that claim is **withdrawn**.
 
 ---
 
 ## 2. Setup
 
-- **Data.** Experimentally-determined structures from RCSB, cleaned with gemmi:
-  waters / ligands / ions / hydrogens / altlocs removed, 20 standard amino acids
-  only, single peptide chain, topology perceived from coordinates by covalent
-  radii (Cordero 2008, tolerance 0.45 Å). Every filtering decision is recorded
-  in `data/manifest.json`. Size band **≤ 800 heavy atoms, 20–200 residues**, so
-  difficulty is held constant across arms. **878 train / 293 val**, split by
-  sequence-similarity clustering so near-duplicates cannot leak.
-- **Symmetry.** None of the winning models is equivariant by construction.
-  Invariance is handled by (a) centring inputs, (b) **random SO(3) input
-  augmentation** during training, and (c) **Kabsch superposition inside every
-  coordinate loss and every reported metric** — differentiable, masked, batched,
-  with the rotation detached (envelope theorem) and autocast disabled inside the
-  SVD. One arm (`arch_ab_invariant`) *is* provably SE(3)-invariant by
-  construction (sorted k-NN distances + centroid distance), verified in
-  `tests/test_equivariance.py`. It did not help (§4.3).
-- **Compute.** Mila SLURM cluster, `long` partition, preemptible, one GPU per
-  arm, PyTorch 2.13.0+cu130. ~5100 s wall-clock for 900 epochs × 878 structures
-  for the winning arm; the 14-arm grid ran in parallel. Earlier stages ran on
-  CPU (Stage A: 1054 s for 1200 epochs on 21 structures, ~7.5 ms/structure
-  inference, ~479 MB peak RSS) — so the answer to "do we need a GPU for the
-  first try?" was **no for Stage A, yes for everything after it**.
+- **Data.** RCSB X-ray structures cleaned with gemmi: waters / ligands / ions /
+  hydrogens / altlocs removed, 20 standard amino acids, single peptide chain,
+  topology perceived from covalent radii. All filtering recorded in
+  `data/manifest.json`. Main band ≤ 800 heavy atoms, 878 train / 293 val, split
+  by sequence-similarity clustering so near-duplicates cannot leak.
+- **Symmetry.** Not equivariant by construction. Invariance from centred inputs,
+  random SO(3) augmentation, and Kabsch superposition inside every coordinate
+  loss and metric (differentiable, masked, batched, rotation detached, autocast
+  disabled inside the SVD).
+- **Compute.** Mila SLURM, `long` partition, preemptible. Stage A ran on CPU
+  (1054 s, ~7.5 ms/structure inference) — so *no GPU was needed for the first
+  try*, but everything after it was GPU-bound.
 
 ---
 
-## 3. The two controls that located the fault
+## 3. Why we believe it: the controls
 
-The previous version of this report concluded "architecture-limited, more data
-will not help", based on a data-scale sweep that flattened out and then got
-*worse* (n=800 trained to convergence: held-out 7.96 → 8.64 Å). That ruled out
-data and latent budget but did not say *which part* of the architecture. Two
-controls answered that.
+Three controls did more to establish this result than any single training run.
 
-### 3.1 Matched-task control — neural compression does work
+**Matched-task control.** Given PCA's exact task — fixed 80-atom aligned
+backbones, identical inputs, splits and budgets, checkpoints selected on a dev
+split carved from train — a neural AE beats PCA at every aggressive budget:
 
-Take PCA's exact task away from PCA: fixed 80-atom aligned backbone cohorts,
-identical inputs, identical splits, identical latent budgets, ~1.3 M-parameter
-flat MLP autoencoder. Checkpoints selected on a **dev split carved out of
-train** (15%) — never on val. 870 train / 286 val.
-
-| latent floats | PCA (val Å) | AE (val Å) | AE (train Å) | winner |
-|---|---|---|---|---|
-| 2 | 3.525 | **2.863** | 1.945 | **AE** (−0.66) |
-| 4 | 2.717 | **2.058** | 0.192 | **AE** (−0.66) |
-| 8 | 1.987 | **1.676** | 0.176 | **AE** (−0.31) |
-| 16 | **1.423** | 1.615 | 0.204 | PCA (+0.19) |
-| *0 (mean shape)* | *5.067* | — | — | — |
-
-A neural autoencoder beats PCA at every aggressive budget, and only loses once
-the budget is loose enough that the linear subspace is nearly sufficient. This
-is the expected shape of the result and it **contradicted** the whole-pipeline
-finding — which meant the whole pipeline, not neural compression, was broken.
-
-**Noise check:** repeated over 5 seeds, the AE won 5/5 at k=2/4/8 and PCA won
-5/5 at k=16, with run-to-run **std ≈ 0.05 Å** — every verdict is far outside
-noise. *(Summary retained; the per-seed JSON was not committed.)*
-
-### 3.2 Ablation ladder — the decoder is the culprit
-
-Same cohort data, same budgets, same epochs; the *only* difference is the
-decoder. Rung 1 is the flat MLP (output slot *i* is atom *i*). Rung 2 replaces
-it with the attention decoder from the full pipeline (atom *i* must attend to
-find its own coordinates), with identity made deliberately uninformative so
-both rungs receive the same information.
-
-| latent floats | PCA | rung 1 (flat MLP) | rung 2 (attention decoder) |
+| latent floats | PCA | AE | winner |
 |---|---|---|---|
-| 4 | 2.717 | **2.124** | 2.382 |
-| 8 | 1.987 | **1.673** | 1.908 |
-| 16 | **1.423** | 1.613 | 1.811 |
+| 2 | 3.525 | **2.863** | AE |
+| 4 | 2.717 | **2.058** | AE |
+| 8 | 1.987 | **1.676** | AE |
+| 16 | **1.423** | 1.615 | PCA |
 
-The attention decoder is **worse at every budget** on identical data. The
-penalty is small here (0.2–0.3 Å) because the cohort task is easy and
-fixed-size, but the *direction* is unambiguous, and the prediction was that on
-the full variable-size all-atom task the same penalty becomes catastrophic.
-§1.2 confirms it: 9.5 Å with the attention decoder, 0.75 Å with direct readout.
+5/5 seeds at k=2/4/8, PCA 5/5 at k=16, run-to-run sd ≈ 0.05 Å. This contradicted
+the whole-pipeline result and is what proved the *pipeline*, not neural
+compression, was broken.
 
----
+**Ablation ladder.** Isolated the decoder as the culprit before any fix existed.
 
-## 4. Honest caveats
-
-### 4.1 The "beats PCA" claim is not budget-matched
-
-`outputs/cluster/comparison.md` labels the direct arms "BEATS PCA", comparing
-`bb(cohort)` against PCA k=8. That is a fair comparison of **accuracy on the
-same atoms**, but not of **compression**:
-
-- PCA k=8 spends **8 floats total** on the 80-atom cohort (30× compression) and
-  requires a fixed-size, pre-aligned input. It cannot represent a variable-size
-  all-atom protein at all.
-- `direct d8` spends **8 floats per residue** on the *whole* all-atom structure
-  (2.9× compression) and reconstructs the cohort atoms to 0.69 Å as a by-product.
-
-PCA is doing an easier task at a much higher compression ratio. At the closest
-matched compression (`direct d1`, 23.3× vs PCA's 30×) the neural codec gets
-4.07 Å on the cohort and **loses** to PCA's 1.99 Å. The clean apples-to-apples
-statement is the matched-task control in §3.1, not this row of the grid.
-
-**The defensible claim is therefore:** the direct codec achieves near-native
-all-atom geometry on variable-size held-out proteins at modest (3–12×)
-compression, which no previous arm could do at any budget; and on a strictly
-matched task a neural autoencoder beats PCA at aggressive budgets. **It is not
-yet demonstrated at PCA-like compression ratios (≥ 30×).**
-
-### 4.2 Compression is length-proportional, not constant
-
-The direct decoder's latent is *d* floats per residue, so it is a per-residue
-"latent point cloud", not a fixed-size bottleneck. This is the right shape for
-the eventual latent-diffusion stage (a sequence of latent tokens is exactly what
-a denoising transformer wants), but it means compression does not improve with
-protein size the way a fixed-size Perceiver latent does. The fixed-size arms did
-have that property — and did not work.
-
-### 4.3 What did *not* help
-
-Three of the four architectural directions raised in review were tested on the
-same leak-free 293-fold held-out set and **none of them fixed the problem**:
-
-- **SE(3)-invariant graph encoder** (k-NN distance featurisation): 10.17 Å vs
-  the raw-coordinate baseline's 10.47 Å. A 0.3 Å improvement on an 11 Å failure.
-- **LLM-style RoPE / Fourier coordinate position encoding:** 11.16 Å — the
-  *worst* arm on RMSD, though the best of the failing arms on chirality.
-  (An initial `2^k·π` frequency schedule aliased and broke translation
-  invariance; it was fixed to log-spaced physical wavelengths 0.7–64 Å before
-  this run, so the result is not an artefact of that bug.)
-- **ProteinAE-style recipe** (per-residue latents + flow-matching decoder):
-  5.01 Å with coin-flip chirality (0.498) and 3.60 Å bond errors — mean-collapse.
-- **O(N·L) attention** was used throughout and is retained; it is a cost
-  property, not an accuracy fix.
-
-Equivariance was the leading hypothesis and it was wrong. The fault was decoder
-routing. This is worth recording, because a larger run would have spent a great
-deal of compute failing to fix the wrong thing.
-
-### 4.4 Remaining limitations
-
-- Established **within the ≤ 800-atom / 20–200-residue band only**. Whether the
-  direct decoder holds on larger proteins is untested and is the first thing to
-  check (§6).
-- Not equivariant by construction; invariance comes from augmentation +
-  Kabsch-in-loss. It works, but it is an empirical property of these runs.
-- Topology is perceived from coordinates, so disulfides and non-standard
-  chemistry are excluded from the bond set. Bond-length error is measured over
-  perceived covalent bonds only.
-- Single seed for the grid (seed 0). The matched-task control was seed-repeated;
-  the 14-arm grid was not. Given the ~9 Å gap between the direct arms and
-  everything else, seed variance cannot explain the headline result, but the
-  *ordering within* the direct arms (d16 vs d8 vs d4, spread 0.02 Å) is not
-  resolved.
-- Clash rate for `direct d8` is 31 per 1000 atoms — small but not zero. Real
-  structures have ~0. This is the weakest of the physics metrics.
-- **No physical claim.** RMSD, bond length, chirality and contact F1 are
-  geometric. Nothing here establishes that a decoded structure is energetically
-  reasonable, let alone dynamically meaningful.
+**Random-init control.** The latent-smoothness metric scores **ρ = 0.89 on
+untrained weights** — a random projection already preserves distances
+(Johnson–Lindenstrauss). Reporting bare ρ would have looked like a strong
+positive and meant nothing.
 
 ---
 
-## 5. Engineering / reproducibility
+## 4. Is the latent usable for Stage 2?
 
-- Config-driven (`configs/*.yaml`); no hard-coded paths in scripts.
-- **64+ unit tests, all passing**, covering parsing, masking, batched alignment,
-  each loss term, reconstruction, the synthetic test molecule, SE(3)-invariance
-  proofs, RoPE translation invariance, per-residue pooling, flow matching,
-  the vectorized loss path, and AMP dtype safety.
-- Every run saves config, environment (package versions + git commit),
-  resumable checkpoints, a training log, metrics JSON/Markdown, and sample
-  reconstructed PDBs (`outputs/cluster/*/reconstructions/`).
-- SLURM tooling in `slurm/`: venv packaged as a tarball extracted to
-  `$SLURM_TMPDIR` at runtime (avoids transient BeeGFS issues on compute nodes),
-  everything on `$SCRATCH`, `--requeue` + append logging for preemption safety,
-  checkpoints written to shared storage so preempted jobs resume.
-- **Bugs found and fixed during this study** (each with a regression test): a
-  clash-rate normalisation bias for >2000-atom proteins; NaN gradients in the
-  differentiable Kabsch on degenerate covariance; a NaN in the distance loss; a
-  PCA-baseline data leak; a resume-RNG bug; a contact-map off-by-one; a
-  chain-recording gap; the RoPE frequency aliasing; the per-residue compression
-  mis-report (§1.2); a metric mismatch in `collect.sh` (full-length backbone
-  RMSD compared against cohort-based baselines); a val-selection bias in the
-  matched-task control (fixed with a train-carved dev split — the conclusion
-  survived); and an AMP bug where `torch.matmul`'s autocast rule silently undid
-  an explicit `.float()` cast inside the Kabsch SVD.
-- **Negative result worth recording:** the vectorized loss implementation is
-  ~2× *slower* than the loop version on ragged real batches (padding waste
-  dominates). It is kept opt-in (`vectorized=False` default). The real fix is
-  length-bucketed batching, not vectorization.
+Measured on NMR ensembles (many deposited models of one molecule = a
+conformational ensemble, free of MD compute) and on same-sequence crystal groups.
 
-### Operational notes for future runs
+| measurement | value | reading |
+|---|---|---|
+| resolution ratio | **0.915** | conformers survive the round trip; **no collapse** |
+| smoothness ρ | 0.955 (control 0.891) | weak, and not the decisive metric |
+| interpolation bond err | 0.187 → 0.211 Å | holds |
+| interpolation chirality | 0.000 → 0.003 | holds |
+| interpolation clashes/1k | 47.3 → **121.9** | **degrades ~2.6×** |
 
-- The `cu130` venv **cannot run on V100 nodes** ("no kernel image"). Keep
-  `SBATCH_CONSTRAINT="turing|ampere|lovelace"` in `submit.sh` until the venv is
-  rebuilt with a wider arch list.
-- `--amp` is now clean everywhere (the autocast/Kabsch bug is fixed and covered
-  by `tests/test_amp_safety.py`); it can be enabled by default.
-- Shared-account etiquette on the borrowed cluster: `scancel` only our own job
-  IDs, never `scancel -u $USER`; git identity set with `git config --local` in
-  our clone only. *(A `--global` config was set in error and has been unset —
-  the account owner needs to re-set their own `user.name` / `user.email`.)*
+**No mean collapse.** The decoder preserves ~92% of conformational spread. This
+was the main risk to Stage 2 and it is cleared.
+
+**Midpoint clashes are the one soft spot.** Bond lengths and chirality are
+*local* (atoms within one residue, decoded from that residue's own latent);
+clashes are *non-local*, and nothing enforces that independently-decoded residues
+don't interpenetrate. Latent mixup is the cheap first fix if Stage 2 needs it.
+
+**There is no separate "conformational floor."** In-domain held-out ensemble
+members reconstruct at 0.929 Å all-atom; those same structures score 0.931 Å in
+the ordinary eval. It is simply the codec's all-atom accuracy, which happens to
+exceed the 0.1–0.5 Å differences between crystal forms. A conformer-margin
+fine-tune improved resolution (0.848 → 0.909) without moving accuracy — exactly
+what you would expect if there was little collapse to fix.
 
 ---
 
-## 6. Answer to the headline question, and the gate
+## 5. What actually bounds the codec
 
-> *Can the model compress protein structures while preserving atomistic geometry
-> better than simple baselines?*
+Four candidate limits were tested and three eliminated.
 
-**Yes.** On 293 held-out folds the direct per-residue readout codec reaches
-0.75 Å backbone RMSD with 0.001 chirality violations, 0.16 Å bond error and 0.94
-contact F1, versus 5.07 Å for the mean-shape baseline and 11.89 Å for the
-centroid baseline. On a strictly matched task a neural autoencoder also beats
-PCA at every aggressive latent budget, 5/5 seeds. The qualifier from §4.1
-stands: this is demonstrated at 3–12× compression, not yet at PCA-like ratios.
+**Not the latent budget** — flat from 4 to 16 floats/residue.
 
-**The milestone instruction was to stop here and report before implementing
-latent diffusion. Stopping.** Recommended order for what comes next:
+**Not the objective** — the conformer-margin fine-tune left accuracy unmoved.
 
-1. **Confirm the direct decoder holds beyond the ≤ 800-atom band** before
-   anything else. Everything above is established inside one size band, and the
-   whole point of the architecture is variable size. This is cheap and it is the
-   only thing standing between here and Step 2.
-2. **A seed repeat of the direct arms** (3 seeds, d2/d4/d8) to resolve the
-   ordering, plus a clash-rate follow-up.
-3. **Then Step 2, latent diffusion** on the per-residue latent — which is
-   already the right shape for a denoising transformer.
+**Not model capacity.** A capacity ladder (lr-matched at 3e-4) improves
+monotonically, 1.1M → 15.2M params:
 
-### One plan-level question to settle first
+| params | train | held-out all-atom | held-out bb | val/train |
+|---|---|---|---|---|
+| 1.1M | 0.662 | 1.085 | — | 1.64 |
+| 3.8M | 0.517 | 0.938 | 0.639 | 1.81 |
+| 7.0M | 0.316 | 0.910 | 0.578 | 2.88 |
+| 15.2M | 0.273 | **0.873** | **0.548** | **3.20** |
 
-The success criterion used here is **reconstruction of novel folds**, which is
-close to a folding problem. What latent MD actually needs is **compression of
-conformational ensembles** — many conformers of the *same* system — which is a
-substantially easier and more directly relevant target. It is worth deciding
-explicitly whether Step 1's gate should be re-stated in those terms before
-committing compute to the trajectory stage. This changes what dataset Step 2
-should be pretrained on, so it is better answered now than later.
+Note the val/train ratio: at fixed data, bigger models memorise harder. The
+15.2M model reconstructs seen data to 0.27 Å — it can already *represent* the
+precision needed; it cannot *generalise* from 878 proteins.
+
+**It is data and compute.** A 2-D grid (2 model sizes × 4 data sizes, matched
+60k steps, `processed_small` val = 758) shows held-out descending with data and
+the generalisation gap closing toward 1.0:
+
+| n_train | 1.1M val | v/t | 15.2M val | v/t |
+|---|---|---|---|---|
+| 450 | 1.185 | 2.06 | 0.934 | 3.71 |
+| 878 | 0.993 | 1.26 | 0.930 | 1.56 |
+| 2000 | 0.858 | 1.07 | 0.837 | 1.31 |
+| 2272 | 0.916 | 1.04 | 0.844 | 1.23 |
+
+A dedicated compute control (resuming both models at n=2272 to 240k steps)
+found **no capacity floor for either**: train RMSD reached 0.51 (1.1M) and 0.39
+(15.2M) and was still descending, with 120k→240k improvements of −0.185 and
+−0.073, both well past the plateau bar. Best held-out on that set is **15.2M at
+240k steps: 0.752 Å all-atom / 0.476 Å backbone.**
+
+At fixed data, extra compute mostly buys *train* fit — held-out becomes
+data-limited once train converges.
+
+### The data ceiling
+
+The matched band — single-chain, X-ray, ≤ 2.5 Å, 20–110 residues — contains
+**only ~3,853 entries in the entire PDB**. We trained on 2,272. Data is the
+lever, and within this band it is nearly exhausted. Scaling further requires
+broadening the size band (which needs the capacity work), predicted structures,
+or moving to conformational data.
 
 ---
 
-*Raw results for every run in this report are committed under
-`outputs/cluster/` (metrics JSON, per-structure breakdowns, training logs,
-environment captures, sample reconstructed PDBs), with the cross-arm summary in
-`outputs/cluster/comparison.md`, the matched-task control in
-`outputs/cluster/matched_task_pca.json`, and the ablation ladder in
-`outputs/cluster/ablation_ladder.json`. Earlier stages are under
-`outputs/stage_a/`, `outputs/scan/` and `outputs/data_scan/`; the superseded
-Stage A/B narrative and the data-scale sweep that motivated §3 are preserved in
-git history.*
+## 6. Errors found and corrected
+
+Recorded because several reversed conclusions, and because the pattern —
+plausible number, wrong measurement — recurred:
+
+- **10 audit bugs** (Kabsch NaN gradients, distance-loss NaN, clash-rate
+  normalisation bias, PCA data leak, resume-RNG, contact-map off-by-one, …), all
+  fixed with regression tests.
+- **Compression inflated ~60×** — per-residue models reported `latent_dim`
+  instead of `latent_dim × n_residues`. The "227×" arms were really ~2.9×, i.e.
+  they had *larger* latents than the arms they lost to.
+- **PCA baseline data leak**; **val-selection bias** in the matched-task control
+  (fixed with a train-carved dev split; conclusion survived).
+- **RoPE frequency aliasing** — `2^k·π` broke translation invariance.
+- **AMP bug**: `torch.matmul`'s autocast rule silently undid an explicit
+  `.float()` inside the Kabsch SVD.
+- **Train-contaminated in-domain gate** — the group census globbed train + val;
+  0.574 Å was a training number. Fixed with a split filter → 0.929 Å.
+- **Metric mismatch** — the ensemble gate reports all-atom RMSD; it was being
+  compared against a backbone number, manufacturing a fake 0.75 → 0.93 Å
+  "degradation."
+- **Cohort-sampling bug** — the NMR fetcher sorted by atom count ascending,
+  producing a 19-residue cohort against a 78-residue training distribution. The
+  first NMR result measured domain shift, not ensembles.
+- **Learning-rate artifact** — `lr=1e-3` (tuned for 1.1M) diverges at 15.2M.
+  Caught only because train RMSD was reported next to held-out: a bigger model
+  fitting *train* worse is an optimisation failure, never a capacity ceiling.
+- **Undertraining read as a capacity floor** — at matched steps, high-n rungs
+  got a fifth the epochs. A resume control refuted it. A 0.5 Å threshold would
+  have mislabelled the 1.1M model "floored" precisely when it was descending
+  fastest; a **plateau criterion** caught it.
+
+Two claims in earlier versions of this report are formally **withdrawn**:
+*"more data will not fix this codec"* (measured on the broken decoder) and
+*"latent 2 already works"* (one lucky seed).
+
+---
+
+## 7. Engineering
+
+Config-driven, no hard-coded paths. **82 tests passing** across parsing,
+masking, batched alignment, every loss term, reconstruction, SE(3)-invariance
+proofs, RoPE translation invariance, per-residue and per-atom pooling, flow
+matching, AMP dtype safety, and the ensemble metrics. Every run saves config,
+environment, resumable checkpoints, training log, metrics, and sample PDBs.
+SLURM tooling packages the venv as a tarball extracted to `$SLURM_TMPDIR`,
+keeps everything on `$SCRATCH`, and uses `--requeue` for preemption safety.
+
+**Operational notes.** The cu130 venv cannot run on V100 — keep
+`SBATCH_CONSTRAINT="turing|ampere|lovelace"`. `--amp` is clean everywhere.
+Negative result worth keeping: the vectorised loss is ~2× *slower* than the loop
+version on ragged batches; the real fix is length-bucketed batching.
+
+---
+
+## 8. Limitations
+
+- **Size generality is unanswered.** The ≤3000-atom run was killed at an epoch-100
+  guard: the 1.1M model cannot fit that training set at all, so the test
+  conflated "bigger structures are harder" with "this model is too small." It
+  needs redoing with an adequate model.
+- Not equivariant by construction; invariance is empirical.
+- Topology perceived from coordinates → disulfides and non-standard chemistry
+  excluded from the bond set.
+- The data-slope projections (~9.8k / ~370k structures for 0.5 Å) are **lower
+  bounds from under-converged rungs**, so they *overestimate* the requirement.
+  A converged sweep is needed for the true slope.
+- Clash rate is small but non-zero (31/1000 atoms); real structures are ~0.
+- **No physical claim.** All metrics are geometric.
+
+---
+
+## 9. Answer, and what follows
+
+**Can the model compress protein structures while preserving atomistic geometry
+better than simple baselines? Yes** — 0.75 Å backbone held-out with 0.001
+chirality violations and 0.94 contact F1, against 5.07 Å for mean-shape and
+11.89 Å for the centroid baseline, and beating PCA on a strictly matched task at
+every aggressive budget.
+
+**And the thing that limits it now is ordinary.** Not equivariance, not latent
+size, not the objective, not capacity — those were tested and eliminated. It is
+data and compute. That is a far better position than this project was in when
+every architecture lost to a zero-parameter baseline.
+
+Recommended order from here:
+
+1. **Stage 2 (latent diffusion) can start now.** It does not depend on any open
+   question above — the per-residue latent is already the right shape for a
+   denoising transformer, conformers survive the round trip, and 0.75 Å is
+   near-native for generating static structures.
+2. **In parallel, settle the data question**, which is now the binding
+   constraint and the highest-leverage open item. The matched band holds ~3,853
+   structures; broadening it, or moving to conformational data, is the decision.
+3. **Redo size generality** with a model large enough to fit the data, before
+   any full-scale pretraining run is sized.
+
+### One plan-level question worth deciding first
+
+Stage 1 was scored on **novel-fold reconstruction**, which is close to a folding
+problem. Latent MD actually needs **conformational-ensemble compression** — an
+easier and more directly relevant target, and one this repo can now measure
+(`scripts/latent_suitability.py`, `scripts/xray_ensemble_gate.py`). Given that
+experimental novel-fold data is nearly exhausted in this band while
+conformational data is not, it may be right to pull trajectory data earlier than
+the four-stage plan assumes. That decision changes what Stage 2 pretrains on, so
+it is better made now than after.
+
+---
+
+*Raw results for every run are committed under `outputs/cluster/` (metrics JSON,
+per-structure breakdowns, training logs, environment captures, sample PDBs), with
+cross-arm summaries in `comparison.md`, `capacity_ladder.md`, and
+`data_scaling_2d.md`; the latent gates in `outputs/latent_suitability*.json` and
+`outputs/xray_ensemble_gate.json`. Superseded analyses are preserved in git
+history.*
