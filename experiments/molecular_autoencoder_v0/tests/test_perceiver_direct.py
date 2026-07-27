@@ -156,3 +156,19 @@ def test_cost_grows_linearly_not_quadratically_in_atoms():
         # O(L.R) term, but it must be far below quadratic.
         assert ratio_cost < ratio_n ** 1.5, (
             f"cost grew {ratio_cost:.2f}x for a {ratio_n:.2f}x atom increase")
+
+
+@pytest.mark.parametrize("k", [0, 1, 2])
+def test_atom_self_layers_are_opt_in_and_cost_what_they_claim(k):
+    """Jacob's spec allows "very few" all-atom self-attention layers.
+
+    They are O(N^2) each -- the expensive kind -- so they are off by default,
+    and this pins the price: exactly k N x N attention calls for k layers.
+    Removing them entirely may cost local geometry, which is why the knob
+    exists rather than the absence being hardcoded.
+    """
+    model = make_autoencoder(_cfg(atom_self_layers=k)).eval()
+    batch = _batch(sizes=(6,))
+    N = int(batch["mask"].shape[1])
+    shapes = _attention_shapes(model, batch)
+    assert sum(1 for q, kk in shapes if q == N and kk == N) == k

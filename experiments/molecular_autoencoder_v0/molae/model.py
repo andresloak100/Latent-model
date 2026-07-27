@@ -57,6 +57,11 @@ class ModelConfig:
     # perceiver_direct only: >0 re-enables self-attention over group tokens,
     # which costs O(R^2). Left at 0 the model is O(N.L) end to end.
     group_self_layers: int = 0
+    # perceiver_direct only: ALL-ATOM self-attention layers before the latents
+    # read the atoms. O(N^2) each -- the expensive kind -- so keep this at 0-2.
+    # Jacob's spec allows "very few"; 0 is the cheapest and 1-2 is where local
+    # geometry (bonds, chirality) is most likely to be resolved.
+    atom_self_layers: int = 0
 
 
 class AtomFeaturizer(nn.Module):

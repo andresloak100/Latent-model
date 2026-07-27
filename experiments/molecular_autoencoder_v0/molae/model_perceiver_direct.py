@@ -92,6 +92,14 @@ class PerceiverEncoder(nn.Module):
         self.feat = AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=True,
                                    max_chains=cfg.max_chains)
         self.q_proj = nn.Linear(cfg.d_model, cfg.d_model)   # shapes the index encoding
+        # OPTIONAL all-atom self-attention. O(N^2) per layer -- the expensive
+        # kind -- so it is off by default and meant to stay at 0-2. Included
+        # because removing it entirely may cost local geometry, and that should
+        # be measured rather than assumed.
+        self.atom_blocks = nn.ModuleList(
+            [SelfAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
+             for _ in range(getattr(cfg, "atom_self_layers", 0))]
+        )
         self.cross = CrossAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
         self.self_blocks = nn.ModuleList(
             [SelfAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
@@ -104,6 +112,9 @@ class PerceiverEncoder(nn.Module):
 
     def forward(self, batch, coords, n_latents=None):
         tokens = self.feat(batch, coords)                       # (B, N, d)   O(N)
+        pad_atoms = ~batch["mask"].bool()
+        for blk in self.atom_blocks:                            #             O(N^2)
+            tokens = blk(tokens, key_padding_mask=pad_atoms)
         B = tokens.shape[0]
         L = n_latents or self.cfg.n_latent_tokens
         lat = self.latent_queries(B, L, tokens.device)

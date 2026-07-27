@@ -1,0 +1,46 @@
+data:
+  max_atoms: 800
+  max_residues: 200
+  min_residues: 20
+  processed_dir: data/processed
+  splits_file: data/splits.json
+loss:
+  bond: 1.0
+  chirality: 0.2
+  clash: 0.5
+  coord: 1.0
+  distance: 1.0
+model:
+  coord_scale: 10.0
+  d_model: 128
+  dec_self_layers: 2
+  dropout: 0.0
+  enc_self_layers: 2
+  encoder_type: perceiver_direct
+  ff_mult: 4
+  flow_steps: 50
+  group_self_layers: 0
+  k_neighbors: 8
+  latent_dim: 8
+  max_res_pos: 1024
+  n_heads: 4
+  n_latent_tokens: 256
+  objective: reconstruct
+  rope_freqs: 128
+  rope_spherical: false
+  atom_self_layers: 0
+name: perceiver_L256_a0
+train:
+  augment_rotation: true
+  batch_size: 16
+  ckpt_every: 300
+  clash_dist: 1.5
+  epochs: 900
+  eval_every: 300
+  grad_clip: 1.0
+  log_every: 50
+  lr: 0.001
+  out_dir: outputs/perceiver/perceiver_L256_a0
+  overfit: false
+  seed: 0
+  weight_decay: 0.0
