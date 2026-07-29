@@ -77,3 +77,57 @@ def test_distance_loss_single_atom_is_zero_not_nan():
     one = torch.zeros(1, 3)
     v = distance_loss_single(one, one)
     assert torch.isfinite(v).all() and v.item() == 0.0
+
+
+def test_clash_loss_matches_the_dense_mask_it_replaced():
+    """Sparse bond list must give bit-identical results to the old (N,N) mask.
+
+    The dense mask cost 34 MB/structure at 3000 atoms and 382 MB at 10,000 --
+    per sample, in a dataloader worker -- which blocked complex-scale training.
+    Replacing it is only safe if the loss value is unchanged, including through
+    the max_atoms subsample path where bonds must be re-indexed.
+    """
+    import torch.nn.functional as F
+    from molae.losses import clash_loss_single
+
+    def dense_reference(pred, bonds, clash_dist=1.5, max_atoms=1200):
+        n = pred.shape[0]
+        bm = torch.zeros(n, n)
+        for a, b in bonds.tolist():
+            bm[a, b] = 1.0
+            bm[b, a] = 1.0
+        if n > max_atoms:
+            idx = torch.linspace(0, n - 1, max_atoms).long()
+            pred, bm = pred[idx], bm[idx][:, idx]
+        d = torch.cdist(pred, pred)
+        iu = torch.triu_indices(pred.shape[0], pred.shape[0], offset=1)
+        dv, b = d[iu[0], iu[1]], bm[iu[0], iu[1]]
+        return (F.relu(clash_dist - dv) * (1.0 - b)).sum() / (1.0 - b).sum().clamp_min(1.0)
+
+    torch.manual_seed(0)
+    for n, nb in [(40, 30), (200, 190), (1500, 1400), (60, 0)]:
+        pred = torch.randn(n, 3) * 3.0
+        if nb:
+            a, b = torch.randint(0, n, (nb,)), torch.randint(0, n, (nb,))
+            keep = a != b
+            bonds = torch.stack([a[keep], b[keep]], 1)
+        else:
+            bonds = torch.zeros(0, 2, dtype=torch.long)
+        assert torch.allclose(dense_reference(pred, bonds), clash_loss_single(pred, bonds),
+                              atol=1e-6), f"mismatch at n={n}, bonds={nb}"
+
+
+def test_no_dense_pair_matrix_in_a_sample():
+    """No per-sample tensor may be quadratic in atom count.
+
+    Guards the property directly: a 600-atom structure must not carry anything
+    of size ~600^2. Without this, a future change could reintroduce the dense
+    mask and only be noticed when complexes OOM.
+    """
+    from molae.dataset import sample_from_arrays
+    from molae.synthetic import make_synthetic_ala
+    s = sample_from_arrays(make_synthetic_ala(n_res=40))
+    n = int(s["n_atoms"])
+    for k, v in s.items():
+        if torch.is_tensor(v):
+            assert v.numel() < n * n / 4, f"{k} is quadratic in atom count: {tuple(v.shape)}"

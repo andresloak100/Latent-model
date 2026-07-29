@@ -59,11 +59,10 @@ def sample_from_arrays(d) -> dict:
                  if "chain_idx" in d else np.zeros(len(res_pos), dtype=np.int64))
     res_seq = np.asarray(d["res_seq"]).astype(np.int64) if "res_seq" in d else res_pos
 
-    bonded_mask = np.zeros((n, n), dtype=np.float32)
-    for a, b in bonds:
-        bonded_mask[a, b] = 1.0
-        bonded_mask[b, a] = 1.0
-
+    # NOTE: no dense (N, N) bonded mask is built. It cost 34 MB/structure at
+    # 3000 atoms and 382 MB at 10,000 -- per sample, in a dataloader worker --
+    # which is what blocked complex-scale training. The sparse `bonds` array is
+    # carried instead and the clash loss tests membership from it.
     return {
         "element_idx": torch.from_numpy(np.asarray(d["element_idx"]).astype(np.int64)),
         "residue_idx": torch.from_numpy(np.asarray(d["residue_idx"]).astype(np.int64)),
@@ -74,7 +73,6 @@ def sample_from_arrays(d) -> dict:
         "coords": torch.from_numpy(coords),
         "bonds": torch.from_numpy(bonds),
         "chirality_centers": torch.from_numpy(_chirality_centers(atom_name_idx, res_pos)),
-        "bonded_mask": torch.from_numpy(bonded_mask),
         "n_atoms": n,
         "pdb_id": str(d["pdb_id"]),
         "chain_id": str(d["chain_id"]),
@@ -111,7 +109,6 @@ def collate_fn(samples):
         "n_atoms": torch.tensor([s["n_atoms"] for s in samples], dtype=torch.long),
         "bonds": [s["bonds"] for s in samples],
         "chirality_centers": [s["chirality_centers"] for s in samples],
-        "bonded_mask": [s["bonded_mask"] for s in samples],
         "pdb_id": [s["pdb_id"] for s in samples],
         "chain_id": [s["chain_id"] for s in samples],
         "element_symbol": [s["element_symbol"] for s in samples],

@@ -45,19 +45,42 @@ def bond_loss_single(pred, target, bonds):
     return F.smooth_l1_loss(lp, lt, beta=0.1)
 
 
-def clash_loss_single(pred, bonded_mask, clash_dist=1.5, max_atoms=1200):
-    """Hinge penalty on non-bonded atom pairs closer than ``clash_dist``."""
+def clash_loss_single(pred, bonds, clash_dist=1.5, max_atoms=1200):
+    """Hinge penalty on non-bonded atom pairs closer than ``clash_dist``.
+
+    Takes the SPARSE (M, 2) bond list rather than a dense (N, N) mask. The dense
+    form cost 34 MB per structure at 3000 atoms and 382 MB at 10,000 -- built in
+    a dataloader worker and shipped to the GPU for every sample -- which made
+    protein-protein complexes untrainable long before the model itself was the
+    limit. Bond membership is instead tested on encoded pair keys, which is
+    O(M) memory. Numerically identical to the dense version.
+    """
     n = pred.shape[0]
     if n > max_atoms:  # subsample for tractability on large proteins
         idx = torch.linspace(0, n - 1, max_atoms, device=pred.device).long()
+        # Re-index bonds into the subsampled numbering, dropping any bond whose
+        # partner was not sampled (it is no longer a pair we can score).
+        remap = torch.full((n,), -1, dtype=torch.long, device=pred.device)
+        remap[idx] = torch.arange(idx.numel(), device=pred.device)
+        if bonds.numel():
+            rb = remap[bonds]
+            bonds = rb[(rb >= 0).all(dim=1)]
         pred = pred[idx]
-        bonded_mask = bonded_mask[idx][:, idx]
+
+    m = pred.shape[0]
     d = torch.cdist(pred, pred)
-    iu = torch.triu_indices(pred.shape[0], pred.shape[0], offset=1, device=pred.device)
+    iu = torch.triu_indices(m, m, offset=1, device=pred.device)
     dv = d[iu[0], iu[1]]
-    bm = bonded_mask[iu[0], iu[1]]
-    penalty = F.relu(clash_dist - dv) * (1.0 - bm)
-    denom = (1.0 - bm).sum().clamp_min(1.0)
+
+    if bonds.numel():
+        lo = torch.minimum(bonds[:, 0], bonds[:, 1])
+        hi = torch.maximum(bonds[:, 0], bonds[:, 1])
+        nonbonded = ~torch.isin(iu[0] * m + iu[1], lo * m + hi)
+    else:
+        nonbonded = torch.ones(dv.shape[0], dtype=torch.bool, device=pred.device)
+
+    penalty = F.relu(clash_dist - dv) * nonbonded
+    denom = nonbonded.sum().clamp_min(1)
     return penalty.sum() / denom
 
 
@@ -247,11 +270,10 @@ class LossComputer:
             t = batch["coords"][i, :n].to(device)
             bonds = batch["bonds"][i].to(device)
             centers = batch["chirality_centers"][i].to(device)
-            bonded_mask = batch["bonded_mask"][i].to(device)
             totals["coord"] = totals["coord"] + coord_loss_single(p, t)
             totals["distance"] = totals["distance"] + distance_loss_single(p, t, max_atoms=self.max_atoms)
             totals["bond"] = totals["bond"] + bond_loss_single(p, t, bonds)
-            totals["clash"] = totals["clash"] + clash_loss_single(p, bonded_mask, self.clash_dist, max_atoms=self.max_atoms)
+            totals["clash"] = totals["clash"] + clash_loss_single(p, bonds, self.clash_dist, max_atoms=self.max_atoms)
             totals["chirality"] = totals["chirality"] + chirality_loss_single(p, t, centers)
         for k in totals:
             totals[k] = totals[k] / max(B, 1)
