@@ -172,3 +172,58 @@ def test_atom_self_layers_are_opt_in_and_cost_what_they_claim(k):
     N = int(batch["mask"].shape[1])
     shapes = _attention_shapes(model, batch)
     assert sum(1 for q, kk in shapes if q == N and kk == N) == k
+
+
+def test_corruption_reaches_the_encoder_but_not_the_target():
+    """The masked-reconstruction objective must not contaminate the target.
+
+    Models read batch["coords"], so corrupting in place would corrupt the thing
+    the loss is scored against and the task would become trivial (predict the
+    corrupted input). Pins that the two batch dicts stay separate.
+    """
+    import sys as _s
+    from pathlib import Path as _P
+    _s.path.insert(0, str(_P(__file__).resolve().parent.parent / "scripts"))
+    from train import corrupt_coords
+
+    coords = torch.randn(2, 12, 3)
+    mask = torch.ones(2, 12)
+    mask[1, 8:] = 0.0
+    torch.manual_seed(0)
+
+    clean = coords.clone()
+    corrupted = corrupt_coords(coords, mask, 0.5)
+    assert torch.equal(coords, clean), "corrupt_coords mutated its input in place"
+    assert not torch.equal(corrupted, clean), "nothing was corrupted at frac=0.5"
+
+    # Padding must never be treated as a corruption target.
+    assert torch.equal(corrupted[1, 8:], clean[1, 8:])
+
+    # frac=0 must be an exact no-op so existing runs are bit-identical.
+    assert torch.equal(corrupt_coords(coords, mask, 0.0), clean)
+
+
+def test_heldout_rmsd_is_deterministic():
+    """The scaling curve is read off this, so it must not be a random sample.
+
+    quick_rmsd draws 4 random train batches and carries ~8% relative noise --
+    a curve built from that is unreadable. heldout_rmsd covers the whole val
+    loader, so repeated calls must agree exactly.
+    """
+    import sys as _s
+    from pathlib import Path as _P
+    _s.path.insert(0, str(_P(__file__).resolve().parent.parent / "scripts"))
+    from train import heldout_rmsd
+    from torch.utils.data import DataLoader
+
+    samples = [sample_from_arrays(make_synthetic_ala(n_res=s)) for s in (4, 6, 8)]
+
+    class _DS(torch.utils.data.Dataset):
+        def __len__(self): return len(samples)
+        def __getitem__(self, i): return samples[i]
+
+    loader = DataLoader(_DS(), batch_size=2, shuffle=False, collate_fn=collate_fn)
+    model = make_autoencoder(_cfg()).eval()
+    a = heldout_rmsd(model, loader, torch.device("cpu"))
+    b = heldout_rmsd(model, loader, torch.device("cpu"))
+    assert a == b, f"non-deterministic: {a} vs {b}"

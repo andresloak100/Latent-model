@@ -35,7 +35,12 @@ class TrainConfig:
     loss_max_atoms: int = 1200  # subsample cap for distance/clash loss (per-atom O(N^2)); raise for large proteins
     out_dir: str = "outputs/stage_a"
     overfit: bool = False  # if true, train on train+val (Stage A sanity)
-    augment_rotation: bool = False  # random SO(3) input rotations (teaches non-equivariant encoders invariance)
+    augment_rotation: bool = False
+    # Masked-reconstruction objective: fraction of atoms whose INPUT coordinates
+    # are corrupted each step (target unchanged). Multiplies the signal from a
+    # fixed structure set -- the matched PDB band holds only ~3,853 entries.
+    corrupt_frac: float = 0.0
+    corrupt_mode: str = "zero"        # "zero" | "noise"  # random SO(3) input rotations (teaches non-equivariant encoders invariance)
 
 
 @dataclass

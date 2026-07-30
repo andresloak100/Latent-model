@@ -1,0 +1,65 @@
+# Attention-depth grid, per Jacob: sweep cross-attention x group-self-attention
+# and read SCALING BEHAVIOUR vs training steps for each cell.
+#
+# The scaling curve comes free: train.py now runs a full deterministic
+# held-out eval every `eval_every` epochs and records it with the step count
+# in train_log.json. So ONE run per cell yields the whole curve -- no need
+# for separate runs per step budget.
+#
+# Multiple epochs over the same data are expected and fine (Jacob's note):
+# 240k steps over 878 structures is ~4400 epochs.
+#
+# Costs at this scale (R~78 residues, N~607 atoms, L=64): cross-attn R.L =
+# 4,992/layer, group-self R^2 = 6,084/layer, encoder N.L = 38,848. Both grid
+# axes are cheap here; only atom_self_layers (N^2 = 368k) is expensive, and
+# it stays at 0.
+
+data:
+  max_atoms: 800
+  max_residues: 200
+  min_residues: 20
+  processed_dir: data/processed
+  splits_file: data/splits.json
+loss:
+  bond: 1.0
+  chirality: 0.2
+  clash: 0.5
+  coord: 1.0
+  distance: 1.0
+model:
+  atom_self_layers: 0
+  coord_scale: 10.0
+  d_model: 128
+  dec_cross_layers: 8
+  dec_self_layers: 2
+  dropout: 0.0
+  enc_self_layers: 2
+  encoder_type: perceiver_direct
+  ff_mult: 4
+  flow_steps: 50
+  group_self_layers: 0
+  k_neighbors: 8
+  latent_dim: 8
+  max_chains: 1
+  max_res_pos: 1024
+  n_heads: 4
+  n_latent_tokens: 64
+  objective: reconstruct
+  rope_freqs: 128
+  rope_spherical: false
+name: pgrid_x8_s0
+train:
+  augment_rotation: true
+  batch_size: 16
+  ckpt_every: 400
+  clash_dist: 1.5
+  epochs: 4400
+  eval_every: 200
+  grad_clip: 1.0
+  log_every: 100
+  loss_max_atoms: 1200
+  lr: 0.001
+  out_dir: outputs/pgrid/pgrid_x8_s0
+  overfit: false
+  seed: 0
+  weight_decay: 0.0

@@ -39,7 +39,10 @@ def build_datasets(cfg):
         train_keys = train_keys + list(splits["val"])
     train_paths = [processed / f"{k}.npz" for k in train_keys]
     train_paths = [p for p in train_paths if p.exists()]
-    return ProteinStructureDataset(train_paths), train_keys
+    val_paths = [processed / f"{k}.npz" for k in splits.get("val", [])]
+    val_paths = [p for p in val_paths if p.exists()]
+    return (ProteinStructureDataset(train_paths), train_keys,
+            ProteinStructureDataset(val_paths) if val_paths else None)
 
 
 @torch.no_grad()
@@ -55,6 +58,50 @@ def quick_rmsd(model, loader, device, max_batches=4):
         vals.extend(r.tolist())
     model.train()
     return sum(vals) / max(len(vals), 1)
+
+
+@torch.no_grad()
+def heldout_rmsd(model, loader, device):
+    """Mean aligned RMSD over the WHOLE val split -- deterministic.
+
+    Distinct from quick_rmsd, which samples 4 random TRAIN batches (64 of 878+
+    structures) and carries ~8% relative noise even when converged. A scaling
+    curve read off that is unusable; this one is exact and cheap (forward only).
+    """
+    model.eval()
+    aa, bb, n = 0.0, 0.0, 0
+    for batch in loader:
+        gb = {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in batch.items()}
+        preds, _ = model(gb)
+        r = aligned_rmsd_torch(preds, gb["coords"], gb["mask"])
+        aa += float(r.sum())
+        n += r.numel()
+    model.train()
+    return aa / max(n, 1)
+
+
+def corrupt_coords(coords, mask, frac, mode="zero", generator=None):
+    """Corrupt a random subset of atoms' INPUT coordinates (target unchanged).
+
+    A masked-reconstruction objective: the encoder never sees the true position
+    of the corrupted atoms, so it cannot copy them through -- it has to infer
+    them from the rest of the structure. This multiplies the effective training
+    signal from a fixed set of structures, which matters because the matched
+    experimental band contains only ~3,853 entries in the entire PDB.
+
+    Only coordinates are corrupted, never identity: the decoder is conditioned
+    on atom identity by design, so masking that would change the task rather
+    than make it harder.
+    """
+    if frac <= 0.0:
+        return coords
+    keep = torch.rand(coords.shape[:2], device=coords.device) >= frac
+    keep = keep | (mask < 0.5)          # never "corrupt" padding
+    out = coords * keep.unsqueeze(-1)
+    if mode == "noise":
+        noise = torch.randn_like(coords) * coords.std().clamp_min(1e-3)
+        out = out + noise * (~keep).unsqueeze(-1)
+    return out
 
 
 def resolve_device(name):
@@ -96,12 +143,15 @@ def main():
     cfg.save(out_dir / "config.yaml")
     utils.save_json(utils.capture_environment(str(ROOT)), out_dir / "environment.json")
 
-    dataset, keys = build_datasets(cfg)
+    dataset, keys, val_dataset = build_datasets(cfg)
     if len(dataset) == 0:
         raise SystemExit("No processed structures found. Run prepare_dataset.py first.")
     loader = DataLoader(dataset, batch_size=cfg.train.batch_size, shuffle=True,
                         collate_fn=collate_fn, num_workers=args.num_workers,
                         pin_memory=(args.pin_memory and device.type == "cuda"))
+    val_loader = (DataLoader(val_dataset, batch_size=cfg.train.batch_size, shuffle=False,
+                             collate_fn=collate_fn, num_workers=args.num_workers)
+                  if val_dataset is not None and len(val_dataset) else None)
     print(f"[train] {len(dataset)} structures on {device} (amp={use_amp}); "
           f"{'first ids: ' + str(keys[:8]) if len(keys) > 8 else keys}")
 
@@ -128,6 +178,7 @@ def main():
             _np.random.set_state(ckpt["rng_numpy"])
         print(f"[train] resumed from epoch {start_epoch}")
 
+    steps_per_epoch = max(1, -(-len(dataset) // cfg.train.batch_size))
     t0 = time.time()
     for epoch in range(start_epoch, cfg.train.epochs):
         model.train()
@@ -136,6 +187,16 @@ def main():
             gb = {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in batch.items()}
             if cfg.train.augment_rotation:
                 gb["coords"] = random_rotate(gb["coords"])
+            # Masked reconstruction: the model sees corrupted coordinates, the
+            # loss is scored against the CLEAN ones. Two separate batch dicts so
+            # the target cannot be contaminated -- models read batch["coords"],
+            # so corrupting in place would corrupt the target too.
+            model_batch = gb
+            if getattr(cfg.train, "corrupt_frac", 0.0) > 0.0:
+                model_batch = dict(gb)
+                model_batch["coords"] = corrupt_coords(
+                    gb["coords"], gb["mask"], cfg.train.corrupt_frac,
+                    getattr(cfg.train, "corrupt_mode", "zero"))
             opt.zero_grad()
             with torch.autocast(device_type=device.type, enabled=use_amp):
                 if hasattr(model, "training_loss"):      # flow-matching objective
@@ -156,12 +217,19 @@ def main():
 
         if epoch % cfg.train.log_every == 0 or epoch == cfg.train.epochs - 1:
             rmsd = quick_rmsd(model, loader, device)
-            row = {"epoch": epoch, "rmsd": rmsd, "elapsed_s": time.time() - t0, **ep_comps}
+            row = {"epoch": epoch, "rmsd": rmsd, "elapsed_s": time.time() - t0,
+                   "steps": (epoch + 1) * steps_per_epoch, **ep_comps}
+            # Held-out every eval_every: gives a SCALING CURVE vs steps from a
+            # single run, instead of needing one run per step budget.
+            if val_loader is not None and cfg.train.eval_every > 0 and (
+                    epoch % cfg.train.eval_every == 0 or epoch == cfg.train.epochs - 1):
+                row["val_rmsd"] = heldout_rmsd(model, val_loader, device)
             log.append(row)
             extra = " ".join(f"{k}={ep_comps[k]:.4f}" for k in
                              ("coord", "bond", "clash", "flow_mse") if k in ep_comps)
             print(f"  epoch {epoch:5d}  total={ep_comps.get('total', float('nan')):.4f}  "
-                  f"{extra}  rmsd={rmsd:.3f}A")
+                  f"{extra}  rmsd={rmsd:.3f}A"
+                  + (f"  VAL={row['val_rmsd']:.3f}A" if "val_rmsd" in row else ""))
 
         if epoch % cfg.train.ckpt_every == 0 or epoch == cfg.train.epochs - 1:
             utils.save_checkpoint(latest, model, opt, epoch, extra={"log": log})
