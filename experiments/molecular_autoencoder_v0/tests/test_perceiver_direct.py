@@ -227,3 +227,28 @@ def test_heldout_rmsd_is_deterministic():
     a = heldout_rmsd(model, loader, torch.device("cpu"))
     b = heldout_rmsd(model, loader, torch.device("cpu"))
     assert a == b, f"non-deterministic: {a} vs {b}"
+
+
+def test_tail_slope_separates_plateaued_from_still_descending():
+    """The grid's verdict rests on this, so pin it.
+
+    A cell with a WORSE endpoint but a steeper tail must be reported as still
+    having road left, and a better-looking flat cell as spent. Judging on the
+    endpoint alone is the mistake that would have labelled an earlier model
+    "floored at 0.51" precisely while it was descending fastest.
+    """
+    import sys as _s
+    from pathlib import Path as _P
+    _s.path.insert(0, str(_P(__file__).resolve().parent.parent / "scripts"))
+    from plot_curves import tail_slope
+
+    steps = np.geomspace(11_000, 242_000, 22)
+    flat = 0.90 + 0.002 * (np.log2(242_000) - np.log2(steps))
+    steep = 1.15 + 0.180 * (np.log2(242_000) - np.log2(steps))
+
+    s_flat, s_steep = tail_slope(steps, flat), tail_slope(steps, steep)
+    assert abs(s_flat) < 0.05, f"flat curve read as descending ({s_flat:+.3f})"
+    assert abs(s_steep) > 0.05, f"steep curve read as flat ({s_steep:+.3f})"
+    # And the ordering by endpoint is the OPPOSITE of the ordering by slope --
+    # which is exactly why both columns get reported.
+    assert flat[-1] < steep[-1] and abs(s_flat) < abs(s_steep)
