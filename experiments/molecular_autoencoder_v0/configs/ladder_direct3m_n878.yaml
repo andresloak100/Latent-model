@@ -1,0 +1,58 @@
+# SIZE control for the architecture x data ladder.
+#
+# The ladder compares direct (1.1M) against perceiver (3.2M) and reads the
+# val-vs-n SLOPE. But a 3x larger model memorises more at small n, so part of
+# the perceiver's steeper expected slope would come from having more overfit
+# to shed -- not from the architecture. That confounds the one number the
+# experiment exists to measure.
+#
+# This row is the DIRECT codec at 3.8M (d_model 256), bracketing the
+# perceiver's 3.2M from above, over the same rungs and budget. With direct at
+# both 1.1M and 3.8M, the size contribution to the slope is measurable and
+# can be subtracted rather than assumed away.
+
+name: ladder_direct3m_n878
+data:
+  processed_dir: data/processed_small
+  splits_file: data/splits_small_n878.json
+  min_residues: 20
+  max_residues: 110
+  max_atoms: 800
+model:
+  d_model: 256
+  n_heads: 8
+  n_latent_tokens: 16
+  latent_dim: 8
+  enc_self_layers: 2
+  dec_self_layers: 2
+  ff_mult: 4
+  dropout: 0.0
+  max_res_pos: 1024
+  coord_scale: 10.0
+  encoder_type: direct
+  k_neighbors: 8
+  rope_freqs: 128
+  rope_spherical: false
+  objective: reconstruct
+  flow_steps: 50
+loss:
+  coord: 1.0
+  distance: 1.0
+  bond: 1.0
+  clash: 0.5
+  chirality: 0.2
+train:
+  seed: 0
+  epochs: 4400
+  batch_size: 16
+  lr: 0.0003
+  weight_decay: 0.0
+  grad_clip: 1.0
+  log_every: 110
+  eval_every: 220
+  ckpt_every: 733
+  clash_dist: 1.5
+  loss_max_atoms: 1200
+  out_dir: outputs/ladder/ladder_direct3m_n878
+  overfit: false
+  augment_rotation: true
