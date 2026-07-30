@@ -140,7 +140,10 @@ class GroupDirectDecoder(nn.Module):
         self.up = nn.Linear(cfg.latent_dim, cfg.d_model)
         self.q_proj = nn.Linear(cfg.d_model, cfg.d_model)
         self.gtype_emb = nn.Embedding(C.N_RESIDUES, cfg.d_model, padding_idx=C.PAD_RESIDUE_IDX)
-        self.cross = CrossAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
+        self.cross_blocks = nn.ModuleList(
+            [CrossAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
+             for _ in range(max(1, getattr(cfg, "dec_cross_layers", 1)))]
+        )
         self.self_blocks = nn.ModuleList(
             [SelfAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
              for _ in range(group_self_layers)]
@@ -167,9 +170,13 @@ class GroupDirectDecoder(nn.Module):
         gtype.scatter_(1, group_idx, batch["residue_idx"])
         h = q + self.gtype_emb(gtype)
 
-        h = self.cross(h, lat)                                  # (B, R, d)   O(L.R)
-        for blk in self.self_blocks:                            # empty by default
-            h = blk(h, key_padding_mask=~residue_mask(group_idx, batch["mask"], R).bool())
+        gpad = ~residue_mask(group_idx, batch["mask"], R).bool()
+        for i, blk in enumerate(self.cross_blocks):             # (B, R, d)   O(L.R) each
+            h = blk(h, lat)
+            if i < len(self.self_blocks):                       # interleave refinement
+                h = self.self_blocks[i](h, key_padding_mask=gpad)
+        for blk in self.self_blocks[len(self.cross_blocks):]:
+            h = blk(h, key_padding_mask=gpad)
 
         slots = self.head(h).view(B, R, self.n_slots, 3) * self.cfg.coord_scale
         flat = slots.view(B, R * self.n_slots, 3)

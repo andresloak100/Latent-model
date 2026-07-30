@@ -62,6 +62,12 @@ class ModelConfig:
     # Jacob's spec allows "very few"; 0 is the cheapest and 1-2 is where local
     # geometry (bonds, chirality) is most likely to be resolved.
     atom_self_layers: int = 0
+    # perceiver_direct only: cross-attention blocks the GROUP queries get to
+    # retrieve from the latents. O(L.R) each -- cheap. The first sweep ran this
+    # at 1 and failed at 9.3 A: one block to both find and decode a residue,
+    # against the working per-residue decoder's 2 refinement blocks with no
+    # retrieval to do at all. Depth here is the thing that was never tested.
+    dec_cross_layers: int = 1
 
 
 class AtomFeaturizer(nn.Module):
