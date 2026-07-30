@@ -1,0 +1,48 @@
+name: perceiver_L256_a1
+data:
+  processed_dir: data/processed
+  splits_file: data/splits.json
+  min_residues: 20
+  max_residues: 200
+  max_atoms: 800
+model:
+  d_model: 128
+  n_heads: 4
+  n_latent_tokens: 256
+  latent_dim: 8
+  enc_self_layers: 2
+  dec_self_layers: 2
+  ff_mult: 4
+  dropout: 0.0
+  max_res_pos: 1024
+  coord_scale: 10.0
+  max_chains: 1
+  encoder_type: perceiver_direct
+  k_neighbors: 8
+  rope_freqs: 128
+  rope_spherical: false
+  objective: reconstruct
+  flow_steps: 50
+  group_self_layers: 0
+  atom_self_layers: 1
+loss:
+  coord: 1.0
+  distance: 1.0
+  bond: 1.0
+  clash: 0.5
+  chirality: 0.2
+train:
+  seed: 0
+  epochs: 900
+  batch_size: 16
+  lr: 0.0003
+  weight_decay: 0.0
+  grad_clip: 1.0
+  log_every: 50
+  eval_every: 300
+  ckpt_every: 300
+  clash_dist: 1.5
+  loss_max_atoms: 1200
+  out_dir: /network/scratch/j/jacob-junqi.tian/latent-model-workspace/results/perceiver_L256_a1/run
+  overfit: false
+  augment_rotation: true
