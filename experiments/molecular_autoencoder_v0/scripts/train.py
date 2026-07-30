@@ -104,6 +104,21 @@ def corrupt_coords(coords, mask, frac, mode="zero", generator=None):
     return out
 
 
+def log_eval_schedule(epoch, epochs, log_every, eval_every, has_val):
+    """Decide independently whether this epoch logs train stats and/or evals val.
+
+    These two schedules must NOT be nested. An earlier version evaluated the
+    held-out set inside the ``log_every`` branch, which silently required an
+    epoch to satisfy both, so any pair where neither divides the other (208 vs
+    417, 42 vs 85) produced a held-out "curve" consisting of its two endpoints.
+    Returns ``(do_log, do_eval)``.
+    """
+    last = epoch == epochs - 1
+    do_log = epoch % log_every == 0 or last
+    do_eval = bool(has_val) and eval_every > 0 and (epoch % eval_every == 0 or last)
+    return do_log, do_eval
+
+
 def resolve_device(name):
     if name in ("auto", None):
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -215,21 +230,26 @@ def main():
         for k in ep_comps:
             ep_comps[k] /= max(n_batches, 1)
 
-        if epoch % cfg.train.log_every == 0 or epoch == cfg.train.epochs - 1:
-            rmsd = quick_rmsd(model, loader, device)
+        do_log, do_eval = log_eval_schedule(
+            epoch, cfg.train.epochs, cfg.train.log_every, cfg.train.eval_every,
+            val_loader is not None)
+        if do_log or do_eval:
+            rmsd = quick_rmsd(model, loader, device) if do_log else float("nan")
             row = {"epoch": epoch, "rmsd": rmsd, "elapsed_s": time.time() - t0,
                    "steps": (epoch + 1) * steps_per_epoch, **ep_comps}
             # Held-out every eval_every: gives a SCALING CURVE vs steps from a
             # single run, instead of needing one run per step budget.
-            if val_loader is not None and cfg.train.eval_every > 0 and (
-                    epoch % cfg.train.eval_every == 0 or epoch == cfg.train.epochs - 1):
+            if do_eval:
                 row["val_rmsd"] = heldout_rmsd(model, val_loader, device)
             log.append(row)
-            extra = " ".join(f"{k}={ep_comps[k]:.4f}" for k in
-                             ("coord", "bond", "clash", "flow_mse") if k in ep_comps)
-            print(f"  epoch {epoch:5d}  total={ep_comps.get('total', float('nan')):.4f}  "
-                  f"{extra}  rmsd={rmsd:.3f}A"
-                  + (f"  VAL={row['val_rmsd']:.3f}A" if "val_rmsd" in row else ""))
+            if do_log:
+                extra = " ".join(f"{k}={ep_comps[k]:.4f}" for k in
+                                 ("coord", "bond", "clash", "flow_mse") if k in ep_comps)
+                print(f"  epoch {epoch:5d}  total={ep_comps.get('total', float('nan')):.4f}  "
+                      f"{extra}  rmsd={rmsd:.3f}A"
+                      + (f"  VAL={row['val_rmsd']:.3f}A" if "val_rmsd" in row else ""))
+            elif "val_rmsd" in row:
+                print(f"  epoch {epoch:5d}  VAL={row['val_rmsd']:.3f}A")
 
         if epoch % cfg.train.ckpt_every == 0 or epoch == cfg.train.epochs - 1:
             utils.save_checkpoint(latest, model, opt, epoch, extra={"log": log})
