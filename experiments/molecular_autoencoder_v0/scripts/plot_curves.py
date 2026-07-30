@@ -31,9 +31,12 @@ import math
 from pathlib import Path
 
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+
+# matplotlib is imported lazily inside main(): the analysis helpers below
+# (load_curves, tail_slope) are pure numpy and must be importable in
+# environments without a plotting stack -- the cluster venv has neither
+# matplotlib nor pytest, and a test failing on a missing plotting library is
+# noise, not signal.
 
 
 def load_curves(results_dir: Path, pattern: str):
@@ -78,6 +81,10 @@ def main():
     ap.add_argument("--reference", type=float, default=1.02,
                     help="held-out all-atom RMSD of the incumbent design")
     args = ap.parse_args()
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
 
     root = Path(__file__).resolve().parent.parent
     curves = load_curves(root / args.results_dir, args.pattern)

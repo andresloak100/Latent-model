@@ -1,0 +1,51 @@
+data:
+  max_atoms: 800
+  max_residues: 200
+  min_residues: 20
+  processed_dir: data/processed
+  splits_file: data/splits.json
+loss:
+  bond: 1.0
+  chirality: 0.2
+  clash: 0.5
+  coord: 1.0
+  distance: 1.0
+model:
+  atom_self_layers: 0
+  coord_scale: 10.0
+  d_model: 128
+  dec_cross_layers: 4
+  dec_self_layers: 2
+  dropout: 0.0
+  enc_self_layers: 2
+  encoder_type: perceiver_direct
+  ff_mult: 4
+  flow_steps: 50
+  group_self_layers: 2
+  k_neighbors: 8
+  latent_dim: 8
+  max_chains: 1
+  max_res_pos: 1024
+  n_heads: 4
+  n_latent_tokens: 64
+  objective: reconstruct
+  rope_freqs: 128
+  rope_spherical: false
+name: mask_perc_x4_s2_lr3e4
+train:
+  augment_rotation: true
+  batch_size: 16
+  ckpt_every: 400
+  clash_dist: 1.5
+  epochs: 4400
+  eval_every: 200
+  grad_clip: 1.0
+  log_every: 100
+  loss_max_atoms: 1200
+  lr: 0.0003
+  out_dir: outputs/ladder/mask_perc_x4_s2_lr3e4
+  overfit: false
+  seed: 0
+  weight_decay: 0.0
+  corrupt_frac: 0.15
+  corrupt_mode: zero
