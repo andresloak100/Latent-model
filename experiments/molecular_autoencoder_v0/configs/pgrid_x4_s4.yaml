@@ -1,4 +1,4 @@
-# Attention-depth grid, per Jacob: sweep cross-attention x group-self-attention
+# Attention-depth grid (per review): sweep cross-attention x group-self-attention
 # and read SCALING BEHAVIOUR vs training steps for each cell.
 #
 # The scaling curve comes free: train.py now runs a full deterministic
@@ -6,7 +6,7 @@
 # in train_log.json. So ONE run per cell yields the whole curve -- no need
 # for separate runs per step budget.
 #
-# Multiple epochs over the same data are expected and fine (Jacob's note):
+# Multiple epochs over the same data are expected and fine (per review):
 # 240k steps over 878 structures is ~4400 epochs.
 #
 # Costs at this scale (R~78 residues, N~607 atoms, L=64): cross-attn R.L =

@@ -12,7 +12,7 @@ per-residue latents that were LARGER than the fixed one. Swapping in a direct
 readout (output slot i simply IS atom i) took the same setup to 0.75 A. The
 failure was routing, not latent size.
 
-*Jacob's, from the product:* the latent must be O(N.L) to build, decoupled from
+*From the product requirements:* the latent must be O(N.L) to build, decoupled from
 atom count, and choosable at inference -- L=100 for a 100k-atom system, L=10,000
 for 1M atoms, with more latents and more diffusion steps as a paid quality dial.
 A per-residue latent cannot do that: it scales with N by construction and caps

@@ -63,7 +63,7 @@ def test_no_attention_is_quadratic_in_atoms():
 
 
 def test_group_tokens_do_not_self_attend_by_default():
-    """R x R self-attention is the O(R^2) term Jacob asked to avoid.
+    """R x R self-attention is the O(R^2) term the design brief rules out.
 
     1M atoms is ~125k residues, so R^2 ~ 1.6e10. Group tokens take their
     context from the latents instead.
@@ -160,7 +160,7 @@ def test_cost_grows_linearly_not_quadratically_in_atoms():
 
 @pytest.mark.parametrize("k", [0, 1, 2])
 def test_atom_self_layers_are_opt_in_and_cost_what_they_claim(k):
-    """Jacob's spec allows "very few" all-atom self-attention layers.
+    """The design brief allows "very few" all-atom self-attention layers.
 
     They are O(N^2) each -- the expensive kind -- so they are off by default,
     and this pins the price: exactly k N x N attention calls for k layers.

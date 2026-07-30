@@ -1,6 +1,6 @@
 """LLM-style encoder: atoms as a 1D token sequence with layered position codes.
 
-Jacob's proposal — treat the structure like a "sentence of atoms" and use a
+the brief's proposal — treat the structure like a "sentence of atoms" and use a
 plain (Perceiver) transformer, letting the model learn geometry from a rich
 coordinate *position encoding* rather than baking in equivariance:
 

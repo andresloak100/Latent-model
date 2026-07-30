@@ -1,4 +1,4 @@
-# Jacob's architecture: Perceiver encoder (atoms -> L latents, O(N.L)) plus the
+# Requested architecture: Perceiver encoder (atoms -> L latents, O(N.L)) plus the
 # group-mediated direct readout that fixed the codec. Latent size is DECOUPLED
 # from atom count and choosable at inference (see model_perceiver_direct.py).
 #
