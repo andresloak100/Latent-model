@@ -15,8 +15,9 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -28,6 +29,7 @@ from molae.model import MolecularAutoencoder  # noqa: E402,F401
 from molae.model_equivariant import make_autoencoder  # noqa: E402
 from molae.losses import LossComputer  # noqa: E402
 from molae.alignment import aligned_rmsd_torch  # noqa: E402
+from molae.curriculum import Curriculum, mixture_indices  # noqa: E402
 from molae import utils  # noqa: E402
 
 
@@ -43,6 +45,48 @@ def build_datasets(cfg):
     val_paths = [p for p in val_paths if p.exists()]
     return (ProteinStructureDataset(train_paths), train_keys,
             ProteinStructureDataset(val_paths) if val_paths else None)
+
+
+def build_tiered_datasets(cfg):
+    """Multi-source training set with a per-tier index, for the curriculum.
+
+    Each tier is a processed directory with its own splits file, so tiers can
+    be built independently and mixed at train time. Returns
+    ``(dataset, tier_index, val_dataset)`` where ``tier_index`` maps a tier
+    name to the dataset positions belonging to it.
+
+    Validation comes from the HIGHEST tier only. That is not a default, it is
+    the point: a val set containing predicted structures reports how well the
+    model learned the prediction distribution, and nothing in a loss curve
+    distinguishes that from success.
+    """
+    tiers = dict(cfg.data.tiers)
+    high = "experimental" if "experimental" in tiers else sorted(tiers)[-1]
+
+    paths, tier_index, val_paths = [], {}, []
+    for name, rel in tiers.items():
+        d = ROOT / rel
+        splits_file = d.parent / f"splits_{d.name.replace('processed_', '')}.json"
+        if not splits_file.exists():
+            splits_file = ROOT / cfg.data.splits_file
+        splits = utils.load_json(splits_file)
+        keys = list(splits["train"])
+        start = len(paths)
+        found = [d / f"{k}.npz" for k in keys]
+        found = [p for p in found if p.exists()]
+        paths.extend(found)
+        tier_index[name] = np.arange(start, len(paths))
+        if name == high:
+            val_paths = [p for p in (d / f"{k}.npz" for k in splits.get("val", []))
+                         if p.exists()]
+        print(f"[train] tier {name!r}: {len(found)} structures from {rel}")
+
+    if not val_paths:
+        raise SystemExit(
+            f"tier {high!r} produced no validation structures; held-out "
+            "evaluation must come from the highest-quality tier")
+    return (ProteinStructureDataset(paths), tier_index,
+            ProteinStructureDataset(val_paths))
 
 
 @torch.no_grad()
@@ -158,7 +202,16 @@ def main():
     cfg.save(out_dir / "config.yaml")
     utils.save_json(utils.capture_environment(str(ROOT)), out_dir / "environment.json")
 
-    dataset, keys, val_dataset = build_datasets(cfg)
+    tier_index, curriculum = None, None
+    if cfg.data.tiers:
+        dataset, tier_index, val_dataset = build_tiered_datasets(cfg)
+        curriculum = Curriculum.from_spec(cfg.data.curriculum)
+        keys = []
+        print(f"[train] curriculum {cfg.data.curriculum or '(defaults)'}; "
+              f"weights at start {curriculum.weights_at(0.0)}, "
+              f"end {curriculum.weights_at(1.0)}")
+    else:
+        dataset, keys, val_dataset = build_datasets(cfg)
     if len(dataset) == 0:
         raise SystemExit("No processed structures found. Run prepare_dataset.py first.")
     loader = DataLoader(dataset, batch_size=cfg.train.batch_size, shuffle=True,
@@ -195,10 +248,24 @@ def main():
 
     steps_per_epoch = max(1, -(-len(dataset) // cfg.train.batch_size))
     t0 = time.time()
+    rng = np.random.default_rng(cfg.train.seed)
     for epoch in range(start_epoch, cfg.train.epochs):
         model.train()
+        # Curriculum: re-draw the epoch's sample at the scheduled tier
+        # proportions. Progress is fraction of TRAINING done, so the schedule
+        # is expressed once and holds whatever the epoch budget is.
+        epoch_loader = loader
+        if curriculum is not None:
+            progress = epoch / max(cfg.train.epochs - 1, 1)
+            idx = mixture_indices(curriculum, tier_index, progress,
+                                  len(dataset), rng)
+            epoch_loader = DataLoader(
+                Subset(dataset, idx.tolist()), batch_size=cfg.train.batch_size,
+                shuffle=True, collate_fn=collate_fn,
+                num_workers=args.num_workers,
+                pin_memory=(args.pin_memory and device.type == "cuda"))
         ep_comps, n_batches = {}, 0
-        for batch in loader:
+        for batch in epoch_loader:
             gb = {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in batch.items()}
             if cfg.train.augment_rotation:
                 gb["coords"] = random_rotate(gb["coords"])
@@ -237,6 +304,11 @@ def main():
             rmsd = quick_rmsd(model, loader, device) if do_log else float("nan")
             row = {"epoch": epoch, "rmsd": rmsd, "elapsed_s": time.time() - t0,
                    "steps": (epoch + 1) * steps_per_epoch, **ep_comps}
+            if curriculum is not None:
+                # Record the mixture actually used, so a curve can be read
+                # against the schedule rather than against an assumption.
+                row["tier_weights"] = curriculum.weights_at(
+                    epoch / max(cfg.train.epochs - 1, 1))
             # Held-out every eval_every: gives a SCALING CURVE vs steps from a
             # single run, instead of needing one run per step budget.
             if do_eval:
