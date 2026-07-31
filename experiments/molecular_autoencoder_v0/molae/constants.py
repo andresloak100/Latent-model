@@ -95,6 +95,11 @@ CRYSTALLIZATION_ADDITIVES = frozenset({
     "HOH", "DOD", "GOL", "EDO", "PEG", "PGE", "PG4", "1PE", "2PE", "P6G",
     "SO4", "PO4", "NO3", "ACT", "ACY", "FMT", "MES", "TRS", "EPE", "IMD",
     "DMS", "MPD", "BME", "IPA", "MOH", "CIT", "TLA", "SCN", "AZI", "BCT",
+    # Further PEG/polyether oligomers -- these appear in real entries (1PIN
+    # keeps a 17-atom 1PG) and are pure crystallisation agents.
+    "1PG", "PE4", "PE8", "P33", "XPE", "7PE", "12P", "15P", "PEU",
+    # Other common cryo/buffer components.
+    "MRD", "BU3", "DIO", "TBU", "ETX", "SIN", "MLI", "OXL",
 })
 
 N_ELEMENTS = len(ELEMENTS)

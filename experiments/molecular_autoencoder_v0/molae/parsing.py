@@ -325,16 +325,28 @@ def parse_structure(
                 if len(lig_atoms) < min_ligand_atoms:
                     ligands_dropped[res.name] = ligands_dropped.get(res.name, 0) + 1
                     continue
+                # A hetero group can still be a *known* chemical species -- a
+                # bound amino acid or peptide ligand (1PIN deposits ALA and PRO
+                # this way). Labelling those "LIG/UNK" would throw away
+                # chemistry we have a vocabulary for. Decide per GROUP, never
+                # per atom: mixing name-derived and ordinal slots inside one
+                # group could collide two atoms onto the same decoder slot.
+                named = (res.name in C.STANDARD_AA_SET
+                         and all(a in C.ATOM_NAME_TO_IDX for a, _, _ in lig_atoms)
+                         and len({a for a, _, _ in lig_atoms}) == len(lig_atoms))
                 for k, (aname, esym, p) in enumerate(lig_atoms):
                     # Ordinal addressing: slot k of the group, chunking every
                     # N_SLOTS atoms into the next group so a large ligand can
                     # never overflow into a neighbouring group's slot bank.
-                    if k and k % C.N_SLOTS == 0:
+                    if not named and k and k % C.N_SLOTS == 0:
                         pos += 1
                     element_idx.append(C.ELEMENT_TO_IDX.get(esym, C.UNK_ELEMENT_IDX))
-                    residue_idx.append(C.LIGAND_RESIDUE_IDX)
-                    atom_name_idx.append(C.UNK_ATOM_IDX)   # no vocabulary name
-                    slot_idx.append(k % C.N_SLOTS)
+                    residue_idx.append(C.RESIDUE_TO_IDX[res.name] if named
+                                       else C.LIGAND_RESIDUE_IDX)
+                    atom_name_idx.append(C.ATOM_NAME_TO_IDX[aname] if named
+                                         else C.UNK_ATOM_IDX)
+                    slot_idx.append(C.ATOM_NAME_TO_IDX[aname] if named
+                                    else k % C.N_SLOTS)
                     res_pos.append(pos)
                     res_seq.append(res.seqid.num)
                     chain_idx_list.append(next_chain)

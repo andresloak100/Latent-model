@@ -34,7 +34,8 @@ def _atom_line(record, serial, name, resname, chain, resseq, xyz, elem):
             f"{x:8.3f}{y:8.3f}{z:8.3f}{1.00:6.2f}{0.00:6.2f}{'':10s}{elem:>2s}")
 
 
-def _pdb_text(n_res=10, ligand_atoms=5, ligand_name="LIG", water=True):
+def _pdb_text(n_res=10, ligand_atoms=5, ligand_name="LIG", water=True,
+              ligand_atom_names=None):
     """Minimal but gemmi-parseable PDB: one poly-ALA chain plus a HETATM group."""
     lines, serial = [], 1
     for r in range(1, n_res + 1):
@@ -47,10 +48,11 @@ def _pdb_text(n_res=10, ligand_atoms=5, ligand_name="LIG", water=True):
             lines.append(_atom_line("ATOM", serial, f" {aname:<3s}"[:4], "ALA",
                                     "A", r, base + np.array(off), elem))
             serial += 1
-    for k in range(ligand_atoms):
-        lines.append(_atom_line("HETATM", serial, f" {'C' + str(k + 1):<3s}"[:4],
+    names = ligand_atom_names or [f"C{k + 1}" for k in range(ligand_atoms)]
+    for k, nm in enumerate(names):
+        lines.append(_atom_line("HETATM", serial, f" {nm:<3s}"[:4],
                                 ligand_name, "B", 501,
-                                (5.0 + 1.4 * k, 8.0, 0.0), "C"))
+                                (5.0 + 1.4 * k, 8.0, 0.0), nm[0]))
         serial += 1
     if water:
         lines.append(_atom_line("HETATM", serial, " O  ", "HOH", "B", 601,
@@ -123,6 +125,70 @@ def test_crystallization_additive_excluded(tmp_path):
                          keep_ligands=True)
     assert ps.record["n_ligand_atoms"] == 0
     assert "GOL" in ps.record["ligands_dropped"]
+
+
+def test_peg_oligomer_excluded(tmp_path):
+    """Real entries deposit these (1PIN keeps a 17-atom 1PG); they are pure
+    crystallisation agents, not chemistry we want to learn."""
+    ps = parse_structure(_write(tmp_path, ligand_name="1PG"), pdb_id="TEST",
+                         keep_ligands=True)
+    assert ps.record["n_ligand_atoms"] == 0
+    assert "1PG" in ps.record["ligands_dropped"]
+
+
+def test_bound_amino_acid_keeps_its_chemistry(tmp_path):
+    """A hetero group can still be a species we have a vocabulary for -- 1PIN
+    deposits bound ALA/PRO this way. Labelling those LIG/UNK would discard
+    chemistry for no reason."""
+    ps = parse_structure(
+        _write(tmp_path, ligand_name="ALA",
+               ligand_atom_names=["N", "CA", "C", "O", "CB"]),
+        pdb_id="TEST", keep_ligands=True)
+    het = ps.res_pos >= ps.record["n_residues"]
+    assert het.sum() == 5
+    # Real residue identity and real atom names, not LIG/UNK.
+    assert (ps.residue_idx[het] == C.RESIDUE_TO_IDX["ALA"]).all()
+    assert (ps.atom_name_idx[het] != C.UNK_ATOM_IDX).all()
+    assert np.array_equal(ps.slot_idx[het], ps.atom_name_idx[het])
+
+
+def test_named_and_ordinal_slots_never_collide(tmp_path):
+    """The named/ordinal choice is per GROUP; mixing them inside one group
+    could land two atoms on the same decoder slot."""
+    for name, anames in [("ALA", ["N", "CA", "C", "O", "CB"]),   # named path
+                         ("LIG", None)]:                          # ordinal path
+        ps = parse_structure(_write(tmp_path, ligand_name=name,
+                                    ligand_atom_names=anames),
+                             pdb_id="TEST", keep_ligands=True)
+        addr = ps.res_pos * C.N_SLOTS + ps.slot_idx
+        assert len(set(addr.tolist())) == len(addr), name
+
+
+def test_duplicate_atom_names_do_not_alias_a_slot(tmp_path):
+    """Two atoms sharing a name in one group would land on the same decoder
+    slot. gemmi already collapses such duplicates on read, so this asserts the
+    end-to-end property (addresses stay unique) rather than the code path --
+    the uniqueness guard in parse_structure is belt-and-braces behind gemmi.
+    """
+    ps = parse_structure(
+        _write(tmp_path, ligand_name="ALA", ligand_atom_names=["CB", "CB", "CA"]),
+        pdb_id="TEST", keep_ligands=True)
+    het = ps.res_pos >= ps.record["n_residues"]
+    names = [n for n, h in zip(ps.atom_name, het) if h]
+    assert len(names) == len(set(names)), "duplicate atom name survived"
+    addr = ps.res_pos * C.N_SLOTS + ps.slot_idx
+    assert len(set(addr.tolist())) == len(addr)
+
+
+def test_hetero_group_with_unknown_atom_names_uses_ordinal(tmp_path):
+    """The named path requires EVERY atom to be in the vocabulary; one unknown
+    name sends the whole group to ordinal slots."""
+    ps = parse_structure(
+        _write(tmp_path, ligand_name="ALA", ligand_atom_names=["N", "CA", "ZZ9"]),
+        pdb_id="TEST", keep_ligands=True)
+    het = ps.res_pos >= ps.record["n_residues"]
+    assert (ps.residue_idx[het] == C.LIGAND_RESIDUE_IDX).all()
+    assert np.array_equal(np.sort(ps.slot_idx[het]), np.arange(int(het.sum())))
 
 
 def test_min_ligand_atoms_filter(tmp_path):
