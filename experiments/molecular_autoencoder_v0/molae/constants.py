@@ -99,7 +99,11 @@ CRYSTALLIZATION_ADDITIVES = frozenset({
     # keeps a 17-atom 1PG) and are pure crystallisation agents.
     "1PG", "PE4", "PE8", "P33", "XPE", "7PE", "12P", "15P", "PEU",
     # Other common cryo/buffer components.
-    "MRD", "BU3", "DIO", "TBU", "ETX", "SIN", "MLI", "OXL",
+    "MRD", "BU3", "DIO", "TBU", "ETX", "EOH", "SIN", "MLI", "OXL", "CAC", "NH4",
+    # Placeholder codes for density the depositor could not identify. These
+    # are "we don't know what this is", so their coordinates are not chemistry
+    # worth learning.
+    "UNX", "UNL", "UNK",
 })
 
 N_ELEMENTS = len(ELEMENTS)
