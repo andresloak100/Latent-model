@@ -45,7 +45,8 @@ class ParsedStructure:
     element_idx: np.ndarray      # int64  (N,)
     residue_idx: np.ndarray      # int64  (N,)  standard-AA vocab index
     atom_name_idx: np.ndarray    # int64  (N,)
-    res_pos: np.ndarray          # int64  (N,)  GLOBAL residue index across kept chains
+    slot_idx: np.ndarray         # int64  (N,)  decoder slot within the group
+    res_pos: np.ndarray          # int64  (N,)  GLOBAL group index (residues, then ligands)
     chain_idx: np.ndarray        # int64  (N,)  0-based index of the atom's chain
     res_seq: np.ndarray          # int64  (N,)  author seq id
     coords: np.ndarray           # float32 (N, 3)
@@ -61,6 +62,15 @@ class ParsedStructure:
 
     @property
     def n_residues(self) -> int:
+        """PROTEIN residues. res_pos also numbers ligand groups, so deriving
+        this from res_pos.max() would inflate it and break the size filters."""
+        if "n_residues" in self.record:
+            return int(self.record["n_residues"])
+        return int(self.res_pos.max()) + 1 if self.n_atoms else 0
+
+    @property
+    def n_groups(self) -> int:
+        """Decoder groups = protein residues + ligand chunks."""
         return int(self.res_pos.max()) + 1 if self.n_atoms else 0
 
 
@@ -69,6 +79,7 @@ def perceive_bonds(
     element_symbol: list,
     res_pos: np.ndarray,
     chain_idx: Optional[np.ndarray] = None,
+    unrestricted_chains=(),
 ) -> np.ndarray:
     """Return (M, 2) array of bonded atom-index pairs (i < j).
 
@@ -76,6 +87,14 @@ def perceive_bonds(
     residues *and* its distance is below the sum of covalent radii plus a
     tolerance. Restricting to (near-)neighbour residues avoids spurious bonds
     across chain gaps or between packed side chains.
+
+    ``unrestricted_chains`` lifts the residue-adjacency restriction for the
+    listed chains, allowing any intra-chain pair within covalent range. A
+    polymer is a chain of small residues, so adjacency is a good proxy for
+    "could be bonded"; an arbitrary molecule is NOT, and one large enough to be
+    split across several groups would otherwise silently lose every bond
+    between non-adjacent chunks. Non-polymer chains hold exactly one molecule,
+    so lifting the restriction there cannot connect separate species.
     """
     n = coords.shape[0]
     if n == 0:
@@ -89,6 +108,9 @@ def perceive_bonds(
     dres = np.abs(res_pos[ia] - res_pos[ib])
     keep = dres <= 1
     if chain_idx is not None:
+        if len(unrestricted_chains):
+            free = np.isin(chain_idx, np.asarray(list(unrestricted_chains)))
+            keep = keep | (free[ia] & free[ib])
         # res_pos is GLOBAL across chains, so the last residue of chain k and
         # the first of chain k+1 are numerically adjacent. Without this guard
         # they would be bonded across a chain break.
@@ -139,6 +161,9 @@ def parse_structure(
     min_chain_len: int = 8,
     model_index: int = 0,
     multi_chain: bool = False,
+    keep_ligands: bool = False,
+    exclude_ligands=C.CRYSTALLIZATION_ADDITIVES,
+    min_ligand_atoms: int = 1,
 ) -> Optional[ParsedStructure]:
     """Parse one structure file into a cleaned :class:`ParsedStructure`.
 
@@ -151,6 +176,14 @@ def parse_structure(
     conformational ensemble with identical atom composition and no MD compute
     — which is the distribution the latent-diffusion stage will actually run
     on. Raises ``IndexError`` for an out-of-range model.
+
+    ``keep_ligands=True`` additionally keeps non-water hetero groups (ligands,
+    cofactors, ions). A ligand has no residue index and no fixed atom-name
+    vocabulary, so its atoms are addressed by ORDINAL within their group via
+    ``slot_idx``; each ligand becomes one or more groups of at most
+    ``C.N_SLOTS`` atoms, numbered after the protein residues. Ligand atoms get
+    ``residue_idx = LIG`` and ``atom_name_idx = UNK``. Waters are always
+    dropped, as are ``exclude_ligands`` (crystallisation additives by default).
     """
     st = gemmi.read_structure(str(path))
     st.setup_entities()
@@ -169,7 +202,11 @@ def parse_structure(
 
     st.remove_alternative_conformations()
     st.remove_hydrogens()
-    st.remove_ligands_and_waters()
+    if keep_ligands:
+        # Waters are always noise; ligands are the point of this mode.
+        st.remove_waters()
+    else:
+        st.remove_ligands_and_waters()
     st.remove_empty_chains()
 
     model = st[0]
@@ -203,7 +240,7 @@ def parse_structure(
         kept_chains = [eligible[0]] if eligible else [max(chain_lengths, key=chain_lengths.get)]
     selected = kept_chains[0] if len(kept_chains) == 1 else ",".join(kept_chains)
 
-    element_idx, residue_idx, atom_name_idx = [], [], []
+    element_idx, residue_idx, atom_name_idx, slot_idx = [], [], [], []
     res_pos, res_seq, coords, element_symbol, atom_name = [], [], [], [], []
     chain_idx_list, seq_one, per_chain_seq = [], [], []
     dropped_nonstandard = {}
@@ -252,6 +289,9 @@ def parse_structure(
                 element_idx.append(C.ELEMENT_TO_IDX.get(esym, C.UNK_ELEMENT_IDX))
                 residue_idx.append(C.RESIDUE_TO_IDX[resname])
                 atom_name_idx.append(C.ATOM_NAME_TO_IDX[aname])
+                # For a protein residue the decoder slot IS the atom name, so
+                # the gather is unchanged from the protein-only pipeline.
+                slot_idx.append(C.ATOM_NAME_TO_IDX[aname])
                 res_pos.append(pos)
                 res_seq.append(seqid)
                 chain_idx_list.append(ci)
@@ -262,6 +302,50 @@ def parse_structure(
             chain_seq.append(C.THREE_TO_ONE[resname])
             pos += 1
         per_chain_seq.append("".join(chain_seq))
+
+    # --- Ligands / cofactors / ions ---------------------------------------
+    # Each kept hetero group becomes one or more decoder groups of at most
+    # C.N_SLOTS atoms, numbered after the protein residues. Every ligand gets
+    # its own chain_idx so perceive_bonds cannot invent a covalent bond to the
+    # protein's last residue or to a neighbouring ligand -- res_pos is global
+    # and therefore numerically adjacent across that boundary.
+    n_protein_residues = pos          # before ligand groups extend res_pos
+    ligands_kept, ligands_dropped = [], {}
+    n_ligand_atoms = 0
+    next_chain = len(kept_chains)
+    if keep_ligands:
+        for chain in model:
+            for res in chain:
+                if res.is_water() or res.het_flag != "H":
+                    continue
+                if res.name in exclude_ligands:
+                    ligands_dropped[res.name] = ligands_dropped.get(res.name, 0) + 1
+                    continue
+                lig_atoms = [(a.name, a.element.name.upper(), a.pos) for a in res]
+                if len(lig_atoms) < min_ligand_atoms:
+                    ligands_dropped[res.name] = ligands_dropped.get(res.name, 0) + 1
+                    continue
+                for k, (aname, esym, p) in enumerate(lig_atoms):
+                    # Ordinal addressing: slot k of the group, chunking every
+                    # N_SLOTS atoms into the next group so a large ligand can
+                    # never overflow into a neighbouring group's slot bank.
+                    if k and k % C.N_SLOTS == 0:
+                        pos += 1
+                    element_idx.append(C.ELEMENT_TO_IDX.get(esym, C.UNK_ELEMENT_IDX))
+                    residue_idx.append(C.LIGAND_RESIDUE_IDX)
+                    atom_name_idx.append(C.UNK_ATOM_IDX)   # no vocabulary name
+                    slot_idx.append(k % C.N_SLOTS)
+                    res_pos.append(pos)
+                    res_seq.append(res.seqid.num)
+                    chain_idx_list.append(next_chain)
+                    coords.append([p.x, p.y, p.z])
+                    element_symbol.append(esym)
+                    atom_name.append(aname)
+                pos += 1
+                next_chain += 1
+                n_ligand_atoms += len(lig_atoms)
+                ligands_kept.append({"name": res.name, "n_atoms": len(lig_atoms),
+                                     "chain": chain.name, "seq_id": res.seqid.num})
 
     if not coords:
         # A peptide chain existed but every residue/atom was filtered out
@@ -274,14 +358,26 @@ def parse_structure(
     coords = np.asarray(coords, dtype=np.float32)
     res_pos = np.asarray(res_pos, dtype=np.int64)
     chain_idx = np.asarray(chain_idx_list, dtype=np.int64)
-    bonds = perceive_bonds(coords, element_symbol, res_pos, chain_idx)
+    # Ligand chains hold one molecule each, so intra-chain bonding is not
+    # restricted to adjacent groups -- a compound larger than N_SLOTS spans
+    # several groups and its topology must survive that split intact.
+    ligand_chains = tuple(range(len(kept_chains), next_chain))
+    bonds = perceive_bonds(coords, element_symbol, res_pos, chain_idx,
+                           unrestricted_chains=ligand_chains)
 
     record = {
         "pdb_id": pdb_id,
         "chain_id": selected,
         "model_index": int(model_index),
         "n_atoms": int(coords.shape[0]),
-        "n_residues": int(res_pos.max()) + 1,
+        # n_residues counts PROTEIN residues only. res_pos also numbers ligand
+        # groups, so max(res_pos)+1 would silently inflate this and corrupt the
+        # size filters in prepare_dataset.
+        "n_residues": int(n_protein_residues),
+        "n_groups": int(res_pos.max()) + 1,
+        "n_ligand_atoms": int(n_ligand_atoms),
+        "ligands_kept": ligands_kept,
+        "ligands_dropped": ligands_dropped,
         "chains_present": dict(chain_lengths),
         "all_chains": all_chains,
         "dropped_non_peptide_chains": [n for n in all_chains if n not in chain_lengths],
@@ -303,6 +399,7 @@ def parse_structure(
         element_idx=np.asarray(element_idx, dtype=np.int64),
         residue_idx=np.asarray(residue_idx, dtype=np.int64),
         atom_name_idx=np.asarray(atom_name_idx, dtype=np.int64),
+        slot_idx=np.asarray(slot_idx, dtype=np.int64),
         res_pos=res_pos,
         chain_idx=chain_idx,
         res_seq=np.asarray(res_seq, dtype=np.int64),
@@ -321,6 +418,7 @@ def to_npz_dict(ps: ParsedStructure) -> dict:
         "element_idx": ps.element_idx,
         "residue_idx": ps.residue_idx,
         "atom_name_idx": ps.atom_name_idx,
+        "slot_idx": ps.slot_idx,
         "res_pos": ps.res_pos,
         "chain_idx": ps.chain_idx,
         "res_seq": ps.res_seq,

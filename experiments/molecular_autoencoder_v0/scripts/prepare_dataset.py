@@ -161,6 +161,18 @@ def main():
     ap.add_argument("--val-fraction", type=float, default=0.25)
     ap.add_argument("--sim-threshold", type=float, default=0.4)
     ap.add_argument("--split-method", default="auto", choices=["auto", "similarity", "exact"])
+    ap.add_argument("--multi-chain", action="store_true",
+                    help="keep EVERY peptide chain meeting the length floor "
+                         "(protein-protein complexes) instead of just one. "
+                         "res_pos becomes global across chains, which the "
+                         "direct decoder requires.")
+    ap.add_argument("--keep-ligands", action="store_true",
+                    help="keep non-water hetero groups (ligands, cofactors, "
+                         "ions) as ordinal-addressed decoder groups. Needed for "
+                         "protein-ligand systems; waters are still dropped.")
+    ap.add_argument("--min-ligand-atoms", type=int, default=1,
+                    help="drop kept-ligand groups smaller than this (e.g. 6 to "
+                         "exclude lone ions). Only used with --keep-ligands.")
     ap.add_argument("--jobs", type=int, default=8, help="parallel download workers")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
@@ -178,6 +190,9 @@ def main():
         "min_residues": cfg.data.min_residues,
         "max_residues": cfg.data.max_residues,
         "max_atoms": cfg.data.max_atoms,
+        "multi_chain": args.multi_chain,
+        "keep_ligands": args.keep_ligands,
+        "min_ligand_atoms": args.min_ligand_atoms,
     }}
     sequences = {}
 
@@ -192,7 +207,10 @@ def main():
             print(f"  {pid}: DOWNLOAD FAILED ({e})")
             continue
         try:
-            ps = parse_structure(str(cif), pdb_id=pid)
+            ps = parse_structure(str(cif), pdb_id=pid,
+                                 multi_chain=args.multi_chain,
+                                 keep_ligands=args.keep_ligands,
+                                 min_ligand_atoms=args.min_ligand_atoms)
         except AllResiduesFiltered as e:
             manifest["rejected"].append({"pdb_id": pid, "reason": "all_residues_filtered", "detail": str(e)})
             print(f"  {pid}: all residues filtered")
@@ -215,7 +233,9 @@ def main():
             print(f"  {pid}: {natoms} atoms > max {cfg.data.max_atoms}")
             continue
 
-        key = f"{ps.pdb_id}_{ps.chain_id}"
+        # chain_id is "A,B,C" for multi-chain entries; commas are awkward in
+        # filenames and in the split keys derived from them.
+        key = f"{ps.pdb_id}_{ps.chain_id.replace(',', '-')}"
         np.savez(processed_dir / f"{key}.npz", **to_npz_dict(ps))
         sequences[key] = ps.sequence
         manifest["kept"].append(ps.record)

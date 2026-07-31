@@ -90,7 +90,8 @@ class PerceiverEncoder(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.feat = AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=True,
-                                   max_chains=cfg.max_chains)
+                                   max_chains=cfg.max_chains,
+                                   use_slot_emb=cfg.use_slot_emb)
         self.q_proj = nn.Linear(cfg.d_model, cfg.d_model)   # shapes the index encoding
         # OPTIONAL all-atom self-attention. O(N^2) per layer -- the expensive
         # kind -- so it is off by default and meant to stay at 0-2. Included

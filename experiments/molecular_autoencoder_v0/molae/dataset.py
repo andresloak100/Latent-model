@@ -57,6 +57,11 @@ def sample_from_arrays(d) -> dict:
     res_pos = np.asarray(d["res_pos"]).astype(np.int64)
     chain_idx = (np.asarray(d["chain_idx"]).astype(np.int64)
                  if "chain_idx" in d else np.zeros(len(res_pos), dtype=np.int64))
+    # Decoder slot within the group. Absent from every .npz written before
+    # ligand support existed, and for a protein residue the slot IS the atom
+    # name -- so this default reproduces the old gather exactly.
+    slot_idx = (np.asarray(d["slot_idx"]).astype(np.int64)
+                if "slot_idx" in d else atom_name_idx)
     res_seq = np.asarray(d["res_seq"]).astype(np.int64) if "res_seq" in d else res_pos
 
     # NOTE: no dense (N, N) bonded mask is built. It cost 34 MB/structure at
@@ -67,6 +72,7 @@ def sample_from_arrays(d) -> dict:
         "element_idx": torch.from_numpy(np.asarray(d["element_idx"]).astype(np.int64)),
         "residue_idx": torch.from_numpy(np.asarray(d["residue_idx"]).astype(np.int64)),
         "atom_name_idx": torch.from_numpy(atom_name_idx),
+        "slot_idx": torch.from_numpy(slot_idx),
         "res_pos": torch.from_numpy(res_pos),
         "chain_idx": torch.from_numpy(chain_idx),
         "res_seq": torch.from_numpy(res_seq),
@@ -102,6 +108,7 @@ def collate_fn(samples):
         "element_idx": pad_int("element_idx", C.PAD_ELEMENT_IDX),
         "residue_idx": pad_int("residue_idx", C.PAD_RESIDUE_IDX),
         "atom_name_idx": pad_int("atom_name_idx", C.PAD_ATOM_IDX),
+        "slot_idx": pad_int("slot_idx", C.PAD_ATOM_IDX),
         "res_pos": pad_int("res_pos", 0),
         "chain_idx": pad_int("chain_idx", 0),
         "coords": coords,

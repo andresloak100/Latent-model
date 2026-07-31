@@ -42,7 +42,7 @@ class DirectResidueDecoder(nn.Module):
     def __init__(self, cfg: ModelConfig):
         super().__init__()
         self.cfg = cfg
-        self.n_slots = C.N_ATOM_NAMES
+        self.n_slots = C.N_SLOTS
         self.up = nn.Linear(cfg.latent_dim, cfg.d_model)
         self.res_pos_emb = nn.Embedding(cfg.max_res_pos, cfg.d_model)
         self.res_type_emb = nn.Embedding(C.N_RESIDUES, cfg.d_model, padding_idx=C.PAD_RESIDUE_IDX)
@@ -79,9 +79,16 @@ class DirectResidueDecoder(nn.Module):
         slots = self.head(h).view(B, R, self.n_slots, 3) * self.cfg.coord_scale
 
         # Each atom reads its own dedicated slot -- no attention lookup.
+        #
+        # The slot is addressed by `slot_idx`, which for a protein residue IS
+        # atom_name_idx -- so this is bit-identical to the original
+        # `res_pos * n_slots + atom_name_idx` on protein-only data (asserted in
+        # tests/test_ligands.py). A ligand has no vocabulary atom name, so its
+        # atoms carry an ORDINAL slot within their group instead, which is what
+        # lets non-polymer atoms share this decoder at all.
         flat = slots.view(B, R * self.n_slots, 3)
-        gather_idx = (res_pos * self.n_slots + batch["atom_name_idx"]).clamp(
-            max=R * self.n_slots - 1)
+        slot = batch["slot_idx"] if "slot_idx" in batch else batch["atom_name_idx"]
+        gather_idx = (res_pos * self.n_slots + slot).clamp(max=R * self.n_slots - 1)
         return torch.gather(flat, 1, gather_idx.unsqueeze(-1).expand(-1, -1, 3))
 
 
