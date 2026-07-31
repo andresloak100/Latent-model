@@ -68,3 +68,44 @@ def test_tiered_config_round_trips_through_yaml(tmp_path):
     assert back.data.curriculum == cfg.data.curriculum
     cur = Curriculum.from_spec(back.data.curriculum)
     assert abs(cur.weights_at(0.5)["experimental"] - 0.1) < 1e-9
+
+
+# --- deterministic train eval ---------------------------------------------
+
+def test_heldout_rmsd_is_deterministic_unlike_quick_rmsd():
+    """The reason a fixed train slice was added.
+
+    quick_rmsd samples 4 random batches, so repeated calls on an unchanged
+    model disagree. heldout_rmsd walks a loader in order and does not. A
+    train/val gap cannot be read off a metric whose noise exceeds the gap.
+    """
+    import torch
+    from torch.utils.data import DataLoader
+    from train import quick_rmsd, heldout_rmsd
+    from molae.dataset import collate_fn, sample_from_arrays
+    from molae.synthetic import make_synthetic_ala
+    from molae.model import ModelConfig
+    from molae.model_direct import DirectAutoencoder
+
+    samples = [sample_from_arrays(make_synthetic_ala(n_res=4 + (i % 5)))
+               for i in range(24)]
+
+    class DS(torch.utils.data.Dataset):
+        def __len__(self): return len(samples)
+        def __getitem__(self, i): return samples[i]
+
+    cfg = ModelConfig(d_model=32, n_heads=2, latent_dim=4, enc_self_layers=1,
+                      dec_self_layers=1, encoder_type="direct")
+    model = DirectAutoencoder(cfg)
+    model.eval()
+    loader = DataLoader(DS(), batch_size=4, shuffle=True, collate_fn=collate_fn)
+    fixed = DataLoader(DS(), batch_size=4, shuffle=False, collate_fn=collate_fn)
+
+    a = heldout_rmsd(model, fixed, torch.device("cpu"))
+    b = heldout_rmsd(model, fixed, torch.device("cpu"))
+    assert abs(a - b) < 1e-9, "deterministic eval disagreed with itself"
+
+    torch.manual_seed(0)
+    q = [quick_rmsd(model, loader, torch.device("cpu"), max_batches=2)
+         for _ in range(6)]
+    assert max(q) - min(q) > 1e-6, "sampled eval was suspiciously stable"

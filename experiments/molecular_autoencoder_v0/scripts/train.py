@@ -220,6 +220,17 @@ def main():
     val_loader = (DataLoader(val_dataset, batch_size=cfg.train.batch_size, shuffle=False,
                              collate_fn=collate_fn, num_workers=args.num_workers)
                   if val_dataset is not None and len(val_dataset) else None)
+    # A FIXED, deterministic slice of train, evaluated exactly like val.
+    #
+    # quick_rmsd samples 4 random batches -- 32 structures at batch 8 -- and
+    # its own docstring says a curve read off it is unusable. Comparing that
+    # against a full deterministic val pass cannot resolve a train/val gap,
+    # which is the whole question when distinguishing underfitting from
+    # capacity. Same size as val so the two numbers are like for like.
+    n_te = min(len(dataset), len(val_dataset) if val_dataset is not None else 128)
+    train_eval_loader = DataLoader(
+        Subset(dataset, list(range(n_te))), batch_size=cfg.train.batch_size,
+        shuffle=False, collate_fn=collate_fn, num_workers=args.num_workers)
     print(f"[train] {len(dataset)} structures on {device} (amp={use_amp}); "
           f"{'first ids: ' + str(keys[:8]) if len(keys) > 8 else keys}")
 
@@ -313,15 +324,25 @@ def main():
             # single run, instead of needing one run per step budget.
             if do_eval:
                 row["val_rmsd"] = heldout_rmsd(model, val_loader, device)
+                # Deterministic and same-sized, so train_rmsd vs val_rmsd is a
+                # real comparison rather than a sample-noise difference.
+                row["train_rmsd"] = heldout_rmsd(model, train_eval_loader, device)
+                row["val_over_train"] = row["val_rmsd"] / max(row["train_rmsd"], 1e-6)
             log.append(row)
             if do_log:
                 extra = " ".join(f"{k}={ep_comps[k]:.4f}" for k in
                                  ("coord", "bond", "clash", "flow_mse") if k in ep_comps)
                 print(f"  epoch {epoch:5d}  total={ep_comps.get('total', float('nan')):.4f}  "
                       f"{extra}  rmsd={rmsd:.3f}A"
-                      + (f"  VAL={row['val_rmsd']:.3f}A" if "val_rmsd" in row else ""))
+                      + (f"  VAL={row['val_rmsd']:.3f}A" if "val_rmsd" in row else "")
+                      + (f"  TRAIN={row['train_rmsd']:.3f}A"
+                         f"  v/t={row['val_over_train']:.2f}"
+                         if "train_rmsd" in row else ""))
             elif "val_rmsd" in row:
-                print(f"  epoch {epoch:5d}  VAL={row['val_rmsd']:.3f}A")
+                print(f"  epoch {epoch:5d}  VAL={row['val_rmsd']:.3f}A"
+                      + (f"  TRAIN={row['train_rmsd']:.3f}A"
+                         f"  v/t={row['val_over_train']:.2f}"
+                         if "train_rmsd" in row else ""))
 
         if epoch % cfg.train.ckpt_every == 0 or epoch == cfg.train.epochs - 1:
             utils.save_checkpoint(latest, model, opt, epoch, extra={"log": log})
