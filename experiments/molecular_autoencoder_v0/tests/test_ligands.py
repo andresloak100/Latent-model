@@ -381,7 +381,7 @@ def test_sub_angstrom_pair_is_not_a_bond():
     assert len(b) == 0
 
 
-def _overlapping_ligands_pdb(tmp_path, occ_a=0.35, occ_b=0.43):
+def _overlapping_ligands_pdb(tmp_path, occ_a=0.35, occ_b=0.43, names_b=None):
     """Two DIFFERENTLY-NAMED partial-occupancy ligands in one density blob,
     as 6S2M deposits PLM (0.35) and VCA (0.43) 0.3 A apart."""
     lines, serial = [], 1
@@ -393,11 +393,13 @@ def _overlapping_ligands_pdb(tmp_path, occ_a=0.35, occ_b=0.43):
             lines.append(_atom_line("ATOM", serial, f" {aname:<3s}"[:4], "ALA",
                                     "A", r, base + np.array(off), elem))
             serial += 1
-    for name, occ, dx in [("PLM", occ_a, 0.0), ("VCA", occ_b, 0.3)]:
-        for k in range(6):
-            lines.append(_atom_line("HETATM", serial, f" C{k + 1:<2d}"[:4], name,
+    default = [f"C{k + 1}" for k in range(6)]
+    for name, occ, dx, nms in [("PLM", occ_a, 0.0, default),
+                               ("VCA", occ_b, 0.3, names_b or default)]:
+        for k, nm in enumerate(nms):
+            lines.append(_atom_line("HETATM", serial, f" {nm:<3s}"[:4], name,
                                     "B", 501 if name == "PLM" else 502,
-                                    (50.0 + 1.5 * k + dx, 8.0, 0.0), "C", occ=occ))
+                                    (50.0 + 1.5 * k + dx, 8.0, 0.0), nm[0], occ=occ))
             serial += 1
     lines.append("END")
     p = tmp_path / "dup.pdb"
@@ -423,10 +425,67 @@ def test_the_better_supported_copy_is_the_one_kept(tmp_path):
     assert ps.record["ligands_kept"][0]["name"] == "PLM"
 
 
-def test_full_occupancy_ligands_are_never_dropped(tmp_path):
-    """Protects a small ligand genuinely nested inside a larger one (an ion
-    chelated at the centre of a ring), whose centroids also nearly coincide."""
-    ps = parse_structure(_overlapping_ligands_pdb(tmp_path, 1.0, 1.0),
-                         pdb_id="T", keep_ligands=True)
+def test_nested_ligand_with_disjoint_names_is_kept(tmp_path):
+    """The case the overlap rule must NOT catch: a small ligand genuinely
+    nested inside a larger one (an ion chelated at the centre of a ring).
+    Centroids nearly coincide, but they share no atom names."""
+    ps = parse_structure(
+        _overlapping_ligands_pdb(tmp_path, 1.0, 1.0, names_b=["N1", "N2", "N3",
+                                                              "N4", "N5", "N6"]),
+        pdb_id="T", keep_ligands=True)
     assert ps.record["n_duplicate_ligands_dropped"] == 0
     assert len(ps.record["ligands_kept"]) == 2
+
+
+def test_same_names_at_one_site_are_duplicates_at_any_occupancy(tmp_path):
+    """Full occupancy does not make two overlapping same-named copies real."""
+    ps = parse_structure(_overlapping_ligands_pdb(tmp_path, 1.0, 1.0),
+                         pdb_id="T", keep_ligands=True)
+    assert ps.record["n_duplicate_ligands_dropped"] == 1
+
+
+def test_shortcut_bond_is_pruned():
+    """1H4X deposits a phosphoserine whose CB...P 1,3 distance falls inside
+    the C/P cutoff, bonding CB straight to P and pushing P to valence 5. The
+    real path is CB-OG-P."""
+    cb = np.array([0., 0., 0.]); og = np.array([1.43, 0., 0.])
+    p = og + np.array([0.55, 1.50, 0.]) / np.linalg.norm([0.55, 1.50, 0.]) * 1.60
+    coords = np.stack([cb, og, p]).astype(np.float32)
+    b = perceive_bonds(coords, ["C", "O", "P"], np.zeros(3, dtype=np.int64))
+    assert len(b) == 2
+    assert [0, 2] not in b.tolist()
+
+
+def test_three_membered_ring_survives_shortcut_pruning():
+    """Every pair in cyclopropane is a real bond AND a 1,3 via the third, so
+    the pruning must key on the length ratio, not on 1,3-ness alone."""
+    r = 1.51 / np.sqrt(3)
+    s = np.sqrt(3) / 2
+    ring = np.array([[r, 0, 0], [-r / 2, r * s, 0], [-r / 2, -r * s, 0]],
+                    dtype=np.float32)
+    b = perceive_bonds(ring, ["C"] * 3, np.zeros(3, dtype=np.int64))
+    assert len(b) == 3
+
+
+def test_repeated_atom_names_within_one_group_are_collapsed(tmp_path):
+    """A PDB atom name is unique within a residue by definition, so repeats
+    mean two copies were deposited into ONE residue -- 5IVT carries two C28,
+    two C10, two C27. altloc removal does not touch these."""
+    ps = parse_structure(
+        _write(tmp_path, ligand_atom_names=["C1", "C2", "C1", "C3", "C2"]),
+        pdb_id="T", keep_ligands=True)
+    lig = ps.residue_idx == C.LIGAND_RESIDUE_IDX
+    # gemmi already collapses same-named atoms on read, so this asserts the
+    # end-to-end property; the guard in parse_structure is belt-and-braces
+    # behind it, for readers that do not.
+    names = [n for n, k in zip(ps.atom_name, lig) if k]
+    assert len(names) == len(set(names)) == 3   # C1, C2, C3
+
+
+def test_equal_occupancy_duplicates_are_still_collapsed(tmp_path):
+    """5IVT's two copies sit at EQUAL occupancy, which the occupancy rule
+    cannot separate -- name overlap is what identifies them."""
+    ps = parse_structure(_overlapping_ligands_pdb(tmp_path, 0.5, 0.5),
+                         pdb_id="T", keep_ligands=True)
+    # same-named atoms in both copies, centroids overlapping
+    assert ps.record["n_duplicate_ligands_dropped"] == 1

@@ -150,9 +150,46 @@ def perceive_bonds(
     pairs = np.stack([ia[bonded], ib[bonded]], axis=1).astype(np.int64)
     if pairs.shape[0] == 0:
         return np.zeros((0, 2), dtype=np.int64)
+    pairs = _drop_shortcut_bonds(pairs, dist[bonded])
     # Sort for determinism.
     order = np.lexsort((pairs[:, 1], pairs[:, 0]))
     return pairs[order]
+
+
+def _drop_shortcut_bonds(pairs: np.ndarray, dist: np.ndarray) -> np.ndarray:
+    """Remove a "bond" that merely shortcuts a real two-bond path.
+
+    Pure distance perception cannot tell a bond from a 1,3 contact when the
+    bridging atom is small and the ends are large. 1H4X deposits a
+    phosphoserine where CB...P sits at 2.04 A -- inside the C/P cutoff of
+    2.28 A -- so CB bonds directly to P even though the real path is
+    CB-OG-P, pushing P to valence 5.
+
+    A pair is a shortcut when the two atoms share a bonded neighbour and the
+    direct distance is meaningfully LONGER than both bonds it bypasses. The
+    margin matters: in a genuine three-membered ring (cyclopropane, epoxide)
+    all three pairs are real bonds and each is also 1,3 via the third, but
+    there the ratio is ~1.00, against 1.27 for the 1H4X case.
+    """
+    adj = {}
+    for (i, j) in pairs:
+        adj.setdefault(int(i), set()).add(int(j))
+        adj.setdefault(int(j), set()).add(int(i))
+    d = {(int(i), int(j)): float(x) for (i, j), x in zip(pairs, dist)}
+
+    def bond_len(a, b):
+        return d.get((a, b)) or d.get((b, a))
+
+    keep = np.ones(len(pairs), dtype=bool)
+    for n, (i, j) in enumerate(pairs):
+        i, j = int(i), int(j)
+        shared = adj[i] & adj[j]
+        for k in shared:
+            longer = max(bond_len(i, k), bond_len(k, j))
+            if d[(i, j)] > C.SHORTCUT_BOND_RATIO * longer:
+                keep[n] = False
+                break
+    return pairs[keep]
 
 
 def _count_raw_stats(structure: gemmi.Structure) -> dict:
@@ -373,6 +410,7 @@ def parse_structure(
     ligand_centroids = []
     n_ligand_atoms = 0
     n_duplicate_ligands = 0
+    n_intra_residue_duplicates = 0
     next_chain = len(kept_chains)
     if keep_ligands:
         # Gather candidates first, then keep the BEST-SUPPORTED of any
@@ -394,6 +432,22 @@ def parse_structure(
                     ligands_dropped[res.name] = ligands_dropped.get(res.name, 0) + 1
                     continue
                 occ = float(np.mean([a.occ for a in res])) if len(res) else 1.0
+                # A PDB atom name is unique within a residue by definition, so
+                # repeats mean two copies were deposited into one residue
+                # (5IVT carries two C28, two C10, two C27...). altloc removal
+                # does not touch these because they are not flagged as
+                # alternate conformations. Keep the first instance of each
+                # name -- the candidates are occupancy-ordered below, but
+                # within a residue deposition order is all we have.
+                seen, deduped = set(), []
+                for a, e, p in lig_atoms:
+                    if a in seen:
+                        continue
+                    seen.add(a)
+                    deduped.append((a, e, p))
+                if len(deduped) < len(lig_atoms):
+                    n_intra_residue_duplicates += 1
+                lig_atoms = deduped
                 candidates.append((occ, len(lig_atoms), chain.name, res, lig_atoms))
         # Highest occupancy first, then largest; deposition order breaks ties.
         order = sorted(range(len(candidates)),
@@ -409,19 +463,27 @@ def parse_structure(
             # occupying one site and, with ligand-ligand bonding, fuses
             # them into an over-valent blob.
             #
-            # Occupancy is the discriminator: a genuinely distinct species
-            # is deposited at full occupancy, so only a partial-occupancy
-            # candidate is ever dropped. That protects the real case of a
-            # small ligand nested inside a larger one (an ion chelated at
-            # the centre of a ring), whose centroids also nearly coincide.
+            # NAME OVERLAP is the discriminator, not occupancy: 5IVT deposits
+            # its two copies at EQUAL occupancy, which no occupancy comparison
+            # can separate. Two groups occupying one site and sharing most of
+            # their atom names are copies of one molecule. A small ligand
+            # genuinely nested inside a larger one (an ion chelated at the
+            # centre of a ring) shares no names and is correctly kept.
             cen = np.mean([[p.x, p.y, p.z] for _, _, p in lig_atoms], axis=0)
-            if occ < 1.0 and any(
-                    np.linalg.norm(cen - c) < C.DUPLICATE_LIGAND_DISTANCE
-                    for c in ligand_centroids):
+            names = {a for a, _, _ in lig_atoms}
+            dup = False
+            for c, prev in ligand_centroids:
+                if np.linalg.norm(cen - c) >= C.DUPLICATE_LIGAND_DISTANCE:
+                    continue
+                shared = len(names & prev) / max(min(len(names), len(prev)), 1)
+                if shared >= C.DUPLICATE_LIGAND_NAME_OVERLAP:
+                    dup = True
+                    break
+            if dup:
                 n_duplicate_ligands += 1
                 ligands_dropped[res.name] = ligands_dropped.get(res.name, 0) + 1
                 continue
-            ligand_centroids.append(cen)
+            ligand_centroids.append((cen, names))
             # A hetero group can still be a *known* chemical species -- a
             # bound amino acid or peptide ligand (1PIN deposits ALA and PRO
             # this way). Labelling those "LIG/UNK" would throw away
@@ -487,6 +549,7 @@ def parse_structure(
         "n_groups": int(res_pos.max()) + 1,
         "n_ligand_atoms": int(n_ligand_atoms),
         "n_duplicate_ligands_dropped": int(n_duplicate_ligands),
+        "n_intra_residue_duplicate_groups": int(n_intra_residue_duplicates),
         "ligands_kept": ligands_kept,
         "ligands_dropped": ligands_dropped,
         "chains_present": dict(chain_lengths),

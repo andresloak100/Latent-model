@@ -47,9 +47,18 @@ BOND_TOLERANCE = 0.45  # angstrom
 # than this are the same atom deposited twice (overlapping partial-occupancy
 # ligand copies), and bonding them fuses the copies into one over-valent blob.
 MIN_BOND_DISTANCE = 0.9
-# Two hetero groups of the SAME name whose centroids sit within this distance
-# are duplicate copies of one molecule, not two molecules.
+# Two hetero groups whose centroids sit within this distance AND that share
+# most of their atom names are duplicate copies of one molecule.
 DUPLICATE_LIGAND_DISTANCE = 1.5
+# Fraction of atom names two overlapping hetero groups must share to be judged
+# copies of one molecule. Name overlap rather than occupancy: 5IVT deposits two
+# copies at EQUAL occupancy, which an occupancy comparison cannot separate,
+# while a small ligand genuinely nested inside a larger one (an ion chelated at
+# the centre of a ring) shares no names at all and is correctly kept.
+DUPLICATE_LIGAND_NAME_OVERLAP = 0.5
+# A perceived bond longer than this multiple of the two bonds it bypasses is a
+# 1,3 shortcut, not a bond. Genuine three-membered rings sit at ~1.00.
+SHORTCUT_BOND_RATIO = 1.15
 
 # --- Residues -------------------------------------------------------------
 # 20 standard amino acids (3-letter). Index 0 pad, index 1 UNK/non-standard.
