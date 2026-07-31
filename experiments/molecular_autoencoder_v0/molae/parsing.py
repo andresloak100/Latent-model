@@ -477,28 +477,29 @@ def parse_structure(
             # 6S2M case (PLM/VCA, 0.3 A apart) and silently misses this one.
             # Two real copies bound at two different sites stay several
             # angstrom apart at their closest, so both survive.
-            pts = np.array([[p.x, p.y, p.z] for _, _, p in lig_atoms])
-            names = {a for a, _, _ in lig_atoms}
+            by_name = {a: np.array([p.x, p.y, p.z]) for a, _, p in lig_atoms}
             dup = False
-            for prev_pts, prev_names in ligand_groups_seen:
-                shared = len(names & prev_names) / max(min(len(names), len(prev_names)), 1)
-                if shared < C.DUPLICATE_LIGAND_NAME_OVERLAP:
+            for prev_by_name in ligand_groups_seen:
+                # Count atoms sitting on top of their SAME-NAMED counterpart.
+                # A glycosidic link scores 0 here (C1 bonds to O4, so the close
+                # pair has different names and the same-named atoms are a ring
+                # apart), while a duplicate scores most of the molecule.
+                shared = set(by_name) & set(prev_by_name)
+                if not shared:
                     continue
-                # Cheap reject before the full pairwise distance.
-                if (np.linalg.norm(pts.mean(0) - prev_pts.mean(0))
-                        > np.ptp(pts, axis=0).max() + np.ptp(prev_pts, axis=0).max()
-                        + C.DUPLICATE_LIGAND_CONTACT):
-                    continue
-                closest = np.linalg.norm(
-                    pts[:, None, :] - prev_pts[None, :, :], axis=-1).min()
-                if closest < C.DUPLICATE_LIGAND_CONTACT:
+                coincident = sum(
+                    np.linalg.norm(by_name[a] - prev_by_name[a]) < C.DUPLICATE_ATOM_DISTANCE
+                    for a in shared)
+                frac = coincident / max(min(len(by_name), len(prev_by_name)), 1)
+                if (coincident >= C.DUPLICATE_MIN_COINCIDENT
+                        or frac >= C.DUPLICATE_OVERLAP_FRACTION):
                     dup = True
                     break
             if dup:
                 n_duplicate_ligands += 1
                 ligands_dropped[res.name] = ligands_dropped.get(res.name, 0) + 1
                 continue
-            ligand_groups_seen.append((pts, names))
+            ligand_groups_seen.append(by_name)
             # A hetero group can still be a *known* chemical species -- a
             # bound amino acid or peptide ligand (1PIN deposits ALA and PRO
             # this way). Labelling those "LIG/UNK" would throw away

@@ -496,12 +496,15 @@ def _alt_conformation_pdb(tmp_path):
             lines.append(_atom_line("ATOM", serial, f" {aname:<3s}"[:4], "ALA",
                                     "A", r, base + np.array(off), elem))
             serial += 1
-    # Copy A runs along +x; copy B is the same molecule shifted, so the two
-    # centroids are far apart but their near ends interpenetrate.
-    for seq, shift in [(501, 0.0), (502, 11.0)]:
+    # A flexible ligand modelled in two conformations: the rigid half sits in
+    # the same place in both copies, the flexible half swings out. That is what
+    # puts 5IVT's centroids 5.78 A apart while same-named atoms still coincide
+    # -- so a whole-molecule shift is NOT the right fixture here.
+    for seq, swing in [(501, 0.0), (502, 12.0)]:
         for k in range(12):
+            y = 8.0 if k < 5 else 8.0 + swing        # first 5 atoms coincide
             lines.append(_atom_line("HETATM", serial, f" C{k + 1:<2d}"[:4], "LIG",
-                                    "B", seq, (50.0 + 1.0 * k + shift, 8.0, 0.0),
+                                    "B", seq, (50.0 + 1.5 * k, y, 0.0),
                                     "C", occ=0.5))
             serial += 1
     lines.append("END")
@@ -515,9 +518,6 @@ def test_displaced_alternate_conformations_are_collapsed(tmp_path):
     catches it where centroid coincidence cannot."""
     ps = parse_structure(_alt_conformation_pdb(tmp_path), pdb_id="T",
                          keep_ligands=True)
-    cens = [np.mean([ps.coords[i] for i in range(ps.n_atoms)
-                     if ps.res_pos[i] == g], axis=0)
-            for g in sorted(set(ps.res_pos[ps.residue_idx == C.LIGAND_RESIDUE_IDX].tolist()))]
     assert ps.record["n_duplicate_ligands_dropped"] == 1
     assert len(ps.record["ligands_kept"]) == 1
 
@@ -544,6 +544,55 @@ def test_same_ligand_at_two_distant_sites_is_kept(tmp_path):
     ps = parse_structure(str(f), pdb_id="T", keep_ligands=True)
     assert ps.record["n_duplicate_ligands_dropped"] == 0
     assert len(ps.record["ligands_kept"]) == 2
+
+
+def _glycan_tree_pdb(tmp_path, n_sugars=3):
+    """Adjacent sugars in a glycan tree: IDENTICAL name sets and a ~1.4 A
+    glycosidic link, but the rings are side by side, not overlapping. This is
+    the case a closest-pair or name-set test wrongly reads as duplicates."""
+    lines, serial = [], 1
+    for r in range(1, 11):
+        base = np.array([3.8 * r, 0.0, 0.0])
+        for aname, elem, off in [("N", "N", (0., 0., 0.)), ("CA", "C", (1.4, .2, 0.)),
+                                 ("C", "C", (2.5, -.4, 0.)), ("O", "O", (2.6, -1.6, 0.)),
+                                 ("CB", "C", (1.5, 1.7, 0.))]:
+            lines.append(_atom_line("ATOM", serial, f" {aname:<3s}"[:4], "ALA",
+                                    "A", r, base + np.array(off), elem))
+            serial += 1
+    # Each sugar spans 6 atoms at 1.5 A pitch; the next starts 1.4 A after the
+    # previous ends, so the LINK is 1.4 A while same-named atoms are ~10 A apart.
+    x = 50.0
+    for s_i in range(n_sugars):
+        for k in range(6):
+            lines.append(_atom_line("HETATM", serial, f" C{k + 1:<2d}"[:4], "NAG",
+                                    "B", 501 + s_i, (x, 8.0, 0.0), "C"))
+            serial += 1
+            x += 1.5
+        x += -1.5 + 1.4          # glycosidic link to the next sugar
+    lines.append("END")
+    f = tmp_path / "glycan.pdb"; f.write_text("\n".join(lines) + "\n")
+    return str(f)
+
+
+def test_glycan_tree_sugars_are_not_read_as_duplicates(tmp_path):
+    """Two NAGs have IDENTICAL name sets and a 1.4 A closest pair, so neither
+    name-set overlap nor closest-pair distance can separate them from copies.
+    Same-name coincidence can: the link joins C1 to O4, and the same-named
+    atoms are a whole ring apart."""
+    ps = parse_structure(_glycan_tree_pdb(tmp_path, n_sugars=3), pdb_id="T",
+                         keep_ligands=True)
+    assert ps.record["n_duplicate_ligands_dropped"] == 0
+    assert len(ps.record["ligands_kept"]) == 3
+
+
+def test_glycan_tree_keeps_its_links_after_dedup(tmp_path):
+    """The end-to-end property Gate 2 measures: tree bonds survive."""
+    ps = parse_structure(_glycan_tree_pdb(tmp_path, n_sugars=3), pdb_id="T",
+                         keep_ligands=True)
+    isl = ps.residue_idx == C.LIGAND_RESIDUE_IDX
+    tree = sum(1 for i, j in ps.bonds
+               if isl[i] and isl[j] and ps.chain_idx[i] != ps.chain_idx[j])
+    assert tree == 2, f"expected 2 glycosidic links, got {tree}"
 
 
 def test_equal_occupancy_duplicates_are_still_collapsed(tmp_path):

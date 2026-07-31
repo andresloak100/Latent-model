@@ -47,13 +47,22 @@ BOND_TOLERANCE = 0.45  # angstrom
 # than this are the same atom deposited twice (overlapping partial-occupancy
 # ligand copies), and bonding them fuses the copies into one over-valent blob.
 MIN_BOND_DISTANCE = 0.9
-# Two hetero groups are copies of one molecule when they share most of their
-# atom names AND spatially interpenetrate. Interpenetration, not centroid
-# coincidence: 5IVT deposits two ALTERNATE CONFORMATIONS of one ligand whose
-# centroids sit 5.78 A apart while individual atoms overlap at ~1.0 A, so a
-# centroid test never fires. Two genuinely distinct copies of a ligand bound at
-# two sites stay several angstrom apart at their closest and are both kept.
-DUPLICATE_LIGAND_CONTACT = 2.0
+# Duplicate detection: how many of one group's atoms sit essentially on top of
+# the SAME-NAMED atom of another group.
+#
+# Same-name coincidence is the discriminator, and both halves matter. A
+# glycosidic bond joins C1 of one sugar to O4 of the next -- DIFFERENT names --
+# so a glycan tree scores zero here, while its closest-pair distance (~1.4 A)
+# is indistinguishable from an overlap. Two NAGs also have identical name
+# SETS, so a set-overlap test cannot separate them either. Only "same name,
+# same place" is specific to one molecule deposited twice.
+DUPLICATE_ATOM_DISTANCE = 1.0
+# Judged a duplicate at either signal: a high overlap fraction (small ligands,
+# where a couple of atoms is the whole molecule) or an absolute count (large
+# flexible ligands deposited as displaced alternate conformations, where only
+# the rigid part coincides -- 5IVT's copies have centroids 5.78 A apart).
+DUPLICATE_OVERLAP_FRACTION = 0.5
+DUPLICATE_MIN_COINCIDENT = 3
 # Fraction of atom names two overlapping hetero groups must share to be judged
 # copies of one molecule. Name overlap rather than occupancy: 5IVT deposits two
 # copies at EQUAL occupancy, which an occupancy comparison cannot separate,
