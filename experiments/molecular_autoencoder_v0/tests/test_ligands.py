@@ -319,3 +319,39 @@ def test_grow_leaves_mismatched_tensors_alone():
     model = nn.ModuleDict({"e": nn.Embedding(C.N_ELEMENTS, 8)})
     bad = {"e.weight": torch.zeros(4, 5)}     # wrong width
     assert grow_embedding_rows(bad, model) == []
+
+
+# --- covalent anchoring ----------------------------------------------------
+
+def test_covalent_ligand_linkage_is_perceived():
+    """N-linked glycans bond to ASN and heme C to the CXXCH cysteines. Those
+    pairs are in different chains by construction, so the chain guard used to
+    sever them and the ligand floated free of the residue holding it."""
+    coords = np.array([[0., 0., 0.], [1.45, 0., 0.]], dtype=np.float32)
+    b = perceive_bonds(coords, ["N", "C"], np.array([0, 1]), np.array([0, 1]),
+                       unrestricted_chains=(1,))
+    assert len(b) == 1
+
+
+def test_noncovalent_contact_is_not_a_bond():
+    """A binding-pocket contact must not become a bond. H-bond range."""
+    coords = np.array([[0., 0., 0.], [2.9, 0., 0.]], dtype=np.float32)
+    b = perceive_bonds(coords, ["N", "C"], np.array([0, 1]), np.array([0, 1]),
+                       unrestricted_chains=(1,))
+    assert len(b) == 0
+
+
+def test_metal_coordination_is_not_a_bond():
+    """Zn-His sits at 2.0-2.4 A; the metal radii are set so it stays unbonded."""
+    coords = np.array([[0., 0., 0.], [2.15, 0., 0.]], dtype=np.float32)
+    b = perceive_bonds(coords, ["N", "ZN"], np.array([0, 1]), np.array([0, 1]),
+                       unrestricted_chains=(1,))
+    assert len(b) == 0
+
+
+def test_two_distinct_ligands_still_do_not_bond():
+    """Anchoring admits ligand-to-polymer pairs, not ligand-to-ligand."""
+    coords = np.array([[0., 0., 0.], [1.45, 0., 0.]], dtype=np.float32)
+    b = perceive_bonds(coords, ["C", "C"], np.array([0, 1]), np.array([1, 2]),
+                       unrestricted_chains=(1, 2))
+    assert len(b) == 0

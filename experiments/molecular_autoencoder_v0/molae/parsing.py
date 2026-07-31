@@ -108,13 +108,26 @@ def perceive_bonds(
     dres = np.abs(res_pos[ia] - res_pos[ib])
     keep = dres <= 1
     if chain_idx is not None:
-        if len(unrestricted_chains):
-            free = np.isin(chain_idx, np.asarray(list(unrestricted_chains)))
-            keep = keep | (free[ia] & free[ib])
         # res_pos is GLOBAL across chains, so the last residue of chain k and
         # the first of chain k+1 are numerically adjacent. Without this guard
         # they would be bonded across a chain break.
-        keep = keep & (chain_idx[ia] == chain_idx[ib])
+        same_chain = chain_idx[ia] == chain_idx[ib]
+        keep = keep & same_chain
+        if len(unrestricted_chains):
+            free = np.isin(chain_idx, np.asarray(list(unrestricted_chains)))
+            # A whole non-polymer molecule bonds within itself regardless of
+            # how many groups it was split across.
+            keep = keep | (free[ia] & free[ib] & same_chain)
+            # COVALENT ANCHORING. N-linked glycans bond to ASN, heme C bonds
+            # to the CXXCH cysteines -- roughly half the ligand groups in a
+            # real complex set are covalently attached. Those pairs are in
+            # different chains by construction, so the guard above severs
+            # them and the ligand floats free of the residue holding it.
+            # Admitted on DISTANCE alone: a covalent bond is under ~1.9 A
+            # while a non-covalent contact (H-bond 2.7-3.2 A) is far outside
+            # the cutoff below, and metal radii are set so coordination at
+            # 2.0-2.4 A is not perceived as a bond.
+            keep = keep | (free[ia] ^ free[ib])
     ia, ib = ia[keep], ib[keep]
     if ia.size == 0:
         return np.zeros((0, 2), dtype=np.int64)
