@@ -23,6 +23,19 @@ slope**, not the endpoint.
 
 slope = A per doubling of n, least-squares on log2(n).
 
+**Read the RELATIVE column, not the absolute slope.** RMSD is bounded below by 0,
+and these arms sit ~7x apart in level, so A/doubling is not comparable between
+them: -0.661 A off 8.32 is a SMALLER fractional move than -0.127 off 1.171.
+
+| arch | absolute A/doubling | **relative %/doubling** |
+|---|---|---|
+| direct 1.1M | -0.127 | **-11.6%** |
+| direct 3.8M | -0.114 | **-12.0%** |
+| perc 3.2M | -0.661 | **-8.5%** |
+
+In the comparable frame the Perceiver descends **more slowly** than either direct
+arm, not 5x faster.
+
 ### val/train gap per rung (does the gap close with data?)
 | arch | n450 | n878 | n2272 |
 |---|---|---|---|
@@ -38,25 +51,51 @@ marginally FLATTER, not steeper). The "bigger model sheds more overfit as data
 grows -> steeper slope" hypothesis does NOT hold here. So any steeper Perceiver
 slope cannot be attributed to its larger size.
 
-**2. The Perceiver slope IS steeper -- and it's architectural.** perc -0.661 vs
-direct ~-0.12: **~5x steeper**, and since the size contribution is only +0.013,
-the architecture slope beyond size is **-0.534 A/doubling**. By the pre-registered
-criterion (steeper perc slope, exceeding the size effect) **the scaling bet is
-LIVE in direction**: the Perceiver improves with data much faster than the direct
-codec does, and that is a real architecture effect, not a size artifact.
+**2. The Perceiver slope is NOT steeper once levels are accounted for -- the
+scaling bet is DEAD in direction.** The apparent "5x steeper" is entirely an
+artifact of reading A/doubling off a 7x higher starting value. Relative rates:
+perc **-8.5%/doubling** vs direct **-11.6%** (1.1M) and **-12.0%** (3.8M). The
+Perceiver improves with data more slowly than the codec it is chasing.
 
-**3. But the crossover is impractical.** The Perceiver starts ~7x worse (6.77 vs
-0.878 at n2272). Extrapolating its own slope, it reaches the direct codec's
-CURRENT n2272 quality (0.878) only at **n = 2^20 ~ 1.1 MILLION structures (~480x
-n2272)** -- and the direct codec keeps improving with data too, so the real target
-moves further. Live in direction, but not reachable at any realistic data scale
-for this dataset.
+The decisive check is the ratio, since "overtake" means the ratio reaches 1:
 
-**4. The memorization gap IS partly data-starvation.** The Perceiver's val/train
-gap closes steeply with data (18.2 -> 6.70 -> 4.16), the fastest relative closing
-of the three -- consistent with the steep slope. So the gap is not purely
-architectural; more data genuinely helps. But at n2272 it is still 4.16x (vs the
-direct codec's 1.50x), nowhere near closed.
+| n | perc / direct-1.1M | perc / direct-3.8M |
+|---|---|---|
+| 450 | 7.105 | 7.798 |
+| 878 | 6.995 | 8.637 |
+| 2272 | **7.711** | **8.548** |
+
+The gap **widens** with data -- +3.6%/doubling against direct-1.1M and
++4.0%/doubling against direct-3.8M. More data does not move the Perceiver toward
+the codec; it moves it further away. The pre-registered criterion is not met.
+
+**3. There is no crossover to quantify.** The earlier "~1.1 million structures"
+figure came from extrapolating the ABSOLUTE slope (-0.661 A/doubling) as a
+straight line down to 0.878 A. That is invalid for a positive-definite quantity:
+sustaining -0.661 A/doubling from 6.77 A would mean a **-44%/doubling** relative
+rate near 1.5 A, 5x the Perceiver's measured -8.5%. Under its actual measured
+rate the two curves **diverge**, so they never cross. The honest statement is not
+"live but impractical" -- it is that the ladder shows no convergence in direction
+at all.
+
+**4. The val/train closure is dominated by TRAIN degradation, not by
+generalization.** The rungs are matched on STEPS (242k), so per-structure exposure
+falls 4.9x from n450 (8345 epochs) to n2272 (1704). Train fit therefore degrades
+mechanically with n, which shrinks the ratio whether or not val improves.
+Decomposing (implied train = val / gap):
+
+| arch | val change | train change | train 450 -> 2272 |
+|---|---|---|---|
+| direct 1.1M | **-25.0%** | +113.4% | 0.274 -> 0.585 |
+| direct 3.8M | **-25.8%** | +142.1% | 0.117 -> 0.284 |
+| perc 3.2M | **-18.6%** | +256.0% | 0.457 -> 1.627 |
+
+The Perceiver's gap "closes fastest" because its train fit collapses fastest --
+its val improved the LEAST of the three. So this does not support "the gap is
+partly data-starvation"; it mostly says the Perceiver degrades hardest when given
+fewer passes per structure. Separating the two would need matched EPOCHS, which
+the 2-D study already named as the fix (data_scaling_2d.md, caveat 3). Not worth
+launching on this evidence.
 
 **5. The direct codec keeps improving with data.** direct 1.1M 1.17 -> 0.88,
 direct 3.8M 1.07 -> 0.79 (bb 0.51, chir 0.0002, F1 0.963 at n2272) -- the working
@@ -64,13 +103,24 @@ codec is data-limited too and has not plateaued; the target the Perceiver is
 chasing is still descending.
 
 ## Bottom line
-Data is a real and architecturally-genuine lever for the Perceiver -- its val
-slope (-0.661) is ~5x the direct codec's and the size effect is ~0, so the
-steepness is not a size artifact and the scaling bet is live in DIRECTION. **But
-it is not live in PRACTICE:** from a 7x deficit, closing to today's direct-codec
-quality needs ~1e6 structures, and the direct codec is itself still improving with
-data. The direct per-residue codec remains the design of record (0.79 A aa /
-0.51 A bb / chir 0.0002 at n2272, 3.8M); the fixed-size Perceiver's size-independent
-compression is not worth ~7x reconstruction error that only data at millions-of-
-structures scale could close. (Masking was neutral for both architectures; see
-perceiver_depth_grid.md.)
+**Data is not the Perceiver's missing lever.** Measured in the only frame where
+arms 7x apart in level are comparable, it improves at -8.5%/doubling against the
+direct codec's -11.6% / -12.0%, and the perc/direct ratio WIDENS with data
+(7.11 -> 7.71 vs 1.1M; 7.80 -> 8.55 vs 3.8M). There is no crossover at any data
+scale on the measured trend, so the scaling bet fails its own pre-registered
+criterion -- dead in direction, not merely impractical. The size bracket still
+does its job (slope difference +0.013 A/doubling, ~0), so this is an architecture
+result, not a size artifact.
+
+The direct per-residue codec remains the design of record (0.79 A aa / 0.51 A bb /
+chir 0.0002 / F1 0.963 at n2272, 3.8M) and is itself still data-limited and
+descending. The fixed-size Perceiver's size-independent compression is not worth a
+~7x reconstruction deficit that data is not closing. (Masking was neutral for both
+architectures; see perceiver_depth_grid.md.)
+
+**Caveat on what this does and does not rule out.** The ladder spans 450 -> 2272
+(2.3 doublings) under a matched-STEP budget, so every rung is somewhat
+under-converged at high n and the train-side numbers are confounded with epoch
+count. It establishes that the Perceiver is not closing on this range under this
+protocol. It does not establish that no training protocol could -- a matched-EPOCH
+sweep, or a fundamentally larger corpus, remains untested.
