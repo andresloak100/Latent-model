@@ -21,7 +21,7 @@ from molae.synthetic import make_synthetic_ala
 
 # --- fixture: a tiny PDB with a peptide chain and a hetero group -----------
 
-def _atom_line(record, serial, name, resname, chain, resseq, xyz, elem):
+def _atom_line(record, serial, name, resname, chain, resseq, xyz, elem, occ=1.00):
     """A column-exact PDB ATOM/HETATM record.
 
     The columns are not negotiable: 13-16 atom name, 17 altLoc, 18-20 resName,
@@ -31,7 +31,7 @@ def _atom_line(record, serial, name, resname, chain, resseq, xyz, elem):
     x, y, z = xyz
     return (f"{record:<6s}{serial:5d} {name:<4s}{'':1s}{resname:>3s} "
             f"{chain:1s}{resseq:4d}{'':4s}"
-            f"{x:8.3f}{y:8.3f}{z:8.3f}{1.00:6.2f}{0.00:6.2f}{'':10s}{elem:>2s}")
+            f"{x:8.3f}{y:8.3f}{z:8.3f}{occ:6.2f}{0.00:6.2f}{'':10s}{elem:>2s}")
 
 
 def _pdb_text(n_res=10, ligand_atoms=5, ligand_name="LIG", water=True,
@@ -367,3 +367,66 @@ def test_ligands_at_packing_distance_do_not_bond():
     b = perceive_bonds(coords, ["C", "C"], np.array([0, 1]), np.array([1, 2]),
                        unrestricted_chains=(1, 2))
     assert len(b) == 0
+
+
+# --- modelling artifacts ---------------------------------------------------
+
+def test_sub_angstrom_pair_is_not_a_bond():
+    """Nothing real is bonded below ~0.9 A. A shorter pair is one atom
+    deposited twice; bonding it fuses two copies into an over-valent blob
+    (6S2M has C1-C1 at 0.17 A)."""
+    coords = np.array([[0., 0., 0.], [0.17, 0., 0.]], dtype=np.float32)
+    b = perceive_bonds(coords, ["C", "C"], np.array([0, 1]), np.array([1, 2]),
+                       unrestricted_chains=(1, 2))
+    assert len(b) == 0
+
+
+def _overlapping_ligands_pdb(tmp_path, occ_a=0.35, occ_b=0.43):
+    """Two DIFFERENTLY-NAMED partial-occupancy ligands in one density blob,
+    as 6S2M deposits PLM (0.35) and VCA (0.43) 0.3 A apart."""
+    lines, serial = [], 1
+    for r in range(1, 11):
+        base = np.array([3.8 * r, 0.0, 0.0])
+        for aname, elem, off in [("N", "N", (0., 0., 0.)), ("CA", "C", (1.4, .2, 0.)),
+                                 ("C", "C", (2.5, -.4, 0.)), ("O", "O", (2.6, -1.6, 0.)),
+                                 ("CB", "C", (1.5, 1.7, 0.))]:
+            lines.append(_atom_line("ATOM", serial, f" {aname:<3s}"[:4], "ALA",
+                                    "A", r, base + np.array(off), elem))
+            serial += 1
+    for name, occ, dx in [("PLM", occ_a, 0.0), ("VCA", occ_b, 0.3)]:
+        for k in range(6):
+            lines.append(_atom_line("HETATM", serial, f" C{k + 1:<2d}"[:4], name,
+                                    "B", 501 if name == "PLM" else 502,
+                                    (50.0 + 1.5 * k + dx, 8.0, 0.0), "C", occ=occ))
+            serial += 1
+    lines.append("END")
+    p = tmp_path / "dup.pdb"
+    p.write_text("\n".join(lines) + "\n")
+    return str(p)
+
+
+def test_overlapping_partial_occupancy_ligands_collapse_to_one(tmp_path):
+    ps = parse_structure(_overlapping_ligands_pdb(tmp_path), pdb_id="T",
+                         keep_ligands=True)
+    assert ps.record["n_duplicate_ligands_dropped"] == 1
+    assert len(ps.record["ligands_kept"]) == 1
+
+
+def test_the_better_supported_copy_is_the_one_kept(tmp_path):
+    """Deposition order would keep PLM (0.35); occupancy ordering keeps VCA."""
+    ps = parse_structure(_overlapping_ligands_pdb(tmp_path, 0.35, 0.43),
+                         pdb_id="T", keep_ligands=True)
+    assert ps.record["ligands_kept"][0]["name"] == "VCA"
+    # and it flips when the occupancies do
+    ps = parse_structure(_overlapping_ligands_pdb(tmp_path, 0.80, 0.43),
+                         pdb_id="T", keep_ligands=True)
+    assert ps.record["ligands_kept"][0]["name"] == "PLM"
+
+
+def test_full_occupancy_ligands_are_never_dropped(tmp_path):
+    """Protects a small ligand genuinely nested inside a larger one (an ion
+    chelated at the centre of a ring), whose centroids also nearly coincide."""
+    ps = parse_structure(_overlapping_ligands_pdb(tmp_path, 1.0, 1.0),
+                         pdb_id="T", keep_ligands=True)
+    assert ps.record["n_duplicate_ligands_dropped"] == 0
+    assert len(ps.record["ligands_kept"]) == 2

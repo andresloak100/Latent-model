@@ -142,7 +142,11 @@ def perceive_bonds(
         return np.zeros((0, 2), dtype=np.int64)
     dist = np.linalg.norm(coords[ia] - coords[ib], axis=1)
     cutoff = radii[ia] + radii[ib] + C.BOND_TOLERANCE
-    bonded = dist < cutoff
+    # Nothing real is bonded below ~0.9 A -- the shortest covalent bond in
+    # biology is ~1.0 A (C-H, and hydrogens are stripped). A shorter pair is
+    # the same atom modelled twice (partial-occupancy duplicate copies of a
+    # ligand), so bonding it would fuse two copies into one over-valent blob.
+    bonded = (dist < cutoff) & (dist >= C.MIN_BOND_DISTANCE)
     pairs = np.stack([ia[bonded], ib[bonded]], axis=1).astype(np.int64)
     if pairs.shape[0] == 0:
         return np.zeros((0, 2), dtype=np.int64)
@@ -366,9 +370,16 @@ def parse_structure(
     # and therefore numerically adjacent across that boundary.
     n_protein_residues = pos          # before ligand groups extend res_pos
     ligands_kept, ligands_dropped = [], {}
+    ligand_centroids = []
     n_ligand_atoms = 0
+    n_duplicate_ligands = 0
     next_chain = len(kept_chains)
     if keep_ligands:
+        # Gather candidates first, then keep the BEST-SUPPORTED of any
+        # overlapping set. Filtering in deposition order would keep whichever
+        # copy happened to be written first -- in 6S2M that is PLM at occupancy
+        # 0.35 over VCA at 0.43, i.e. the weaker interpretation of the density.
+        candidates = []
         for chain in model:
             for res in chain:
                 if res.is_water() or res.het_flag != "H":
@@ -382,39 +393,69 @@ def parse_structure(
                 if len(lig_atoms) < min_ligand_atoms:
                     ligands_dropped[res.name] = ligands_dropped.get(res.name, 0) + 1
                     continue
-                # A hetero group can still be a *known* chemical species -- a
-                # bound amino acid or peptide ligand (1PIN deposits ALA and PRO
-                # this way). Labelling those "LIG/UNK" would throw away
-                # chemistry we have a vocabulary for. Decide per GROUP, never
-                # per atom: mixing name-derived and ordinal slots inside one
-                # group could collide two atoms onto the same decoder slot.
-                named = (res.name in C.STANDARD_AA_SET
-                         and all(a in C.ATOM_NAME_TO_IDX for a, _, _ in lig_atoms)
-                         and len({a for a, _, _ in lig_atoms}) == len(lig_atoms))
-                for k, (aname, esym, p) in enumerate(lig_atoms):
-                    # Ordinal addressing: slot k of the group, chunking every
-                    # N_SLOTS atoms into the next group so a large ligand can
-                    # never overflow into a neighbouring group's slot bank.
-                    if not named and k and k % C.N_SLOTS == 0:
-                        pos += 1
-                    element_idx.append(C.ELEMENT_TO_IDX.get(esym, C.UNK_ELEMENT_IDX))
-                    residue_idx.append(C.RESIDUE_TO_IDX[res.name] if named
-                                       else C.LIGAND_RESIDUE_IDX)
-                    atom_name_idx.append(C.ATOM_NAME_TO_IDX[aname] if named
-                                         else C.UNK_ATOM_IDX)
-                    slot_idx.append(C.ATOM_NAME_TO_IDX[aname] if named
-                                    else k % C.N_SLOTS)
-                    res_pos.append(pos)
-                    res_seq.append(res.seqid.num)
-                    chain_idx_list.append(next_chain)
-                    coords.append([p.x, p.y, p.z])
-                    element_symbol.append(esym)
-                    atom_name.append(aname)
-                pos += 1
-                next_chain += 1
-                n_ligand_atoms += len(lig_atoms)
-                ligands_kept.append({"name": res.name, "n_atoms": len(lig_atoms),
-                                     "chain": chain.name, "seq_id": res.seqid.num})
+                occ = float(np.mean([a.occ for a in res])) if len(res) else 1.0
+                candidates.append((occ, len(lig_atoms), chain.name, res, lig_atoms))
+        # Highest occupancy first, then largest; deposition order breaks ties.
+        order = sorted(range(len(candidates)),
+                       key=lambda i: (-candidates[i][0], -candidates[i][1], i))
+        for _i in order:
+            occ, _n, _cname, res, lig_atoms = candidates[_i]
+            # Partial-occupancy alternatives: two hetero groups modelled
+            # into ONE density blob. 6S2M deposits PLM (occ 0.35) and VCA
+            # (occ 0.43) with centroids 0.3 A apart -- different NAMES, so
+            # a same-name test misses them. remove_alternative_conformations
+            # only collapses altlocs within a residue, so these survive as
+            # separate residues. Keeping both feeds the model two molecules
+            # occupying one site and, with ligand-ligand bonding, fuses
+            # them into an over-valent blob.
+            #
+            # Occupancy is the discriminator: a genuinely distinct species
+            # is deposited at full occupancy, so only a partial-occupancy
+            # candidate is ever dropped. That protects the real case of a
+            # small ligand nested inside a larger one (an ion chelated at
+            # the centre of a ring), whose centroids also nearly coincide.
+            cen = np.mean([[p.x, p.y, p.z] for _, _, p in lig_atoms], axis=0)
+            if occ < 1.0 and any(
+                    np.linalg.norm(cen - c) < C.DUPLICATE_LIGAND_DISTANCE
+                    for c in ligand_centroids):
+                n_duplicate_ligands += 1
+                ligands_dropped[res.name] = ligands_dropped.get(res.name, 0) + 1
+                continue
+            ligand_centroids.append(cen)
+            # A hetero group can still be a *known* chemical species -- a
+            # bound amino acid or peptide ligand (1PIN deposits ALA and PRO
+            # this way). Labelling those "LIG/UNK" would throw away
+            # chemistry we have a vocabulary for. Decide per GROUP, never
+            # per atom: mixing name-derived and ordinal slots inside one
+            # group could collide two atoms onto the same decoder slot.
+            named = (res.name in C.STANDARD_AA_SET
+                     and all(a in C.ATOM_NAME_TO_IDX for a, _, _ in lig_atoms)
+                     and len({a for a, _, _ in lig_atoms}) == len(lig_atoms))
+            for k, (aname, esym, p) in enumerate(lig_atoms):
+                # Ordinal addressing: slot k of the group, chunking every
+                # N_SLOTS atoms into the next group so a large ligand can
+                # never overflow into a neighbouring group's slot bank.
+                if not named and k and k % C.N_SLOTS == 0:
+                    pos += 1
+                element_idx.append(C.ELEMENT_TO_IDX.get(esym, C.UNK_ELEMENT_IDX))
+                residue_idx.append(C.RESIDUE_TO_IDX[res.name] if named
+                                   else C.LIGAND_RESIDUE_IDX)
+                atom_name_idx.append(C.ATOM_NAME_TO_IDX[aname] if named
+                                     else C.UNK_ATOM_IDX)
+                slot_idx.append(C.ATOM_NAME_TO_IDX[aname] if named
+                                else k % C.N_SLOTS)
+                res_pos.append(pos)
+                res_seq.append(res.seqid.num)
+                chain_idx_list.append(next_chain)
+                coords.append([p.x, p.y, p.z])
+                element_symbol.append(esym)
+                atom_name.append(aname)
+            pos += 1
+            next_chain += 1
+            n_ligand_atoms += len(lig_atoms)
+            ligands_kept.append({"name": res.name, "n_atoms": len(lig_atoms),
+                                 "chain": _cname, "seq_id": res.seqid.num,
+                                 "occupancy": round(occ, 3)})
 
     if not coords:
         # A peptide chain existed but every residue/atom was filtered out
@@ -445,6 +486,7 @@ def parse_structure(
         "n_residues": int(n_protein_residues),
         "n_groups": int(res_pos.max()) + 1,
         "n_ligand_atoms": int(n_ligand_atoms),
+        "n_duplicate_ligands_dropped": int(n_duplicate_ligands),
         "ligands_kept": ligands_kept,
         "ligands_dropped": ligands_dropped,
         "chains_present": dict(chain_lengths),

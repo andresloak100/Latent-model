@@ -42,6 +42,14 @@ COVALENT_RADII = {
 DEFAULT_COVALENT_RADIUS = 0.77
 # A bond is perceived when d(i, j) < r_cov(i) + r_cov(j) + tolerance.
 BOND_TOLERANCE = 0.45  # angstrom
+# Floor below which a "bond" is a modelling artifact, not chemistry. The
+# shortest real covalent bond after hydrogen removal is ~1.2 A; pairs closer
+# than this are the same atom deposited twice (overlapping partial-occupancy
+# ligand copies), and bonding them fuses the copies into one over-valent blob.
+MIN_BOND_DISTANCE = 0.9
+# Two hetero groups of the SAME name whose centroids sit within this distance
+# are duplicate copies of one molecule, not two molecules.
+DUPLICATE_LIGAND_DISTANCE = 1.5
 
 # --- Residues -------------------------------------------------------------
 # 20 standard amino acids (3-letter). Index 0 pad, index 1 UNK/non-standard.
