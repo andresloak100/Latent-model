@@ -170,6 +170,13 @@ def main():
                     help="keep non-water hetero groups (ligands, cofactors, "
                          "ions) as ordinal-addressed decoder groups. Needed for "
                          "protein-ligand systems; waters are still dropped.")
+    ap.add_argument("--keep-modified-residues", action="store_true",
+                    help="keep non-standard residues (SeMet, hydroxyproline, "
+                         "D-amino acids, non-canonical residues) IN their "
+                         "polymer chain at their sequence position. Without "
+                         "this they are dropped; with --keep-ligands but "
+                         "without this they are wrongly re-added as free "
+                         "ligands and lose their peptide bonds.")
     ap.add_argument("--min-ligand-atoms", type=int, default=1,
                     help="drop kept-ligand groups smaller than this (e.g. 6 to "
                          "exclude lone ions). Only used with --keep-ligands.")
@@ -193,6 +200,7 @@ def main():
         "multi_chain": args.multi_chain,
         "keep_ligands": args.keep_ligands,
         "min_ligand_atoms": args.min_ligand_atoms,
+        "keep_modified_residues": args.keep_modified_residues,
     }}
     sequences = {}
 
@@ -210,7 +218,8 @@ def main():
             ps = parse_structure(str(cif), pdb_id=pid,
                                  multi_chain=args.multi_chain,
                                  keep_ligands=args.keep_ligands,
-                                 min_ligand_atoms=args.min_ligand_atoms)
+                                 min_ligand_atoms=args.min_ligand_atoms,
+                                 keep_modified_residues=args.keep_modified_residues)
         except AllResiduesFiltered as e:
             manifest["rejected"].append({"pdb_id": pid, "reason": "all_residues_filtered", "detail": str(e)})
             print(f"  {pid}: all residues filtered")

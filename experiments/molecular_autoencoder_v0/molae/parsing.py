@@ -164,6 +164,7 @@ def parse_structure(
     keep_ligands: bool = False,
     exclude_ligands=C.CRYSTALLIZATION_ADDITIVES,
     min_ligand_atoms: int = 1,
+    keep_modified_residues: bool = False,
 ) -> Optional[ParsedStructure]:
     """Parse one structure file into a cleaned :class:`ParsedStructure`.
 
@@ -245,8 +246,21 @@ def parse_structure(
     chain_idx_list, seq_one, per_chain_seq = [], [], []
     dropped_nonstandard = {}
     dropped_unknown_atoms = 0
+    dropped_oversized_residues = 0
     incomplete_backbone = 0
     missing_residue_gaps = 0
+    n_modified = 0
+
+    # Every residue belonging to ANY polymer, so the hetero pass cannot re-add
+    # one as a free-floating "ligand". Modified residues (MSE, HYP, D-amino
+    # acids) carry het_flag "H" *while sitting inside the backbone*, so without
+    # this they get a synthetic chain_idx and lose both peptide bonds -- the
+    # chain guard in perceive_bonds then correctly, and uselessly, refuses to
+    # bond them to the protein they are part of.
+    polymer_residues = set()
+    for chain in model:
+        for res in chain.get_polymer():
+            polymer_residues.add((chain.name, res.seqid.num, res.name))
 
     # res_pos is GLOBAL across kept chains. That matters for more than
     # bookkeeping: the direct decoder indexes its output slot bank by
@@ -265,15 +279,22 @@ def parse_structure(
                 missing_residue_gaps += (seqid - prev_seqid - 1)
             prev_seqid = seqid
 
-            if resname not in C.STANDARD_AA_SET:
+            modified = resname not in C.STANDARD_AA_SET
+            if modified:
                 dropped_nonstandard[resname] = dropped_nonstandard.get(resname, 0) + 1
-                continue
+                if not keep_modified_residues:
+                    continue
+                n_modified += 1
 
             kept_names = set()
             res_atoms = []
             for atom in res:
                 aname = atom.name
-                if aname not in C.ATOM_NAME_TO_IDX:
+                # A modified residue's extra atoms (SME's methyl, HYP's
+                # hydroxyl) are not in the protein vocabulary; dropping them
+                # would silently truncate the residue, so it takes ordinal
+                # slots instead and keeps every atom.
+                if aname not in C.ATOM_NAME_TO_IDX and not modified:
                     dropped_unknown_atoms += 1
                     continue
                 esym = atom.element.name.upper()
@@ -284,22 +305,34 @@ def parse_structure(
                 continue
             if not set(C.BACKBONE_ATOMS).issubset(kept_names):
                 incomplete_backbone += 1
+            if modified and len(res_atoms) > C.N_SLOTS:
+                # Cannot address more atoms than the group has slots.
+                dropped_oversized_residues += 1
+                continue
 
-            for aname, esym, p in res_atoms:
+            # Named slots need every atom to be in the vocabulary AND unique;
+            # decided per RESIDUE so the two schemes never mix inside a group.
+            named = (not modified
+                     or (all(a in C.ATOM_NAME_TO_IDX for a, _, _ in res_atoms)
+                         and len({a for a, _, _ in res_atoms}) == len(res_atoms)))
+            for k, (aname, esym, p) in enumerate(res_atoms):
                 element_idx.append(C.ELEMENT_TO_IDX.get(esym, C.UNK_ELEMENT_IDX))
-                residue_idx.append(C.RESIDUE_TO_IDX[resname])
-                atom_name_idx.append(C.ATOM_NAME_TO_IDX[aname])
-                # For a protein residue the decoder slot IS the atom name, so
+                residue_idx.append(C.RESIDUE_TO_IDX.get(resname, C.UNK_RESIDUE_IDX))
+                atom_name_idx.append(C.ATOM_NAME_TO_IDX.get(aname, C.UNK_ATOM_IDX))
+                # For a standard residue the decoder slot IS the atom name, so
                 # the gather is unchanged from the protein-only pipeline.
-                slot_idx.append(C.ATOM_NAME_TO_IDX[aname])
+                slot_idx.append(C.ATOM_NAME_TO_IDX[aname] if named else k)
                 res_pos.append(pos)
                 res_seq.append(seqid)
+                # The polymer's chain, NOT a synthetic one: a modified residue
+                # is covalently in the backbone and must keep its peptide bonds.
                 chain_idx_list.append(ci)
                 coords.append([p.x, p.y, p.z])
                 element_symbol.append(esym)
                 atom_name.append(aname)
-            seq_one.append(C.THREE_TO_ONE[resname])
-            chain_seq.append(C.THREE_TO_ONE[resname])
+            one = C.THREE_TO_ONE.get(resname, "X")
+            seq_one.append(one)
+            chain_seq.append(one)
             pos += 1
         per_chain_seq.append("".join(chain_seq))
 
@@ -318,6 +351,8 @@ def parse_structure(
             for res in chain:
                 if res.is_water() or res.het_flag != "H":
                     continue
+                if (chain.name, res.seqid.num, res.name) in polymer_residues:
+                    continue          # a modified residue, handled in-chain above
                 if res.name in exclude_ligands:
                     ligands_dropped[res.name] = ligands_dropped.get(res.name, 0) + 1
                     continue
@@ -398,6 +433,8 @@ def parse_structure(
         "n_kept_chains": len(kept_chains),
         "per_chain_sequence": list(per_chain_seq),
         "dropped_nonstandard_residues": dropped_nonstandard,
+        "n_modified_residues_kept": int(n_modified),
+        "dropped_oversized_residues": int(dropped_oversized_residues),
         "dropped_unknown_atoms": dropped_unknown_atoms,
         "residues_incomplete_backbone": incomplete_backbone,
         "missing_residue_gaps": missing_residue_gaps,
