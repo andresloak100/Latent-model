@@ -135,6 +135,64 @@ def test_geometry_stats_separate_ideal_from_strained():
     assert ss["bond_length_sd"] > si["bond_length_sd"] * 100
 
 
+IDEAL = {("C", "C"): 1.52, ("C", "N"): 1.33, ("N", "N"): 1.40}
+
+
+def _mixed_chain(n, rng, noise=0.0):
+    """Chain with genuinely MIXED bond types, each at its own ideal length.
+
+    Elements come in pairs (C C N N C C N N ...) so C-C, C-N and N-N all
+    occur. An earlier fixture alternated C,N which makes every bond C-N --
+    a single type, where within-type sd equals the aggregate and the test
+    proves nothing.
+    """
+    elems = [("C" if (k // 2) % 2 == 0 else "N") for k in range(n)]
+    c = [np.zeros(3)]
+    for k in range(1, n):
+        key = tuple(sorted((elems[k - 1], elems[k])))
+        L = IDEAL[key] + (rng.normal(0, noise) if noise else 0.0)
+        step = rng.normal(0, 1, 3)
+        c.append(c[-1] + step / np.linalg.norm(step) * L)
+    bonds = np.stack([np.arange(n - 1), np.arange(1, n)], axis=1)
+    return {"coords": np.array(c), "bonds": bonds, "element_symbol": elems}
+
+
+def test_aggregate_sd_is_blind_to_refinement_noise():
+    """The flaw the cluster found: a mixed-bond-type structure with ZERO
+    within-type noise still reports sd ~0.1, because the spread BETWEEN ideal
+    types dominates. Both tiers measured 0.115-0.118 for this reason."""
+    rng = np.random.default_rng(0)
+    s = tier_geometry_stats([_mixed_chain(120, rng, noise=0.0)])
+    assert s["bond_length_sd"] > 0.05               # nuisance term, not noise
+    assert s["bond_length_sd_within_type"] < 1e-9   # the truth: no noise at all
+
+
+def test_within_type_sd_separates_ideal_from_refined():
+    rng = np.random.default_rng(1)
+    a = tier_geometry_stats([_mixed_chain(200, rng, noise=0.0)])
+    b = tier_geometry_stats([_mixed_chain(200, rng, noise=0.03)])
+    # The aggregate barely moves between an ideal builder and a refined
+    # structure; the within-type measure separates them cleanly.
+    assert abs(a["bond_length_sd"] - b["bond_length_sd"]) < 0.02
+    assert a["bond_length_sd_within_type"] < 1e-9
+    assert b["bond_length_sd_within_type"] > 0.015
+
+
+def test_rg_ratio_flags_an_extended_chain():
+    """What bonds cannot see: a low-confidence predicted region is an extended
+    ribbon with PERFECT bond lengths and unphysical global shape."""
+    rng = np.random.default_rng(2)
+    n = 120
+    extended = np.stack([np.arange(n) * 3.8, np.zeros(n), np.zeros(n)], axis=1)
+    bonds = np.stack([np.arange(n - 1), np.arange(1, n)], axis=1)
+    ext = tier_geometry_stats([{"coords": extended, "bonds": bonds,
+                                "element_symbol": ["C"] * n}])
+    folded = rng.normal(0, 2.2 * n ** 0.38 / np.sqrt(3), (n, 3))
+    fold = tier_geometry_stats([{"coords": folded, "bonds": bonds,
+                                 "element_symbol": ["C"] * n}])
+    assert ext["rg_ratio"] > 5 * fold["rg_ratio"]
+
+
 # --- the schedule as a sweepable hyper-parameter ---------------------------
 
 def test_from_spec_matches_a_hand_built_ramp():

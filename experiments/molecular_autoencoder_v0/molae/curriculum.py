@@ -165,26 +165,56 @@ def tier_geometry_stats(samples):
     mixture: if the distributions are close the curriculum is low risk, and if
     they are far apart the high-quality tier needs more weight, earlier.
     """
-    bond_sd, clash, n_atoms = [], [], []
+    bond_sd, within_sd, clash, n_atoms, rg_ratio = [], [], [], [], []
     for d in samples:
         coords = np.asarray(d["coords"], dtype=np.float64)
         bonds = np.asarray(d["bonds"]).reshape(-1, 2)
+        elems = [str(x).upper() for x in d.get("element_symbol", [])]
         n_atoms.append(len(coords))
         if len(bonds):
             lens = np.linalg.norm(coords[bonds[:, 0]] - coords[bonds[:, 1]], axis=1)
             bond_sd.append(float(lens.std()))
+            if elems:
+                by_type = {}
+                for (i, j), L in zip(bonds, lens):
+                    by_type.setdefault(tuple(sorted((elems[i], elems[j]))), []).append(L)
+                num = sum(len(v) * float(np.std(v)) for v in by_type.values() if len(v) >= 3)
+                den = sum(len(v) for v in by_type.values() if len(v) >= 3)
+                if den:
+                    within_sd.append(num / den)
         if len(coords) > 1:
+            cen = coords - coords.mean(axis=0)
+            rg = float(np.sqrt((cen ** 2).sum(axis=1).mean()))
+            rg_ratio.append(rg / (2.2 * max(len(coords), 1) ** 0.38))
             dm = np.linalg.norm(coords[:, None, :] - coords[None, :, :], axis=-1)
             iu = np.triu_indices(len(coords), k=1)
             bonded = set(map(tuple, bonds.tolist()))
             close = sum(1 for a, b in zip(*iu)
                         if dm[a, b] < 2.0 and (a, b) not in bonded)
             clash.append(1000.0 * close / len(coords))
+
+    def m(v):
+        return float(np.mean(v)) if len(v) else float("nan")
+
     return {
         "n_structures": len(samples),
-        "mean_atoms": float(np.mean(n_atoms)) if n_atoms else float("nan"),
-        # Ideal-geometry builders produce a very TIGHT bond-length spread;
-        # experimental structures carry real strain and refinement error.
-        "bond_length_sd": float(np.mean(bond_sd)) if bond_sd else float("nan"),
-        "clashes_per_1000_atoms": float(np.mean(clash)) if clash else float("nan"),
+        "mean_atoms": m(n_atoms),
+        # NUISANCE-DOMINATED, kept only for continuity. A per-structure spread
+        # over all bond types is dominated by the difference BETWEEN ideal
+        # types (C-C 1.52, C-N 1.33, C-O 1.23), ~0.11 A by construction. Both
+        # tiers measuring 0.115-0.118 mostly reflects bond-type composition,
+        # not refinement noise -- so it cannot answer the question it was
+        # written for.
+        "bond_length_sd": m(bond_sd),
+        # THE real measurement: spread WITHIN each element pair, count-weighted.
+        # An ideal-geometry builder emits a near-constant length per type; a
+        # refined structure carries real strain. Nuisance term removed, so a
+        # difference here is signal.
+        "bond_length_sd_within_type": m(within_sd),
+        "clashes_per_1000_atoms": m(clash),
+        # Catches what bonds cannot see at all: low-confidence regions of
+        # predicted structures are extended ribbons whose bond lengths are
+        # perfect and whose global shape is unphysical. Against the empirical
+        # folded-globular scaling Rg ~ 2.2 * N^0.38; well above 1 = not compact.
+        "rg_ratio": m(rg_ratio),
     }
