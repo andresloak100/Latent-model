@@ -47,16 +47,24 @@ BOND_TOLERANCE = 0.45  # angstrom
 # than this are the same atom deposited twice (overlapping partial-occupancy
 # ligand copies), and bonding them fuses the copies into one over-valent blob.
 MIN_BOND_DISTANCE = 0.9
-# Duplicate detection: how many of one group's atoms sit essentially on top of
-# the SAME-NAMED atom of another group.
+# Duplicate detection: how many of one group's atoms sit within this distance
+# of ANY atom of another group.
 #
-# Same-name coincidence is the discriminator, and both halves matter. A
-# glycosidic bond joins C1 of one sugar to O4 of the next -- DIFFERENT names --
-# so a glycan tree scores zero here, while its closest-pair distance (~1.4 A)
-# is indistinguishable from an overlap. Two NAGs also have identical name
-# SETS, so a set-overlap test cannot separate them either. Only "same name,
-# same place" is specific to one molecule deposited twice.
-DUPLICATE_ATOM_DISTANCE = 1.0
+# The threshold is physical, not tuned. No two distinct heavy atoms sit below
+# ~1.2 A -- the shortest real heavy-atom bonds are N#N at ~1.13 A and C#N at
+# ~1.16 A -- so a sub-1.1 A pair is overlapping duplicate atoms, whatever the
+# atoms are called.
+#
+# ANY name, not same name. 5IVT and 4MC9 deposit duplicate copies related by
+# an internal-symmetry flip, so the coincident atoms carry DIFFERENT names
+# (5IVT C4<->C2, C10<->C30; 4MC9 N10<->N20 at 0.98 A). A same-name test scores
+# those at 1 and misses them entirely.
+#
+# A glycosidic bond is 1.41 A, so a glycan tree scores exactly ZERO here
+# rather than the small-but-nonzero signal a closest-pair test gives -- there
+# is no threshold to tune against. Metal coordination (~2.0 A) and a second
+# copy bound at a distant site also score zero, so both protected cases hold.
+DUPLICATE_ATOM_DISTANCE = 1.1
 # Judged a duplicate at either signal: a high overlap fraction (small ligands,
 # where a couple of atoms is the whole molecule) or an absolute count (large
 # flexible ligands deposited as displaced alternate conformations, where only

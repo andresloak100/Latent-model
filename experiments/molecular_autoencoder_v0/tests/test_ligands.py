@@ -425,16 +425,47 @@ def test_the_better_supported_copy_is_the_one_kept(tmp_path):
     assert ps.record["ligands_kept"][0]["name"] == "PLM"
 
 
-def test_nested_ligand_with_disjoint_names_is_kept(tmp_path):
-    """The case the overlap rule must NOT catch: a small ligand genuinely
-    nested inside a larger one (an ion chelated at the centre of a ring).
-    Centroids nearly coincide, but they share no atom names."""
-    ps = parse_structure(
-        _overlapping_ligands_pdb(tmp_path, 1.0, 1.0, names_b=["N1", "N2", "N3",
-                                                              "N4", "N5", "N6"]),
-        pdb_id="T", keep_ligands=True)
+def test_chelated_ion_inside_a_ring_is_kept(tmp_path):
+    """The case the overlap rule must NOT catch: an ion coordinated at the
+    centre of a macrocycle. Its centroid coincides with the ring's, but
+    coordination sits at ~2.0 A -- far outside the 1.1 A overlap distance.
+
+    An earlier fixture put two 6-atom chains 0.3 A apart and called that
+    "nested"; two molecules that close ARE overlapping, whatever their atoms
+    are named, so it was testing the wrong thing."""
+    lines, serial = [], 1
+    for r in range(1, 11):
+        base = np.array([3.8 * r, 0.0, 0.0])
+        for aname, elem, off in [("N", "N", (0., 0., 0.)), ("CA", "C", (1.4, .2, 0.)),
+                                 ("C", "C", (2.5, -.4, 0.)), ("O", "O", (2.6, -1.6, 0.)),
+                                 ("CB", "C", (1.5, 1.7, 0.))]:
+            lines.append(_atom_line("ATOM", serial, f" {aname:<3s}"[:4], "ALA",
+                                    "A", r, base + np.array(off), elem))
+            serial += 1
+    centre = np.array([50.0, 8.0, 0.0])
+    for k in range(6):                       # macrocycle, 2.1 A coordination
+        th = 2 * np.pi * k / 6
+        pos = centre + 2.1 * np.array([np.cos(th), np.sin(th), 0.0])
+        lines.append(_atom_line("HETATM", serial, f" N{k + 1:<2d}"[:4], "POR",
+                                "B", 501, pos, "N"))
+        serial += 1
+    lines.append(_atom_line("HETATM", serial, " ZN ", "ZN", "B", 502, centre, "ZN"))
+    lines.append("END")
+    f = tmp_path / "chelate.pdb"; f.write_text("\n".join(lines) + "\n")
+    ps = parse_structure(str(f), pdb_id="T", keep_ligands=True)
     assert ps.record["n_duplicate_ligands_dropped"] == 0
     assert len(ps.record["ligands_kept"]) == 2
+
+
+def test_symmetry_flipped_duplicate_is_caught(tmp_path):
+    """5IVT and 4MC9 deposit copies related by an internal-symmetry flip, so
+    the coincident atoms carry DIFFERENT names (4MC9: N10<->N20 at 0.98 A).
+    Keying on same-name coincidence scored those at 1 and missed them."""
+    ps = parse_structure(
+        _overlapping_ligands_pdb(tmp_path, 0.5, 0.5,
+                                 names_b=["C6", "C5", "C4", "C3", "C2", "C1"]),
+        pdb_id="T", keep_ligands=True)
+    assert ps.record["n_duplicate_ligands_dropped"] == 1
 
 
 def test_same_names_at_one_site_are_duplicates_at_any_occupancy(tmp_path):
