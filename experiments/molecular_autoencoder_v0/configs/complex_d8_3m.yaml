@@ -1,0 +1,62 @@
+# CAPACITY CONTROL for complex_d8.
+#
+# complex_d8 runs the 1.1M model (d_model 128) on structures ~4x larger than
+# anything it was validated on, AND with three representation paths added at
+# once (multi-chain, ligands, modified residues). The 0.79 A reference it is
+# being compared against is the 3.8M model (d_model 256); the 1.1M model on
+# the EASY <=800-atom task scored 0.878 A, not 0.79.
+#
+# So "capacity" was never a surprising outcome -- it is what you get from not
+# scaling the model with the task. This config is the same data and the same
+# 242k step budget with the model matched to the reference, so capacity
+# becomes a measured variable instead of an inference.
+#
+# Model block is identical to ladder_direct3m_n2272 (d_model 256, n_heads 8,
+# 3.8M params). Everything else is complex_d8 unchanged.
+name: complex_d8_3m
+data:
+  processed_dir: data/processed_complex
+  splits_file: data/splits_complex.json
+  min_residues: 20
+  max_residues: 400
+  max_atoms: 3000
+model:
+  d_model: 256
+  n_heads: 8
+  n_latent_tokens: 16
+  latent_dim: 8
+  enc_self_layers: 2
+  dec_self_layers: 2
+  ff_mult: 4
+  dropout: 0.0
+  max_res_pos: 1024
+  coord_scale: 10.0
+  max_chains: 16
+  use_slot_emb: true
+  encoder_type: direct
+  k_neighbors: 8
+  rope_freqs: 128
+  rope_spherical: false
+  objective: reconstruct
+  flow_steps: 50
+loss:
+  coord: 1.0
+  distance: 1.0
+  bond: 1.0
+  clash: 0.5
+  chirality: 0.2
+train:
+  seed: 0
+  epochs: 3457
+  batch_size: 8
+  lr: 0.0003
+  weight_decay: 0.0
+  grad_clip: 1.0
+  log_every: 25
+  eval_every: 25
+  ckpt_every: 50
+  clash_dist: 1.5
+  loss_max_atoms: 3000
+  out_dir: outputs/complex_d8_3m
+  overfit: false
+  augment_rotation: true
