@@ -407,7 +407,7 @@ def parse_structure(
     # and therefore numerically adjacent across that boundary.
     n_protein_residues = pos          # before ligand groups extend res_pos
     ligands_kept, ligands_dropped = [], {}
-    ligand_centroids = []
+    ligand_groups_seen = []
     n_ligand_atoms = 0
     n_duplicate_ligands = 0
     n_intra_residue_duplicates = 0
@@ -463,27 +463,42 @@ def parse_structure(
             # occupying one site and, with ligand-ligand bonding, fuses
             # them into an over-valent blob.
             #
-            # NAME OVERLAP is the discriminator, not occupancy: 5IVT deposits
-            # its two copies at EQUAL occupancy, which no occupancy comparison
-            # can separate. Two groups occupying one site and sharing most of
-            # their atom names are copies of one molecule. A small ligand
-            # genuinely nested inside a larger one (an ion chelated at the
-            # centre of a ring) shares no names and is correctly kept.
-            cen = np.mean([[p.x, p.y, p.z] for _, _, p in lig_atoms], axis=0)
+            # Two criteria, and BOTH are needed.
+            #
+            # NAME OVERLAP, not occupancy: 5IVT deposits its two copies at
+            # EQUAL occupancy, which no occupancy comparison can separate. It
+            # is also what spares a small ligand genuinely nested inside a
+            # larger one (an ion chelated at the centre of a ring) -- it shares
+            # no names, so it is never judged a copy.
+            #
+            # INTERPENETRATION, not centroid coincidence: 5IVT's two copies are
+            # alternate CONFORMATIONS whose centroids sit 5.78 A apart while
+            # individual atoms overlap at ~1.0 A. A centroid test fires for the
+            # 6S2M case (PLM/VCA, 0.3 A apart) and silently misses this one.
+            # Two real copies bound at two different sites stay several
+            # angstrom apart at their closest, so both survive.
+            pts = np.array([[p.x, p.y, p.z] for _, _, p in lig_atoms])
             names = {a for a, _, _ in lig_atoms}
             dup = False
-            for c, prev in ligand_centroids:
-                if np.linalg.norm(cen - c) >= C.DUPLICATE_LIGAND_DISTANCE:
+            for prev_pts, prev_names in ligand_groups_seen:
+                shared = len(names & prev_names) / max(min(len(names), len(prev_names)), 1)
+                if shared < C.DUPLICATE_LIGAND_NAME_OVERLAP:
                     continue
-                shared = len(names & prev) / max(min(len(names), len(prev)), 1)
-                if shared >= C.DUPLICATE_LIGAND_NAME_OVERLAP:
+                # Cheap reject before the full pairwise distance.
+                if (np.linalg.norm(pts.mean(0) - prev_pts.mean(0))
+                        > np.ptp(pts, axis=0).max() + np.ptp(prev_pts, axis=0).max()
+                        + C.DUPLICATE_LIGAND_CONTACT):
+                    continue
+                closest = np.linalg.norm(
+                    pts[:, None, :] - prev_pts[None, :, :], axis=-1).min()
+                if closest < C.DUPLICATE_LIGAND_CONTACT:
                     dup = True
                     break
             if dup:
                 n_duplicate_ligands += 1
                 ligands_dropped[res.name] = ligands_dropped.get(res.name, 0) + 1
                 continue
-            ligand_centroids.append((cen, names))
+            ligand_groups_seen.append((pts, names))
             # A hetero group can still be a *known* chemical species -- a
             # bound amino acid or peptide ligand (1PIN deposits ALA and PRO
             # this way). Labelling those "LIG/UNK" would throw away

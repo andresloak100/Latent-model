@@ -482,6 +482,70 @@ def test_repeated_atom_names_within_one_group_are_collapsed(tmp_path):
     assert len(names) == len(set(names)) == 3   # C1, C2, C3
 
 
+def _alt_conformation_pdb(tmp_path):
+    """5IVT's shape: ONE ligand deposited as two alternate conformations. Same
+    atom names, but the copies are DISPLACED -- centroids 5.78 A apart -- while
+    individual atoms still overlap at ~1.0 A. A centroid test cannot see this.
+    """
+    lines, serial = [], 1
+    for r in range(1, 11):
+        base = np.array([3.8 * r, 0.0, 0.0])
+        for aname, elem, off in [("N", "N", (0., 0., 0.)), ("CA", "C", (1.4, .2, 0.)),
+                                 ("C", "C", (2.5, -.4, 0.)), ("O", "O", (2.6, -1.6, 0.)),
+                                 ("CB", "C", (1.5, 1.7, 0.))]:
+            lines.append(_atom_line("ATOM", serial, f" {aname:<3s}"[:4], "ALA",
+                                    "A", r, base + np.array(off), elem))
+            serial += 1
+    # Copy A runs along +x; copy B is the same molecule shifted, so the two
+    # centroids are far apart but their near ends interpenetrate.
+    for seq, shift in [(501, 0.0), (502, 11.0)]:
+        for k in range(12):
+            lines.append(_atom_line("HETATM", serial, f" C{k + 1:<2d}"[:4], "LIG",
+                                    "B", seq, (50.0 + 1.0 * k + shift, 8.0, 0.0),
+                                    "C", occ=0.5))
+            serial += 1
+    lines.append("END")
+    p = tmp_path / "alt.pdb"
+    p.write_text("\n".join(lines) + "\n")
+    return str(p)
+
+
+def test_displaced_alternate_conformations_are_collapsed(tmp_path):
+    """The 5IVT case: centroids far apart, atoms overlapping. Interpenetration
+    catches it where centroid coincidence cannot."""
+    ps = parse_structure(_alt_conformation_pdb(tmp_path), pdb_id="T",
+                         keep_ligands=True)
+    cens = [np.mean([ps.coords[i] for i in range(ps.n_atoms)
+                     if ps.res_pos[i] == g], axis=0)
+            for g in sorted(set(ps.res_pos[ps.residue_idx == C.LIGAND_RESIDUE_IDX].tolist()))]
+    assert ps.record["n_duplicate_ligands_dropped"] == 1
+    assert len(ps.record["ligands_kept"]) == 1
+
+
+def test_same_ligand_at_two_distant_sites_is_kept(tmp_path):
+    """The case interpenetration must NOT catch: two real copies of one ligand
+    bound at two different sites. Identical names, but far apart."""
+    lines, serial = [], 1
+    for r in range(1, 11):
+        base = np.array([3.8 * r, 0.0, 0.0])
+        for aname, elem, off in [("N", "N", (0., 0., 0.)), ("CA", "C", (1.4, .2, 0.)),
+                                 ("C", "C", (2.5, -.4, 0.)), ("O", "O", (2.6, -1.6, 0.)),
+                                 ("CB", "C", (1.5, 1.7, 0.))]:
+            lines.append(_atom_line("ATOM", serial, f" {aname:<3s}"[:4], "ALA",
+                                    "A", r, base + np.array(off), elem))
+            serial += 1
+    for seq, shift in [(501, 0.0), (502, 40.0)]:      # 40 A apart: distinct sites
+        for k in range(6):
+            lines.append(_atom_line("HETATM", serial, f" C{k + 1:<2d}"[:4], "LIG",
+                                    "B", seq, (50.0 + 1.5 * k + shift, 8.0, 0.0), "C"))
+            serial += 1
+    lines.append("END")
+    f = tmp_path / "twosites.pdb"; f.write_text("\n".join(lines) + "\n")
+    ps = parse_structure(str(f), pdb_id="T", keep_ligands=True)
+    assert ps.record["n_duplicate_ligands_dropped"] == 0
+    assert len(ps.record["ligands_kept"]) == 2
+
+
 def test_equal_occupancy_duplicates_are_still_collapsed(tmp_path):
     """5IVT's two copies sit at EQUAL occupancy, which the occupancy rule
     cannot separate -- name overlap is what identifies them."""

@@ -47,9 +47,13 @@ BOND_TOLERANCE = 0.45  # angstrom
 # than this are the same atom deposited twice (overlapping partial-occupancy
 # ligand copies), and bonding them fuses the copies into one over-valent blob.
 MIN_BOND_DISTANCE = 0.9
-# Two hetero groups whose centroids sit within this distance AND that share
-# most of their atom names are duplicate copies of one molecule.
-DUPLICATE_LIGAND_DISTANCE = 1.5
+# Two hetero groups are copies of one molecule when they share most of their
+# atom names AND spatially interpenetrate. Interpenetration, not centroid
+# coincidence: 5IVT deposits two ALTERNATE CONFORMATIONS of one ligand whose
+# centroids sit 5.78 A apart while individual atoms overlap at ~1.0 A, so a
+# centroid test never fires. Two genuinely distinct copies of a ligand bound at
+# two sites stay several angstrom apart at their closest and are both kept.
+DUPLICATE_LIGAND_CONTACT = 2.0
 # Fraction of atom names two overlapping hetero groups must share to be judged
 # copies of one molecule. Name overlap rather than occupancy: 5IVT deposits two
 # copies at EQUAL occupancy, which an occupancy comparison cannot separate,
