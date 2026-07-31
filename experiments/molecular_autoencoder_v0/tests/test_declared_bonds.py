@@ -111,3 +111,57 @@ def test_declared_bonds_bypass_the_geometric_filters():
     perceived = np.zeros((0, 2), dtype=np.int64)
     stated = np.array([[0, 1]], dtype=np.int64)
     assert merge_bonds(perceived, stated).tolist() == [[0, 1]]
+
+
+# --- the dataset gate's covalent-link test ---------------------------------
+
+def test_noncovalent_ligand_corpus_is_not_a_failure():
+    """MISATO's ligands are separate molecules with no protein-ligand bond.
+    An earlier version of the gate hard-failed on that, which is a PDB
+    assumption and made the gate cry wolf on every MISATO build."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from check_dataset import check_structure
+    from molae import constants as C
+
+    n = 12
+    coords = np.zeros((n, 3), dtype=np.float64)
+    coords[:8, 0] = np.arange(8) * 1.5              # protein
+    coords[8:, 0] = np.arange(4) * 1.5              # ligand, 5 A away
+    coords[8:, 1] = 5.0
+    resid = np.array([C.RESIDUE_TO_IDX["ALA"]] * 8 + [C.LIGAND_RESIDUE_IDX] * 4)
+    bonds = np.array([[i, i + 1] for i in range(7)] +
+                     [[i, i + 1] for i in range(8, 11)], dtype=np.int64)
+    d = {"coords": coords, "bonds": bonds,
+         "res_pos": np.array([0]*4 + [1]*4 + [2]*4),
+         "slot_idx": np.array(list(range(4)) * 3),
+         "residue_idx": resid, "chain_idx": np.array([0]*8 + [1]*4),
+         "atom_name": ["C"] * n, "element_symbol": ["C"] * n}
+    hard, soft, stats, orphans = check_structure(d)
+    assert stats["anchors"] == 0
+    assert not any("1.9 A" in h for h in hard), hard
+
+
+def test_severed_covalent_link_is_caught():
+    """A ligand atom at covalent range from protein and NOT bonded -- the
+    real defect the anchor check was meant to find."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from check_dataset import check_structure
+    from molae import constants as C
+
+    n = 6
+    coords = np.zeros((n, 3), dtype=np.float64)
+    coords[:4, 0] = np.arange(4) * 1.5
+    coords[4:, 0] = coords[3, 0] + np.array([1.45, 2.95])   # 1.45 A = covalent
+    resid = np.array([C.RESIDUE_TO_IDX["ALA"]] * 4 + [C.LIGAND_RESIDUE_IDX] * 2)
+    bonds = np.array([[0, 1], [1, 2], [2, 3], [4, 5]], dtype=np.int64)  # no 3-4
+    d = {"coords": coords, "bonds": bonds,
+         "res_pos": np.array([0, 0, 0, 0, 1, 1]),
+         "slot_idx": np.array([0, 1, 2, 3, 0, 1]),
+         "residue_idx": resid, "chain_idx": np.array([0, 0, 0, 0, 1, 1]),
+         "atom_name": ["C"] * n, "element_symbol": ["C"] * n}
+    hard, soft, stats, orphans = check_structure(d)
+    assert any("1.9 A" in h for h in hard), hard

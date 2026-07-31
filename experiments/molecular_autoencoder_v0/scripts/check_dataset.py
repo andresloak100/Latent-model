@@ -128,6 +128,33 @@ def check_structure(d):
     anchor = sum(1 for i, j in bonds if lig[i] != lig[j])
     tree = sum(1 for i, j in bonds if lig[i] and lig[j] and chain[i] != chain[j])
 
+    # 8. SEVERED covalent links -- a direct test, not an aggregate heuristic.
+    #
+    # An earlier version hard-failed a corpus with ligands but zero anchors.
+    # That encodes a PDB assumption (about half of PDB ligand groups are
+    # covalently attached -- glycans to ASN, heme C to CXXCH) which is simply
+    # false for a corpus of non-covalent binders: MISATO's ligands are
+    # separate molecules with no protein-ligand bond at all, and the check
+    # fired on every build. A gate that cries wolf gets ignored, which is
+    # worse than no gate.
+    #
+    # What we actually care about is a pair sitting at COVALENT range and not
+    # bonded. Non-covalent binding sits at 2.7 A and up, so a genuine
+    # non-covalent corpus scores zero here while a severed glycan link scores
+    # one. This is source-agnostic.
+    severed = 0
+    if lig.any() and (~lig).any():
+        li = np.where(lig)[0]
+        pi = np.where(~lig)[0]
+        bond_set = {(int(a), int(b)) for a, b in bonds}
+        dm = np.linalg.norm(coords[li][:, None, :] - coords[pi][None, :, :], axis=-1)
+        for a, b in zip(*np.where(dm < 1.9)):
+            u, v = int(li[a]), int(pi[b])
+            if (min(u, v), max(u, v)) not in bond_set:
+                severed += 1
+    if severed:
+        hard.append(f"{severed} ligand-protein pairs within 1.9 A but not bonded")
+
     stats = {"n_atoms": n, "n_bonds": len(bonds), "n_ligand_atoms": int(lig.sum()),
              "disulfides": ss_bonded, "anchors": anchor, "trees": tree,
              "isolated_atoms": isolated,
@@ -174,6 +201,9 @@ def main():
         print(f"  ligand atoms {totals['n_ligand_atoms']:,}   "
               f"anchors {totals['anchors']}   glycan/tree links {totals['trees']}")
         print(f"  disulfides {totals['disulfides']}")
+        if totals["n_ligand_atoms"] and totals["anchors"] == 0:
+            print("  note: ligands present, zero covalent anchors -- expected "
+                  "for a non-covalent binder corpus, not an error")
         print(f"  isolated atoms {totals['isolated_atoms']}   "
               f"(of which monatomic ions, expected: {totals['monatomic_ions']})")
         if all_orphans:
@@ -194,10 +224,9 @@ def main():
         corpus_fail.append(
             "NO disulfides anywhere in the corpus -- this is what was wrong "
             "for the entire project before struct_conn was read")
-    if totals["n_ligand_atoms"] and totals["anchors"] == 0:
-        corpus_fail.append(
-            "ligands present but ZERO bonded to any protein atom -- covalent "
-            "anchoring is severed")
+    # NOTE: zero anchors is NOT a failure. A corpus of non-covalent binders
+    # (MISATO) legitimately has none. Severed anchors are caught per-structure
+    # by the covalent-range test above, which is source-agnostic.
 
     if failures or corpus_fail:
         print(f"\n[check] FAILED: {len(failures)} structures violate a hard invariant")
