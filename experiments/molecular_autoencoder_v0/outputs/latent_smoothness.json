@@ -1,0 +1,52 @@
+{
+  "n_entries": 3,
+  "mean_rho_trained": 0.9331183621298278,
+  "mean_rho_random_init": 0.8753282073216897,
+  "mean_gain_over_control": 0.05779015480813798,
+  "mean_resolution_ratio": 0.8675447459289685,
+  "mean_recon_rmsd": 1.1324249222519533,
+  "entries": [
+    {
+      "pdb_id": "1L2Y",
+      "n_models": 20,
+      "n_atoms": 154,
+      "rho_trained": 0.8601599986003403,
+      "rho_random_init": 0.7443241611883111,
+      "rho_above_control": 0.11583583741202919,
+      "mean_struct_rmsd": 1.5291693731149814,
+      "struct_spread": 0.2362475897529182,
+      "recon_rmsd": 1.0200754855623444,
+      "resolution_ratio": 0.8074862745804137,
+      "spread_true": 1.5291693731149814,
+      "spread_reconstructions": 1.2347832802990828
+    },
+    {
+      "pdb_id": "1FSD",
+      "n_models": 20,
+      "n_atoms": 247,
+      "rho_trained": 0.9888657070249796,
+      "rho_random_init": 0.9442428059677991,
+      "rho_above_control": 0.044622901057180475,
+      "mean_struct_rmsd": 2.8718395674775103,
+      "struct_spread": 0.8765433869373263,
+      "recon_rmsd": 1.2271663017599308,
+      "resolution_ratio": 0.934028758798137,
+      "spread_true": 2.8718395674775103,
+      "spread_reconstructions": 2.6823807466783975
+    },
+    {
+      "pdb_id": "1E0L",
+      "n_models": 10,
+      "n_atoms": 309,
+      "rho_trained": 0.9503293807641634,
+      "rho_random_init": 0.9374176548089591,
+      "rho_above_control": 0.01291172595520429,
+      "mean_struct_rmsd": 1.3874159042459375,
+      "struct_spread": 0.2462202175051294,
+      "recon_rmsd": 1.150032979433585,
+      "resolution_ratio": 0.8611192044083548,
+      "spread_true": 1.3874159042459375,
+      "spread_reconstructions": 1.1947304796477598
+    }
+  ]
+}
