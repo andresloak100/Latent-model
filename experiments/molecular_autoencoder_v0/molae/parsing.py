@@ -156,6 +156,64 @@ def perceive_bonds(
     return pairs[order]
 
 
+def declared_bonds(structure, atom_address) -> np.ndarray:
+    """Covalent links the DEPOSITOR declared, from the mmCIF struct_conn table.
+
+    Distance-plus-adjacency perception cannot see these and never could:
+
+      * Disulfides join cysteines tens of residues apart in sequence, so the
+        ``|delta res_pos| <= 1`` rule excludes every one of them. 1BPI has
+        three at ~2.0 A and we perceived none. Missing bonds are invisible to
+        a valence invariant, which only fires on extra ones.
+      * Covale records state protein-ligand anchoring and glycosidic links
+        outright -- the facts three separate geometric heuristics were built
+        to infer.
+
+    MetalC (coordination) and Hydrog are deliberately ignored: neither is a
+    covalent bond, and perceiving them would create topology the model should
+    not learn.
+
+    Partners are matched on the deposition address, so anything filtered out
+    earlier (a dropped chain, an excluded ligand, a collapsed duplicate) is
+    simply skipped.
+    """
+    wanted = {"ConnectionType.Covale", "ConnectionType.Disulf"}
+    out = []
+    for conn in structure.connections:
+        if str(conn.type) not in wanted:
+            continue
+        a = atom_address.get((conn.partner1.chain_name,
+                              conn.partner1.res_id.seqid.num,
+                              conn.partner1.atom_name))
+        b = atom_address.get((conn.partner2.chain_name,
+                              conn.partner2.res_id.seqid.num,
+                              conn.partner2.atom_name))
+        if a is None or b is None or a == b:
+            continue
+        out.append((min(a, b), max(a, b)))
+    if not out:
+        return np.zeros((0, 2), dtype=np.int64)
+    return np.unique(np.array(out, dtype=np.int64), axis=0)
+
+
+def merge_bonds(perceived: np.ndarray, declared: np.ndarray) -> np.ndarray:
+    """Union of perceived and declared bonds, deduplicated and sorted.
+
+    Declared bonds are added AFTER the distance floor and shortcut pruning,
+    which are heuristics for guessing; a depositor's statement is not a guess
+    and is not second-guessed.
+    """
+    if declared.size == 0:
+        return perceived
+    if perceived.size == 0:
+        both = declared
+    else:
+        both = np.concatenate([perceived, declared], axis=0)
+    both = np.unique(both, axis=0)
+    order = np.lexsort((both[:, 1], both[:, 0]))
+    return both[order]
+
+
 def _drop_shortcut_bonds(pairs: np.ndarray, dist: np.ndarray) -> np.ndarray:
     """Remove a "bond" that merely shortcuts a real two-bond path.
 
@@ -307,6 +365,7 @@ def parse_structure(
     element_idx, residue_idx, atom_name_idx, slot_idx = [], [], [], []
     res_pos, res_seq, coords, element_symbol, atom_name = [], [], [], [], []
     chain_idx_list, seq_one, per_chain_seq = [], [], []
+    atom_address = {}          # (chain_name, seqid, atom_name) -> atom index
     dropped_nonstandard = {}
     dropped_unknown_atoms = 0
     dropped_oversized_residues = 0
@@ -393,6 +452,7 @@ def parse_structure(
                 coords.append([p.x, p.y, p.z])
                 element_symbol.append(esym)
                 atom_name.append(aname)
+                atom_address[(cname, seqid, aname)] = len(coords) - 1
             one = C.THREE_TO_ONE.get(resname, "X")
             seq_one.append(one)
             chain_seq.append(one)
@@ -525,6 +585,7 @@ def parse_structure(
                 coords.append([p.x, p.y, p.z])
                 element_symbol.append(esym)
                 atom_name.append(aname)
+                atom_address[(_cname, res.seqid.num, aname)] = len(coords) - 1
             pos += 1
             next_chain += 1
             n_ligand_atoms += len(lig_atoms)
@@ -549,6 +610,13 @@ def parse_structure(
     ligand_chains = tuple(range(len(kept_chains), next_chain))
     bonds = perceive_bonds(coords, element_symbol, res_pos, chain_idx,
                            unrestricted_chains=ligand_chains)
+    # Bonds the depositor declared, which geometry cannot recover: disulfides
+    # (excluded by residue adjacency) and covalent links (which three separate
+    # heuristics were built to guess at).
+    stated = declared_bonds(st, atom_address)
+    n_perceived = int(bonds.shape[0])
+    bonds = merge_bonds(bonds, stated)
+    n_added = int(bonds.shape[0]) - n_perceived
 
     record = {
         "pdb_id": pdb_id,
@@ -579,6 +647,8 @@ def parse_structure(
         "residues_incomplete_backbone": incomplete_backbone,
         "missing_residue_gaps": missing_residue_gaps,
         "n_bonds": int(bonds.shape[0]),
+        "n_declared_bonds": int(stated.shape[0]),
+        "n_bonds_added_by_declaration": int(n_added),
         **raw,
     }
 
