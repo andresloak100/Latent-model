@@ -349,9 +349,21 @@ def test_metal_coordination_is_not_a_bond():
     assert len(b) == 0
 
 
-def test_two_distinct_ligands_still_do_not_bond():
-    """Anchoring admits ligand-to-polymer pairs, not ligand-to-ligand."""
-    coords = np.array([[0., 0., 0.], [1.45, 0., 0.]], dtype=np.float32)
+def test_glycan_tree_stays_connected():
+    """An N-glycan is a TREE of separately-deposited monosaccharides, each its
+    own hetero residue and so its own chain. Admitting only ligand-to-polymer
+    pairs anchored the first sugar and left the rest floating free."""
+    coords = np.array([[0., 0, 0], [1.45, 0, 0], [2.90, 0, 0], [4.35, 0, 0]],
+                      dtype=np.float32)                 # ASN-NAG-NAG-BMA
+    b = perceive_bonds(coords, ["N", "C", "C", "C"], np.array([0, 1, 2, 3]),
+                       np.array([0, 1, 2, 3]), unrestricted_chains=(1, 2, 3))
+    assert len(b) == 3, b.tolist()      # one anchor + two glycosidic links
+
+
+def test_ligands_at_packing_distance_do_not_bond():
+    """The distance gate is what keeps two co-bound species separate; nothing
+    physical sits under 1.9 A without a bond, but 3.4 A packing is common."""
+    coords = np.array([[0., 0., 0.], [3.4, 0., 0.]], dtype=np.float32)
     b = perceive_bonds(coords, ["C", "C"], np.array([0, 1]), np.array([1, 2]),
                        unrestricted_chains=(1, 2))
     assert len(b) == 0

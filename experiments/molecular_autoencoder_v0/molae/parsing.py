@@ -127,7 +127,16 @@ def perceive_bonds(
             # while a non-covalent contact (H-bond 2.7-3.2 A) is far outside
             # the cutoff below, and metal radii are set so coordination at
             # 2.0-2.4 A is not perceived as a bond.
-            keep = keep | (free[ia] ^ free[ib])
+            #
+            # OR, not XOR: ligand-to-ligand pairs must be admitted too. An
+            # N-glycan is a TREE of separately-deposited monosaccharides
+            # (ASN-NAG-NAG-BMA-MAN...), each its own hetero residue and so its
+            # own chain here. Refusing ligand-ligand pairs anchored only the
+            # first sugar and left the rest of the tree floating free, which is
+            # the same defect the anchoring fixed one link earlier. Two
+            # distinct species at under 1.9 A are bonded, not clashing --
+            # nothing physical sits that close without a bond.
+            keep = keep | free[ia] | free[ib]
     ia, ib = ia[keep], ib[keep]
     if ia.size == 0:
         return np.zeros((0, 2), dtype=np.int64)
