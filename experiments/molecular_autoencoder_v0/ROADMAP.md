@@ -111,21 +111,68 @@ ramp, and where the shift should sit.
 
 ---
 
-## 3. Open questions with runs in flight
+## 3. The complex-codec ceiling — what has been eliminated
 
-### 3.1 Why does reconstruction degrade with size?
-`complex_d8` at 63k steps: mean all-atom RMSD rises 2.26 → 10.65 Å from
-400–600 to 2000–2600 atoms (corr 0.53), while the **best** structure in every
-bin stays flat at 2.1–2.4 Å. A capacity ceiling would raise the floor too.
+`complex_d8` plateaus at ~5.5–5.9 Å all-atom against the 0.79 Å single-chain
+reference. Five explanations have been tested and four are closed.
 
-Chain count is ruled out (corr 0.075 overall, 0.019 within a fixed atom band,
-over a genuine 1–8 chain distribution). The decisive fact is **train 4.80 vs
-val 5.58 — a 1.16× gap**, i.e. the model does not fit its *training* data.
-That is underfitting, which leaves steps, capacity, or optimisation.
+**Undertraining — RULED OUT.** 63k steps gave 5.584 Å; 242k gave 5.884. Four
+times the steps bought nothing.
 
-The 242k resume tests it: undertraining → train drops well below val and the
-size curve flattens; capacity/architecture → train stays ≈ val and the slope
-holds.
+**Model capacity — RULED OUT.** 1.1M and 3.8M parameter arms both plateau at
+train ~5.3, v/t ~1.1. Four times the parameters bought nothing. Note this
+rules out *model* capacity only; `latent_dim` was 8 in both arms and
+`d_model` does not touch it.
+
+**Assembly placement — SECONDARY, not primary.** Superimposing each chain or
+domain independently recovers only 1.25 Å of the 5.79 Å total (22%). There
+IS a real multi-chain penalty — single-chain 4.24 Å vs multi-chain 6.18 Å, a
+step the linear `corr(rmsd, n_chains) = 0.075` was blind to — but it is not
+the main term.
+
+**Size — RULED OUT, and this one was a misreading.** Absolute per-part RMSD
+rises 2.67 → 8.49 Å with part size, which read as "large chains are harder".
+Normalised by radius it is FLAT: `rmsd/rg ≈ 0.29–0.38` across every real
+chain/domain bin. The codec has **constant fractional precision**; absolute
+RMSD grows only because the structures are physically bigger. "Quality
+degrades with size" was substantially a property of the metric.
+
+That reframes the problem. Against the reference at `rmsd/rg ≈ 0.06`, the
+complex codec sits at ~0.3 — a **uniform ~5× relative gap**, not a
+size-dependent failure. Three candidates remain:
+
+1. **Latent budget.** Constant fractional precision is exactly the signature
+   of a fixed per-residue budget: 8 floats buys a fixed fraction of the
+   dynamic range. Counter-evidence: on the ≤800-atom band the latent
+   saturates by dim 4 (d1 4.069, d2 1.405, d4 0.707, d8 0.693, d16 0.681).
+   Whether saturation moves at complex scale has never been measured.
+   *Testing: `complex_d16`.*
+2. **Training-set size.** 556 structures against the reference's 2272 — four
+   times less data, never controlled in any complex run, and the ladder
+   measured this axis as real and not plateaued. *Queued: scaled-experimental
+   build.*
+3. **The representation itself** (multi-chain + ligands + modified residues),
+   which is what we wanted to add.
+
+If (1) and (2) both come back flat, the per-residue readout is the ceiling —
+a redesign, not a config change.
+
+**Outstanding control:** rerun `ladder_direct_n2272` on current HEAD. Every
+complex number was produced by code that changed substantially since 0.878 Å
+was measured, and declared bonds in particular added 762 disulfides that
+enter the *bond loss*. The loss is not the same function it was. If the
+rerun reproduces 0.878 the chain of reasoning above is sound; if not, the
+ceiling is measuring our own regression.
+
+---
+
+## 3b. Small molecules are relatively hardest
+
+Parts with Rg < 8 Å (ligands, fragments) score `rmsd/rg = 0.85` against
+0.29–0.38 for real chains. Small molecules are hard as a fraction of their
+own radius. MISATO's ligands have a median of 28 heavy atoms, so this is
+directly on the path — deliverable (b) should keep reporting the ligand class
+separately rather than folding it into an all-atom mean.
 
 ---
 
@@ -178,3 +225,17 @@ Worth stating alongside the gaps, since the list above is all deficits:
 - The ordinal-slot addressing that makes ligands representable **works**:
   ligand-covalent 8.28 ≈ protein 7.98 in the same structures.
 - Masked reconstruction is neutral on the direct codec (1.016 vs 1.020).
+- The codec does **not** average conformers away: on NMR ensembles the
+  conformational spread survives the round trip at ratio 0.868. That was the
+  failure that would have killed the temporal stage outright.
+- But its latent is only weakly organised *by* conformation: rho 0.933 against
+  a random-projection control at 0.875, a gain of just +0.058. A codec that
+  has never seen two conformers of one molecule has no reason to organise
+  them, and the number reflects that — which is the measured argument for
+  temporal context in the encoder (2.2).
+- Predicted structures differ from experimental ones in GLOBAL SHAPE, not in
+  bonds: within-type bond-length spread matches (1.05×), but 56% of raw
+  computed structure models are extended (rg_ratio > 1.5) against 2% of
+  experimental entries. Confidence filtering of the predicted tier is
+  therefore load-bearing, not optional, and mixing ratios must be set on the
+  filtered count.
