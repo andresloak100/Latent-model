@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import gc
+import json
 import resource
 import subprocess
 import sys
@@ -29,6 +30,31 @@ def _rss_mb() -> float:
     reading is evidence of no growth while a rising one is not by itself
     evidence of a leak."""
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+
+
+def _mem_mb() -> dict:
+    """Anonymous vs file-backed memory, which total RSS conflates.
+
+    Reading tens of thousands of CIFs fills the page cache, and that cache is
+    charged to the cgroup and counted in RSS -- so a build can sit pinned at
+    the memory limit while its true footprint is a fraction of it, because the
+    kernel reclaims cache instead of OOMing. Total RSS therefore cannot answer
+    the leak question at all.
+
+    ``RssAnon`` is the number that can: it is the unreclaimable part. If that
+    grows linearly with structure count there is a real retention path; if it
+    plateaus while RSS pins at the ceiling, the growth was cache.
+    """
+    out = {"rss": _rss_mb(), "anon": float("nan"), "file": float("nan")}
+    try:
+        for line in Path("/proc/self/status").read_text().splitlines():
+            if line.startswith("RssAnon:"):
+                out["anon"] = int(line.split()[1]) / 1024.0
+            elif line.startswith("RssFile:"):
+                out["file"] = int(line.split()[1]) / 1024.0
+    except OSError:
+        pass
+    return out
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -152,6 +178,61 @@ def similarity_split(sequences: dict, val_fraction: float, threshold: float, see
     return _cluster_split(clusters, keys, val_fraction, seed)
 
 
+def read_journal(path: Path, filters: dict, processed_dir: Path):
+    """Replay a previous run's per-structure records so a build can resume.
+
+    The manifest is written once, at the very end, so an OOM or a preemption
+    at 65% discards every parsed structure's record even though the .npz files
+    survive on disk. At 17,000 structures that is hours. Each outcome is
+    therefore journalled as it happens, and a rerun replays the journal instead
+    of re-parsing.
+
+    Two things are checked rather than assumed:
+
+    * The filters must match. Resuming across a changed residue band or ligand
+      floor would silently produce a corpus that is half one recipe and half
+      another, and nothing downstream could detect it.
+    * A ``kept`` entry whose .npz is missing is dropped and re-parsed, since a
+      run killed between the journal write and the save would otherwise leave a
+      manifest record pointing at a file that does not exist.
+    """
+    done, kept, rejected, sequences = {}, [], [], {}
+    if not path.exists():
+        return done, kept, rejected, sequences
+    stale = 0
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue  # a torn final line from a killed process
+        if rec.get("_meta"):
+            if rec["filters"] != filters:
+                raise SystemExit(
+                    f"[prepare] {path.name} was written with different filters:\n"
+                    f"  journal: {rec['filters']}\n  now:     {filters}\n"
+                    f"Resuming would mix two recipes in one corpus. Delete the "
+                    f"journal (and the .npz files) to rebuild, or restore the "
+                    f"original settings.")
+            continue
+        pid = rec["pdb_id"]
+        if rec["status"] == "kept":
+            if not (processed_dir / f"{rec['key']}.npz").exists():
+                stale += 1
+                continue
+            kept.append(rec["record"])
+            sequences[rec["key"]] = rec["sequence"]
+        else:
+            rejected.append(rec["record"])
+        done[pid] = rec["status"]
+    if stale:
+        print(f"[prepare] {stale} journalled structures have no .npz and will "
+              f"be re-parsed")
+    return done, kept, rejected, sequences
+
+
 def split_dataset(sequences, val_fraction, threshold, seed, method="auto"):
     """Choose a leakage-control split scalable to the dataset size."""
     n = len(sequences)
@@ -190,6 +271,9 @@ def main():
                     help="drop kept-ligand groups smaller than this (e.g. 6 to "
                          "exclude lone ions). Only used with --keep-ligands.")
     ap.add_argument("--jobs", type=int, default=8, help="parallel download workers")
+    ap.add_argument("--no-resume", dest="resume", action="store_false",
+                    help="ignore and overwrite the parse journal instead of "
+                         "continuing a partial build")
     ap.add_argument("--gc-every", type=int, default=250,
                     help="force a cyclic collection and print RSS every N "
                          "structures. 0 disables both.")
@@ -216,10 +300,32 @@ def main():
     }}
     sequences = {}
 
+    journal_path = processed_dir / "parse_journal.jsonl"
+    done = {}
+    if args.resume:
+        done, manifest["kept"], manifest["rejected"], sequences = read_journal(
+            journal_path, manifest["filters"], processed_dir)
+        if done:
+            print(f"[prepare] resuming: {len(done)} structures already recorded "
+                  f"({len(manifest['kept'])} kept), {len(ids) - len(done)} to go")
+    elif journal_path.exists():
+        journal_path.unlink()
+
+    journal = open(journal_path, "a", buffering=1)  # line-buffered: survives a kill
+    if not done:
+        journal.write(json.dumps({"_meta": True, "filters": manifest["filters"]}) + "\n")
+
+    def record(pid, status, rec, key=None, sequence=None):
+        journal.write(json.dumps(
+            {"pdb_id": pid, "status": status, "record": rec,
+             "key": key, "sequence": sequence}, default=str) + "\n")
+
     if args.jobs > 1:
         prefetch_cifs(ids, cache_dir, args.jobs)
 
     for i, pid in enumerate(ids):
+        if pid in done:
+            continue
         # Report memory as the loop runs. An OOM 4,600 structures into an
         # 8,000-structure build is otherwise diagnosed by inference: a linear
         # extrapolation from two points cannot tell a genuine leak from heap
@@ -230,12 +336,15 @@ def main():
         # while the process grows. Hence the periodic collect.
         if args.gc_every and i and i % args.gc_every == 0:
             gc.collect()
-            print(f"  [mem] {i}/{len(ids)} parsed, RSS {_rss_mb():.0f} MB "
-                  f"({_rss_mb() / max(i, 1):.2f} MB/structure so far)")
+            m = _mem_mb()
+            print(f"  [mem] {i}/{len(ids)} parsed, RSS {m['rss']:.0f} MB "
+                  f"(anon {m['anon']:.0f}, file {m['file']:.0f}) -- "
+                  f"{m['anon'] / max(i, 1):.3f} MB anon/structure")
         try:
             cif = download_cif(pid, cache_dir)
         except Exception as e:
-            manifest["rejected"].append({"pdb_id": pid, "reason": f"download_failed: {e}"})
+            rec = {"pdb_id": pid, "reason": f"download_failed: {e}"}
+            manifest["rejected"].append(rec); record(pid, "rejected", rec)
             print(f"  {pid}: DOWNLOAD FAILED ({e})")
             continue
         try:
@@ -245,24 +354,24 @@ def main():
                                  min_ligand_atoms=args.min_ligand_atoms,
                                  keep_modified_residues=args.keep_modified_residues)
         except AllResiduesFiltered as e:
-            manifest["rejected"].append({"pdb_id": pid, "reason": "all_residues_filtered", "detail": str(e)})
+            rec = {"pdb_id": pid, "reason": "all_residues_filtered", "detail": str(e)}
+            manifest["rejected"].append(rec); record(pid, "rejected", rec)
             print(f"  {pid}: all residues filtered")
             continue
         if ps is None:
-            manifest["rejected"].append({"pdb_id": pid, "reason": "no_peptide_chain"})
+            rec = {"pdb_id": pid, "reason": "no_peptide_chain"}
+            manifest["rejected"].append(rec); record(pid, "rejected", rec)
             print(f"  {pid}: no peptide chain")
             continue
         nres, natoms = ps.n_residues, ps.n_atoms
         if nres < cfg.data.min_residues or nres > cfg.data.max_residues:
-            manifest["rejected"].append(
-                {"pdb_id": pid, "reason": f"residues_out_of_band({nres})", **ps.record}
-            )
+            rec = {"pdb_id": pid, "reason": f"residues_out_of_band({nres})", **ps.record}
+            manifest["rejected"].append(rec); record(pid, "rejected", rec)
             print(f"  {pid}: {nres} res out of band [{cfg.data.min_residues},{cfg.data.max_residues}]")
             continue
         if natoms > cfg.data.max_atoms:
-            manifest["rejected"].append(
-                {"pdb_id": pid, "reason": f"too_many_atoms({natoms})", **ps.record}
-            )
+            rec = {"pdb_id": pid, "reason": f"too_many_atoms({natoms})", **ps.record}
+            manifest["rejected"].append(rec); record(pid, "rejected", rec)
             print(f"  {pid}: {natoms} atoms > max {cfg.data.max_atoms}")
             continue
 
@@ -272,7 +381,10 @@ def main():
         np.savez(processed_dir / f"{key}.npz", **to_npz_dict(ps))
         sequences[key] = ps.sequence
         manifest["kept"].append(ps.record)
+        record(pid, "kept", ps.record, key=key, sequence=ps.sequence)
         print(f"  {pid}: kept chain {ps.chain_id}  {nres} res  {natoms} atoms  {ps.record['n_bonds']} bonds")
+
+    journal.close()
 
     # Split.
     method, (train_keys, val_keys) = split_dataset(
