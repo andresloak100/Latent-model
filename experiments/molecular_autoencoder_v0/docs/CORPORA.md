@@ -118,6 +118,33 @@ has to be filled: a genuine ligand-free monomer and a collapsed one are the same
 input to the model, one chain and no ligand. Composition is a property of what
 the model sees, not of provenance.
 
+### Exclude first, then match
+
+Leakage exclusion is **not composition-neutral**. Well-studied ligand-bearing
+proteins are the most redundantly deposited, so they dominate the
+near-duplicates and the surviving pool is ligand-poor. Composition-matching
+before excluding therefore re-drifts the composition it just fixed: measured
+on the first build, the ligand fraction fell 45.7% -> 36.8% across the rungs
+while multi-chain stayed flat. A gradient correlated with corpus size is the
+same species of confound as the multi-chain gap, only smaller.
+
+`build_scaled_split.py --match-composition` runs the match after the
+exclusion, inside one script, so the order cannot be got wrong:
+
+```
+python scripts/build_scaled_split.py \
+    --manifest data/processed_complex_scaled/manifest.json \
+    --reference-splits data/splits_complex.json \
+    --match-composition data/manifest_complex_742.json \
+    --exclude-similarity 0.9 --n 8000 \
+    --out data/splits_complex_scaled.json
+```
+
+Exclusion shrinks the pool, so matching afterwards caps the corpus at the
+binding cell. That cost is the point: a smaller corpus matched on both axes
+measures data volume; a larger one carrying a composition gradient measures
+nothing.
+
 ### Do not size the arms by prediction
 
 The parser decides what survives — chains below the length floor, ligands below

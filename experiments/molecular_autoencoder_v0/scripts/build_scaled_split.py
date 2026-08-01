@@ -41,8 +41,15 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(HERE))
 
 from molae import utils  # noqa: E402
+from match_composition import cell_counts, select  # noqa: E402
+
+
+def _load(spec):
+    p = Path(spec)
+    return utils.load_json(p if p.is_absolute() else ROOT / p)
 
 
 def manifest_key(record) -> str:
@@ -118,6 +125,14 @@ def main():
                     action="store_false",
                     help="apply per-chain exclusion to the reference training "
                          "set too. Produces a cleaner corpus but no anchor.")
+    ap.add_argument("--match-composition", default=None,
+                    help="reference MANIFEST to composition-match against, "
+                         "applied after leakage exclusion. Doing it in this "
+                         "order is required: exclusion is not composition-"
+                         "neutral, so matching first leaves a gradient.")
+    ap.add_argument("--n", type=int, default=8000,
+                    help="target corpus size when --match-composition is used")
+    ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--report-similarity", type=float, default=0.9,
                     help="measure (do not exclude) near-duplicates at this ratio")
     ap.add_argument("--exclude-similarity", type=float, default=None,
@@ -127,11 +142,8 @@ def main():
                          "would confound the comparison it exists to enable.")
     args = ap.parse_args()
 
-    manifest = utils.load_json(ROOT / args.manifest if not Path(args.manifest).is_absolute()
-                               else args.manifest)
-    reference = utils.load_json(ROOT / args.reference_splits
-                                if not Path(args.reference_splits).is_absolute()
-                                else args.reference_splits)
+    manifest = _load(args.manifest)
+    reference = _load(args.reference_splits)
 
     records = {manifest_key(r): r for r in manifest["kept"]}
     val_keys = list(reference["val"])
@@ -193,6 +205,34 @@ def main():
             val_sequences, args.exclude_similarity)]
         train_keys = sorted(set(train_keys) - set(excluded_near))
 
+    # Composition matching runs AFTER exclusion, inside this script, so the
+    # order cannot be got wrong.
+    #
+    # Matching first and excluding second re-drifts the composition that was
+    # just fixed, because exclusion is not composition-neutral: well-studied
+    # ligand-bearing proteins are the most redundantly deposited, so they
+    # dominate the near-duplicates and the surviving pool is ligand-poor. Run
+    # that way, the ligand fraction fell 45.7% -> 36.8% across the rungs -- a
+    # gradient correlated with n, which is the same species of confound as the
+    # multi-chain gap, just smaller.
+    #
+    # Exclusion shrinks the pool, so matching afterwards caps the corpus at the
+    # binding cell. That cost is the point: a smaller corpus matched on both
+    # axes measures data volume, a larger one with a composition gradient does
+    # not measure anything.
+    matched = None
+    if args.match_composition:
+        ref_manifest = _load(args.match_composition)
+        pool = [records[k] for k in train_keys]
+        keys, fractions, shortfalls, total = select(
+            pool, ref_manifest["kept"], args.n,
+            seed=args.seed, pinned=exempt & set(train_keys))
+        matched = {"n_before": len(train_keys), "n_after": len(keys),
+                   "requested": args.n, "feasible": total,
+                   "shortfalls": shortfalls,
+                   "reference_fractions": fractions}
+        train_keys = keys
+
     splits = {
         "train": train_keys,
         "val": val_keys,
@@ -207,6 +247,7 @@ def main():
         "exclude_similarity": args.exclude_similarity,
         "n_near_duplicates_excluded": len(excluded_near),
         "n_reference_train_near_duplicates": len(near_baseline),
+        "composition_match": matched,
     }
     utils.save_json(splits, ROOT / args.out if not Path(args.out).is_absolute() else args.out)
 
@@ -237,6 +278,17 @@ def main():
               f">={args.exclude_similarity} from the ADDED data; the reference "
               f"training set keeps its own {len(near_baseline)}, so leakage is "
               f"constant across rungs rather than rising with corpus size")
+    if matched:
+        got = cell_counts([records[k] for k in train_keys])
+        n = max(len(train_keys), 1)
+        print(f"[split] composition-matched after exclusion: "
+              f"{matched['n_before']} -> {matched['n_after']} "
+              f"(requested {matched['requested']}, feasible {matched['feasible']})")
+        print(f"[split] multi-chain {(got['mc+lig'] + got['mc+noLig']) / n:.1%}, "
+              f"ligand-bearing {(got['mc+lig'] + got['mono+lig']) / n:.1%}")
+        if matched["shortfalls"]:
+            print(f"[split] cells short: {matched['shortfalls']} -- fetch more "
+                  f"of the corresponding arm rather than accepting a drift")
     print(f"[split] wrote {args.out}")
 
 

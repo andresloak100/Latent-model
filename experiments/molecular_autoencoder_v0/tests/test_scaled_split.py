@@ -159,3 +159,50 @@ def test_reference_near_duplicates_are_still_counted():
     near = near_duplicates(candidates, {val}, 0.9)
     baseline = [(k, r) for k, r in near if k in {"5OLD_A"}]
     assert [k for k, _ in baseline] == ["5OLD_A"]
+
+
+def test_exclusion_is_not_composition_neutral_so_order_matters():
+    """Match-then-exclude re-drifts the composition it just fixed.
+
+    Well-studied ligand-bearing proteins are the most redundantly deposited,
+    so they dominate the near-duplicates and the surviving pool is
+    ligand-poor. Matching first therefore leaves a ligand gradient correlated
+    with corpus size -- the same species of confound as the multi-chain gap.
+    """
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / "scripts"))
+    from match_composition import cell_counts, key_of, select
+
+    def rec(pid, mc, lig):
+        return {"pdb_id": pid, "chain_id": "A,B" if mc else "A",
+                "n_kept_chains": 2 if mc else 1, "n_ligand_atoms": 9 if lig else 0}
+
+    reference = ([rec(f"R{i}", True, True) for i in range(30)]
+                 + [rec(f"S{i}", True, False) for i in range(42)]
+                 + [rec(f"T{i}", False, True) for i in range(13)]
+                 + [rec(f"U{i}", False, False) for i in range(15)])
+
+    pool = ([rec(f"a{i}", True, True) for i in range(300)]
+            + [rec(f"b{i}", True, False) for i in range(300)]
+            + [rec(f"c{i}", False, True) for i in range(300)]
+            + [rec(f"d{i}", False, False) for i in range(300)])
+    # Exclusion removes ligand-bearing structures preferentially.
+    excluded = {f"a{i}" for i in range(250)} | {f"c{i}" for i in range(250)}
+
+    def ligand_fraction(records):
+        c = cell_counts(records)
+        return (c["mc+lig"] + c["mono+lig"]) / max(len(records), 1)
+
+    target = ligand_fraction(reference)
+
+    # WRONG ORDER: match, then exclude.
+    matched_keys = set(select(pool, reference, n=400, seed=0)[0])
+    matched_then_excluded = [r for r in pool
+                             if key_of(r) in matched_keys and r["pdb_id"] not in excluded]
+    assert abs(ligand_fraction(matched_then_excluded) - target) > 0.05
+
+    # RIGHT ORDER: exclude, then match.
+    clean = [r for r in pool if r["pdb_id"] not in excluded]
+    keys = set(select(clean, reference, n=400, seed=0)[0])
+    excluded_then_matched = [r for r in clean if key_of(r) in keys]
+    assert abs(ligand_fraction(excluded_then_matched) - target) < 0.02
