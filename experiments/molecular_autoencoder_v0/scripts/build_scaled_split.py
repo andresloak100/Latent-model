@@ -108,6 +108,16 @@ def main():
     ap.add_argument("--reference-splits", required=True,
                     help="splits json whose val keys are inherited verbatim")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--exempt-reference-train", action="store_true", default=True,
+                    help="keep the reference training set intact (default). Its "
+                         "members are exempt from per-chain exclusion so the "
+                         "anchor rung still reproduces the baseline's exact "
+                         "training set; how many WOULD have been excluded is "
+                         "reported as the baseline's own leakage.")
+    ap.add_argument("--no-exempt-reference-train", dest="exempt_reference_train",
+                    action="store_false",
+                    help="apply per-chain exclusion to the reference training "
+                         "set too. Produces a cleaner corpus but no anchor.")
     ap.add_argument("--report-similarity", type=float, default=0.9,
                     help="measure (do not exclude) near-duplicates at this ratio")
     ap.add_argument("--exclude-similarity", type=float, default=None,
@@ -142,7 +152,23 @@ def main():
     val_set = set(val_keys)
     candidates = {k: sequences_of(r) for k, r in records.items() if k not in val_set}
 
-    leaked = exact_leaks(candidates, val_sequences)
+    # The reference training set is exempt from the exclusion below, and the
+    # reason is not leniency. The reference split clustered on the CONCATENATED
+    # structure sequence; this script clusters per CHAIN, which is strictly
+    # stronger -- a complex whose chain A matches a val complex's chain A can
+    # pass the old rule and fail this one. Applying the new rule to the old
+    # training set would silently delete members of it, and the rung that is
+    # supposed to reproduce the baseline would no longer be the baseline's
+    # training set, destroying the anchor.
+    #
+    # So the old set is kept intact and the count of its members that WOULD
+    # have been excluded is reported instead. That count is not bookkeeping:
+    # it measures how much per-chain leakage the baseline number itself was
+    # measured under.
+    exempt = set(reference.get("train", [])) if args.exempt_reference_train else set()
+    leaked_all = exact_leaks(candidates, val_sequences)
+    leaked_baseline = leaked_all & exempt
+    leaked = leaked_all - exempt
     train_keys = sorted(k for k in candidates if k not in leaked)
 
     report_thr = args.report_similarity
@@ -162,6 +188,9 @@ def main():
         "inherited_val_from": str(args.reference_splits),
         "n_corpus": len(records),
         "n_exact_sequence_leaks_excluded": len(leaked),
+        "n_reference_train_leaks_exempted": len(leaked_baseline),
+        "reference_train_leaks": sorted(leaked_baseline),
+        "exempt_reference_train": bool(args.exempt_reference_train),
         "n_near_duplicates_at_report_threshold": len(near),
         "report_similarity": report_thr,
         "exclude_similarity": args.exclude_similarity,
@@ -173,6 +202,18 @@ def main():
     print(f"[split] val    {len(val_keys)} (inherited verbatim, all present)")
     print(f"[split] train  {len(train_keys)}")
     print(f"[split] excluded {len(leaked)} exact-sequence leaks into val")
+    if args.exempt_reference_train:
+        n_ref = len(set(reference.get("train", [])))
+        if leaked_baseline:
+            print(f"[split] {len(leaked_baseline)} of the {n_ref} reference "
+                  f"training structures share a chain with val and were KEPT "
+                  f"so the anchor rung stays intact -- the baseline number was "
+                  f"measured under that much per-chain leakage:")
+            for k in sorted(leaked_baseline)[:10]:
+                print(f"           {k}")
+        else:
+            print(f"[split] reference training set ({n_ref}) is clean under the "
+                  f"stricter per-chain rule too")
     if report_thr:
         print(f"[split] {len(near)} remaining train structures are >={report_thr} "
               f"similar to a val chain "

@@ -111,3 +111,20 @@ def test_prefilter_does_not_drop_a_true_near_duplicate():
 def test_identical_sequence_clears_every_threshold(threshold):
     val = "MKVLAAGIVGYW" * 4
     assert near_duplicates({"X_A": {val}}, {val}, threshold=threshold)
+
+
+def test_reference_train_is_exempt_so_the_anchor_survives():
+    """Per-chain exclusion is STRICTER than the split the baseline used.
+
+    The reference corpus clustered on the concatenated structure sequence; a
+    complex whose chain A matches a val complex's chain A passes that rule and
+    fails this one. Deleting such a structure from the reference training set
+    would mean the anchor rung is no longer the baseline's training set.
+    """
+    val_seqs = {"MKVL"}
+    candidates = {"5OLD_A-B": {"MKVL", "QQQQ"}, "9RED_A": {"MKVL"}}
+    exempt = {"5OLD_A-B"}
+    all_leaks = exact_leaks(candidates, val_seqs)
+    assert all_leaks == {"5OLD_A-B", "9RED_A"}
+    assert all_leaks - exempt == {"9RED_A"}, "only the NEW leak is excluded"
+    assert all_leaks & exempt == {"5OLD_A-B"}, "the baseline's own leakage is reported"

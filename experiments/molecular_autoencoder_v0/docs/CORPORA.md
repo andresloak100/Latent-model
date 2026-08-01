@@ -124,6 +124,17 @@ size because it is memorising val's homologs — which in the result table is
 indistinguishable from the data-scaling effect being measured. Sharing *one*
 chain with a val complex is enough to exclude.
 
+The reference training set is **exempt** from this exclusion, and that is not
+leniency. The reference split clustered on the *concatenated* structure
+sequence; this script clusters *per chain*, which is strictly stronger — a
+complex whose chain A matches a val complex's chain A passes the old rule and
+fails the new one. Applying the new rule to the old training set would delete
+members of it, and the anchor rung would no longer be the baseline's training
+set. So the old set is kept intact and the number of its members that *would*
+have been excluded is printed instead: that number is how much per-chain
+leakage the baseline was itself measured under. Record it. `--no-exempt-
+reference-train` gives a cleaner corpus and no anchor.
+
 Near-duplicates (point mutants, close homologs) are **measured and reported at
 0.9 but not excluded** by default, because the reference corpus used exact
 matching and changing the leakage rule mid-ladder would confound the very
