@@ -250,3 +250,124 @@ Worth stating alongside the gaps, since the list above is all deficits:
   experimental entries. Confidence filtering of the predicted tier is
   therefore load-bearing, not optional, and mixing ratios must be set on the
   filtered count.
+
+---
+
+## 6. Distance to molecular manufacturing — an audit against Drexler's criteria
+
+The stated goal is a foundation for designed molecular machines. That goal is
+usually discussed in its popular form, which is not testable. Drexler's own
+technical criteria are testable, so this section audits the stack against
+those instead — chiefly *Nanosystems* (1992) and the 1981 PNAS paper.
+
+### 6.1 The entry path we are on is the one Drexler named
+
+The 1981 paper opens: "Development of the ability to design protein molecules
+will open a path to the fabrication of devices to complex atomic
+specifications." The 2006 preface restates it: DNA frameworks, engineered
+proteins binding at precise locations, "proteins themselves can serve as
+construction machinery."
+
+So a protein/complex structure model is the right *beachhead*, and building
+toward protein-compound and protein-protein assemblies is not a detour. The
+representation work already done is directly on this path: multi-chain
+addressing, ordinal-slot ligand groups, declared covalent anchoring, and
+disulfides give us atomically precise multi-component assemblies, which is
+the object class the entry path operates on.
+
+That is the half of the claim that holds. The rest of this section is the
+half that does not.
+
+### 6.2 The load-bearing number we cannot compute: positional stiffness
+
+*Nanosystems'* feasibility argument for mechanosynthesis is not qualitative.
+It reduces to one inequality. Thermal displacement along a coordinate with
+restoring force `ks` is
+
+    sigma^2 = kT / ks
+
+and a misreaction means landing on an adjacent lattice site instead of the
+target. At 300 K with a 0.25 nm diamond (111) site spacing, an error rate
+below 1e-15 requires `ks > ~5 N/m`. That single number is what decides
+whether positional control can guide chemistry — everything else in the
+argument rests on it. (For scale: a C–C bond bends at ~30 N/m; a
+cubic-nanometer block of diamond shears at ~500 N/m. The requirement is not
+extreme, which is precisely why the argument works.)
+
+**Our model cannot produce that number, or any number like it.** It emits
+coordinates. It has no notion of force, stiffness, curvature of a potential,
+or free energy. Given a proposed molecular linkage it cannot say whether the
+linkage is stiff enough to place a reactive group reliably — which is the
+only question that matters for the mechanical half of the program.
+
+This is a sharper statement of the "no energetics" blocker in 1.3, and it is
+worth separating because it does not require reactive chemistry to fix.
+Stiffness is a property of a *stable* structure near its equilibrium. A model
+that predicted per-coordinate curvature — equivalently, normal modes — would
+supply it without ever modelling a bond breaking.
+
+**A falsifiable gate.** Predict `ks` along a designated coordinate of a rigid
+molecular linkage and agree with normal-mode analysis (or with the
+fluctuation `sigma^2` measured in explicit-solvent MD) to within a stated
+factor. Until something like that passes, claims that this stack is a
+foundation for designed machines are aspiration, not capability.
+
+### 6.3 Materials scope — an architectural limit, not a vocabulary gap
+
+Drexler's machines are diamondoid: carbon-rich covalent solids, with metals
+and semiconductors for electronic components. The 1995 paper is explicit that
+this class was chosen because its mechanical properties are extremal and are
+"well described by highly localized models based on two-, three- and
+four-body potentials."
+
+Our decoder addresses atoms by `(group, slot)` — generalised from `(residue,
+atom name)`. A diamond lattice has no residues, no sequence, and no natural
+group decomposition; a nanotube has periodicity but no side chains. Extending
+the element vocabulary does not fix this. The addressing scheme that made
+variable-size decoding work at all is specialised to polymers-with-sidechains
+plus small ordinal groups, and it does not reach the material class the
+mechanical program is built from.
+
+This compounds the concern already raised in 3 about the per-residue readout:
+the same design decision that may be capping complex reconstruction is also
+the one that bounds our materials scope.
+
+### 6.4 What the four-stage plan already covers, and what it does not
+
+- **Stage 1 (codec).** Delivers the representation for atomically precise
+  assemblies. On the path. Working.
+- **Stage 2 (latent diffusion).** Delivers a generative prior — the right
+  substrate for conditional design, though the conditioning is unspecified
+  (1.1).
+- **Stage 3 (mid-training on trajectories).** Delivers dynamics. Relevant to
+  machine *behaviour*, not to whether a machine is buildable.
+- **Stage 4 (RL against quantum-accurate feedback).** This is where
+  energetics enters, and therefore where every capability in 6.2 and 1.3
+  lives. It is also the least specified stage in the plan.
+
+The honest summary: the plan's own stage 4 is the load-bearing stage for the
+molecular-manufacturing goal, and it is the stage we have designed least.
+Stages 1–3 build a forward model of biological-materials structure and
+motion. That is a real foundation for the entry path Drexler named. It is not
+yet a foundation for the mechanical engineering that follows it.
+
+### 6.5 What would move the needle soonest
+
+In rough order of leverage per unit effort:
+
+1. **Any energetic output at all** — even a learned force field head
+   predicting per-atom forces on a fixed topology. It converts the codec from
+   a shape model into something that can rank designs.
+2. **Interface metrics** (1.2, partly mitigated by `pocket.py`). A binding
+   interface of a few dozen atoms is what a molecular device *does*; global
+   RMSD is nearly blind to it.
+3. **Non-canonical residue identity** (1.5) — measured as our worst class,
+   and non-canonical amino acids are a primary tool for engineered proteins.
+4. **Inverse conditioning** (1.1) — the largest gap, but it needs 1–3 to be
+   worth anything, since a design model without a way to score designs is a
+   random generator.
+
+None of this changes the current queue. The regression control and the data
+ladder decide whether the numbers we already have are real, and there is no
+point building stage 4 on a foundation whose measurements have not survived a
+seed-variance check.
