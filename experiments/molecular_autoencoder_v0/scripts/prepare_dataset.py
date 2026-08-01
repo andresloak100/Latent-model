@@ -257,10 +257,18 @@ def main():
     splits = {"train": train_keys, "val": val_keys, "split_method": method,
               "sim_threshold": args.sim_threshold, "val_fraction": args.val_fraction}
     utils.save_json(splits, ROOT / cfg.data.splits_file)
-    utils.save_json(manifest, ROOT / "data" / "manifest.json")
+    # Beside the data it describes, NOT at a fixed data/manifest.json. That
+    # path is shared by every corpus, so building a second one silently
+    # destroyed the first one's composition record -- which is the only place
+    # the multi-chain / ligand-bearing fractions of a corpus are written down,
+    # and therefore the only way to tell a data-volume result from a
+    # composition shift.
+    manifest_path = processed_dir / "manifest.json"
+    utils.save_json(manifest, manifest_path)
 
     print(f"\n[prepare] kept {len(manifest['kept'])}, rejected {len(manifest['rejected'])}")
     print(f"[prepare] split ({method}): {len(train_keys)} train / {len(val_keys)} val")
+    print(f"[prepare] manifest -> {manifest_path}")
     print(f"[prepare] processed -> {processed_dir}")
 
 

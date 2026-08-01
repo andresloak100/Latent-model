@@ -39,11 +39,65 @@ def run(cmd):
         raise SystemExit(f"failed: {' '.join(str(c) for c in cmd)}")
 
 
+def load_pinned(spec):
+    """Read training keys to place at the front of the pool.
+
+    Accepts a splits JSON (its ``train`` list is used) or a plain text list of
+    keys, one per line, ``#`` comments allowed.
+    """
+    if not spec:
+        return []
+    path = Path(spec)
+    if not path.is_absolute():
+        path = ROOT / path
+    if path.suffix == ".json":
+        return list(utils.load_json(path)["train"])
+    return [ln.strip() for ln in path.read_text().splitlines()
+            if ln.strip() and not ln.startswith("#")]
+
+
+def pin_to_front(pool, pinned, rng):
+    """Order the pool so the smallest rung IS a named prior training set.
+
+    Rungs are nested by construction (``pool[:n]``), so without this the
+    smallest rung is a random draw of the right SIZE rather than the actual
+    structures a prior run used. That distinction decides whether the ladder
+    has an anchor: if rung one reproduces the number the prior run reported,
+    every later rung is measured against a verified baseline; if it is a
+    different random sample, a discrepancy could be the sample rather than the
+    data volume, and the ladder anchors to nothing.
+
+    Pinned keys absent from the pool are dropped with a warning rather than
+    invented -- a missing key means the corpus rebuild did not reproduce that
+    structure, which is worth seeing.
+    """
+    if not pinned:
+        return pool
+    available = set(pool)
+    keep = [k for k in dict.fromkeys(pinned) if k in available]
+    missing = [k for k in dict.fromkeys(pinned) if k not in available]
+    if missing:
+        print(f"[data-scan] WARNING: {len(missing)} pinned keys are not in the "
+              f"pool and were dropped, e.g. {missing[:5]}")
+    if not keep:
+        raise SystemExit("[data-scan] no pinned key is present in the training "
+                         "pool -- the key format probably does not match.")
+    rest = [k for k in pool if k not in set(keep)]
+    print(f"[data-scan] pinned {len(keep)} keys to the front of the pool; "
+          f"the n={len(keep)} rung reproduces that exact training set")
+    return keep + rest
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="configs/stage_b_heldout.yaml")
     ap.add_argument("--sizes", default="100,300,1000,3000")
     ap.add_argument("--total-steps", type=int, default=60000)
+    ap.add_argument("--pin-train", default=None,
+                    help="splits JSON or key list whose training keys are "
+                         "placed first in the pool, so the rung of that size "
+                         "reproduces a prior run's exact training set and the "
+                         "ladder has a verified anchor.")
     ap.add_argument("--latent-tokens", type=int, default=16)
     ap.add_argument("--latent-dim", type=int, default=16)
     ap.add_argument("--device", default="auto")
@@ -60,6 +114,7 @@ def main():
     val_keys = list(master["val"])
     rng = np.random.default_rng(args.seed)
     rng.shuffle(train_pool)
+    train_pool = pin_to_front(train_pool, load_pinned(args.pin_train), rng)
     sizes = [int(s) for s in args.sizes.split(",")]
 
     scan_dir = ROOT / "configs" / "_data_scan"
