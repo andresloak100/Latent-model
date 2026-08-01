@@ -94,3 +94,40 @@ build: 63,120 npz, `rg_ratio` 1.06, 0% extended, gate PASS.
 fixed** and growing only the train subset. That is the shape any data-volume
 claim has to take: identical evaluation, growing training set. A curve built
 by re-splitting at each size measures split luck as much as data.
+
+Pass `--pin-train <reference splits>` so the rung matching the baseline's size
+*is* the baseline's training set. Rungs are cut as `pool[:n]` from a shuffled
+pool, so without pinning the smallest rung is a random draw of the right size
+and reproduces nothing — the ladder has no anchor and a miss against the
+baseline number is uninterpretable.
+
+### Building the grown split
+
+`scripts/build_scaled_split.py` does this and nothing else:
+
+```
+python scripts/build_scaled_split.py \
+    --manifest data/processed_complex_scaled/manifest.json \
+    --reference-splits data/splits_complex.json \
+    --out data/splits_complex_scaled.json
+```
+
+`val` is copied verbatim from the reference splits, and a missing val key is
+fatal — an evaluation set that shifted is not comparable to the baseline.
+
+`train` is everything else **minus exact-sequence leaks**. `train = corpus -
+val` is not enough: the PDB deposits the same protein many times under
+different ids, so a 10× larger draw pulls in structures whose sequence is
+identical to a validation structure under a different key. Those are not new
+information, they are the answer key, and a ladder built on them improves with
+size because it is memorising val's homologs — which in the result table is
+indistinguishable from the data-scaling effect being measured. Sharing *one*
+chain with a val complex is enough to exclude.
+
+Near-duplicates (point mutants, close homologs) are **measured and reported at
+0.9 but not excluded** by default, because the reference corpus used exact
+matching and changing the leakage rule mid-ladder would confound the very
+comparison the ladder exists to enable. The reported count is the diagnostic:
+if it is large, exact matching was not sufficient at this scale and the ladder
+needs rerunning with `--exclude-similarity`. Record the number in the writeup
+either way.
