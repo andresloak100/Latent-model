@@ -165,3 +165,47 @@ def test_severed_covalent_link_is_caught():
          "atom_name": ["C"] * n, "element_symbol": ["C"] * n}
     hard, soft, stats, orphans = check_structure(d)
     assert any("1.9 A" in h for h in hard), hard
+
+
+# --- global shape ----------------------------------------------------------
+
+def _struct(coords, n_per_res=8):
+    import numpy as _np
+    n = len(coords)
+    nres = max(n // n_per_res, 1)
+    return {"coords": _np.asarray(coords, dtype=float),
+            "bonds": _np.zeros((0, 2), dtype=_np.int64),
+            "res_pos": _np.repeat(_np.arange(nres), n_per_res)[:n],
+            "slot_idx": _np.tile(_np.arange(n_per_res), nres)[:n],
+            "residue_idx": _np.full(n, 2), "chain_idx": _np.zeros(n, dtype=_np.int64),
+            "atom_name": ["C"] * n, "element_symbol": ["C"] * n}
+
+
+def test_compact_structure_scores_near_one():
+    """A folded globular chain should sit at ~1.0 against Rg ~ 2.2*N^0.38."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from check_dataset import check_structure
+    rng = np.random.default_rng(0)
+    nres, apr = 150, 8
+    rg = 2.2 * nres ** 0.38
+    xyz = rng.normal(0, rg / np.sqrt(3), (nres * apr, 3))
+    _, _, stats, _ = check_structure(_struct(xyz, apr))
+    assert 0.8 < stats["rg_ratio_sum"] < 1.25
+    assert stats["n_extended"] == 0
+
+
+def test_extended_ribbon_is_flagged():
+    """The failure mode no bond- or valence-based check can see: an extended
+    low-confidence region whose bond lengths are perfect and whose global
+    shape is not. 56% of raw computed structure models look like this."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from check_dataset import check_structure
+    n = 1200
+    ext = np.stack([np.arange(n) * 0.48, np.zeros(n), np.zeros(n)], axis=1)
+    _, _, stats, _ = check_structure(_struct(ext))
+    assert stats["rg_ratio_sum"] > 3.0
+    assert stats["n_extended"] == 1

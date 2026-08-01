@@ -155,7 +155,22 @@ def check_structure(d):
     if severed:
         hard.append(f"{severed} ligand-protein pairs within 1.9 A but not bonded")
 
+    # 9. Global shape. A low-confidence predicted region is an extended ribbon
+    #    whose BOND LENGTHS ARE PERFECT and whose global shape is not, so no
+    #    bond- or valence-based check can see it. Measured against the folded
+    #    globular scaling Rg ~ 2.2 * N^0.38, calibrated on RESIDUES.
+    #
+    #    This is not hypothetical: on a 500-structure sample, 56% of raw
+    #    computed structure models scored above 1.5 against 2% of experimental
+    #    entries. Any corpus mixing in predicted structures needs this
+    #    measured before training, not after.
+    n_res = len(per_group)
+    cen = coords - coords.mean(axis=0)
+    rg = float(np.sqrt((cen ** 2).sum(axis=1).mean()))
+    rg_ratio = rg / (2.2 * max(n_res, 1) ** 0.38)
+
     stats = {"n_atoms": n, "n_bonds": len(bonds), "n_ligand_atoms": int(lig.sum()),
+             "rg_ratio_sum": rg_ratio, "n_extended": int(rg_ratio > 1.5),
              "disulfides": ss_bonded, "anchors": anchor, "trees": tree,
              "isolated_atoms": isolated,
              "monatomic_ions": int(sum(1 for g, c in per_group.items() if c == 1))}
@@ -175,6 +190,11 @@ def main():
     ap.add_argument("--processed-dir", required=True)
     ap.add_argument("--quiet", action="store_true", help="only print the verdict")
     ap.add_argument("--max-report", type=int, default=10)
+    ap.add_argument("--max-extended-frac", type=float, default=None,
+                    help="fail if more than this fraction of structures are "
+                         "extended (rg_ratio > 1.5). Unset, it is reported "
+                         "only. Set it for a predicted-structure tier, where "
+                         "the low-confidence tail is the thing to exclude.")
     args = ap.parse_args()
 
     files = sorted(Path(args.processed_dir).glob("*.npz"))
@@ -201,6 +221,11 @@ def main():
         print(f"  ligand atoms {totals['n_ligand_atoms']:,}   "
               f"anchors {totals['anchors']}   glycan/tree links {totals['trees']}")
         print(f"  disulfides {totals['disulfides']}")
+        ext = totals["n_extended"] / max(len(files), 1)
+        print(f"  mean rg_ratio {totals['rg_ratio_sum'] / max(len(files), 1):.2f}   "
+              f"extended (>1.5) {totals['n_extended']}/{len(files)} = {100 * ext:.0f}%"
+              + ("   <- compact, as a folded corpus should be" if ext < 0.1 else
+                 "   <- HIGH: a predicted tier's low-confidence tail looks like this"))
         if totals["n_ligand_atoms"] and totals["anchors"] == 0:
             print("  note: ligands present, zero covalent anchors -- expected "
                   "for a non-covalent binder corpus, not an error")
@@ -227,6 +252,13 @@ def main():
     # NOTE: zero anchors is NOT a failure. A corpus of non-covalent binders
     # (MISATO) legitimately has none. Severed anchors are caught per-structure
     # by the covalent-range test above, which is source-agnostic.
+
+    ext_frac = totals["n_extended"] / max(len(files), 1)
+    if args.max_extended_frac is not None and ext_frac > args.max_extended_frac:
+        corpus_fail.append(
+            f"{100 * ext_frac:.0f}% of structures are extended (rg_ratio > 1.5), "
+            f"over the {100 * args.max_extended_frac:.0f}% limit -- filter the "
+            f"source by confidence before training on it")
 
     if failures or corpus_fail:
         print(f"\n[check] FAILED: {len(failures)} structures violate a hard invariant")
