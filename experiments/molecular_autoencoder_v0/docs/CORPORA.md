@@ -1,0 +1,96 @@
+# Corpora: how each dataset is built
+
+Every accuracy number in this project is a statement about a specific set of
+structures. If the set cannot be rebuilt, the number cannot be checked and no
+later run can be compared against it.
+
+This file exists because that failed once. The 742-structure complex corpus
+behind `complex_d8` was built from a `data/pdb_ids_complex.txt` produced by an
+ad-hoc query that was never committed. The corpus was fine; the *provenance*
+was gone, which blocked the scaled-data experiment — the one remaining live
+explanation for the 5× complex gap — until the query was re-authored.
+
+**Rule: an id list is only usable as a corpus if the exact command that
+produced it appears in its header comment and that command lives in the repo.**
+
+---
+
+## Single-chain reference set
+
+The band every reference number was measured on (0.79 Å all-atom / 0.51 Å
+backbone / 0.963 contact F1).
+
+```
+python scripts/fetch_rcsb_ids.py --n 2000 --out data/pdb_ids_scale.txt
+```
+
+Criteria: exactly one protein entity, exactly one polymer instance, 30–150
+residues, X-ray, resolution ≤ 2.5 Å, sorted by resolution ascending, seeded
+subsample from an 8,000-entry pool.
+
+This query is pinned by `tests/test_fetch_ids.py`. Changing it silently
+rebases every reference number, so do not change it — add a mode instead.
+
+## Complex set
+
+Multi-chain assemblies and/or ligand-bearing entries: the corpus that
+exercises the two representation paths single chains never touch (global
+`res_pos` across chains, ordinal-slot ligand groups).
+
+```
+python scripts/fetch_rcsb_ids.py --mode complex --n 8000 --pool 40000 \
+    --max-res 400 --keep-list data/pdb_ids_complex.txt \
+    --out data/pdb_ids_complex_scaled.txt
+
+python scripts/prepare_dataset.py --config configs/complex_d8.yaml \
+    --pdb-list data/pdb_ids_complex_scaled.txt \
+    --multi-chain --keep-ligands --min-ligand-atoms 6 --keep-modified-residues
+```
+
+Pool sizes as of the last check: 122,736 entries match `--require any`
+(74,912 assembly, 50,916 ligand-bearing monomer), so the pool is not the
+binding constraint — download and parse time is.
+
+### `--keep-list` is not optional when growing a corpus
+
+Pinned ids are emitted first, are never subsampled away, and survive even if
+the query stops returning them. Pass the *existing* corpus here so the
+inherited validation keys are still present after the rebuild. Without it, a
+"more data" run silently changes the evaluation set too, and the result
+answers no question at all.
+
+### Composition matching
+
+Sorting by resolution pulls small, high-resolution monomers to the front of
+the pool, so an unconstrained draw drifts toward ligand-bearing monomers and
+away from assemblies. The original corpus was 537/742 multi-chain (72%). To
+hold that fixed, build the two arms separately and concatenate:
+
+```
+python scripts/fetch_rcsb_ids.py --mode complex --require assembly --n 5800 ...
+python scripts/fetch_rcsb_ids.py --mode complex --require ligand   --n 2200 ...
+```
+
+The arms are complementary but **not disjoint**: RCSB evaluates
+`polymer_entity_instance_count` per *assembly*, and an entry depositing both a
+monomeric and a dimeric assembly matches `>=2` and `<2` alike (~2.5% of the
+pool). `merge_pinned` de-duplicates; anything else that concatenates arms must
+too, or those entries are trained on twice.
+
+The authority on the built corpus is `data/manifest.json`, not the query — the
+parser decides what survives. Report the multi-chain and ligand-bearing
+fractions from the manifest and compare them against 72% / 43% before
+attributing any change to data volume.
+
+## MISATO
+
+AMBER prmtop topology, bonds authoritative (not perceived). Built by the
+converter under `scripts/`; validated by `scripts/check_dataset.py`. Last
+build: 63,120 npz, `rg_ratio` 1.06, 0% extended, gate PASS.
+
+## Held-out evaluation
+
+`run_data_scaling.py` writes `data/splits_n{N}.json` holding the **val keys
+fixed** and growing only the train subset. That is the shape any data-volume
+claim has to take: identical evaluation, growing training set. A curve built
+by re-splitting at each size measures split luck as much as data.

@@ -1,0 +1,179 @@
+"""The RCSB id query is the only part of the corpus that lives outside the repo.
+
+Every dataset number we quote traces back to a query that was run once on a
+cluster. If that query is not reproducible, neither is the dataset -- which is
+exactly how the original complex list became unrebuildable. These tests pin the
+two things that would silently invalidate a comparison: the single-chain query
+drifting away from the one every reference number was measured on, and a
+rebuilt corpus quietly dropping members of the split it inherits.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from fetch_rcsb_ids import (  # noqa: E402
+    build_query, composition_nodes, dedup, merge_pinned, read_ids,
+)
+
+
+def _attrs(nodes):
+    """Flatten a query node list to (attribute, operator, value) triples."""
+    out = []
+    for n in nodes:
+        if n["type"] == "group":
+            out.extend(_attrs(n["nodes"]))
+        else:
+            p = n["parameters"]
+            out.append((p["attribute"], p["operator"], p["value"]))
+    return out
+
+
+def test_single_mode_query_is_unchanged():
+    """The 0.79 A reference was measured on THIS query; drift silently rebases it."""
+    nodes = build_query(30, 150, 2.5, 0, 1000)["query"]["nodes"]
+    assert ("rcsb_entry_info.polymer_entity_count_protein", "equals", 1) in _attrs(nodes)
+    assert ("rcsb_assembly_info.polymer_entity_instance_count", "equals", 1) in _attrs(nodes)
+    assert ("exptl.method", "exact_match", "X-RAY DIFFRACTION") in _attrs(nodes)
+    assert ("rcsb_entry_info.resolution_combined", "less_or_equal", 2.5) in _attrs(nodes)
+
+
+def test_single_is_the_default_mode():
+    assert build_query(30, 150, 2.5, 0, 10) == build_query(30, 150, 2.5, 0, 10, mode="single")
+
+
+def test_complex_mode_admits_assemblies_or_ligands():
+    """Monomer-plus-cofactor must survive: an OR, not a multi-chain-only filter."""
+    nodes = composition_nodes("complex", min_instances=2)
+    groups = [n for n in nodes if n["type"] == "group"]
+    assert len(groups) == 1, "the assembly/ligand clause must be one OR group"
+    assert groups[0]["logical_operator"] == "or"
+    inner = _attrs(groups[0]["nodes"])
+    assert ("rcsb_assembly_info.polymer_entity_instance_count", "greater_or_equal", 2) in inner
+    assert ("rcsb_entry_info.nonpolymer_entity_count", "greater_or_equal", 1) in inner
+
+
+def test_complex_mode_never_pins_instance_count_to_one():
+    """`equals 1` here would reproduce the single-chain set under a new name."""
+    triples = _attrs(build_query(30, 400, 2.5, 0, 10, mode="complex")["query"]["nodes"])
+    assert ("rcsb_assembly_info.polymer_entity_instance_count", "equals", 1) not in triples
+
+
+def test_complex_mode_keeps_the_shared_band_and_method():
+    triples = _attrs(build_query(30, 400, 2.2, 0, 10, mode="complex")["query"]["nodes"])
+    assert ("exptl.method", "exact_match", "X-RAY DIFFRACTION") in triples
+    assert ("rcsb_entry_info.resolution_combined", "less_or_equal", 2.2) in triples
+    assert ("entity_poly.rcsb_sample_sequence_length", "range",
+            {"from": 30, "to": 400, "include_lower": True, "include_upper": True}) in triples
+
+
+def test_require_arms_are_complementary():
+    """The ligand arm must exclude what the assembly arm covers.
+
+    Complementary in intent, but NOT disjoint in practice: RCSB evaluates
+    instance count per assembly and entries may deposit several, so ~2.5% of the
+    pool matches both. merge_pinned de-duplicates for exactly that reason.
+    """
+    asm = _attrs(composition_nodes("complex", 2, require="assembly"))
+    lig = _attrs(composition_nodes("complex", 2, require="ligand"))
+    assert ("rcsb_assembly_info.polymer_entity_instance_count", "greater_or_equal", 2) in asm
+    assert ("rcsb_assembly_info.polymer_entity_instance_count", "less", 2) in lig
+    assert ("rcsb_entry_info.nonpolymer_entity_count", "greater_or_equal", 1) in lig
+    assert ("rcsb_entry_info.nonpolymer_entity_count", "greater_or_equal", 1) not in asm
+
+
+def test_concatenated_arms_never_yield_a_duplicate():
+    """The overlap is real, so a concatenated build must not train twice on it."""
+    assembly_arm = ["A1", "A2", "BOTH1", "A3", "BOTH2"]
+    ligand_arm = ["L1", "BOTH1", "L2", "BOTH2"]
+    out = merge_pinned(assembly_arm + ligand_arm, [], n=99, seed=0)
+    assert len(out) == len(set(out))
+    assert out == ["A1", "A2", "BOTH1", "A3", "BOTH2", "L1", "L2"]
+
+
+def test_dedup_keeps_first_occurrence_order():
+    assert dedup(["B", "A", "B", "C", "A"]) == ["B", "A", "C"]
+
+
+def test_duplicates_in_the_pin_list_are_collapsed():
+    out = merge_pinned(["P1", "P2"], ["X", "X", "Y"], n=4, seed=0)
+    assert out[:2] == ["X", "Y"]
+    assert len(out) == len(set(out))
+
+
+def test_require_arms_have_no_or_group():
+    for require in ("assembly", "ligand"):
+        nodes = composition_nodes("complex", 2, require=require)
+        assert not [n for n in nodes if n["type"] == "group"], require
+
+
+def test_require_is_ignored_in_single_mode():
+    base = composition_nodes("single", 2)
+    assert composition_nodes("single", 2, require="assembly") == base
+    assert composition_nodes("single", 2, require="ligand") == base
+
+
+def test_min_instances_moves_both_arms_together():
+    asm = _attrs(composition_nodes("complex", 3, require="assembly"))
+    lig = _attrs(composition_nodes("complex", 3, require="ligand"))
+    assert ("rcsb_assembly_info.polymer_entity_instance_count", "greater_or_equal", 3) in asm
+    assert ("rcsb_assembly_info.polymer_entity_instance_count", "less", 3) in lig
+
+
+def test_pinned_ids_survive_even_when_the_query_drops_them():
+    """The whole point: an inherited val split must not lose members."""
+    pool = [f"P{i:03d}" for i in range(500)]
+    pinned = ["GONE1", "GONE2", "P004"]
+    out = merge_pinned(pool, pinned, n=50, seed=0)
+    assert out[:3] == pinned, "pinned ids come first, in order"
+    assert len(out) == 50
+    assert out.count("P004") == 1, "a pinned id also in the pool must not duplicate"
+
+
+def test_pinned_ids_are_never_subsampled_away():
+    pool = [f"P{i:03d}" for i in range(500)]
+    pinned = [f"P{i:03d}" for i in range(40)]
+    out = merge_pinned(pool, pinned, n=45, seed=3)
+    assert set(pinned) <= set(out)
+    assert len(out) == 45
+
+
+def test_merge_is_deterministic_and_seed_sensitive():
+    pool = [f"P{i:03d}" for i in range(500)]
+    assert merge_pinned(pool, [], 50, 0) == merge_pinned(pool, [], 50, 0)
+    assert merge_pinned(pool, [], 50, 0) != merge_pinned(pool, [], 50, 1)
+
+
+def test_growing_a_corpus_is_a_superset_of_the_old_one():
+    """Data-scaling only measures VOLUME if composition is held fixed."""
+    pool = [f"P{i:03d}" for i in range(2000)]
+    small = merge_pinned(pool, [], n=200, seed=0)
+    grown = merge_pinned(pool, small, n=800, seed=0)
+    assert set(small) <= set(grown)
+    assert len(grown) == 800
+
+
+def test_small_n_with_many_pins_returns_all_pins():
+    """merge_pinned never truncates pins; main() rejects this case up front."""
+    out = merge_pinned(["A", "B"], ["X", "Y", "Z"], n=2, seed=0)
+    assert out == ["X", "Y", "Z"]
+
+
+def test_read_ids_skips_comments_and_uppercases(tmp_path):
+    p = tmp_path / "ids.txt"
+    p.write_text("# header\n1abc\n\n2DEF\n# trailing\n")
+    assert read_ids(p) == ["1ABC", "2DEF"]
+
+
+@pytest.mark.parametrize("mode", ["single", "complex"])
+def test_pagination_is_passed_through(mode):
+    q = build_query(30, 150, 2.5, 3000, 1000, mode=mode)
+    assert q["request_options"]["paginate"] == {"start": 3000, "rows": 1000}
+    assert q["return_type"] == "entry"
+    assert q["request_options"]["results_content_type"] == ["experimental"]
