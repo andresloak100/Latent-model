@@ -95,14 +95,25 @@ def composition_nodes(mode: str, min_instances: int, require: str = "any"):
         ]
     assembly = _terminal(INSTANCE_COUNT_ATTR, "greater_or_equal", min_instances)
     ligand = _terminal("rcsb_entry_info.nonpolymer_entity_count", "greater_or_equal", 1)
+    no_ligand = _terminal("rcsb_entry_info.nonpolymer_entity_count", "equals", 0)
+    monomeric = _terminal(INSTANCE_COUNT_ATTR, "less", min_instances)
     protein = _terminal("rcsb_entry_info.polymer_entity_count_protein",
                         "greater_or_equal", 1)
     if require == "assembly":
         return [protein, assembly]
     if require == "ligand":
         # A ligand-bearing MONOMER: the arm the assembly query cannot reach.
-        return [protein, ligand,
-                _terminal(INSTANCE_COUNT_ATTR, "less", min_instances)]
+        return [protein, ligand, monomeric]
+    if require == "monomer":
+        # Single chain, no ligand. Neither of the other arms reaches this, yet
+        # it is 14.8% of the reference corpus -- there via the assembly-attribute
+        # bug, as entries whose biological multimer collapsed to one chain in
+        # the asymmetric unit. Those specific entries are gone with the fix, but
+        # the CELL still has to be filled or the grown corpus cannot match the
+        # reference on the ligand axis. A genuine ligand-free monomer and a
+        # collapsed one are the same input to the model: one chain, no ligand.
+        # Composition is a property of what the model sees, not of provenance.
+        return [protein, monomeric, no_ligand]
     return [protein, {"type": "group", "logical_operator": "or",
                       "nodes": [assembly, ligand]}]
 
@@ -191,10 +202,13 @@ def main():
                          "non-polymer entity (assemblies and/or ligands).")
     ap.add_argument("--min-instances", type=int, default=2,
                     help="complex mode: polymer instances counted as an assembly")
-    ap.add_argument("--require", default="any", choices=["any", "assembly", "ligand"],
-                    help="complex mode: narrow to one arm of the OR so a grown "
-                         "corpus can be composition-matched (assembly = "
-                         "multi-chain; ligand = ligand-bearing monomer).")
+    ap.add_argument("--require", default="any",
+                    choices=["any", "assembly", "ligand", "monomer"],
+                    help="complex mode: narrow to one arm so a grown corpus can "
+                         "be composition-matched. assembly = multi-chain; "
+                         "ligand = ligand-bearing monomer; monomer = single "
+                         "chain with no ligand. The three are disjoint and "
+                         "together cover every cell of the reference corpus.")
     ap.add_argument("--keep-list", default=None,
                     help="ids that must survive verbatim (emitted first, never "
                          "subsampled away). Pass the existing corpus when "
@@ -239,7 +253,8 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     arm = {"any": f">={args.min_instances} polymer instances OR >=1 non-polymer entity",
            "assembly": f">={args.min_instances} polymer instances",
-           "ligand": f"<{args.min_instances} polymer instances AND >=1 non-polymer entity"}
+           "ligand": f"<{args.min_instances} polymer instances AND >=1 non-polymer entity",
+           "monomer": f"<{args.min_instances} polymer instances AND 0 non-polymer entities"}
     what = ("single-chain X-ray proteins" if args.mode == "single" else
             f"X-ray protein complexes ({arm[args.require]})")
     header = [

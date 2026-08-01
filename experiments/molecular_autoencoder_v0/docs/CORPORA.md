@@ -87,24 +87,58 @@ answers no question at all.
 
 Sorting by resolution pulls small, high-resolution monomers to the front of
 the pool, so an unconstrained draw drifts toward ligand-bearing monomers and
-away from assemblies. The original corpus was 537/742 multi-chain (72%). To
-hold that fixed, build the two arms separately and concatenate:
+away from assemblies. Two axes have to be held: multi-chain and
+ligand-bearing. They are not interchangeable — a corpus matched on one drifts
+on the other, and a ladder run across it differs from the baseline in two ways
+at once, which makes its slope unattributable.
+
+The reference corpus's exact cells (742 structures):
+
+| cell | count | fraction |
+|---|---|---|
+| mc + ligand | 227 | 30.6% |
+| mc + no ligand | 310 | 41.8% |
+| mono + ligand | 95 | 12.8% |
+| mono + no ligand | 110 | 14.8% |
+
+Three disjoint arms cover all four cells (79,734 + 43,855 + 7,522 = 131,111,
+the whole complex pool):
 
 ```
-python scripts/fetch_rcsb_ids.py --mode complex --require assembly --n 5800 ...
-python scripts/fetch_rcsb_ids.py --mode complex --require ligand   --n 2200 ...
+python scripts/fetch_rcsb_ids.py --mode complex --require assembly ...   # mc+*
+python scripts/fetch_rcsb_ids.py --mode complex --require ligand   ...   # mono+lig
+python scripts/fetch_rcsb_ids.py --mode complex --require monomer  ...   # mono+noLig
 ```
 
-The arms are complementary but **not disjoint**: RCSB evaluates
-`polymer_entity_instance_count` per *assembly*, and an entry depositing both a
-monomeric and a dimeric assembly matches `>=2` and `<2` alike (~2.5% of the
-pool). `merge_pinned` de-duplicates; anything else that concatenates arms must
-too, or those entries are trained on twice.
+The `monomer` arm exists because `mono+noLig` is 14.8% of the reference and
+neither other arm reaches it. Those 110 reference structures got there through
+the assembly-attribute bug — biological multimers that collapse to one chain in
+the asymmetric unit — so the fix removes those specific entries. The cell still
+has to be filled: a genuine ligand-free monomer and a collapsed one are the same
+input to the model, one chain and no ligand. Composition is a property of what
+the model sees, not of provenance.
 
-The authority on the built corpus is `data/manifest.json`, not the query — the
-parser decides what survives. Report the multi-chain and ligand-bearing
-fractions from the manifest and compare them against 72% / 43% before
-attributing any change to data volume.
+### Do not size the arms by prediction
+
+The parser decides what survives — chains below the length floor, ligands below
+the atom floor, structures outside the residue/atom band — so fetched
+composition and built composition are different things and the mapping is only
+known after parsing. Over-draw every arm, parse, then select:
+
+```
+python scripts/match_composition.py \
+    --manifest data/processed_complex_scaled/manifest.json \
+    --reference-manifest data/manifest_complex_742.json \
+    --n 8000 --out data/keys_complex_matched.txt
+```
+
+It selects per cell against the measured composition, pins the reference
+members so the anchor rung survives, and **caps the corpus at the binding
+cell** rather than drifting — a corpus that is neither the requested size nor
+the reference composition would pass unnoticed otherwise. A reported shortfall
+means fetch more of that arm, not accept the drift.
+
+The authority is always the manifest, never the query.
 
 ## MISATO
 
