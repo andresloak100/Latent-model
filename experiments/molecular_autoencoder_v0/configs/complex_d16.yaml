@@ -1,0 +1,66 @@
+# LATENT-BUDGET control for complex_d8.
+#
+# Both capacity arms (1.1M and 3.8M) hold latent_dim = 8. Scaling d_model does
+# not touch the latent at all, so "capacity ruled out" rules out MODEL
+# capacity, not LATENT capacity -- and the two are independent axes.
+#
+# Counter-evidence to be honest about: on the <=800-atom band the latent
+# saturates by dim 4 (d1 4.069, d2 1.405, d4 0.707, d8 0.693, d16 0.681), so
+# there the budget is not the constraint. But the saturation point is
+# size-dependent in principle: a residue in a 60 A-radius complex must be
+# placed to the same ABSOLUTE precision from the same 8 floats as one in a
+# 15 A protein, and the dynamic range has roughly doubled. Whether saturation
+# still sits at dim 4 for 2500-atom structures has never been measured.
+#
+# dim 16 keeps real compression (~1.5x against 3 floats/atom over ~8 atoms per
+# residue). If this moves the number, latent budget is the ceiling and it is
+# the knob that matters for MISATO, whose median is 2542 heavy atoms. If it
+# does not, the latent is exonerated and the ceiling is the per-residue
+# readout itself.
+name: complex_d16
+data:
+  processed_dir: data/processed_complex
+  splits_file: data/splits_complex.json
+  min_residues: 20
+  max_residues: 400
+  max_atoms: 3000
+model:
+  d_model: 128
+  n_heads: 4
+  n_latent_tokens: 16
+  latent_dim: 16
+  enc_self_layers: 2
+  dec_self_layers: 2
+  ff_mult: 4
+  dropout: 0.0
+  max_res_pos: 1024
+  coord_scale: 10.0
+  max_chains: 16
+  use_slot_emb: true
+  encoder_type: direct
+  k_neighbors: 8
+  rope_freqs: 128
+  rope_spherical: false
+  objective: reconstruct
+  flow_steps: 50
+loss:
+  coord: 1.0
+  distance: 1.0
+  bond: 1.0
+  clash: 0.5
+  chirality: 0.2
+train:
+  seed: 0
+  epochs: 900
+  batch_size: 8
+  lr: 0.0003
+  weight_decay: 0.0
+  grad_clip: 1.0
+  log_every: 25
+  eval_every: 25
+  ckpt_every: 50
+  clash_dist: 1.5
+  loss_max_atoms: 3000
+  out_dir: outputs/complex_d16
+  overfit: false
+  augment_rotation: true
