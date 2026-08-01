@@ -217,8 +217,22 @@ def main():
     loader = DataLoader(dataset, batch_size=cfg.train.batch_size, shuffle=True,
                         collate_fn=collate_fn, num_workers=args.num_workers,
                         pin_memory=(args.pin_memory and device.type == "cuda"))
+    # Evaluation loaders get their OWN generator so that evaluating does not
+    # perturb training.
+    #
+    # A DataLoader with num_workers > 0 draws its worker base seed from the
+    # global torch RNG every time an iterator is created, and shuffle=True
+    # draws its permutation from the same place. So adding an eval pass, or
+    # merely changing how often one fires, shifts the stream that decides
+    # batch order and rotation augmentation for every later epoch. Two runs of
+    # identical code and data then diverge because their *logging* differed --
+    # which makes any before/after comparison across a change to the eval
+    # schedule uninterpretable, and that is exactly the comparison a
+    # regression check is.
+    eval_gen = torch.Generator().manual_seed(cfg.train.seed + 1)
     val_loader = (DataLoader(val_dataset, batch_size=cfg.train.batch_size, shuffle=False,
-                             collate_fn=collate_fn, num_workers=args.num_workers)
+                             collate_fn=collate_fn, num_workers=args.num_workers,
+                             generator=eval_gen)
                   if val_dataset is not None and len(val_dataset) else None)
     # A FIXED, deterministic slice of train, evaluated exactly like val.
     #
@@ -230,7 +244,8 @@ def main():
     n_te = min(len(dataset), len(val_dataset) if val_dataset is not None else 128)
     train_eval_loader = DataLoader(
         Subset(dataset, list(range(n_te))), batch_size=cfg.train.batch_size,
-        shuffle=False, collate_fn=collate_fn, num_workers=args.num_workers)
+        shuffle=False, collate_fn=collate_fn, num_workers=args.num_workers,
+        generator=torch.Generator().manual_seed(cfg.train.seed + 2))
     print(f"[train] {len(dataset)} structures on {device} (amp={use_amp}); "
           f"{'first ids: ' + str(keys[:8]) if len(keys) > 8 else keys}")
 
