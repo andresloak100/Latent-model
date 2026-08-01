@@ -15,11 +15,20 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import gc
+import resource
 import subprocess
 import sys
 from pathlib import Path
 
 import numpy as np
+
+
+def _rss_mb() -> float:
+    """Peak resident size. A high-water mark: it never falls, so a flat
+    reading is evidence of no growth while a rising one is not by itself
+    evidence of a leak."""
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -181,6 +190,9 @@ def main():
                     help="drop kept-ligand groups smaller than this (e.g. 6 to "
                          "exclude lone ions). Only used with --keep-ligands.")
     ap.add_argument("--jobs", type=int, default=8, help="parallel download workers")
+    ap.add_argument("--gc-every", type=int, default=250,
+                    help="force a cyclic collection and print RSS every N "
+                         "structures. 0 disables both.")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
@@ -207,7 +219,19 @@ def main():
     if args.jobs > 1:
         prefetch_cifs(ids, cache_dir, args.jobs)
 
-    for pid in ids:
+    for i, pid in enumerate(ids):
+        # Report memory as the loop runs. An OOM 4,600 structures into an
+        # 8,000-structure build is otherwise diagnosed by inference: a linear
+        # extrapolation from two points cannot tell a genuine leak from heap
+        # fragmentation, and the two have different fixes. gemmi structures
+        # are large C++ objects behind small Python handles, and CPython's
+        # cyclic collector triggers on object COUNT, not bytes -- so a cycle
+        # holding one can sit uncollected through thousands of allocations
+        # while the process grows. Hence the periodic collect.
+        if args.gc_every and i and i % args.gc_every == 0:
+            gc.collect()
+            print(f"  [mem] {i}/{len(ids)} parsed, RSS {_rss_mb():.0f} MB "
+                  f"({_rss_mb() / max(i, 1):.2f} MB/structure so far)")
         try:
             cif = download_cif(pid, cache_dir)
         except Exception as e:
