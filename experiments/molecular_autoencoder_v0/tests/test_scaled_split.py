@@ -128,3 +128,34 @@ def test_reference_train_is_exempt_so_the_anchor_survives():
     assert all_leaks == {"5OLD_A-B", "9RED_A"}
     assert all_leaks - exempt == {"9RED_A"}, "only the NEW leak is excluded"
     assert all_leaks & exempt == {"5OLD_A-B"}, "the baseline's own leakage is reported"
+
+
+def test_near_duplicate_exclusion_must_also_exempt_the_reference():
+    """Constant leakage does not bend a slope; RISING leakage does.
+
+    Excluding near-duplicates from the added data only holds leakage fixed at
+    the baseline's own level across every rung. Excluding them everywhere
+    would prune the reference training set and break the anchor; excluding
+    them nowhere lets leakage grow with corpus size, which is the confound the
+    ladder exists to avoid.
+    """
+    val = "MKVLAAGIVGYW" * 5
+    mutant = val[:30] + "P" + val[31:]
+    candidates = {"5OLD_A": {mutant}, "9NEW_A": {mutant}}
+    exempt = {"5OLD_A"}
+
+    all_near = {k for k, _ in near_duplicates(candidates, {val}, 0.9)}
+    assert all_near == {"5OLD_A", "9NEW_A"}
+
+    added_only = {k for k, _ in near_duplicates(
+        {k: v for k, v in candidates.items() if k not in exempt}, {val}, 0.9)}
+    assert added_only == {"9NEW_A"}, "the reference member must survive"
+
+
+def test_reference_near_duplicates_are_still_counted():
+    """The baseline's own leakage level has to be reportable, not hidden."""
+    val = "MKVLAAGIVGYW" * 5
+    candidates = {"5OLD_A": {val}, "9NEW_A": {"QWERTYIPASDF" * 5}}
+    near = near_duplicates(candidates, {val}, 0.9)
+    baseline = [(k, r) for k, r in near if k in {"5OLD_A"}]
+    assert [k for k, _ in baseline] == ["5OLD_A"]

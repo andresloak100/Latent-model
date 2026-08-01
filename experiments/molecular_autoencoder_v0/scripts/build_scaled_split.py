@@ -174,11 +174,22 @@ def main():
     report_thr = args.report_similarity
     near = near_duplicates({k: candidates[k] for k in train_keys},
                            val_sequences, report_thr) if report_thr else []
+    near_baseline = [(k, r) for k, r in near if k in exempt]
 
     excluded_near = []
     if args.exclude_similarity is not None:
+        # Exempt the reference training set here too, for the same reason the
+        # exact rule exempts it: pruning it breaks the anchor.
+        #
+        # This is what makes exclusion the right choice rather than a tradeoff.
+        # Near-duplicate leakage that GROWS with corpus size is fatal to a data
+        # ladder -- the slope then mixes data volume with rising leakage, and
+        # that is the confound the whole exercise exists to avoid. Excluding it
+        # from the added data only, while leaving the reference set intact,
+        # holds leakage CONSTANT at the baseline's own level across every rung.
+        # Constant leakage does not bend a slope; rising leakage does.
         excluded_near = [k for k, r in near_duplicates(
-            {k: candidates[k] for k in train_keys},
+            {k: candidates[k] for k in train_keys if k not in exempt},
             val_sequences, args.exclude_similarity)]
         train_keys = sorted(set(train_keys) - set(excluded_near))
 
@@ -195,6 +206,7 @@ def main():
         "report_similarity": report_thr,
         "exclude_similarity": args.exclude_similarity,
         "n_near_duplicates_excluded": len(excluded_near),
+        "n_reference_train_near_duplicates": len(near_baseline),
     }
     utils.save_json(splits, ROOT / args.out if not Path(args.out).is_absolute() else args.out)
 
@@ -222,7 +234,9 @@ def main():
             print(f"           {key}  ratio {r:.3f}")
     if args.exclude_similarity is not None:
         print(f"[split] excluded {len(excluded_near)} near-duplicates at "
-              f">={args.exclude_similarity}")
+              f">={args.exclude_similarity} from the ADDED data; the reference "
+              f"training set keeps its own {len(near_baseline)}, so leakage is "
+              f"constant across rungs rather than rising with corpus size")
     print(f"[split] wrote {args.out}")
 
 
