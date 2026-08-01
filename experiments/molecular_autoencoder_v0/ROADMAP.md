@@ -114,15 +114,16 @@ ramp, and where the shift should sit.
 ## 3. The complex-codec ceiling — what has been eliminated
 
 `complex_d8` plateaus at ~5.5–5.9 Å all-atom against the 0.79 Å single-chain
-reference. Five explanations have been tested and four are closed.
+reference. Six explanations have been tested and five are closed. Only
+training-set size and the representation itself are still live.
 
 **Undertraining — RULED OUT.** 63k steps gave 5.584 Å; 242k gave 5.884. Four
 times the steps bought nothing.
 
-**Model capacity — RULED OUT.** 1.1M and 3.8M parameter arms both plateau at
-train ~5.3, v/t ~1.1. Four times the parameters bought nothing. Note this
-rules out *model* capacity only; `latent_dim` was 8 in both arms and
-`d_model` does not touch it.
+**Model capacity — RULED OUT.** 1.1M gave 5.584 Å held-out; 3.8M (3.5×) gave
+5.804 Å. Both plateau at train ~5.3, v/t ~1.1. More parameters bought
+nothing and cost a little. This rules out *model* capacity only; `latent_dim`
+was 8 in both arms and `d_model` does not touch it — that axis is (1) below.
 
 **Assembly placement — SECONDARY, not primary.** Superimposing each chain or
 domain independently recovers only 1.25 Å of the 5.79 Å total (22%). There
@@ -141,21 +142,31 @@ That reframes the problem. Against the reference at `rmsd/rg ≈ 0.06`, the
 complex codec sits at ~0.3 — a **uniform ~5× relative gap**, not a
 size-dependent failure. Three candidates remain:
 
-1. **Latent budget.** Constant fractional precision is exactly the signature
-   of a fixed per-residue budget: 8 floats buys a fixed fraction of the
-   dynamic range. Counter-evidence: on the ≤800-atom band the latent
-   saturates by dim 4 (d1 4.069, d2 1.405, d4 0.707, d8 0.693, d16 0.681).
-   Whether saturation moves at complex scale has never been measured.
-   *Testing: `complex_d16`.*
+1. **Latent budget — RULED OUT.** Constant fractional precision looked like
+   the signature of a fixed per-residue budget: 8 floats buys a fixed
+   fraction of the dynamic range. Counter-evidence was already on record —
+   on the ≤800-atom band the latent saturates by dim 4 (d1 4.069, d2 1.405,
+   d4 0.707, d8 0.693, d16 0.681) — and `complex_d16` confirmed it at
+   complex scale: doubling the budget made it *worse*, not flat.
 2. **Training-set size.** 556 structures against the reference's 2272 — four
    times less data, never controlled in any complex run, and the ladder
-   measured this axis as real and not plateaued. *Queued: scaled-experimental
-   build.*
+   measured this axis as real and not plateaued. The one arm still open.
+   *Was blocked on an unrebuildable corpus; unblocked, see `docs/CORPORA.md`.*
 3. **The representation itself** (multi-chain + ligands + modified residues),
    which is what we wanted to add.
 
-If (1) and (2) both come back flat, the per-residue readout is the ceiling —
-a redesign, not a config change.
+With (1) closed, only (2) and (3) remain, and they are not symmetric. Every
+capacity-shaped lever — parameters (3.5×), latent budget (2×), steps (4×) —
+has now come back negative, and each made the *train* RMSD no better. A model
+that cannot fit what it has already seen is not short of anything you can add
+more of. That points at (3), with (2) as the cheaper thing to falsify first.
+
+The specific suspicion about the readout: every atom reads slot
+`(res_pos, slot_idx)` emitted from its own residue's latent. That is what made
+variable-size decoding work at all, but it gives an atom no path to anything
+outside its own residue — which is exactly what placing one chain relative to
+another requires. The 22% assembly-placement term and the uniform `bb ≈ aa`
+failure both sit where that predicts.
 
 **Outstanding control:** rerun `ladder_direct_n2272` on current HEAD. Every
 complex number was produced by code that changed substantially since 0.878 Å

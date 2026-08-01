@@ -38,10 +38,47 @@ are ~1-2 A harder, as expected. (Atom-weighted pooling upweights large/worse
 structures, so these exceed the 5.58 per-structure mean; the RELATIVE ordering is
 the valid read.)
 
-## Verdict
+## Verdict (SUPERSEDED -- see the correction below)
 Capacity-limited, not representation- or ligand-broken. Data is correct (762
 disulfides, anchors intact incl. glycan trees, max bond degree <=4, duplicates
 collapsed); the ligand path works; but 1.1M params cannot hold accuracy on
 1500-3000-atom complexes -- matching the earlier "1.1M under-capacity for <=3000"
 finding. Next lever is model CAPACITY, not more data plumbing. The scaled
 experimental dataset (queued behind MISATO) and a larger codec are the path.
+
+## Correction: capacity was NOT the ceiling
+
+Two controls have since run, and both came back negative:
+
+| arm | change | held-out aa |
+|---|---|---|
+| complex_d8 | 1.1M params, latent_dim 8 | 5.584 |
+| complex_d8_3m | 3.8M params (3.5x) | 5.804 |
+| complex_d16 | latent_dim 16 (2x budget) | worse than d8 |
+
+Three-and-a-half times the parameters made it slightly WORSE, and doubling the
+latent budget did too. Neither is a null result that more of the same would
+fix: the train RMSD does not drop either, so the model is not failing to
+*store* the answer, it is failing to fit even what it has seen. Combined with
+the earlier eliminations -- undertraining (4x the steps bought nothing) and
+size (rmsd/rg flat at 0.29-0.38, so "degrades with size" was largely a
+property of the metric) -- the "next lever is model CAPACITY" line above is
+falsified. It read the 1.16x val/train gap as under-capacity when the same
+evidence is equally consistent with an architecture that cannot express the
+target at all.
+
+Two candidates remain, and the per-category table above now reads differently
+in their light:
+
+  * **Data volume.** 556 training complexes, never controlled. The one arm not
+    yet run, and now unblocked (see docs/CORPORA.md).
+  * **The per-residue readout.** Every atom reads a slot addressed by
+    `(res_pos, slot_idx)` from its own residue's latent. That is what made
+    variable-size decoding work at all, but it gives an atom no path to
+    anything outside its own residue -- which is precisely what placing one
+    chain relative to another requires. The 22%-of-total assembly-placement
+    error and the uniform bb ~= aa failure both sit where this predicts.
+
+The parts of the verdict that survive: the data is correct, and the ligand
+ordinal-slot path is not a special failure (covalent ligands 8.28 vs protein
+7.98).
