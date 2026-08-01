@@ -231,3 +231,27 @@ def test_a_sweep_over_the_schedule_is_a_normal_config_grid():
             seen.add((hq_start, ramp_start, mid))
             assert 0.0 <= mid <= 1.0
     assert len(seen) == 9        # every cell is a distinct schedule
+
+
+def test_rg_ratio_is_calibrated_on_residues_not_atoms():
+    """Rg ~ 2.2 * N^0.38 is calibrated for N = RESIDUES. Passing atom count
+    overestimates Rg by a flat 2.2x at ~8 heavy atoms per residue, which puts
+    every real structure near 0.45 and makes the "well above 1 = extended"
+    reading unreachable."""
+    rng = np.random.default_rng(0)
+    nres, apr = 150, 8
+    rg = 2.2 * nres ** 0.38
+    xyz = rng.normal(0, rg / np.sqrt(3), (nres * apr, 3))
+    d = {"coords": xyz, "bonds": np.zeros((0, 2), int),
+         "element_symbol": ["C"] * (nres * apr),
+         "res_pos": np.repeat(np.arange(nres), apr)}
+    assert 0.8 < tier_geometry_stats([d])["rg_ratio"] < 1.25
+
+
+def test_rg_ratio_flags_an_extended_chain_after_calibration():
+    n = 1200
+    ext = np.stack([np.arange(n) * 0.48, np.zeros(n), np.zeros(n)], axis=1)
+    d = {"coords": ext, "bonds": np.zeros((0, 2), int),
+         "element_symbol": ["C"] * n,
+         "res_pos": np.repeat(np.arange(n // 8), 8)}
+    assert tier_geometry_stats([d])["rg_ratio"] > 3.0

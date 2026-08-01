@@ -185,7 +185,14 @@ def tier_geometry_stats(samples):
         if len(coords) > 1:
             cen = coords - coords.mean(axis=0)
             rg = float(np.sqrt((cen ** 2).sum(axis=1).mean()))
-            rg_ratio.append(rg / (2.2 * max(len(coords), 1) ** 0.38))
+            # Rg ~ 2.2 * N^0.38 is calibrated for N = RESIDUES, not atoms.
+            # Passing atoms overestimates Rg by a flat 2.2x at ~8 heavy atoms
+            # per residue, making every structure look far more compact than
+            # it is and putting the "well above 1 = extended" reading out of
+            # reach entirely.
+            n_res = (len(set(np.asarray(d["res_pos"]).tolist()))
+                     if "res_pos" in d else max(len(coords) // 8, 1))
+            rg_ratio.append(rg / (2.2 * max(n_res, 1) ** 0.38))
             dm = np.linalg.norm(coords[:, None, :] - coords[None, :, :], axis=-1)
             iu = np.triu_indices(len(coords), k=1)
             bonded = set(map(tuple, bonds.tolist()))
