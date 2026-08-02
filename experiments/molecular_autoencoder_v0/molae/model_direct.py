@@ -36,8 +36,50 @@ from .model import ModelConfig, SelfAttention, Bottleneck
 from .model_perresidue import PerResidueEncoder, residue_mask, n_residues
 
 
+def residue_chain_index(res_pos, chain_idx, R: int, max_chains: int):
+    """Per-residue chain id, and the residue's position WITHIN that chain.
+
+    Both are derived from tensors the batch already carries; nothing new has
+    to be parsed or stored. Chains are laid out contiguously in ``res_pos``,
+    so a chain's first global residue index is the minimum over its residues,
+    and the within-chain position is the offset from it.
+    """
+    B = res_pos.shape[0]
+    device = res_pos.device
+    rchain = torch.zeros(B, R, dtype=torch.long, device=device)
+    rchain.scatter_(1, res_pos, chain_idx)
+    rchain = rchain.clamp(max=max_chains - 1)
+
+    idxR = torch.arange(R, device=device).unsqueeze(0).expand(B, R)
+    # amin over residue indices per chain. Padding residues never lower a
+    # minimum (they sit at HIGHER indices than the chain's real first residue),
+    # so they cannot corrupt the offset.
+    first = torch.full((B, max_chains), R, dtype=torch.long, device=device)
+    first = first.scatter_reduce(1, rchain, idxR, reduce="amin", include_self=True)
+    within = idxR - first.gather(1, rchain)
+    return rchain, within.clamp_min(0)
+
+
 class DirectResidueDecoder(nn.Module):
-    """Emit a coordinate slot per (residue, atom-name); atoms gather their own."""
+    """Emit a coordinate slot per (residue, atom-name); atoms gather their own.
+
+    Chain awareness (``cfg.dec_chain_aware``) closes an asymmetry, not a
+    feature gap. The ENCODER's featuriser already carries a chain embedding,
+    with the reason stated on it: without one, "two chains are only
+    distinguishable by their global res_pos, so the model cannot tell a chain
+    break from a peptide bond". Every word of that applies to this decoder,
+    which had neither a chain embedding nor any within-chain index -- it saw a
+    single sequential ``res_pos`` running across the whole assembly.
+
+    That is worse than absent information, it is wrong information. The
+    ``res_pos`` embedding's value is the prior that residue r sits ~3.8A from
+    residue r+1; that holds along a chain and is FALSE at every chain
+    boundary, and nothing marked where the boundaries were. On a single chain
+    the prior is true everywhere -- which is precisely the asymmetry that needs
+    explaining: 0.79A single-chain against ~5.9A on complexes.
+
+    Off by default, so every prior ``direct`` result stays reproducible.
+    """
 
     def __init__(self, cfg: ModelConfig):
         super().__init__()
@@ -46,6 +88,13 @@ class DirectResidueDecoder(nn.Module):
         self.up = nn.Linear(cfg.latent_dim, cfg.d_model)
         self.res_pos_emb = nn.Embedding(cfg.max_res_pos, cfg.d_model)
         self.res_type_emb = nn.Embedding(C.N_RESIDUES, cfg.d_model, padding_idx=C.PAD_RESIDUE_IDX)
+        self.chain_aware = bool(getattr(cfg, "dec_chain_aware", False))
+        if self.chain_aware:
+            self.chain_emb = nn.Embedding(cfg.max_chains, cfg.d_model)
+            # Kept ALONGSIDE the global index, not instead of it: global says
+            # how far into the assembly a residue sits, within-chain restores
+            # the adjacency prior the global index breaks at each boundary.
+            self.res_in_chain_emb = nn.Embedding(cfg.max_res_pos, cfg.d_model)
         self.ln = nn.LayerNorm(cfg.d_model)
         self.blocks = nn.ModuleList(
             [SelfAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
@@ -69,7 +118,13 @@ class DirectResidueDecoder(nn.Module):
         # First residue-type seen at each position (identity is given, as before).
         rtype = torch.zeros(B, R, dtype=torch.long, device=device)
         rtype.scatter_(1, res_pos, batch["residue_idx"])
-        h = self.ln(h + self.res_type_emb(rtype))
+        h = h + self.res_type_emb(rtype)
+        if self.chain_aware:
+            rchain, within = residue_chain_index(
+                res_pos, batch["chain_idx"], R, self.cfg.max_chains)
+            h = (h + self.chain_emb(rchain)
+                 + self.res_in_chain_emb(within.clamp(max=self.cfg.max_res_pos - 1)))
+        h = self.ln(h)
 
         rmask = residue_mask(res_pos, batch["mask"], R)
         pad = ~rmask.bool()

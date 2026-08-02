@@ -1,0 +1,83 @@
+# A/B arm: give the DIRECT decoder the chain identity the encoder already has.
+#
+# Identical to complex_d8 in every other respect -- same corpus, splits, budget,
+# seed, latent, capacity. One flag differs: `model.dec_chain_aware`.
+#
+# The defect it tests. The encoder's featuriser carries a chain embedding, and
+# the comment on it says why: without one "two chains are only distinguishable
+# by their global res_pos, so the model cannot tell a chain break from a
+# peptide bond". The direct decoder had neither a chain embedding nor any
+# within-chain index -- it saw one sequential res_pos spanning the assembly.
+# The res_pos embedding's value is the prior that residue r sits ~3.8A from
+# residue r+1. That prior is true along a chain and FALSE at every chain
+# boundary, and nothing marked the boundaries.
+#
+# Which is the asymmetry that needs explaining. Single-chain: prior true
+# everywhere, 0.79A. Complexes: prior false at every interface, ~5.9A.
+#
+# Prediction if the hypothesis holds: multi-chain structures improve and
+# single-chain ones do not (the flag is a no-op at one chain). Report the
+# split BY CHAIN COUNT -- a pooled mean would dilute the effect by the
+# single-chain fraction of val and could hide it inside the noise band.
+#
+# Cost: two embedding tables, +133,120 params (1.11M -> 1.25M, +12%). State
+# that plainly rather than calling it free. It is not the explanation for any
+# win: 3.5x the parameters (1.1M -> 3.8M) moved held-out RMSD by 0.07A, inside
+# the noise band, so 1.12x cannot produce a real effect on its own.
+name: complex_chainaware
+data:
+  processed_dir: data/processed_complex
+  splits_file: data/splits_complex.json
+  min_residues: 20
+  max_residues: 400
+  max_atoms: 3000
+model:
+  d_model: 128
+  n_heads: 4
+  n_latent_tokens: 16
+  latent_dim: 8
+  enc_self_layers: 2
+  dec_self_layers: 2
+  ff_mult: 4
+  dropout: 0.0
+  max_res_pos: 1024
+  coord_scale: 10.0
+  # Assemblies: enables the chain embedding. 16 is well above anything in the
+  # matched band and costs one small table.
+  max_chains: 16
+  # Required whenever ligands are present.
+  use_slot_emb: true
+  dec_chain_aware: true
+  encoder_type: direct
+  k_neighbors: 8
+  rope_freqs: 128
+  rope_spherical: false
+  objective: reconstruct
+  flow_steps: 50
+loss:
+  coord: 1.0
+  distance: 1.0
+  bond: 1.0
+  clash: 0.5
+  chirality: 0.2
+train:
+  seed: 0
+  epochs: 900
+  batch_size: 8            # halved: structures are ~4x larger than the 800-atom band
+  # 3e-4, not the 1e-3 the small-band runs used. 1e-3 was already the setting
+  # that destabilised the deeper models, and this run is both larger and on a
+  # freshly extended vocabulary.
+  lr: 0.0003
+  weight_decay: 0.0
+  grad_clip: 1.0
+  log_every: 25
+  eval_every: 25           # independent of log_every now; both schedules fire
+  ckpt_every: 50
+  clash_dist: 1.5
+  loss_max_atoms: 3000
+  out_dir: outputs/complex_chainaware
+  overfit: false
+  augment_rotation: true
+  # On, so the headline number is a mean, not a draw. The A/B partner
+  # (complex_d8) must be rerun with the SAME setting to compare.
+  ema_decay: 0.9998

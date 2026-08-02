@@ -49,6 +49,12 @@ class ModelConfig:
     # atoms all carry atom_name_idx = UNK and are otherwise near-identical to
     # the featuriser. No effect on protein-only data (slot == atom name).
     use_slot_emb: bool = False
+    # Gives the DIRECT decoder the chain identity and within-chain position the
+    # encoder's featuriser has always had. Without it the decoder sees one
+    # sequential res_pos spanning the assembly, whose adjacency prior is false
+    # at every chain boundary and which marks none of them. Off by default so
+    # existing `direct` results stay reproducible.
+    dec_chain_aware: bool = False
     # "baseline" | "invariant" | "rope" | "perresidue" | "direct"
     #   | "peratom" | "peratom_elem"   (per-atom latents; see model_peratom.py --
     #     compression is 3/latent_dim, so only latent_dim 1-2 is meaningful)

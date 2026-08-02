@@ -85,8 +85,31 @@ def parts_of(chain_idx, n_min=30):
     return [p for p in parts if len(p) >= n_min]
 
 
+def residue_parts_of(res_pos, n_min=4):
+    """One part per residue -- the FINEST placement/geometry split there is.
+
+    Chain-granularity said placement is only 22% of the error, which reads as
+    "the parts are mostly right, the assembly is mostly fine, so the failure
+    is local geometry". That inference has a hole: a chain superimposed as a
+    rigid body still carries every per-residue misplacement inside it. Going
+    to residue granularity closes it. What survives an independent
+    superposition of each residue is geometry no rigid motion can fix -- bond
+    lengths, angles, chirality -- and everything else is frame placement at
+    some scale.
+
+    This is the number that decides whether a frame-based readout is worth a
+    GPU: it upper-bounds what such a readout could possibly buy.
+    """
+    out = []
+    for r in np.unique(res_pos):
+        idx = np.where(res_pos == r)[0]
+        if len(idx) >= n_min:
+            out.append(idx)
+    return out
+
+
 @torch.no_grad()
-def decompose(model, sample, device):
+def decompose(model, sample, device, granularity="chain"):
     batch = collate_fn([sample])
     gb = {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in batch.items()}
     pred = model.decode(model.encode(gb), gb)
@@ -96,7 +119,8 @@ def decompose(model, sample, device):
     chain = sample["chain_idx"].numpy()[:n]
 
     glob = kabsch_rmsd_numpy(p, t)
-    parts = parts_of(chain)
+    parts = (residue_parts_of(sample["res_pos"].numpy()[:n])
+             if granularity == "residue" else parts_of(chain))
     if len(parts) < 2:
         return {"global_rmsd": glob, "part_rmsd": float("nan"),
                 "placement": float("nan"), "n_parts": len(parts), "n_atoms": n}
@@ -115,6 +139,11 @@ def main():
     ap.add_argument("--processed-dir", default=None)
     ap.add_argument("--split", default="val")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--granularity", default="chain", choices=["chain", "residue"],
+                    help="chain: is the ASSEMBLY misplaced. residue: how much "
+                         "error survives superimposing every residue "
+                         "independently -- the ceiling on what a frame-based "
+                         "readout could buy.")
     ap.add_argument("--out", default="outputs/error_decomposition.json")
     ap.add_argument("--device", default="auto")
     args = ap.parse_args()
@@ -138,7 +167,7 @@ def main():
         if not f.exists():
             continue
         d = np.load(f, allow_pickle=True)
-        r = decompose(model, sample_from_arrays(d), device)
+        r = decompose(model, sample_from_arrays(d), device, args.granularity)
         r["pdb_id"] = k
         rows.append(r)
 
