@@ -461,3 +461,107 @@ None of this changes the current queue. The regression control and the data
 ladder decide whether the numbers we already have are real, and there is no
 point building stage 4 on a foundation whose measurements have not survived a
 seed-variance check.
+
+---
+
+## 7. Target specification — the four objectives, audited
+
+These are the stated targets for the system, not aspirations for the codec.
+Each is audited against what exists, with the blocking item named. Ordered by
+how far the current stack is from them, nearest first.
+
+### 7.1 Single-GPU inference — ALIGNED, nothing to reverse
+
+"Worth spending more training compute to inference more efficiently" is the
+one objective the current design already satisfies, partly by luck and partly
+because the alternatives were measured and rejected:
+
+- **Per-group latents, not a fixed-size bottleneck.** The latent scales with
+  the system instead of over-compressing it. At 1M atoms (~125k groups at 8
+  atoms each) and `latent_dim` 8 the latent is 1M floats = **4 MB**. The
+  fixed-size Perceiver alternative is dead in direction — its gap to the
+  direct codec *widens* with data (7.11 -> 7.71).
+- **Direct readout, no attention lookup.** Decoding is O(N) in atoms.
+- **Flow matching is already implemented** (`objective: flowmatch`), which is
+  the right family for trading training compute against few-step sampling.
+
+The constraint does rule things out, and it should be treated as binding: no
+O(N^2) component survives at 125k groups, and no many-step sampler survives
+if it is O(N^2) per step.
+
+### 7.2 1M+ atoms, general molecules — TRACTABLE, two hard caps
+
+Blocking items, both in code rather than in principle:
+
+1. **`max_res_pos = 1024`** — an *absolute* positional embedding over group
+   index. Above ~8k atoms indices clamp and collide. Needs relative or
+   continuous positional encoding. This is a 125x shortfall against target.
+2. **O(R^2) attention** in the encoder trunk and decoder trunk. At 125k groups
+   that is 1.56e10 pairs = **31 GB per head per layer** in fp16; ~250 GB for
+   the current 4 heads x 2 layers. A k=32 neighbourhood is 0.01 GB. Half of
+   this is already built: the `invariant` encoder has a `k_neighbors` path.
+
+What carries over unchanged, and is the reason this is an extension rather
+than a rewrite: **group-mediated addressing**. `(group, slot)` generalises
+`(residue, atom name)` -- proteins use name-derived slots, everything else
+uses ordinal slots -- and it is measured working, with ligand-covalent
+geometry at 8.28 against protein 7.98 in the same structures.
+
+The residual is vocabulary: 23 residues and 39 atom names is protein-shaped.
+General chemistry wants element plus connectivity as the primary identity,
+with named slots as a protein-specific specialisation.
+
+### 7.3 Multi-millisecond timescales — ARITHMETIC WORKS, STABILITY IS THE RISK
+
+Direct integration is 5.0e11 steps at a 2 fs timestep. That is the whole
+reason for a latent dynamics model. A latent stepping at 1 ns reaches 1 ms in
+1e6 steps; at 10 ns, 1e5. Both are feasible wall-clock.
+
+The risk is not throughput, it is **error accumulation over 1e6
+autoregressive steps**, and the relevant measurement is already on record and
+is not encouraging: the latent is only weakly organised *by* conformation --
+rho 0.933 against a random-projection control at 0.875, a gain of just
+**+0.058**. It does preserve conformational spread through the round trip
+(0.868), which is what keeps the temporal stage alive at all, but preserving
+spread is not the same as structuring it.
+
+Implications for stage 3: train on **long-lag pairs**, not consecutive frames,
+so the model learns the coarse-timestep transition directly rather than
+composing 1e6 fine ones; and put temporal context in the encoder (2.2), which
+the +0.058 is the measured argument for.
+
+### 7.4 Enzyme-like bond breaking and forming — NOT A SCALING PROBLEM
+
+The furthest from the current stack, and the one that will not fall out of
+scale. Bonds are an **input**: the decoder is conditioned on a fixed atom list
+with fixed covalent topology and emits coordinates. Bond breaking is not slow
+here, it is *inexpressible*.
+
+Two separable sub-problems, and conflating them wastes effort:
+
+- **Variable topology.** There is a concrete path that is not a rewrite. The
+  repo already has geometric bond perception (`perceive_bonds`) alongside
+  declared topology, and currently trains against *declared* bonds -- the
+  model is handed the answer. Training against perceived bonds makes topology
+  emergent, i.e. an output. See 4.2.
+- **Correct energetics.** Bond breaking is a quantum event; classical
+  potentials cannot rank it, which is why QM/MM exists. This is exactly what
+  stage 4's quantum-accurate compute is for, and it cannot be substituted by
+  more data at the codec level.
+
+Plan this as its own arc with its own gates. Do not assume it emerges.
+
+### 7.5 What this changes about the current queue
+
+Nothing immediately, and for a specific reason: **placement error is on the
+critical path to 7.2**. Section 3 measures ~90% of the complex codec's squared
+error as placement rather than internal geometry. That failure mode gets worse
+with system size, not better -- a decoder that cannot place two chains cannot
+place ten thousand fragments. The frames readout is a prerequisite for scale
+independent of whether it closes the complex gap today.
+
+After it resolves, the ordering follows the audit above rather than incremental
+codec polish: relative positional encoding and neighbourhood attention (7.2)
+are the cheapest large unlocks, long-lag temporal training (7.3) is gated on
+trajectory corpora that already exist (MISATO built, mdCATH identified), and
+topology-as-output (7.4) needs its own design pass before any GPU is spent.
