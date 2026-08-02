@@ -63,6 +63,18 @@ class ModelConfig:
     # Extent of a residue's local atom cloud. Only used with dec_frames; it is
     # the second output scale the single-scale head could not express.
     local_scale: float = 5.0
+    # --- scaling (ROADMAP 6.2). Defaults reproduce every existing result. ---
+    # Sinusoidal instead of a learned position table, so the group count is not
+    # capped at max_res_pos. Above that cap indices CLAMP rather than error:
+    # group 1024 and group 90,000 get an identical position.
+    unbounded_positions: bool = False
+    # Local attention window over group tokens. 0 = dense O(R^2), which is
+    # 31 GB per head per layer at 125k groups. >0 gives O(R.(3w + g)).
+    attn_window: int = 0
+    # Pooled global tokens alongside the window, so long-range contacts -- the
+    # ones that determine a fold or an interface, and precisely the ones a
+    # window cannot see -- keep a two-hop path.
+    attn_global: int = 4
     # "baseline" | "invariant" | "rope" | "perresidue" | "direct"
     #   | "peratom" | "peratom_elem"   (per-atom latents; see model_peratom.py --
     #     compression is 3/latent_dim, so only latent_dim 1-2 is meaningful)

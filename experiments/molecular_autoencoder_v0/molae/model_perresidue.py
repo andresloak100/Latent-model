@@ -23,6 +23,7 @@ import torch
 import torch.nn as nn
 
 from .model import ModelConfig, AtomFeaturizer, SelfAttention, Bottleneck, Decoder
+from .scaling import make_group_attention
 
 
 def n_residues(res_pos: torch.Tensor) -> int:
@@ -56,10 +57,9 @@ class PerResidueEncoder(nn.Module):
         self.feat = AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=True,
                                    max_chains=cfg.max_chains,
                                    use_slot_emb=cfg.use_slot_emb)
-        self.self_blocks = nn.ModuleList(
-            [SelfAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
-             for _ in range(cfg.enc_self_layers)]
-        )
+        # Group tokens, so this is the other O(R^2) term alongside the
+        # decoder's. Dense by default; cfg.attn_window makes it linear.
+        self.self_blocks = make_group_attention(cfg, cfg.enc_self_layers)
 
     def forward(self, batch, coords):
         tokens = self.feat(batch, coords)                       # (B, N, d)

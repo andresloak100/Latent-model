@@ -34,6 +34,7 @@ import torch.nn as nn
 from . import constants as C
 from .model import ModelConfig, SelfAttention, Bottleneck
 from .model_perresidue import PerResidueEncoder, residue_mask, n_residues
+from .scaling import PositionEncoding, make_group_attention
 
 
 def rot_from_6d(x):
@@ -122,7 +123,9 @@ class DirectResidueDecoder(nn.Module):
         self.cfg = cfg
         self.n_slots = C.N_SLOTS
         self.up = nn.Linear(cfg.latent_dim, cfg.d_model)
-        self.res_pos_emb = nn.Embedding(cfg.max_res_pos, cfg.d_model)
+        self.res_pos_emb = PositionEncoding(
+            cfg.d_model, cfg.max_res_pos,
+            unbounded=getattr(cfg, "unbounded_positions", False))
         self.res_type_emb = nn.Embedding(C.N_RESIDUES, cfg.d_model, padding_idx=C.PAD_RESIDUE_IDX)
         self.chain_aware = bool(getattr(cfg, "dec_chain_aware", False))
         if self.chain_aware:
@@ -130,12 +133,11 @@ class DirectResidueDecoder(nn.Module):
             # Kept ALONGSIDE the global index, not instead of it: global says
             # how far into the assembly a residue sits, within-chain restores
             # the adjacency prior the global index breaks at each boundary.
-            self.res_in_chain_emb = nn.Embedding(cfg.max_res_pos, cfg.d_model)
+            self.res_in_chain_emb = PositionEncoding(
+                cfg.d_model, cfg.max_res_pos,
+                unbounded=getattr(cfg, "unbounded_positions", False))
         self.ln = nn.LayerNorm(cfg.d_model)
-        self.blocks = nn.ModuleList(
-            [SelfAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
-             for _ in range(cfg.dec_self_layers)]
-        )
+        self.blocks = make_group_attention(cfg, cfg.dec_self_layers)
         self.head = nn.Sequential(
             nn.LayerNorm(cfg.d_model),
             nn.Linear(cfg.d_model, cfg.d_model), nn.GELU(),
@@ -160,7 +162,7 @@ class DirectResidueDecoder(nn.Module):
         device = z.device
 
         # Residue tokens: latent + which residue this is + what residue it is.
-        idx = torch.arange(R, device=device).clamp(max=self.cfg.max_res_pos - 1)
+        idx = torch.arange(R, device=device)
         h = self.up(z) + self.res_pos_emb(idx).unsqueeze(0)
         # First residue-type seen at each position (identity is given, as before).
         rtype = torch.zeros(B, R, dtype=torch.long, device=device)
@@ -170,7 +172,7 @@ class DirectResidueDecoder(nn.Module):
             rchain, within = residue_chain_index(
                 res_pos, batch["chain_idx"], R, self.cfg.max_chains)
             h = (h + self.chain_emb(rchain)
-                 + self.res_in_chain_emb(within.clamp(max=self.cfg.max_res_pos - 1)))
+                 + self.res_in_chain_emb(within))
         h = self.ln(h)
 
         rmask = residue_mask(res_pos, batch["mask"], R)
