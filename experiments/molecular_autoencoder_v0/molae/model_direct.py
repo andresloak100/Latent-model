@@ -36,6 +36,21 @@ from .model import ModelConfig, SelfAttention, Bottleneck
 from .model_perresidue import PerResidueEncoder, residue_mask, n_residues
 
 
+def rot_from_6d(x):
+    """Continuous 6D rotation parameterisation (Zhou et al.) -> (..., 3, 3).
+
+    Gram-Schmidt on two predicted 3-vectors. Chosen over quaternions or Euler
+    angles because those are discontinuous as functions of the rotation, which
+    puts a seam in the thing a network has to regress; 6D has none.
+    """
+    a, b = x[..., :3], x[..., 3:]
+    e1 = torch.nn.functional.normalize(a, dim=-1, eps=1e-6)
+    b = b - (e1 * b).sum(-1, keepdim=True) * e1
+    e2 = torch.nn.functional.normalize(b, dim=-1, eps=1e-6)
+    e3 = torch.cross(e1, e2, dim=-1)
+    return torch.stack([e1, e2, e3], dim=-2)
+
+
 def residue_chain_index(res_pos, chain_idx, R: int, max_chains: int):
     """Per-residue chain id, and the residue's position WITHIN that chain.
 
@@ -79,6 +94,27 @@ class DirectResidueDecoder(nn.Module):
     explaining: 0.79A single-chain against ~5.9A on complexes.
 
     Off by default, so every prior ``direct`` result stays reproducible.
+
+    Frame readout (``cfg.dec_frames``) attacks a different and larger term.
+    The plain head maps one residue token to 14x3 ABSOLUTE coordinates through
+    a single linear layer at a single output scale. That layer has to express
+    both a ~50A placement and a 1.5A bond length in the same units, and it
+    emits the placement independently 14 times per residue -- so placement
+    error is injected once per atom and corrupts the internal geometry it
+    shares an output with.
+
+    Instead predict, per residue: a local atom cloud at ``local_scale`` (a few
+    angstrom), a rotation, and a translation at ``coord_scale``. Placement
+    then flows through 3 numbers, not 42, and moves the residue RIGIDLY, so it
+    cannot deform it.
+
+    The measurement that ranks this above chain awareness: at residue
+    granularity, error decomposes 5.884A global into 1.829A residue-internal
+    and the rest placement -- 69% linearly, ~90% of the squared error. And the
+    SINGLE-CHAIN members of complex val sit at 4.126A, implying ~3.7A of
+    placement error where there is no chain boundary to blame, against a
+    multi-minus-single differential of only 2.11A. Chain awareness can address
+    the 2.11; only frames reach the 3.7.
     """
 
     def __init__(self, cfg: ModelConfig):
@@ -105,6 +141,17 @@ class DirectResidueDecoder(nn.Module):
             nn.Linear(cfg.d_model, cfg.d_model), nn.GELU(),
             nn.Linear(cfg.d_model, self.n_slots * 3),
         )
+        self.frames = bool(getattr(cfg, "dec_frames", False))
+        if self.frames:
+            # Translation is emitted at coord_scale (tens of angstrom), local
+            # atom offsets at local_scale (a few angstrom). That separation is
+            # the entire point -- see the class docstring.
+            self.trans_head = nn.Linear(cfg.d_model, 3)
+            self.rot_head = nn.Linear(cfg.d_model, 6)
+            nn.init.zeros_(self.rot_head.weight)
+            with torch.no_grad():   # 6D -> identity rotation at initialisation
+                self.rot_head.bias.copy_(
+                    torch.tensor([1.0, 0.0, 0.0, 0.0, 1.0, 0.0]))
 
     def forward(self, z, batch):
         """z: (B, R, latent_dim) -> coords (B, N, 3) for the batch's atom list."""
@@ -131,7 +178,14 @@ class DirectResidueDecoder(nn.Module):
         for blk in self.blocks:
             h = blk(h, key_padding_mask=pad)
 
-        slots = self.head(h).view(B, R, self.n_slots, 3) * self.cfg.coord_scale
+        if self.frames:
+            # Local atom cloud in the residue's own frame, then place it.
+            local = self.head(h).view(B, R, self.n_slots, 3) * self.cfg.local_scale
+            rot = rot_from_6d(self.rot_head(h))                  # (B, R, 3, 3)
+            t = self.trans_head(h) * self.cfg.coord_scale        # (B, R, 3)
+            slots = torch.einsum("brsi,brij->brsj", local, rot) + t.unsqueeze(2)
+        else:
+            slots = self.head(h).view(B, R, self.n_slots, 3) * self.cfg.coord_scale
 
         # Each atom reads its own dedicated slot -- no attention lookup.
         #

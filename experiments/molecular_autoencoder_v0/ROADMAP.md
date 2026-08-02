@@ -194,6 +194,51 @@ size-dependent failure. Three candidates remain:
 3. **The representation itself** (multi-chain + ligands + modified residues),
    which is what we wanted to add.
 
+**Where in (3) the error actually is — residue-granularity decomposition.**
+Chain granularity put placement at 22%, which read as "the parts are right,
+the assembly is mostly fine, so the failure is local geometry". That inference
+had a hole: a chain superimposed as a *rigid body* still carries every
+per-residue misplacement inside it. Superimposing each residue independently
+closes it:
+
+| quantity | value |
+|---|---|
+| global RMSD | 5.884 |
+| residue-internal `part_rmsd` | 1.829 |
+| placement (linear) | 4.055 — **69%** |
+| placement (share of *squared* error) | **~90%** |
+| single-chain val (n=31) | 4.126 |
+| multi-chain val (n=155) | 6.236 |
+
+RMSDs add in quadrature, not linearly, so the linear 69% understates it:
+internal geometry is only `(1.829/5.884)² ≈ 10%` of the squared error.
+
+The decisive line is the single-chain row. Those structures have **no chain
+boundary**, and they still imply `√(4.126² − 1.829²) ≈ 3.70 Å` of placement
+error — *larger* than the 2.11 Å multi-minus-single differential. So most
+placement error is intra-chain and exists where the chain-boundary story
+predicts none. That reorders the two candidate fixes:
+
+- **Frame readout** (`model.dec_frames`) — reaches the 3.70 Å. The plain head
+  maps one residue token through a single linear layer at a single output
+  scale to 14×3 *absolute* coordinates: it must express a ~50 Å placement and
+  a 1.5 Å bond length in the same units, and it re-emits the placement
+  independently per atom, where it deforms the geometry it shares an output
+  with. Frames send placement through 3 numbers and a rotation, moving the
+  residue rigidly. Cost: **+1,161 params (+0.1%)**.
+- **Chain awareness** (`model.dec_chain_aware`) — reaches at most the 2.11 Å
+  differential. Still worth running: it is orthogonal, and it closes a real
+  asymmetry (the encoder's featuriser has a chain embedding; the decoder had
+  none, so its `res_pos` adjacency prior was false at every unmarked
+  boundary). Cost: +133k params (+12%).
+
+One methodological caveat on `part_rmsd`: Kabsch on a 4-atom group removes 6
+DOF from 12 numbers, so per-residue superposition is permissive and the
+internal term is biased *low* — which biases the placement share *high*. The
+control is to run the same decomposition on the 0.79 Å single-chain reference
+codec; the bias applies equally to both, so the comparison survives it even
+though the absolute number does not.
+
 With (1) closed and (2) measured flat, (3) is the only arm left standing.
 Every lever that adds *more of something* — parameters (3.5×), latent budget
 (2×), steps (4×), training structures (4×) — has now come back negative, and

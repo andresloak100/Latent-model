@@ -55,6 +55,14 @@ class ModelConfig:
     # at every chain boundary and which marks none of them. Off by default so
     # existing `direct` results stay reproducible.
     dec_chain_aware: bool = False
+    # Frame readout: predict a per-residue rotation + translation and a LOCAL
+    # atom cloud, instead of 14 independent absolute coordinates per residue.
+    # Placement then flows through 3 numbers and moves the residue rigidly,
+    # rather than being re-emitted per atom where it deforms internal geometry.
+    dec_frames: bool = False
+    # Extent of a residue's local atom cloud. Only used with dec_frames; it is
+    # the second output scale the single-scale head could not express.
+    local_scale: float = 5.0
     # "baseline" | "invariant" | "rope" | "perresidue" | "direct"
     #   | "peratom" | "peratom_elem"   (per-atom latents; see model_peratom.py --
     #     compression is 3/latent_dim, so only latent_dim 1-2 is meaningful)
