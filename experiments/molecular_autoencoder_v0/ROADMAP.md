@@ -117,6 +117,42 @@ ramp, and where the shift should sit.
 reference. Six explanations have been tested and five are closed. Only
 training-set size and the representation itself are still live.
 
+**First, the noise floor — it qualifies every number below.** Held-out RMSD
+over the last ten evaluations of a *single* complex run spreads far more than
+the effects being measured:
+
+| run | final | mean | sd | range |
+|---|---|---|---|---|
+| `complex_d8` (242k) | 5.885 | 5.935 | 0.192 | 5.72–6.36 |
+| `complex_d16` (63k) | 6.172 | 5.761 | 0.449 | 4.88–6.37 |
+| `complex_d8_3m` (242k) | 5.804 | 5.869 | 0.199 | 5.47–6.22 |
+| ladder n556 | 6.126 | 6.003 | 0.304 | 5.60–6.50 |
+| ladder n1112 | 5.902 | 5.778 | 0.344 | 5.19–6.31 |
+| ladder n2224 | 5.368 | 5.829 | 0.271 | 5.37–6.13 |
+
+The evaluation is a deterministic pass over the whole val split, so this is
+weight jitter, not measurement noise. It means **the final checkpoint is a
+draw, not a measurement**, and two conclusions drawn from single draws do not
+survive contact with it:
+
+- The data ladder read 6.13 → 5.90 → 5.37 by final checkpoint — a 0.75 Å
+  descent. By last-ten mean it is 6.00 → 5.78 → 5.83: **flat, inside the
+  band**. n556 drew high and n2224 drew low.
+- `complex_d16` read 0.59 Å worse than `complex_d8`. By mean it is 5.761 vs
+  5.935 — **tied**, with the largest spread in the set. "Latent 16 is worse"
+  is dead; "latent 16 does not help" is what the data supports.
+
+`complex_d8_3m` is unaffected (5.869 vs 5.935, deep inside the band) — capacity
+was already a null and stays one.
+
+Two separate noise sources, and they need different treatment. *Temporal
+jitter* — the final-checkpoint lottery — is what the table measures, and it is
+fixable: `train.ema_decay` averages the weights, and `val_summary` in
+`train_log.json` now reports last-N mean ± sd so a headline number cannot be a
+single draw. *Seed variance* is only measurable by running seeds; the one
+estimate we have is 0.806 / 0.908 on the single-chain task, spread 0.102.
+Seeds run before the jitter is fixed measure the two convolved together.
+
 **Undertraining — RULED OUT.** 63k steps gave 5.584 Å; 242k gave 5.884. Four
 times the steps bought nothing.
 
@@ -148,18 +184,27 @@ size-dependent failure. Three candidates remain:
    on the ≤800-atom band the latent saturates by dim 4 (d1 4.069, d2 1.405,
    d4 0.707, d8 0.693, d16 0.681) — and `complex_d16` confirmed it at
    complex scale: doubling the budget made it *worse*, not flat.
-2. **Training-set size.** 556 structures against the reference's 2272 — four
-   times less data, never controlled in any complex run, and the ladder
-   measured this axis as real and not plateaued. The one arm still open.
-   *Was blocked on an unrebuildable corpus; unblocked, see `docs/CORPORA.md`.*
+2. **Training-set size — MEASURED FLAT over 4×, pending the last rung.** A
+   matched-composition, leakage-controlled ladder at 556 → 1112 → 2224 gives
+   6.00 → 5.78 → 5.83 by last-ten mean (sd ~0.3, SE ~0.1). No slope. Note what
+   this does and does not say: it bounds the effect of data over the range the
+   corpus can span (4,848 train structures total), not over the 10–100× that
+   the single-chain result was never tested against either. n4448 is running
+   and could still bend it.
 3. **The representation itself** (multi-chain + ligands + modified residues),
    which is what we wanted to add.
 
-With (1) closed, only (2) and (3) remain, and they are not symmetric. Every
-capacity-shaped lever — parameters (3.5×), latent budget (2×), steps (4×) —
-has now come back negative, and each made the *train* RMSD no better. A model
-that cannot fit what it has already seen is not short of anything you can add
-more of. That points at (3), with (2) as the cheaper thing to falsify first.
+With (1) closed and (2) measured flat, (3) is the only arm left standing.
+Every lever that adds *more of something* — parameters (3.5×), latent budget
+(2×), steps (4×), training structures (4×) — has now come back negative, and
+none of them made the *train* RMSD better either. A model that cannot fit what
+it has already seen is not short of anything you can add more of. The next
+real experiment is a representational change, not a bigger version of this one.
+
+One caveat on the v/t ratio, which fell 1.11 → 0.88 → 0.78 across the ladder
+and looked like independent corroboration of a slope. At matched step counts
+it is not clean: more data at the same steps means a worse train fit, which
+lowers the ratio mechanically. It cannot be read as generalisation improving.
 
 The specific suspicion about the readout: every atom reads slot
 `(res_pos, slot_idx)` emitted from its own residue's latent. That is what made

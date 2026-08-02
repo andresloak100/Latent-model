@@ -54,7 +54,12 @@ class TrainConfig:
     # are corrupted each step (target unchanged). Multiplies the signal from a
     # fixed structure set -- the matched PDB band holds only ~3,853 entries.
     corrupt_frac: float = 0.0
-    corrupt_mode: str = "zero"        # "zero" | "noise"  # random SO(3) input rotations (teaches non-equivariant encoders invariance)
+    # Weight EMA. 0.0 = off (every result before this existed was measured with
+    # it off). Averaging the weights is the only fix for the final-checkpoint
+    # lottery that changes the run rather than the report -- held-out RMSD over
+    # the last ten evaluations of one complex run spreads sd 0.19-0.45A.
+    ema_decay: float = 0.0
+    corrupt_mode: str = "zero"      # "zero" | "noise"  # random SO(3) input rotations (teaches non-equivariant encoders invariance)
 
 
 @dataclass

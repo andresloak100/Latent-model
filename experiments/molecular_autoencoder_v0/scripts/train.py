@@ -11,6 +11,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import statistics
 import sys
 import time
 from pathlib import Path
@@ -102,6 +104,88 @@ def quick_rmsd(model, loader, device, max_batches=4):
         vals.extend(r.tolist())
     model.train()
     return sum(vals) / max(len(vals), 1)
+
+
+class ModelEMA:
+    """Exponential moving average of the weights, evaluated alongside the raw model.
+
+    The final checkpoint is a draw, not a measurement. On the complex corpus,
+    held-out RMSD over the last ten evaluations of a SINGLE run spreads
+    sd 0.19-0.45A (range up to 1.5A) -- larger than every architecture and
+    latent-budget difference measured so far, which is how a flat data ladder
+    read as a 0.75A descent and a tied latent budget read as 0.59A worse. Both
+    were the final-checkpoint lottery.
+
+    Averaging the reported numbers (last-N mean) fixes the *estimate*.
+    Averaging the WEIGHTS fixes the run.
+
+    Deliberately NOT paired with best-on-val checkpoint selection: taking the
+    argmin over N evaluations and then quoting that same val number is biased
+    low by roughly 1.5 sd at N=10, which here is ~0.4A -- the size of the
+    effects we are trying to detect. Selection needs its own split; this repo
+    already learned that once (f5cfe26).
+    """
+
+    def __init__(self, model, decay: float):
+        self.decay = float(decay)
+        self.n = 0
+        self.shadow = {k: v.detach().clone() for k, v in model.state_dict().items()}
+
+    @torch.no_grad()
+    def update(self, model):
+        self.n += 1
+        # Warmup: (1+n)/(10+n) < decay early on, so the average is not held
+        # back by the random initialisation for the first ~1/(1-decay) steps.
+        d = min(self.decay, (1.0 + self.n) / (10.0 + self.n))
+        for k, v in model.state_dict().items():
+            s = self.shadow[k]
+            if s.dtype.is_floating_point:
+                s.mul_(d).add_(v.detach().to(s.dtype), alpha=1.0 - d)
+            else:                      # integer buffers are state, not weights
+                s.copy_(v.detach())
+
+    @contextlib.contextmanager
+    def as_weights(self, model):
+        """Temporarily swap the averaged weights in, then restore exactly."""
+        backup = {k: v.detach().clone() for k, v in model.state_dict().items()}
+        model.load_state_dict(self.shadow)
+        try:
+            yield model
+        finally:
+            model.load_state_dict(backup)
+
+    def state_dict(self):
+        return {"decay": self.decay, "n": self.n, "shadow": self.shadow}
+
+    def load_state_dict(self, state):
+        self.decay = state.get("decay", self.decay)
+        self.n = state.get("n", 0)
+        for k, v in state.get("shadow", {}).items():
+            if k in self.shadow:
+                self.shadow[k].copy_(v.to(self.shadow[k].device))
+
+
+def val_summary(log, last=10):
+    """Final vs mean+-sd of the last N evaluations, per held-out metric.
+
+    Written into train_log.json so the headline number of a run is not a
+    single draw. Costs nothing: the evaluations already happened.
+    """
+    out = {}
+    for key in ("val_rmsd", "val_rmsd_ema", "train_rmsd", "val_over_train"):
+        vals = [r[key] for r in log
+                if key in r and isinstance(r[key], float) and r[key] == r[key]][-last:]
+        if not vals:
+            continue
+        out[key] = {
+            "final": vals[-1],
+            "mean": statistics.mean(vals),
+            "sd": statistics.stdev(vals) if len(vals) > 1 else 0.0,
+            "min": min(vals),
+            "max": max(vals),
+            "n": len(vals),
+        }
+    return out
 
 
 @torch.no_grad()
@@ -256,6 +340,12 @@ def main():
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     loss_fn = LossComputer(cfg.loss, clash_dist=cfg.train.clash_dist, max_atoms=cfg.train.loss_max_atoms)
 
+    ema = (ModelEMA(model, cfg.train.ema_decay)
+           if getattr(cfg.train, "ema_decay", 0.0) > 0.0 else None)
+    if ema is not None:
+        print(f"[train] weight EMA on (decay={ema.decay}); "
+              f"held-out reported for raw and averaged weights")
+
     start_epoch = 0
     log = []
     latest = out_dir / "latest.pt"
@@ -263,6 +353,8 @@ def main():
         ckpt = utils.load_checkpoint(latest, model, opt)
         start_epoch = ckpt["epoch"] + 1
         log = ckpt["extra"].get("log", [])
+        if ema is not None and ckpt["extra"].get("ema"):
+            ema.load_state_dict(ckpt["extra"]["ema"])
         # Restore RNG *after* set_seed above, so a resumed run continues the
         # same random stream instead of restarting it from the base seed.
         if ckpt.get("rng_torch") is not None:
@@ -317,6 +409,8 @@ def main():
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.train.grad_clip)
             scaler.step(opt)
             scaler.update()
+            if ema is not None:
+                ema.update(model)
             for k, v in comp.items():
                 ep_comps[k] = ep_comps.get(k, 0.0) + v
             n_batches += 1
@@ -343,6 +437,12 @@ def main():
                 # real comparison rather than a sample-noise difference.
                 row["train_rmsd"] = heldout_rmsd(model, train_eval_loader, device)
                 row["val_over_train"] = row["val_rmsd"] / max(row["train_rmsd"], 1e-6)
+                # Same val pass, averaged weights. Reported alongside rather
+                # than instead of, so the run itself measures whether the
+                # averaging actually shrinks the spread on this task.
+                if ema is not None:
+                    with ema.as_weights(model):
+                        row["val_rmsd_ema"] = heldout_rmsd(model, val_loader, device)
             log.append(row)
             if do_log:
                 extra = " ".join(f"{k}={ep_comps[k]:.4f}" for k in
@@ -350,23 +450,42 @@ def main():
                 print(f"  epoch {epoch:5d}  total={ep_comps.get('total', float('nan')):.4f}  "
                       f"{extra}  rmsd={rmsd:.3f}A"
                       + (f"  VAL={row['val_rmsd']:.3f}A" if "val_rmsd" in row else "")
+                      + (f"  VAL_EMA={row['val_rmsd_ema']:.3f}A"
+                         if "val_rmsd_ema" in row else "")
                       + (f"  TRAIN={row['train_rmsd']:.3f}A"
                          f"  v/t={row['val_over_train']:.2f}"
                          if "train_rmsd" in row else ""))
             elif "val_rmsd" in row:
                 print(f"  epoch {epoch:5d}  VAL={row['val_rmsd']:.3f}A"
+                      + (f"  VAL_EMA={row['val_rmsd_ema']:.3f}A"
+                         if "val_rmsd_ema" in row else "")
                       + (f"  TRAIN={row['train_rmsd']:.3f}A"
                          f"  v/t={row['val_over_train']:.2f}"
                          if "train_rmsd" in row else ""))
 
         if epoch % cfg.train.ckpt_every == 0 or epoch == cfg.train.epochs - 1:
-            utils.save_checkpoint(latest, model, opt, epoch, extra={"log": log})
+            extra = {"log": log}
+            if ema is not None:
+                extra["ema"] = ema.state_dict()
+            utils.save_checkpoint(latest, model, opt, epoch, extra=extra)
 
     utils.save_checkpoint(out_dir / "final.pt", model, opt, cfg.train.epochs - 1,
                           extra={"log": log})
+    if ema is not None:
+        # A separate file so eval.py --ckpt can score either one, and the raw
+        # final checkpoint stays byte-identical to what it was before EMA.
+        with ema.as_weights(model):
+            utils.save_checkpoint(out_dir / "final_ema.pt", model, None,
+                                  cfg.train.epochs - 1, extra={"log": log})
+    summary = val_summary(log)
     utils.save_json({"log": log, "train_seconds": time.time() - t0,
-                     "n_structures": len(dataset), "keys": keys},
+                     "n_structures": len(dataset), "keys": keys,
+                     "val_summary": summary},
                     out_dir / "train_log.json")
+    for key, s in summary.items():
+        print(f"[train] {key:14s} final={s['final']:.3f}  "
+              f"mean={s['mean']:.3f}+-{s['sd']:.3f}  "
+              f"range={s['min']:.3f}-{s['max']:.3f}  (last {s['n']} evals)")
     print(f"[train] done in {time.time() - t0:.1f}s -> {out_dir}")
 
 
