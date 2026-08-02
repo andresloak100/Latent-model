@@ -13,6 +13,20 @@ would operate inside (compress → run diffusion in latent space → decode),
 mirroring how modern (2024+) text-to-video models move diffusion out of pixel
 space into a learned latent. **This milestone builds only the autoencoder.**
 
+## What the system is being built to do
+
+Four objectives. `ROADMAP.md` §6 audits the current stack against each and
+sets the ordering of work.
+
+1. Scale to **1M+ atoms**, general molecules and not only proteins.
+2. Model **enzyme-like bond breaking and forming**.
+3. Scale to **multi-millisecond** timescales.
+4. Be efficient enough to **inference on a single GPU** — training compute is
+   worth spending to buy inference efficiency.
+
+Two of these are reachable by scaling the current design; two are not, and the
+roadmap says which is which rather than leaving it implied.
+
 ## What this is NOT (scope guardrails)
 
 There is **no** diffusion, trajectory prediction, force field, molecular

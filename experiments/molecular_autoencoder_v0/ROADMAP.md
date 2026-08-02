@@ -1,15 +1,23 @@
 # Roadmap: capability gaps and technical debt
 
-Written so that the distance between what this codebase does and what the
-project is aiming at is on the record, rather than implied. The stated goal is
-a foundation for modelling molecular machines — protein assemblies and
-protein–compound systems — following the four-stage plan (autoencoder →
-latent diffusion → mid-training on high-quality trajectories → RL against
-quantum-accurate feedback).
+The system is a latent molecular-dynamics model: compress structures into a
+compact latent, run diffusion there rather than in coordinate space, decode
+back. Four stages — autoencoder → latent diffusion → mid-training on
+high-quality trajectories → RL against quantum-accurate feedback.
 
-Nothing here is a reason not to proceed. Several items are cheap. But a
-roadmap that names none of them would read as though latent MD gets to
-designed molecular machines on its own, and it does not.
+**The four objectives it is being built to hit** (§6 audits the stack against
+each, and the ordering of work follows from them):
+
+1. Scale to **1M+ atoms**, general molecules and not only proteins.
+2. Model **enzyme-like bond breaking and forming**.
+3. Scale to **multi-millisecond** timescales.
+4. Be efficient enough to **inference on a single GPU** — training compute is
+   worth spending to buy inference efficiency.
+
+This document records the distance between what the codebase does now and
+those four targets. Nothing here is a reason not to proceed, and several items
+are cheap; but a roadmap that named none of them would read as though the
+objectives fall out of scaling the current design, and two of them do not.
 
 ---
 
@@ -343,134 +351,13 @@ Worth stating alongside the gaps, since the list above is all deficits:
 
 ---
 
-## 6. Distance to molecular manufacturing — an audit against Drexler's criteria
-
-The stated goal is a foundation for designed molecular machines. That goal is
-usually discussed in its popular form, which is not testable. Drexler's own
-technical criteria are testable, so this section audits the stack against
-those instead — chiefly *Nanosystems* (1992) and the 1981 PNAS paper.
-
-### 6.1 The entry path we are on is the one Drexler named
-
-The 1981 paper opens: "Development of the ability to design protein molecules
-will open a path to the fabrication of devices to complex atomic
-specifications." The 2006 preface restates it: DNA frameworks, engineered
-proteins binding at precise locations, "proteins themselves can serve as
-construction machinery."
-
-So a protein/complex structure model is the right *beachhead*, and building
-toward protein-compound and protein-protein assemblies is not a detour. The
-representation work already done is directly on this path: multi-chain
-addressing, ordinal-slot ligand groups, declared covalent anchoring, and
-disulfides give us atomically precise multi-component assemblies, which is
-the object class the entry path operates on.
-
-That is the half of the claim that holds. The rest of this section is the
-half that does not.
-
-### 6.2 The load-bearing number we cannot compute: positional stiffness
-
-*Nanosystems'* feasibility argument for mechanosynthesis is not qualitative.
-It reduces to one inequality. Thermal displacement along a coordinate with
-restoring force `ks` is
-
-    sigma^2 = kT / ks
-
-and a misreaction means landing on an adjacent lattice site instead of the
-target. At 300 K with a 0.25 nm diamond (111) site spacing, an error rate
-below 1e-15 requires `ks > ~5 N/m`. That single number is what decides
-whether positional control can guide chemistry — everything else in the
-argument rests on it. (For scale: a C–C bond bends at ~30 N/m; a
-cubic-nanometer block of diamond shears at ~500 N/m. The requirement is not
-extreme, which is precisely why the argument works.)
-
-**Our model cannot produce that number, or any number like it.** It emits
-coordinates. It has no notion of force, stiffness, curvature of a potential,
-or free energy. Given a proposed molecular linkage it cannot say whether the
-linkage is stiff enough to place a reactive group reliably — which is the
-only question that matters for the mechanical half of the program.
-
-This is a sharper statement of the "no energetics" blocker in 1.3, and it is
-worth separating because it does not require reactive chemistry to fix.
-Stiffness is a property of a *stable* structure near its equilibrium. A model
-that predicted per-coordinate curvature — equivalently, normal modes — would
-supply it without ever modelling a bond breaking.
-
-**A falsifiable gate.** Predict `ks` along a designated coordinate of a rigid
-molecular linkage and agree with normal-mode analysis (or with the
-fluctuation `sigma^2` measured in explicit-solvent MD) to within a stated
-factor. Until something like that passes, claims that this stack is a
-foundation for designed machines are aspiration, not capability.
-
-### 6.3 Materials scope — an architectural limit, not a vocabulary gap
-
-Drexler's machines are diamondoid: carbon-rich covalent solids, with metals
-and semiconductors for electronic components. The 1995 paper is explicit that
-this class was chosen because its mechanical properties are extremal and are
-"well described by highly localized models based on two-, three- and
-four-body potentials."
-
-Our decoder addresses atoms by `(group, slot)` — generalised from `(residue,
-atom name)`. A diamond lattice has no residues, no sequence, and no natural
-group decomposition; a nanotube has periodicity but no side chains. Extending
-the element vocabulary does not fix this. The addressing scheme that made
-variable-size decoding work at all is specialised to polymers-with-sidechains
-plus small ordinal groups, and it does not reach the material class the
-mechanical program is built from.
-
-This compounds the concern already raised in 3 about the per-residue readout:
-the same design decision that may be capping complex reconstruction is also
-the one that bounds our materials scope.
-
-### 6.4 What the four-stage plan already covers, and what it does not
-
-- **Stage 1 (codec).** Delivers the representation for atomically precise
-  assemblies. On the path. Working.
-- **Stage 2 (latent diffusion).** Delivers a generative prior — the right
-  substrate for conditional design, though the conditioning is unspecified
-  (1.1).
-- **Stage 3 (mid-training on trajectories).** Delivers dynamics. Relevant to
-  machine *behaviour*, not to whether a machine is buildable.
-- **Stage 4 (RL against quantum-accurate feedback).** This is where
-  energetics enters, and therefore where every capability in 6.2 and 1.3
-  lives. It is also the least specified stage in the plan.
-
-The honest summary: the plan's own stage 4 is the load-bearing stage for the
-molecular-manufacturing goal, and it is the stage we have designed least.
-Stages 1–3 build a forward model of biological-materials structure and
-motion. That is a real foundation for the entry path Drexler named. It is not
-yet a foundation for the mechanical engineering that follows it.
-
-### 6.5 What would move the needle soonest
-
-In rough order of leverage per unit effort:
-
-1. **Any energetic output at all** — even a learned force field head
-   predicting per-atom forces on a fixed topology. It converts the codec from
-   a shape model into something that can rank designs.
-2. **Interface metrics** (1.2, partly mitigated by `pocket.py`). A binding
-   interface of a few dozen atoms is what a molecular device *does*; global
-   RMSD is nearly blind to it.
-3. **Non-canonical residue identity** (1.5) — measured as our worst class,
-   and non-canonical amino acids are a primary tool for engineered proteins.
-4. **Inverse conditioning** (1.1) — the largest gap, but it needs 1–3 to be
-   worth anything, since a design model without a way to score designs is a
-   random generator.
-
-None of this changes the current queue. The regression control and the data
-ladder decide whether the numbers we already have are real, and there is no
-point building stage 4 on a foundation whose measurements have not survived a
-seed-variance check.
-
----
-
-## 7. Target specification — the four objectives, audited
+## 6. The four objectives, audited
 
 These are the stated targets for the system, not aspirations for the codec.
 Each is audited against what exists, with the blocking item named. Ordered by
 how far the current stack is from them, nearest first.
 
-### 7.1 Single-GPU inference — ALIGNED, nothing to reverse
+### 6.1 Single-GPU inference — ALIGNED, nothing to reverse
 
 "Worth spending more training compute to inference more efficiently" is the
 one objective the current design already satisfies, partly by luck and partly
@@ -489,7 +376,7 @@ The constraint does rule things out, and it should be treated as binding: no
 O(N^2) component survives at 125k groups, and no many-step sampler survives
 if it is O(N^2) per step.
 
-### 7.2 1M+ atoms, general molecules — TRACTABLE, two hard caps
+### 6.2 1M+ atoms, general molecules — TRACTABLE, two hard caps
 
 Blocking items, both in code rather than in principle:
 
@@ -507,11 +394,24 @@ than a rewrite: **group-mediated addressing**. `(group, slot)` generalises
 uses ordinal slots -- and it is measured working, with ligand-covalent
 geometry at 8.28 against protein 7.98 in the same structures.
 
-The residual is vocabulary: 23 residues and 39 atom names is protein-shaped.
-General chemistry wants element plus connectivity as the primary identity,
-with named slots as a protein-specific specialisation.
+The residual is harder than vocabulary, and it is the part of "general
+molecules" that a bigger element table does not buy. 23 residues and 39 atom
+names is protein-shaped, but the deeper issue is that `(group, slot)`
+addressing presumes a *group decomposition exists*. Polymers have one
+(residue, then atom name); small molecules get an ordinal fallback that works
+because they are small. A covalent solid, a lattice, or a nanotube has no
+residues, no sequence, and no natural grouping, and periodicity is not the
+same thing. So the addressing scheme reaches polymers-with-sidechains plus
+small ordinal groups, and stops.
 
-### 7.3 Multi-millisecond timescales — ARITHMETIC WORKS, STABILITY IS THE RISK
+General chemistry wants element plus local connectivity as the primary
+identity, with named slots kept as a protein-specific specialisation on top.
+Note this is the same design decision implicated in §3's placement ceiling —
+the per-group readout is simultaneously what made variable-size decoding work,
+what may be capping complex reconstruction, and what bounds materials scope.
+Changing it is therefore one decision, not three.
+
+### 6.3 Multi-millisecond timescales — ARITHMETIC WORKS, STABILITY IS THE RISK
 
 Direct integration is 5.0e11 steps at a 2 fs timestep. That is the whole
 reason for a latent dynamics model. A latent stepping at 1 ns reaches 1 ms in
@@ -530,7 +430,7 @@ so the model learns the coarse-timestep transition directly rather than
 composing 1e6 fine ones; and put temporal context in the encoder (2.2), which
 the +0.058 is the measured argument for.
 
-### 7.4 Enzyme-like bond breaking and forming — NOT A SCALING PROBLEM
+### 6.4 Enzyme-like bond breaking and forming — NOT A SCALING PROBLEM
 
 The furthest from the current stack, and the one that will not fall out of
 scale. Bonds are an **input**: the decoder is conditioned on a fixed atom list
@@ -551,7 +451,7 @@ Two separable sub-problems, and conflating them wastes effort:
 
 Plan this as its own arc with its own gates. Do not assume it emerges.
 
-### 7.5 What this changes about the current queue
+### 6.5 What this changes about the current queue
 
 Nothing immediately, and for a specific reason: **placement error is on the
 critical path to 7.2**. Section 3 measures ~90% of the complex codec's squared
@@ -561,7 +461,40 @@ place ten thousand fragments. The frames readout is a prerequisite for scale
 independent of whether it closes the complex gap today.
 
 After it resolves, the ordering follows the audit above rather than incremental
-codec polish: relative positional encoding and neighbourhood attention (7.2)
-are the cheapest large unlocks, long-lag temporal training (7.3) is gated on
+codec polish: relative positional encoding and neighbourhood attention (6.2)
+are the cheapest large unlocks, long-lag temporal training (6.3) is gated on
 trajectory corpora that already exist (MISATO built, mdCATH identified), and
-topology-as-output (7.4) needs its own design pass before any GPU is spent.
+topology-as-output (6.4) needs its own design pass before any GPU is spent.
+
+### 6.6 Leverage ordering, ranked against the objectives
+
+Per unit effort, once the frames result lands. Each entry names which
+objective it serves, so the ranking is auditable rather than a matter of
+taste.
+
+1. **Relative positional encoding** (obj 1). Removes a hard 125x cap for a
+   contained change. Nothing else in the list matters if group indices
+   collide above 8k atoms.
+2. **Neighbourhood attention in both trunks** (obj 1, 4). 31 GB per head per
+   layer -> 0.01 GB. Half-built already via the invariant encoder's
+   `k_neighbors`. Serves the efficiency constraint at the same time, which no
+   other item does.
+3. **Long-lag trajectory training** (obj 3). Gated on corpora that already
+   exist (MISATO built, mdCATH identified), and directly targets the +0.058
+   conformational organisation that is the measured risk to 1e6-step
+   stability.
+4. **Perceived- rather than declared-bond training** (obj 2). Cheap probe of
+   whether emergent topology is viable at all. Answers a yes/no that decides
+   whether obj 2 is an extension or a separate model.
+5. **Element+connectivity identity** (obj 1). Larger change, and it is
+   entangled with the readout decision in 6.2 — worth doing once, after the
+   frames result tells us what the readout should be.
+6. **An energetic output** (obj 2). A learned force head converts the codec
+   from a shape model into something that can rank states. Prerequisite for
+   any bond-breaking work to be scoreable, but it is downstream of 4 deciding
+   whether topology can vary at all.
+
+Deliberately NOT on this list: inverse conditioning, interface metrics, and
+non-canonical residue identity. All three were ranked highly under the
+previous framing. None of them serve the four objectives directly, and design
+capability in particular is a different product from a dynamics model.
