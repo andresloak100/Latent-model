@@ -98,6 +98,13 @@ class ModelConfig:
     # against the working per-residue decoder's 2 refinement blocks with no
     # retrieval to do at all. Depth here is the thing that was never tested.
     dec_cross_layers: int = 1
+    # --- atomlatent arm (model_atomlatent.py): N atoms -> L shared latents ---
+    # Pass 2 of the decoder: each atom cross-attends only to the k latents whose
+    # ANCHORS are nearest its provisional position. Off gives arm B (global
+    # cross-attention only); on gives arm C.
+    dec_local_cross: bool = False
+    dec_local_k: int = 8
+    dec_local_layers: int = 2
 
 
 class AtomFeaturizer(nn.Module):

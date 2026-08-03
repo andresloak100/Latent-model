@@ -59,6 +59,11 @@ class TrainConfig:
     # lottery that changes the run rather than the report -- held-out RMSD over
     # the last ten evaluations of one complex run spreads sd 0.19-0.45A.
     ema_decay: float = 0.0
+    # Masked geometric denoising (molae/masking.py). All default off.
+    mask_atom_frac: float = 0.0
+    mask_region_frac: float = 0.0
+    mask_region_span: int = 8
+    mask_noise_std: float = 0.0
     corrupt_mode: str = "zero"      # "zero" | "noise"  # random SO(3) input rotations (teaches non-equivariant encoders invariance)
 
 

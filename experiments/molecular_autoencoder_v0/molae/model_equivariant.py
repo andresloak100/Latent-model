@@ -56,6 +56,9 @@ def make_autoencoder(cfg: ModelConfig):
     if etype == "perresidue":
         from .model_perresidue import PerResidueAutoencoder
         return PerResidueAutoencoder(cfg)
+    if etype == "atomlatent":
+        from .model_atomlatent import AtomLatentAutoencoder
+        return AtomLatentAutoencoder(cfg)
     if etype == "perceiver_direct":
         from .model_perceiver_direct import PerceiverDirectAutoencoder
         return PerceiverDirectAutoencoder(

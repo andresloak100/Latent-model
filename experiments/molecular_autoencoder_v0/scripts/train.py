@@ -32,6 +32,8 @@ from molae.model_equivariant import make_autoencoder  # noqa: E402
 from molae.losses import LossComputer  # noqa: E402
 from molae.alignment import aligned_rmsd_torch  # noqa: E402
 from molae.curriculum import Curriculum, mixture_indices  # noqa: E402
+from molae.masking import MaskingConfig, apply_masking, split_rmsd  # noqa: E402
+from molae.alignment import kabsch_align_torch  # noqa: E402
 from molae import utils  # noqa: E402
 
 
@@ -172,7 +174,8 @@ def val_summary(log, last=10):
     single draw. Costs nothing: the evaluations already happened.
     """
     out = {}
-    for key in ("val_rmsd", "val_rmsd_ema", "train_rmsd", "val_over_train"):
+    for key in ("val_rmsd", "val_rmsd_ema", "train_rmsd", "val_over_train",
+                "val_rmsd_masked", "val_rmsd_visible", "val_rmsd_maskedrun_all"):
         vals = [r[key] for r in log
                 if key in r and isinstance(r[key], float) and r[key] == r[key]][-last:]
         if not vals:
@@ -186,6 +189,40 @@ def val_summary(log, last=10):
             "n": len(vals),
         }
     return out
+
+
+@torch.no_grad()
+def masked_heldout_rmsd(model, loader, device, mask_cfg):
+    """Held-out reconstruction split into masked / visible / all atoms.
+
+    Without this split a denoising run cannot be distinguished from a copying
+    run: a model that reproduces every visible coordinate and guesses the
+    masked ones scores well on the pooled number. The masked column is the
+    only one that shows structure was inferred rather than passed through.
+
+    ONE superposition over all real atoms, then the error is partitioned.
+    Superimposing the masked atoms alone would let a rigid motion absorb
+    exactly the error being measured.
+    """
+    model.eval()
+    acc = {"masked": 0.0, "visible": 0.0, "all": 0.0}
+    cnt = {"masked": 0, "visible": 0, "all": 0}
+    for batch in loader:
+        gb = {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in batch.items()}
+        mb = dict(gb)
+        mb["coords"], is_masked = apply_masking(
+            gb["coords"], gb["mask"], gb["res_pos"], mask_cfg)
+        preds, _ = model(mb)
+        aligned = kabsch_align_torch(preds, gb["coords"], gb["mask"])
+        err = ((aligned - gb["coords"]) ** 2).sum(-1)
+        for name, sel in (("masked", is_masked),
+                          ("visible", (gb["mask"] > 0.5) & ~is_masked),
+                          ("all", gb["mask"] > 0.5)):
+            acc[name] += float((err * sel).sum())
+            cnt[name] += int(sel.sum())
+    model.train()
+    return {k: (float((acc[k] / cnt[k]) ** 0.5) if cnt[k] else float("nan"))
+            for k in acc}
 
 
 @torch.no_grad()
@@ -281,6 +318,16 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     device = resolve_device(args.device)
     use_amp = args.amp and device.type == "cuda"
+
+    mask_cfg = MaskingConfig(
+        atom_frac=getattr(cfg.train, "mask_atom_frac", 0.0),
+        region_frac=getattr(cfg.train, "mask_region_frac", 0.0),
+        region_span=getattr(cfg.train, "mask_region_span", 8),
+        noise_std=getattr(cfg.train, "mask_noise_std", 0.0))
+    if mask_cfg.enabled:
+        print(f"[train] masked denoising: atoms {mask_cfg.atom_frac:.0%}, "
+              f"regions {mask_cfg.region_frac:.0%} (span {mask_cfg.region_span}), "
+              f"noise {mask_cfg.noise_std}A")
 
     utils.set_seed(cfg.train.seed)
     cfg.save(out_dir / "config.yaml")
@@ -397,12 +444,28 @@ def main():
                 model_batch["coords"] = corrupt_coords(
                     gb["coords"], gb["mask"], cfg.train.corrupt_frac,
                     getattr(cfg.train, "corrupt_mode", "zero"))
+            # Masked geometric denoising: withhold whole atoms and whole
+            # contiguous regions from the ENCODER, noise the visible ones, and
+            # score against the clean structure. This is what stops a wide
+            # latent from being an identity map -- capacity and task are
+            # independent, so a latent able to hold coordinates verbatim will
+            # do exactly that unless the task makes copying insufficient.
+            if mask_cfg.enabled:
+                model_batch = dict(gb)
+                model_batch["coords"], _ = apply_masking(
+                    gb["coords"], gb["mask"], gb["res_pos"], mask_cfg)
             opt.zero_grad()
             with torch.autocast(device_type=device.type, enabled=use_amp):
                 if hasattr(model, "training_loss"):      # flow-matching objective
+                    # Not masked: this objective's target IS batch["coords"],
+                    # so corrupting the input dict would corrupt the target.
                     loss, comp = model.training_loss(gb)
                 else:
-                    preds, _ = model(gb)
+                    # model_batch, NOT gb. It was built here and then dropped
+                    # on the floor, so corrupt_frac never reached the model and
+                    # the "masked reconstruction is neutral" result compared two
+                    # runs that differed only in RNG consumption.
+                    preds, _ = model(model_batch)
                     loss, comp = loss_fn(preds, gb)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
@@ -443,6 +506,11 @@ def main():
                 if ema is not None:
                     with ema.as_weights(model):
                         row["val_rmsd_ema"] = heldout_rmsd(model, val_loader, device)
+                if mask_cfg.enabled:
+                    sp = masked_heldout_rmsd(model, val_loader, device, mask_cfg)
+                    row["val_rmsd_masked"] = sp["masked"]
+                    row["val_rmsd_visible"] = sp["visible"]
+                    row["val_rmsd_maskedrun_all"] = sp["all"]
             log.append(row)
             if do_log:
                 extra = " ".join(f"{k}={ep_comps[k]:.4f}" for k in
@@ -454,7 +522,10 @@ def main():
                          if "val_rmsd_ema" in row else "")
                       + (f"  TRAIN={row['train_rmsd']:.3f}A"
                          f"  v/t={row['val_over_train']:.2f}"
-                         if "train_rmsd" in row else ""))
+                         if "train_rmsd" in row else "")
+                      + (f"  [masked={row['val_rmsd_masked']:.3f}"
+                         f" visible={row['val_rmsd_visible']:.3f}]"
+                         if "val_rmsd_masked" in row else ""))
             elif "val_rmsd" in row:
                 print(f"  epoch {epoch:5d}  VAL={row['val_rmsd']:.3f}A"
                       + (f"  VAL_EMA={row['val_rmsd_ema']:.3f}A"

@@ -45,6 +45,77 @@ def bond_loss_single(pred, target, bonds):
     return F.smooth_l1_loss(lp, lt, beta=0.1)
 
 
+def angle_loss_single(pred, target, bonds, max_angles=4000):
+    """Bond ANGLES, from pairs of bonds sharing a central atom.
+
+    Bond lengths alone leave a structure free to fold at every joint: a chain
+    with perfect lengths and wrong angles is geometrically wrong everywhere
+    while scoring perfectly on the bond term. Angles are the cheapest signal
+    that constrains local shape rather than local scale, which matters most
+    for the masked atoms, whose lengths can be satisfied by a hinge in the
+    wrong direction.
+
+    Compared as cosines to avoid the derivative blow-up of arccos near 0 and
+    pi -- collinear triples are common (carbonyls, aromatics) and would
+    otherwise dominate the gradient.
+    """
+    if bonds.shape[0] < 2:
+        return pred.new_zeros(())
+    order = torch.argsort(bonds[:, 0] * (int(bonds.max()) + 1) + bonds[:, 1])
+    b = bonds[order]
+    # Neighbour lists via the undirected edge set.
+    e = torch.cat([b, b.flip(1)], dim=0)
+    centre, other = e[:, 0], e[:, 1]
+    idx = torch.argsort(centre)
+    centre, other = centre[idx], other[idx]
+    uniq, counts = torch.unique_consecutive(centre, return_counts=True)
+    starts = torch.cat([counts.new_zeros(1), counts.cumsum(0)[:-1]])
+    ii, jj, kk = [], [], []
+    for u, st, ct in zip(uniq.tolist(), starts.tolist(), counts.tolist()):
+        if ct < 2:
+            continue
+        nb = other[st:st + ct]
+        for a in range(min(ct, 4)):            # cap the fan-out per centre
+            for c in range(a + 1, min(ct, 4)):
+                ii.append(int(nb[a])); jj.append(u); kk.append(int(nb[c]))
+    if not ii:
+        return pred.new_zeros(())
+    ii = torch.tensor(ii[:max_angles], device=pred.device)
+    jj = torch.tensor(jj[:max_angles], device=pred.device)
+    kk = torch.tensor(kk[:max_angles], device=pred.device)
+
+    def cosines(x):
+        v1 = x[ii] - x[jj]
+        v2 = x[kk] - x[jj]
+        return F.cosine_similarity(v1, v2, dim=1, eps=1e-6)
+
+    return F.smooth_l1_loss(cosines(pred), cosines(target), beta=0.1)
+
+
+def local_distance_loss_single(pred, target, k=16, max_atoms=1200):
+    """Pairwise distances to each atom's k nearest TARGET neighbours.
+
+    The existing distance term subsamples pairs uniformly, so at N atoms it
+    spends almost all of its budget on far-apart pairs whose distance is easy
+    and uninformative. Local neighbourhoods are where clashes, packing and
+    covalent geometry live. Neighbours are chosen on the TARGET so the set
+    does not drift as the prediction moves.
+    """
+    n = pred.shape[0]
+    if n < 3:
+        return pred.new_zeros(())
+    if n > max_atoms:
+        sel = torch.randperm(n, device=pred.device)[:max_atoms]
+        pred, target = pred[sel], target[sel]
+        n = pred.shape[0]
+    kk = min(k + 1, n)
+    dt = torch.cdist(target, target)
+    idx = dt.topk(kk, largest=False).indices[:, 1:]            # drop self
+    rows = torch.arange(n, device=pred.device).unsqueeze(1).expand_as(idx)
+    dp = torch.linalg.norm(pred[rows] - pred[idx], dim=-1)
+    return F.smooth_l1_loss(dp, dt[rows, idx], beta=0.1)
+
+
 def clash_loss_single(pred, bonds, clash_dist=1.5, max_atoms=1200):
     """Hinge penalty on non-bonded atom pairs closer than ``clash_dist``.
 
@@ -108,6 +179,11 @@ class LossWeights:
     bond: float = 1.0
     clash: float = 0.5
     chirality: float = 0.2
+    # Bond ANGLES: lengths alone leave every joint free to hinge.
+    angle: float = 0.0
+    # Distances to each atom's k nearest neighbours, rather than uniformly
+    # sampled pairs that are mostly far apart and mostly easy.
+    local_distance: float = 0.0
 
 
 def _per_sample_mean(values, sample_idx, B):
@@ -262,7 +338,8 @@ class LossComputer:
         """preds: (B, Nmax, 3) padded. batch: dict from collate_fn."""
         device = preds.device
         totals = {k: torch.zeros((), device=device)
-                  for k in ("coord", "distance", "bond", "clash", "chirality")}
+                  for k in ("coord", "distance", "bond", "clash", "chirality",
+                            "angle", "local_distance")}
         B = preds.shape[0]
         for i in range(B):
             n = int(batch["n_atoms"][i])
@@ -275,6 +352,11 @@ class LossComputer:
             totals["bond"] = totals["bond"] + bond_loss_single(p, t, bonds)
             totals["clash"] = totals["clash"] + clash_loss_single(p, bonds, self.clash_dist, max_atoms=self.max_atoms)
             totals["chirality"] = totals["chirality"] + chirality_loss_single(p, t, centers)
+            if self.w.angle:
+                totals["angle"] = totals["angle"] + angle_loss_single(p, t, bonds)
+            if self.w.local_distance:
+                totals["local_distance"] = (totals["local_distance"]
+                                            + local_distance_loss_single(p, t, max_atoms=self.max_atoms))
         for k in totals:
             totals[k] = totals[k] / max(B, 1)
         total = (
@@ -283,6 +365,8 @@ class LossComputer:
             + self.w.bond * totals["bond"]
             + self.w.clash * totals["clash"]
             + self.w.chirality * totals["chirality"]
+            + self.w.angle * totals["angle"]
+            + self.w.local_distance * totals["local_distance"]
         )
         comp = {k: float(v.detach()) for k, v in totals.items()}
         comp["total"] = float(total.detach())
