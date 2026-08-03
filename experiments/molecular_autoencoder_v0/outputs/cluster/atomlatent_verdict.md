@@ -41,6 +41,13 @@ in-job eval pipeline. Pre-registered gates (committed 84c486e) applied in order.
    generalization, which this cross does not measure -- so this is not a verdict
    on graph's intended use.)
 
+   **Prediction miss, recorded:** parity was predicted; graph came in 36% worse,
+   past the 15% line. This makes graph-derived identity's **in-distribution cost
+   measurable**, which turns the OOD / past-training-length test from optional to
+   **mandatory** -- it is the only place that cost can be earned back. Until it
+   runs, the graph path is **unjustified, not merely unproven**. Queued behind
+   E1/E2.
+
 ## The decisive result: the abandon-arm-C condition is met
 
 The pre-registration named one outcome that abandons arm C: **anchors healthy +
@@ -52,11 +59,14 @@ The graph-L128 cells satisfy it and then some: anchors 1.07-1.08, distinct
 0.80-0.88, Jaccard 2-3x null -- **addressing is demonstrably intact** -- yet aa
 RMSD is **~3.2x arm A.** Two corroborations:
 
-- **The inversion.** The best-reconstructing cells (group, 2.38x) are the ones
-  that COLLAPSE routing (distinct 0.03-0.54); the cells that PRESERVE per-atom
-  routing (graph-L128, distinct 0.8+) reconstruct WORST (3.2x). More individual
-  addressability buys *worse* reconstruction -- the opposite of the bottleneck
-  design's premise.
+- **The inversion IS the finding** (stronger than the address-destroyed path we
+  pre-registered). The best-reconstructing cells (group, 2.38x) are the ones that
+  COLLAPSE routing (distinct 0.03-0.54); the cells that PRESERVE per-atom routing
+  (graph-L128, distinct 0.8+) reconstruct WORST (3.2x). So **at fixed capacity,
+  addressability and fidelity compete directly** -- spending latent capacity on
+  keeping atoms individually addressed costs reconstruction. That convicts the
+  bottleneck design's *premise* (that per-atom addressability through shared
+  latents is what to preserve), not merely its execution.
 - **Locality is not an independent good.** locality_gain is <= 0 on every graph
   cell (local cross-attention inert or harmful where routing already works) and
   large positive (+2.6 to +5.9) only on group cells, where it *compensates* for

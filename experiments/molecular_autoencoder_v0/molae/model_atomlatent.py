@@ -287,24 +287,45 @@ class SeqPoolBottleneck(nn.Module):
     def __init__(self, cfg: ModelConfig):
         super().__init__()
         self.cfg = cfg
-        self.r = max(int(getattr(cfg, "seq_pool_ratio", 1)), 1)
-        n_blocks = max(int(math.log2(self.r)), 0) if self.r > 1 else 0
+        self.fixed_L = int(getattr(cfg, "seq_pool_fixed_L", 0))   # E1 if > 0
+        self.r = max(int(getattr(cfg, "seq_pool_ratio", 1)), 1)   # E2 otherwise
+        n_blocks = 0 if self.fixed_L > 0 else (max(int(math.log2(self.r)), 0) if self.r > 1 else 0)
         self.down = nn.ModuleList([
             nn.Conv1d(cfg.d_model, cfg.d_model, kernel_size=3, stride=2, padding=1)
             for _ in range(n_blocks)])
         self.to_latent = nn.Linear(cfg.d_model, cfg.latent_dim)
         self.from_latent = nn.Linear(cfg.latent_dim, cfg.d_model)
 
-    def encode(self, x):
-        h = x.transpose(1, 2)                      # (B, d, N)
+    def _tokens(self, pad, n_pad, device):
+        """E1 assignment: padding is last, so canonical position == real index;
+        real atom i -> token floor(i * L / N_real). Deterministic, unlearned."""
+        real = (~pad)                                            # (B, n_pad) True=real
+        n_real = real.sum(1).clamp(min=1)                        # (B,)
+        pos = torch.arange(n_pad, device=device).unsqueeze(0).expand(pad.shape[0], -1)
+        tok = torch.floor(pos.float() * self.fixed_L / n_real.unsqueeze(1).float()).long()
+        return tok.clamp(max=self.fixed_L - 1), real
+
+    def encode(self, x, pad=None):
+        if self.fixed_L > 0:                                     # E1: fixed L, segment-mean
+            B, n_pad, d = x.shape
+            tok, real = self._tokens(pad, n_pad, x.device)
+            pooled = x.new_zeros(B, self.fixed_L, d)
+            pooled.scatter_add_(1, tok.unsqueeze(-1).expand(-1, -1, d), x * real.unsqueeze(-1))
+            cnt = x.new_zeros(B, self.fixed_L)
+            cnt.scatter_add_(1, tok, real.to(x.dtype))
+            return self.to_latent(pooled / cnt.clamp(min=1).unsqueeze(-1))   # (B, L, latent_dim)
+        h = x.transpose(1, 2)                      # E2: strided conv -> (B, d, N)
         for c in self.down:
             h = c(h)
         return self.to_latent(h.transpose(1, 2))   # (B, N/r, latent_dim)
 
-    def decode(self, z, n_atoms):
-        h = self.from_latent(z).transpose(1, 2)    # (B, d, N/r)
-        h = nn.functional.interpolate(h, size=n_atoms, mode="nearest")
-        return h.transpose(1, 2)                   # (B, N, d)
+    def decode(self, z, n_atoms, pad=None):
+        h = self.from_latent(z)                     # (B, L or N/r, d)
+        if self.fixed_L > 0:                        # E1: each atom reads its own token
+            tok, _ = self._tokens(pad, n_atoms, h.device)
+            return torch.gather(h, 1, tok.unsqueeze(-1).expand(-1, -1, h.shape[-1]))
+        h = nn.functional.interpolate(h.transpose(1, 2), size=n_atoms, mode="nearest")
+        return h.transpose(1, 2)                    # (B, N, d)
 
 
 class AtomLatentEncoder(nn.Module):
@@ -466,8 +487,12 @@ class SeqPoolAutoencoder(nn.Module):
             nn.Linear(cfg.d_model, 3))
 
     def _order(self, batch):
-        """Canonical order, padding last -- so pooling groups are
-        permutation-invariant rather than an artefact of input order."""
+        """Canonical order (padding last) so pooling groups are
+        permutation-invariant. `seq_pool_order: file` disables reordering, using
+        raw input order -- a control for whether success rides on sequence
+        coherence (protein file order ~= sequence) rather than the mechanism."""
+        if str(getattr(self.cfg, "seq_pool_order", "canonical")) == "file":
+            return None, None
         mask = batch["mask"]
         if "canonical_rank" not in batch:
             return None, None
@@ -475,22 +500,27 @@ class SeqPoolAutoencoder(nn.Module):
         order = torch.argsort(key, dim=1)
         return order, torch.argsort(order, dim=1)
 
+    def _ordered_pad(self, batch, order):
+        pad = ~batch["mask"].bool()
+        if order is not None:
+            pad = torch.gather(pad, 1, order)
+        return pad
+
     def encode(self, batch, n_latents=None):
         x = self.feat_in(batch, batch["coords"] / self.cfg.coord_scale)
         order, _ = self._order(batch)
         if order is not None:
             x = torch.gather(x, 1, order.unsqueeze(-1).expand(-1, -1, x.shape[-1]))
-        pad = ~batch["mask"].bool()
-        if order is not None:
-            pad = torch.gather(pad, 1, order)
+        pad = self._ordered_pad(batch, order)
         for blk in self.blocks:
             x = blk(x, key_padding_mask=pad)
-        return self.bottleneck.encode(x)
+        return self.bottleneck.encode(x, pad)
 
     def decode(self, z, batch):
         N = batch["coords"].shape[1]
-        h = self.bottleneck.decode(z, N)                  # canonical order
         order, inv = self._order(batch)
+        pad = self._ordered_pad(batch, order)
+        h = self.bottleneck.decode(z, N, pad)             # ordered space
         if inv is not None:
             h = torch.gather(h, 1, inv.unsqueeze(-1).expand(-1, -1, h.shape[-1]))
         h = h + self.feat_out(batch)                      # identity, no coords
@@ -505,7 +535,10 @@ class SeqPoolAutoencoder(nn.Module):
         return self.cfg.latent_dim
 
     def latent_floats_for(self, n_atoms: int) -> int:
-        r = max(int(getattr(self.cfg, "seq_pool_ratio", 1)), 1)
+        fixed_L = int(getattr(self.cfg, "seq_pool_fixed_L", 0))
+        if fixed_L > 0:                                  # E1: constant in N
+            return self.cfg.latent_dim * fixed_L
+        r = max(int(getattr(self.cfg, "seq_pool_ratio", 1)), 1)   # E2: grows with N
         return self.cfg.latent_dim * max(int(n_atoms) // r, 1)
 
     def num_parameters(self) -> int:

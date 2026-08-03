@@ -121,6 +121,18 @@ class ModelConfig:
     #   is unlearned and therefore cannot collapse.
     atom_bottleneck: str = "attention"
     seq_pool_ratio: int = 8
+    # seqpool has two modes (arm E controls):
+    #   E2 (seq_pool_ratio r): strided-conv, N/r tokens -- L grows with N, so it
+    #     is BUDGET-VIOLATING at scale; a decoder-capability control, NOT a
+    #     candidate architecture.
+    #   E1 (seq_pool_fixed_L > 0): fixed L tokens, atom i -> token floor(i*L/N)
+    #     by deterministic segment-mean pooling. Matched-budget control: swaps
+    #     learned routing for deterministic routing at the C/D token budget.
+    seq_pool_fixed_L: int = 0
+    # "canonical" (graph_identity order, molecule-general) or "file" (raw input
+    # order -- for proteins ~= sequence order, meaningless for general molecules).
+    # Run both to tell a genuine result from a sequence-coherence artefact.
+    seq_pool_order: str = "canonical"
     # Slot Attention normalisation in the encoder pool: softmax over LATENTS
     # rather than atoms, so latents compete for atoms and none can absorb the
     # whole structure. An option to evaluate -- NOT a fix for a measured
