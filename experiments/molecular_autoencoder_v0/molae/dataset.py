@@ -74,11 +74,34 @@ def add_graph_features(sample, key=None):
 
 
 class ProteinStructureDataset(Dataset):
-    def __init__(self, npz_paths, graph_features: bool = False):
+    def __init__(self, npz_paths, graph_features: bool = False,
+                 preload_graph: bool = True):
         self.paths = [Path(p) for p in npz_paths]
         # Only computed when the model actually addresses atoms by graph;
         # the group-addressed arms would pay for fields they never read.
         self.graph_features = graph_features
+        self.preloaded = None
+        if graph_features and preload_graph:
+            # Read every sidecar ONCE, in the parent process, before any
+            # DataLoader worker forks. Reading it per __getitem__ instead
+            # trades "recompute every sample" for "open a second file every
+            # sample", and on a network filesystem an open costs milliseconds
+            # -- which puts back most of what the sidecars were meant to save.
+            # Workers inherit this dict through fork and pay nothing.
+            self.preloaded = {}
+            for q in self.paths:
+                side = Path(str(q).replace(".npz", ".graph.npz"))
+                if side.exists():
+                    try:
+                        with np.load(side) as z:
+                            self.preloaded[str(q)] = {k: z[k] for k in z.files}
+                    except Exception:
+                        pass          # falls back to computing: correct, slow
+            missing = len(self.paths) - len(self.preloaded)
+            if missing:
+                print(f"[dataset] {missing}/{len(self.paths)} graph sidecars "
+                      f"missing; those are computed per access. Run "
+                      f"scripts/precompute_graph_features.py")
 
     def __len__(self):
         return len(self.paths)
@@ -87,7 +110,12 @@ class ProteinStructureDataset(Dataset):
         d = np.load(self.paths[i], allow_pickle=True)
         s = sample_from_arrays(d)
         if self.graph_features:
-            s = add_graph_features(s, key=str(self.paths[i]))
+            pre = self.preloaded.get(str(self.paths[i])) if self.preloaded else None
+            if pre is not None:
+                for k, v in pre.items():
+                    s[k] = torch.from_numpy(np.asarray(v, dtype=np.int64))
+            else:
+                s = add_graph_features(s, key=str(self.paths[i]))
         return s
 
 
