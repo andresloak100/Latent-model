@@ -555,23 +555,32 @@ row is struck: a single fixed latent cannot carry the additive dynamic state
 the per-molecule tokens carry the additive part. (Token count: 125,000
 per-residue vs 924 per-molecule at 4 tok/mol = 135x fewer.)
 
-**Width is now pinned, in scalars** (stated in scalars so the choice survives a
-change in d). The sizing quantity is the per-molecule-fidelity requirement
-`sum_k modes_abs(block_k)` -- the minimum modes to bring each molecule's residual
-per-atom variance under a target, additive by construction (see the control
-below). At **0.5 A RMSD (tau=0.25 A^2)** that is ~231 x 36 = **~8,316 scalars
-required**; provision ~14-15k. At d=16:
+**Width is a fidelity-target decision, pinned in scalars** (stated in scalars so
+the choice survives a change in d). The sizing quantity is the per-molecule-
+fidelity requirement `sum_k modes_abs(block_k)` -- the minimum modes to bring EACH
+molecule's residual per-atom variance under a target tau, additive by construction
+and pool-free (the only sound criterion; see the control below for why). It
+depends on the fidelity target:
 
-- 2 tok/mol = 462 x 16 = 7,392 scalars -- **under requirement, ruled out**
-- **4 tok/mol = 924 x 16 = 14,784 scalars -- selected, 1.55-1.78x headroom**
-- 8 tok/mol = 1,848 x 16 = 29,568 scalars -- wasteful
+| target RMSD | tau (A^2) | scalars required (~231 x mean) |
+|---|---|---|
+| 0.40 A | 0.16 | ~11,700 |
+| 0.50 A | 0.25 | ~8,224 |
+| ~0.53 A | 0.28 | ~7,392  (= 2 tok/mol at d=16) |
+| 0.60 A | 0.36 | ~5,359 |
+| 1.00 A | 1.00 | ~520 |
 
-The 2/4/8 range is resolved to **4**. (dev_modes_90's 9,518 agrees on the choice
-but over-states the requirement -- a relative 90%-of-variance count inflates with
-scale; the absolute modes_abs is the right sizing number.)
+So the 2-vs-4 tok/mol choice is a **fidelity decision, not a clean measurement
+exclusion**. At d=16: 2 tok/mol = 7,392 scalars suffices at **>= ~0.53 A RMSD**
+and falls only ~11% short at 0.50 A; 4 tok/mol = 14,784 scalars covers 0.50 A at
+1.8x headroom (0.40 A at 1.3x); 8 tok/mol = 29,568 is wasteful. State it as
+**"4 tok/mol at <= 0.5 A; 2 tok/mol suffices at >= ~0.53 A"**, not "2 ruled out".
+**Recommendation: 4 tok/mol** -- the headroom is cheap and the 8 ns caveat argues
+for slack. (dev_modes_90's 9,518 is a scale-inflated relative proxy; the absolute
+modes_abs is the sizing number.)
 
-**Caveat carried onto the pinned number:** 8,316 is the **8 ns within-basin**
-figure. Basin-hopping over a millisecond adds modes this control never touches --
+**Caveat carried onto the pinned numbers:** these are the **8 ns within-basin**
+figures. Basin-hopping over a millisecond adds modes this control never touches --
 the budget is pinned for the regime measured, **not for the 1 ms objective**.
 
 ### The premise, and how it gets checked
@@ -666,16 +675,25 @@ Two limits this result does NOT clear:
      NOT the cleaner additivity metric for a mixed box; its 1.000 baseline is a
      homogeneity artifact, and `dev_modes_90` (baseline ~0.77) is better behaved
      there.
-  4. **No POOLED metric is additive under heterogeneity -- including the absolute
-     one.** `modes_abs(tau)` = min modes so residual per-atom variance <= tau also
-     sub-adds (0.738 at 0.5 A, 0.344 at 1.0 A, K=231): any box-level criterion
-     lets low-amplitude molecules donate slack, so pooling mixes scales whatever
-     the metric. The fix for SIZING is to not pool the fidelity criterion at all
-     -- require PER-MOLECULE fidelity and size by `sum_k modes_abs(block_k)`,
-     which is additive by construction. At 0.5 A that is ~231 x 36 = **~8,316
-     scalars**, the pinned width requirement (see Cost). That absolute,
-     fidelity-tied number is the sizing quantity; dev_modes_90's 9,518 is a
-     scale-inflated proxy that only happens to agree on 4 tok/mol.
+  4. **Size per-molecule -- it is the only SOUND criterion, not a workaround.**
+     The absolute `modes_abs(tau)` also sub-adds when pooled (0.738 at 0.5 A,
+     0.344 at 1.0 A, K=231), and it does so **even for IDENTICAL blocks**: exact
+     duplication is 1.000 at K=1,2 but drops to 0.980 by K=231 (114 of 5,775 modes
+     shed). The reason is that a pooled absolute criterion is
+     `sum(residual)/sum(N) <= tau` -- an **average over the box**. That average
+     lets a floppy molecule stay badly reconstructed while near-rigid ones pull
+     the mean under tau (for identical blocks, accumulated per-mode
+     over-satisfaction is the same slack). So pooled modes_abs does not merely
+     fail to add; it **certifies boxes containing individually-failed molecules.**
+     The sound criterion enforces the tolerance PER MOLECULE:
+     `sum_k modes_abs(block_k)`, additive by construction and pool-free. At 0.5 A
+     that is ~231 x 35.6 = **~8,224 scalars** (the pinned width requirement; see
+     Cost for the fidelity sweep). **This is the same principle as the atom-level
+     traceability tests** -- average-over-box fidelity is exactly the failure mode
+     they were built to catch (an aggregate that looks right while individual
+     atoms are lost). Sizing criterion and architecture requirement are one
+     constraint at two scales, not a metric technicality. (dev_modes_90's 9,518 is
+     a scale-inflated relative proxy that only happens to agree on 4 tok/mol.)
 
   Caveat: the 231 blocks were sampled from only 20 distinct real shapes; a truly
   231-distinct mix could push the ratios somewhat lower, but the non-compounding

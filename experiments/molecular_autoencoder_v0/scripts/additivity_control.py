@@ -92,10 +92,33 @@ def main():
         sum25 = het(K, lambda ix: sum(modes_abs(specs[i], Ns[i], 0.25) for i in ix))
         print(f"  {K:4d}  {r_d:.3f}   {r_p:.3f}   {r_a:.3f}    {r_b:.3f}    |  {sum25:8.0f}")
 
-    print("\nWIDTH REQUIREMENT = per-molecule-fidelity sum (additive by construction):")
-    for tau in taus:
+    # correctness gate: exact duplication must be EXACTLY K*m at small K (the
+    # per-block code path that the width requirement also uses). Any drift at
+    # larger K is real overshoot-slack (pooled = box-average sheds whole modes
+    # once accumulated over-satisfaction exceeds a mode), not a bug -- itself a
+    # demonstration that a pooled absolute criterion is unsound even for
+    # identical blocks.
+    j = sorted(range(len(specs)), key=lambda i: Ns[i])[len(specs) // 2]
+    m = modes_abs(specs[j], Ns[j], 0.25)
+    for K in (1, 2):
+        assert modes_abs(np.tile(specs[j], K), Ns[j] * K, 0.25) == K * m, "duplication self-check failed"
+    print(f"\n[selfcheck] exact duplication == K*m at K=1,2 (block m={m}); "
+          f"K=231 ratio {modes_abs(np.tile(specs[j],231),Ns[j]*231,0.25)/(231*m):.3f} (overshoot-slack, real)")
+
+    print("\nWIDTH REQUIREMENT = per-molecule-fidelity sum (additive, pool-free):")
+    print("  RMSD(A)  tau(A^2)  scalars(~231 x mean)   vs 2 tok/mol (7,392)")
+    for rmsd in (0.40, 0.50, 0.60, 0.75, 1.00):
+        tau = rmsd ** 2
         per = np.mean([modes_abs(specs[i], Ns[i], tau) for i in range(len(specs))])
-        print(f"  tau={tau} A^2 ({np.sqrt(tau):.1f} A RMSD): ~231 x {per:.0f} = ~{231*per:.0f} scalars")
+        req = 231 * per
+        print(f"   {rmsd:.2f}    {tau:.3f}      {req:8.0f}          "
+              f"{'BELOW (2 tok ok)' if req < 7392 else 'above (needs 4)'}")
+    lo, hi = 0.40, 1.00
+    for _ in range(40):
+        mid = (lo + hi) / 2
+        req = 231 * np.mean([modes_abs(specs[i], Ns[i], mid ** 2) for i in range(len(specs))])
+        hi, lo = (mid, lo) if req < 7392 else (hi, mid)
+    print(f"  crossover: 2 tok/mol suffices at >= ~{hi:.2f} A RMSD")
 
 
 if __name__ == "__main__":
