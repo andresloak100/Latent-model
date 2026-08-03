@@ -48,7 +48,16 @@ def add_graph_features(sample, key=None):
     from .graph_identity import graph_atom_features
     if "wl_class" in sample:
         return sample
-    if key is not None and key in _GRAPH_CACHE:
+    # Sidecar first. The in-process cache does NOT survive DataLoader workers
+    # (no persistent_workers, so every epoch forks fresh processes with an
+    # empty dict), which turned a 37 ms canonical ordering into ~3 min/epoch
+    # and timed the graph arms out. Precompute it with
+    # scripts/precompute_graph_features.py.
+    side = Path(str(key).replace(".npz", ".graph.npz")) if key else None
+    if side is not None and side.exists():
+        with np.load(side) as z:
+            g = {k: z[k] for k in z.files}
+    elif key is not None and key in _GRAPH_CACHE:
         g = _GRAPH_CACHE[key]
     else:
         bonds = sample["bonds"]
