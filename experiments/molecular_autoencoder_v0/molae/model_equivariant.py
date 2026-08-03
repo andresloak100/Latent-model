@@ -57,6 +57,9 @@ def make_autoencoder(cfg: ModelConfig):
         from .model_perresidue import PerResidueAutoencoder
         return PerResidueAutoencoder(cfg)
     if etype == "atomlatent":
+        if getattr(cfg, "atom_bottleneck", "attention") == "seqpool":
+            from .model_atomlatent import SeqPoolAutoencoder
+            return SeqPoolAutoencoder(cfg)
         from .model_atomlatent import AtomLatentAutoencoder
         return AtomLatentAutoencoder(cfg)
     if etype == "perceiver_direct":

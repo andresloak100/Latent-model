@@ -114,6 +114,13 @@ class ModelConfig:
     # decomposition. "graph": element, charge, bond types, WL class and a
     # canonical rank -- everything an .sdf actually contains, and nothing else.
     atom_addressing: str = "group"
+    # "attention": learned routing to L shared latents (arms B/C/D).
+    # "seqpool":  strided-conv pooling over canonically ordered atoms, giving
+    #   N/r latents where atom i maps to latent i/r BY CONSTRUCTION. This is
+    #   the mechanism of the reference implementation that works; the address
+    #   is unlearned and therefore cannot collapse.
+    atom_bottleneck: str = "attention"
+    seq_pool_ratio: int = 8
 
 
 class AtomFeaturizer(nn.Module):

@@ -45,6 +45,8 @@ O(N.L) for pass 1 and O(N.k) for pass 2. No O(N^2) anywhere, which objective
 
 from __future__ import annotations
 
+import math
+
 import torch
 import torch.nn as nn
 
@@ -194,6 +196,52 @@ class LocalCrossAttention(nn.Module):
         return atoms + self.ff(self.nf(atoms))
 
 
+class SeqPoolBottleneck(nn.Module):
+    """Strided-convolution pooling over CANONICALLY ORDERED atoms.
+
+    The reference implementation that works (ProteinAE, arXiv 2510.10634)
+    compresses with strided Conv1d over the sequence and upsamples with
+    nearest-neighbour interpolation. Atom i lands in latent floor(i/r) BY
+    CONSTRUCTION -- the address is fixed, local and unlearned, so it cannot
+    collapse. Our attention-routed bottleneck learns the assignment instead,
+    and the traceability measures what that costs: routing gini 0.001 -> 0.90
+    and distinct read patterns 0.894 -> 0.57, i.e. the model concentrates onto
+    a handful of latents no matter how many it is given, which is why more
+    latent budget bought worse reconstruction.
+
+    Token count is N/r, so r is a free knob (r=64 puts 1M atoms at ~16k
+    tokens) -- but it is NOT independent of N, and that is the honest trade.
+    ProteinAE never decouples them either, and its own ablation degrades with
+    r: 0.28A at r=1, 0.35 at r=2, 0.50 at r=4.
+
+    Ordering matters: atoms are sorted canonically first (graph_identity), so
+    the pooling groups are permutation-invariant rather than an artefact of
+    input order.
+    """
+
+    def __init__(self, cfg: ModelConfig):
+        super().__init__()
+        self.cfg = cfg
+        self.r = max(int(getattr(cfg, "seq_pool_ratio", 1)), 1)
+        n_blocks = max(int(math.log2(self.r)), 0) if self.r > 1 else 0
+        self.down = nn.ModuleList([
+            nn.Conv1d(cfg.d_model, cfg.d_model, kernel_size=3, stride=2, padding=1)
+            for _ in range(n_blocks)])
+        self.to_latent = nn.Linear(cfg.d_model, cfg.latent_dim)
+        self.from_latent = nn.Linear(cfg.latent_dim, cfg.d_model)
+
+    def encode(self, x):
+        h = x.transpose(1, 2)                      # (B, d, N)
+        for c in self.down:
+            h = c(h)
+        return self.to_latent(h.transpose(1, 2))   # (B, N/r, latent_dim)
+
+    def decode(self, z, n_atoms):
+        h = self.from_latent(z).transpose(1, 2)    # (B, d, N/r)
+        h = nn.functional.interpolate(h, size=n_atoms, mode="nearest")
+        return h.transpose(1, 2)                   # (B, N, d)
+
+
 class AtomLatentEncoder(nn.Module):
     """N atom tokens -> L latent tokens. One token per atom throughout."""
 
@@ -311,6 +359,80 @@ class AtomLatentDecoder(nn.Module):
         for blk in self.local_blocks:
             q = blk(q, lat, idx, rel=rel)
         return self.head2(q) * self.cfg.coord_scale, coarse
+
+
+class SeqPoolAutoencoder(nn.Module):
+    """Arm E: N atoms -> N/r pooled latents -> N atoms, address by construction.
+
+    No learned routing anywhere. Atoms are sorted canonically, pooled by
+    strided convolution, and each output atom reads the interpolated latent at
+    its own position. Atom i is served by latent floor(i/r) and nothing can
+    change that, which is exactly the property the attention-routed arms lose.
+    """
+
+    per_residue = False
+
+    def __init__(self, cfg: ModelConfig):
+        super().__init__()
+        self.cfg = cfg
+        self.feat_in = make_featurizer(cfg, use_coords=True)
+        self.feat_out = make_featurizer(cfg, use_coords=False)
+        self.blocks = nn.ModuleList([
+            WindowedSelfAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout,
+                                  window=max(int(cfg.attn_window), 32),
+                                  n_global=int(cfg.attn_global))
+            for _ in range(max(int(cfg.enc_self_layers), 1))])
+        self.bottleneck = SeqPoolBottleneck(cfg)
+        self.head = nn.Sequential(
+            nn.LayerNorm(cfg.d_model),
+            nn.Linear(cfg.d_model, cfg.d_model), nn.GELU(),
+            nn.Linear(cfg.d_model, 3))
+
+    def _order(self, batch):
+        """Canonical order, padding last -- so pooling groups are
+        permutation-invariant rather than an artefact of input order."""
+        mask = batch["mask"]
+        if "canonical_rank" not in batch:
+            return None, None
+        key = batch["canonical_rank"] + (~mask.bool()).long() * (2 ** 30)
+        order = torch.argsort(key, dim=1)
+        return order, torch.argsort(order, dim=1)
+
+    def encode(self, batch, n_latents=None):
+        x = self.feat_in(batch, batch["coords"] / self.cfg.coord_scale)
+        order, _ = self._order(batch)
+        if order is not None:
+            x = torch.gather(x, 1, order.unsqueeze(-1).expand(-1, -1, x.shape[-1]))
+        pad = ~batch["mask"].bool()
+        if order is not None:
+            pad = torch.gather(pad, 1, order)
+        for blk in self.blocks:
+            x = blk(x, key_padding_mask=pad)
+        return self.bottleneck.encode(x)
+
+    def decode(self, z, batch):
+        N = batch["coords"].shape[1]
+        h = self.bottleneck.decode(z, N)                  # canonical order
+        order, inv = self._order(batch)
+        if inv is not None:
+            h = torch.gather(h, 1, inv.unsqueeze(-1).expand(-1, -1, h.shape[-1]))
+        h = h + self.feat_out(batch)                      # identity, no coords
+        return self.head(h) * self.cfg.coord_scale
+
+    def forward(self, batch, n_latents=None):
+        z = self.encode(batch)
+        return self.decode(z, batch), z
+
+    @property
+    def latent_floats(self) -> int:
+        return self.cfg.latent_dim
+
+    def latent_floats_for(self, n_atoms: int) -> int:
+        r = max(int(getattr(self.cfg, "seq_pool_ratio", 1)), 1)
+        return self.cfg.latent_dim * max(int(n_atoms) // r, 1)
+
+    def num_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters())
 
 
 class AtomLatentAutoencoder(nn.Module):
