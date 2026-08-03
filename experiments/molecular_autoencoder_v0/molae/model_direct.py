@@ -128,11 +128,22 @@ class DirectResidueDecoder(nn.Module):
             unbounded=getattr(cfg, "unbounded_positions", False))
         self.res_type_emb = nn.Embedding(C.N_RESIDUES, cfg.d_model, padding_idx=C.PAD_RESIDUE_IDX)
         self.chain_aware = bool(getattr(cfg, "dec_chain_aware", False))
-        if self.chain_aware:
+        # dec_chain_aware bundles TWO things, and they are not the same claim.
+        # chain_emb marks WHICH chain (2k params, no-op on a single chain).
+        # res_in_chain_emb is a SECOND position table (131k params) that on a
+        # single chain is an exact duplicate of the global one -- pure extra
+        # positional capacity with zero chain content. Bundled, a single-chain
+        # improvement cannot be attributed. These split them.
+        self.use_chain_emb = self.chain_aware and bool(
+            getattr(cfg, "dec_chain_emb", True))
+        self.use_res_in_chain = self.chain_aware and bool(
+            getattr(cfg, "dec_res_in_chain_emb", True))
+        if self.use_chain_emb:
             self.chain_emb = nn.Embedding(cfg.max_chains, cfg.d_model)
             # Kept ALONGSIDE the global index, not instead of it: global says
             # how far into the assembly a residue sits, within-chain restores
             # the adjacency prior the global index breaks at each boundary.
+        if self.use_res_in_chain:
             self.res_in_chain_emb = PositionEncoding(
                 cfg.d_model, cfg.max_res_pos,
                 unbounded=getattr(cfg, "unbounded_positions", False))
@@ -171,8 +182,10 @@ class DirectResidueDecoder(nn.Module):
         if self.chain_aware:
             rchain, within = residue_chain_index(
                 res_pos, batch["chain_idx"], R, self.cfg.max_chains)
-            h = (h + self.chain_emb(rchain)
-                 + self.res_in_chain_emb(within))
+            if self.use_chain_emb:
+                h = h + self.chain_emb(rchain)
+            if self.use_res_in_chain:
+                h = h + self.res_in_chain_emb(within)
         h = self.ln(h)
 
         rmask = residue_mask(res_pos, batch["mask"], R)

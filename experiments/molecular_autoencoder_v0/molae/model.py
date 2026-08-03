@@ -55,6 +55,11 @@ class ModelConfig:
     # at every chain boundary and which marks none of them. Off by default so
     # existing `direct` results stay reproducible.
     dec_chain_aware: bool = False
+    # Decompose dec_chain_aware. Both default True, so the bundled arm is
+    # unchanged; set one False to isolate chain marking from the extra
+    # positional capacity the second table also supplies.
+    dec_chain_emb: bool = True
+    dec_res_in_chain_emb: bool = True
     # Frame readout: predict a per-residue rotation + translation and a LOCAL
     # atom cloud, instead of 14 independent absolute coordinates per residue.
     # Placement then flows through 3 numbers and moves the residue rigidly,
