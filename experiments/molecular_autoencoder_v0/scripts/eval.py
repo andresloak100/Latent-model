@@ -137,7 +137,8 @@ def main():
         vals = [m[key] for m in per_structure if key in m and not np.isnan(m[key])]
         return float(np.mean(vals)) if vals else float("nan")
 
-    metric_keys = ["all_atom_rmsd", "backbone_rmsd", "pairwise_distance_error",
+    metric_keys = ["all_atom_rmsd", "backbone_rmsd", "ca_rmsd",
+                   "pairwise_distance_error",
                    "bond_length_error", "chirality_violation_rate",
                    "clashes_per_1000_atoms", "contact_f1", "compression_ratio"]
     learned_summary = {k: agg(k) for k in metric_keys}
