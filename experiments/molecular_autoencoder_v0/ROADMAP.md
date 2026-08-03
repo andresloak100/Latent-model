@@ -354,6 +354,8 @@ Worth stating alongside the gaps, since the list above is all deficits:
 ## 6. The four objectives, audited
 
 These are the stated targets for the system, not aspirations for the codec.
+(Objective order does NOT match section order: **obj 1 -> 6.2, obj 2 -> 6.4,
+obj 3 -> 6.3, obj 4 -> 6.1**. Objective 2 is bond breaking/forming.)
 Each is audited against what exists, with the blocking item named. Ordered by
 how far the current stack is from them, nearest first.
 
@@ -827,15 +829,33 @@ tokens. DFT escalation needs its own rate budget: a few hundred QM atoms is
 minutes to hours, so ~1e3 events per trajectory is days -- a hard cap on the event
 rate, not just on event handling.
 
-### 8.2 Barrier accuracy, not energy MAE
+### 8.2 Barrier accuracy, not energy MAE -- where objectives 2 and 3 couple
 
 Barrier error enters rates **exponentially** (Arrhenius), so energy MAE can look
 fine while the chemistry -- the rates -- is wrong. The validator's correctness
-metric is **barrier accuracy**, not energy MAE. (Stated in planning for
-"objective 2"; in the current §6 numbering barrier accuracy maps most directly to
-the kinetics / bond-breaking objectives 6.3-6.4 -- flagging the objective label
-for confirmation. The claim itself had no home in the doc; 6.4 is nearest and
-does not state it.)
+metric is **barrier accuracy**, not energy MAE. Primary home is **objective 2**
+(bond breaking/forming = 6.4; objective order != section order, see §6). The claim
+had no home in the doc; 6.4 is nearest and did not state it.
+
+Cross-referenced to **6.3** because barrier accuracy is **where objectives 2 and 3
+couple**: a millisecond trajectory is mostly rare events, and their statistics are
+set by barriers, so barrier error corrupts long rollouts as **wrong event counts**,
+not as noise.
+
+The arithmetic makes the target actionable. Rate ~ exp(-dG_barrier / kT), with
+kT = 0.593 kcal/mol at 300 K, so a barrier error dG is a rate-error factor
+exp(dG/kT):
+
+| barrier error | rate error |
+|---|---|
+| 1 kcal/mol | 5.4x |
+| 2 kcal/mol | 29x |
+| 3 kcal/mol | 157x |
+
+So **chemical accuracy (1 kcal/mol) buys only ~5x in rate.** Over a 1 ms window
+that is the difference between an event occurring a handful of times vs dozens, or
+occurring vs not. "Target 1 kcal/mol" reads as sufficiency and is not -- it is a
+floor, not the goal.
 
 ### 8.3 Route (b) is costable -- via the contact-violation rate
 
@@ -867,9 +887,16 @@ point):
   (SPICE adds peptides). Cover reactive *regions* of the PES (bond stretch) and
   are good for a force head; do NOT contain complete reactions or enzymatic
   environments.
-- **Gap:** no large public **enzyme / QM-MM reactive** corpus exists. Protein-
-  context reaction data likely has to be *generated* (QM/MM or reactive
-  ML-potential trajectories), which is why this is earliest-start.
+**Two distinct problems -- do not conflate them:**
+- *Which dataset* -- open among the candidates above, resolvable by verifying
+  contents. But they are **all small-molecule, largely gas-phase organic**: a
+  **systematic** gap, not a coverage shortfall, so it does not close by adding
+  more of the same kind.
+- *The real hole* -- **enzyme active-site and condensed-phase** reactive data,
+  which **survives any choice among the candidates**. No large public enzyme /
+  QM-MM reactive corpus exists, so protein-context reaction data likely has to be
+  *generated* (QM/MM or reactive ML-potential trajectories). This is the
+  earliest-start item and the actual critical path.
 
 ### 8.5 Identity contract change (record, do not implement)
 
