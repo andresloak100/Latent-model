@@ -68,6 +68,10 @@ def main():
     ap.add_argument("--arms", default=",".join(ARMS))
     ap.add_argument("--latent-counts", default="16,32,64,128,256")
     ap.add_argument("--latent-dims", default="8,32")
+    ap.add_argument("--addressing", default="group,graph",
+                    help="group: (res_pos, slot). graph: element/charge/bond/WL "
+                         "+ canonical rank. Running BOTH is what separates a "
+                         "shared-latent failure from an addressability failure.")
     ap.add_argument("--epochs", type=int, default=0, help="0 = use the base config")
     ap.add_argument("--device", default="auto")
     ap.add_argument("--amp", action="store_true")
@@ -79,6 +83,7 @@ def main():
     Ls = [int(x) for x in args.latent_counts.split(",")]
     ds = [int(x) for x in args.latent_dims.split(",")]
     arms = [a for a in args.arms.split(",") if a in ARMS]
+    addrs = [a for a in args.addressing.split(",") if a in ("group", "graph")]
 
     scan = ROOT / "configs" / "_atomlatent_grid"
     scan.mkdir(parents=True, exist_ok=True)
@@ -90,12 +95,18 @@ def main():
             # the direct codec at all, so sweeping L there would run the same
             # configuration five times under five different names.
             arm_Ls = Ls if arm != "A_group_baseline" else Ls[:1]
-            for L in arm_Ls:
+            # Arm A is the per-residue direct codec; it has no graph-addressed
+            # variant, so it contributes one reference row rather than two.
+            arm_addrs = addrs if arm != "A_group_baseline" else ["group"]
+            for addr in arm_addrs:
+             for L in arm_Ls:
                 cfg = ExperimentConfig.from_yaml(ROOT / args.base)
                 for k, v in ARMS[arm].items():
                     setattr(cfg.model, k, v)
+                cfg.model.atom_addressing = addr
                 cfg.model.n_latent_tokens = L
                 cfg.model.latent_dim = d
+                cfg.train.report_symmetry_rmsd = True
                 if arm in MASKED_ARMS:
                     cfg.train.mask_atom_frac = 0.15
                     cfg.train.mask_region_frac = 0.15
@@ -103,20 +114,20 @@ def main():
                     cfg.train.mask_noise_std = 0.1
                 if args.epochs:
                     cfg.train.epochs = args.epochs
-                name = f"{arm}_L{L}_d{d}"
+                name = f"{arm}_{addr}_L{L}_d{d}"
                 cfg.name = name
                 cfg.train.out_dir = f"outputs/atomlatent{args.tag}/{name}"
                 path = scan / f"{name}.yaml"
                 cfg.save(path)
-                planned.append((name, L, d, L * d, path, cfg.train.out_dir))
+                planned.append((name, arm, addr, L, d, L * d, path, cfg.train.out_dir))
 
     print(f"[grid] {len(planned)} runs; latent scalars L*d per run:")
-    for name, L, d, floats, _, _ in planned:
-        print(f"   {name:34s} L={L:4d} d={d:3d}  {floats:6d} scalars")
+    for name, arm, addr, L, d, floats, _, _ in planned:
+        print(f"   {name:40s} L={L:4d} d={d:3d}  {floats:6d} scalars")
     if args.dry_run:
         return
 
-    for name, L, d, floats, path, out_dir in planned:
+    for name, arm, addr, L, d, floats, path, out_dir in planned:
         print(f"\n[grid] === {name} ===", flush=True)
         cmd = [sys.executable, "scripts/train.py", "--config", str(path),
                "--device", args.device, "--num-workers", str(args.num_workers)]
@@ -126,13 +137,16 @@ def main():
         log = utils.load_json(ROOT / out_dir / "train_log.json")
         s = log.get("val_summary", {})
         rows.append({
-            "run": name, "arm": name.split("_L")[0], "L": L, "latent_dim": d,
+            "run": name, "arm": arm, "addressing": addr, "L": L, "latent_dim": d,
             "latent_scalars": floats,
             "val_rmsd": s.get("val_rmsd", {}).get("mean"),
             "val_rmsd_sd": s.get("val_rmsd", {}).get("sd"),
             "val_rmsd_ema": s.get("val_rmsd_ema", {}).get("mean"),
             "val_masked": s.get("val_rmsd_masked", {}).get("mean"),
             "val_visible": s.get("val_rmsd_visible", {}).get("mean"),
+            "val_strict": s.get("val_rmsd_strict", {}).get("mean"),
+            "val_sym": s.get("val_rmsd_sym", {}).get("mean"),
+            "sym_gap": s.get("sym_gap", {}).get("mean"),
         })
         out = ROOT / "outputs" / f"atomlatent{args.tag}"
         out.mkdir(parents=True, exist_ok=True)

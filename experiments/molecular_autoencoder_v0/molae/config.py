@@ -64,6 +64,9 @@ class TrainConfig:
     mask_region_frac: float = 0.0
     mask_region_span: int = 8
     mask_noise_std: float = 0.0
+    # Symmetry-corrected RMSD alongside the strict one. Costs a Hungarian
+    # match per symmetry class per structure, so it is opt-in.
+    report_symmetry_rmsd: bool = False
     corrupt_mode: str = "zero"      # "zero" | "noise"  # random SO(3) input rotations (teaches non-equivariant encoders invariance)
 
 

@@ -34,6 +34,7 @@ from molae.alignment import aligned_rmsd_torch  # noqa: E402
 from molae.curriculum import Curriculum, mixture_indices  # noqa: E402
 from molae.masking import MaskingConfig, apply_masking, split_rmsd  # noqa: E402
 from molae.alignment import kabsch_align_torch  # noqa: E402
+from molae.symmetry import rmsd_pair  # noqa: E402
 from molae import utils  # noqa: E402
 
 
@@ -176,7 +177,8 @@ def val_summary(log, last=10):
     """
     out = {}
     for key in ("val_rmsd", "val_rmsd_ema", "train_rmsd", "val_over_train",
-                "val_rmsd_masked", "val_rmsd_visible", "val_rmsd_maskedrun_all"):
+                "val_rmsd_masked", "val_rmsd_visible", "val_rmsd_maskedrun_all",
+                "val_rmsd_strict", "val_rmsd_sym", "sym_gap"):
         vals = [r[key] for r in log
                 if key in r and isinstance(r[key], float) and r[key] == r[key]][-last:]
         if not vals:
@@ -190,6 +192,35 @@ def val_summary(log, last=10):
             "n": len(vals),
         }
     return out
+
+
+@torch.no_grad()
+def symmetry_rmsd(model, loader, device):
+    """Identity-matched and symmetry-corrected held-out RMSD, side by side.
+
+    Graph addressing assigns ranks inside a symmetry class by a canonical
+    tie-break with no physical meaning, so identity matching charges the model
+    for a labelling we chose for it. The GAP between the two numbers is the
+    diagnostic: large gap means right shape, wrong labels -- a different
+    failure from wrong shape.
+    """
+    model.eval()
+    strict, sym, n = 0.0, 0.0, 0
+    for batch in loader:
+        gb = {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in batch.items()}
+        preds, _ = model(gb)
+        cls = gb.get("wl_class")
+        for b in range(preds.shape[0]):
+            m = gb["mask"][b] > 0.5
+            a = preds[b][m].float().cpu().numpy()
+            t = gb["coords"][b][m].float().cpu().numpy()
+            c = cls[b][m].cpu().numpy() if cls is not None else None
+            s1, s2 = rmsd_pair(a, t, c)
+            strict += s1
+            sym += s2
+            n += 1
+    model.train()
+    return (strict / max(n, 1)), (sym / max(n, 1))
 
 
 @torch.no_grad()
@@ -507,6 +538,11 @@ def main():
                 if ema is not None:
                     with ema.as_weights(model):
                         row["val_rmsd_ema"] = heldout_rmsd(model, val_loader, device)
+                if getattr(cfg.train, "report_symmetry_rmsd", False):
+                    st, sy = symmetry_rmsd(model, val_loader, device)
+                    row["val_rmsd_strict"] = st
+                    row["val_rmsd_sym"] = sy
+                    row["sym_gap"] = st - sy
                 if mask_cfg.enabled:
                     sp = masked_heldout_rmsd(model, val_loader, device, mask_cfg)
                     row["val_rmsd_masked"] = sp["masked"]
