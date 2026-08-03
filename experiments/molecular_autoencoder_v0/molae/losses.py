@@ -45,7 +45,63 @@ def bond_loss_single(pred, target, bonds):
     return F.smooth_l1_loss(lp, lt, beta=0.1)
 
 
-def angle_loss_single(pred, target, bonds, max_angles=4000):
+def angle_triples(bonds, n_atoms, max_per_centre=4, max_angles=4000):
+    """Index triples (i, j, k) for every bond angle, built without Python loops.
+
+    These depend ONLY on the bond graph, which never changes for a structure.
+    The first version rebuilt them inside the training step with a triple
+    nested Python loop and per-element int() conversions -- py-spy caught the
+    training thread sitting in it, GIL held and the GPU at 2-4% utilisation.
+    So this is both vectorised AND cacheable: compute once per structure, reuse
+    for every step of every epoch.
+
+    Neighbours are capped at ``max_per_centre`` so a high-degree atom cannot
+    dominate; the cap makes the pair set a fixed small number of columns, which
+    is what allows the vectorised form.
+    """
+    if bonds.numel() == 0 or bonds.shape[0] < 2:
+        return bonds.new_zeros((0, 3))
+    # Drop self-loops and undirected duplicates first. A self-loop makes an
+    # atom its own neighbour, and a repeated bond lists the same neighbour
+    # twice -- both produce degenerate triples (i == j, or i == k) that
+    # contribute nothing to the loss while consuming slots under max_angles.
+    bonds = bonds[bonds[:, 0] != bonds[:, 1]]
+    if bonds.shape[0] < 2:
+        return bonds.new_zeros((0, 3))
+    lo = torch.minimum(bonds[:, 0], bonds[:, 1])
+    hi = torch.maximum(bonds[:, 0], bonds[:, 1])
+    key = torch.unique(lo * n_atoms + hi)
+    bonds = torch.stack([key // n_atoms, key % n_atoms], dim=1)
+    e = torch.cat([bonds, bonds.flip(1)], dim=0)
+    centre, other = e[:, 0], e[:, 1]
+    order = torch.argsort(centre, stable=True)
+    centre, other = centre[order], other[order]
+
+    # Rank of each edge within its centre, without a loop: subtract the index
+    # of the centre's first edge from the running position.
+    counts = torch.bincount(centre, minlength=n_atoms)
+    starts = torch.cumsum(counts, 0) - counts
+    rank = torch.arange(centre.numel(), device=bonds.device) - starts[centre]
+
+    keep = rank < max_per_centre
+    centre, other, rank = centre[keep], other[keep], rank[keep]
+
+    # Padded neighbour table (n_atoms, max_per_centre).
+    nbr = torch.full((n_atoms, max_per_centre), -1, dtype=torch.long,
+                     device=bonds.device)
+    nbr[centre, rank] = other
+
+    a, c = torch.triu_indices(max_per_centre, max_per_centre, offset=1,
+                              device=bonds.device)
+    ii = nbr[:, a]                                     # (n_atoms, n_pairs)
+    kk = nbr[:, c]
+    jj = torch.arange(n_atoms, device=bonds.device).unsqueeze(1).expand_as(ii)
+    valid = (ii >= 0) & (kk >= 0)
+    triples = torch.stack([ii[valid], jj[valid], kk[valid]], dim=1)
+    return triples[:max_angles]
+
+
+def angle_loss_single(pred, target, bonds, max_angles=4000, triples=None):
     """Bond ANGLES, from pairs of bonds sharing a central atom.
 
     Bond lengths alone leave a structure free to fold at every joint: a chain
@@ -58,36 +114,17 @@ def angle_loss_single(pred, target, bonds, max_angles=4000):
     Compared as cosines to avoid the derivative blow-up of arccos near 0 and
     pi -- collinear triples are common (carbonyls, aromatics) and would
     otherwise dominate the gradient.
+
+    Pass ``triples`` precomputed to skip rebuilding them every step.
     """
-    if bonds.shape[0] < 2:
+    if triples is None:
+        triples = angle_triples(bonds, pred.shape[0], max_angles=max_angles)
+    if triples.numel() == 0:
         return pred.new_zeros(())
-    order = torch.argsort(bonds[:, 0] * (int(bonds.max()) + 1) + bonds[:, 1])
-    b = bonds[order]
-    # Neighbour lists via the undirected edge set.
-    e = torch.cat([b, b.flip(1)], dim=0)
-    centre, other = e[:, 0], e[:, 1]
-    idx = torch.argsort(centre)
-    centre, other = centre[idx], other[idx]
-    uniq, counts = torch.unique_consecutive(centre, return_counts=True)
-    starts = torch.cat([counts.new_zeros(1), counts.cumsum(0)[:-1]])
-    ii, jj, kk = [], [], []
-    for u, st, ct in zip(uniq.tolist(), starts.tolist(), counts.tolist()):
-        if ct < 2:
-            continue
-        nb = other[st:st + ct]
-        for a in range(min(ct, 4)):            # cap the fan-out per centre
-            for c in range(a + 1, min(ct, 4)):
-                ii.append(int(nb[a])); jj.append(u); kk.append(int(nb[c]))
-    if not ii:
-        return pred.new_zeros(())
-    ii = torch.tensor(ii[:max_angles], device=pred.device)
-    jj = torch.tensor(jj[:max_angles], device=pred.device)
-    kk = torch.tensor(kk[:max_angles], device=pred.device)
+    ii, jj, kk = triples[:, 0], triples[:, 1], triples[:, 2]
 
     def cosines(x):
-        v1 = x[ii] - x[jj]
-        v2 = x[kk] - x[jj]
-        return F.cosine_similarity(v1, v2, dim=1, eps=1e-6)
+        return F.cosine_similarity(x[ii] - x[jj], x[kk] - x[jj], dim=1, eps=1e-6)
 
     return F.smooth_l1_loss(cosines(pred), cosines(target), beta=0.1)
 
@@ -357,7 +394,9 @@ class LossComputer:
             totals["clash"] = totals["clash"] + clash_loss_single(p, bonds, self.clash_dist, max_atoms=self.max_atoms)
             totals["chirality"] = totals["chirality"] + chirality_loss_single(p, t, centers)
             if self.w.angle:
-                totals["angle"] = totals["angle"] + angle_loss_single(p, t, bonds)
+                tri = batch.get("angle_triples")
+                totals["angle"] = totals["angle"] + angle_loss_single(
+                    p, t, bonds, triples=(tri[i].to(device) if tri else None))
             if self.w.local_distance:
                 totals["local_distance"] = (totals["local_distance"]
                                             + local_distance_loss_single(p, t, max_atoms=self.max_atoms))

@@ -49,8 +49,11 @@ def build_datasets(cfg):
     val_paths = [processed / f"{k}.npz" for k in splits.get("val", [])]
     val_paths = [p for p in val_paths if p.exists()]
     gf = getattr(cfg.model, "atom_addressing", "group") == "graph"
-    return (ProteinStructureDataset(train_paths, graph_features=gf), train_keys,
-            ProteinStructureDataset(val_paths, graph_features=gf) if val_paths else None)
+    at = bool(getattr(cfg.loss, "angle", 0.0))
+    return (ProteinStructureDataset(train_paths, graph_features=gf, angle_triples=at),
+            train_keys,
+            ProteinStructureDataset(val_paths, graph_features=gf, angle_triples=at)
+            if val_paths else None)
 
 
 def build_tiered_datasets(cfg):

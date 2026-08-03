@@ -75,11 +75,17 @@ def add_graph_features(sample, key=None):
 
 class ProteinStructureDataset(Dataset):
     def __init__(self, npz_paths, graph_features: bool = False,
-                 preload_graph: bool = True):
+                 preload_graph: bool = True, angle_triples: bool = False):
         self.paths = [Path(p) for p in npz_paths]
         # Only computed when the model actually addresses atoms by graph;
         # the group-addressed arms would pay for fields they never read.
         self.graph_features = graph_features
+        # Angle triples are a property of the BOND GRAPH, so they are the same
+        # for every step of every epoch. Rebuilding them in the training step
+        # cost 31 ms per structure in a Python loop -- 4.4 h over a 900-epoch
+        # run, with the GIL held and the GPU at 2-4%.
+        self.angle_triples = angle_triples
+        self._triples: dict = {}
         self.preloaded = None
         if graph_features and preload_graph:
             # Read every sidecar ONCE, in the parent process, before any
@@ -116,6 +122,12 @@ class ProteinStructureDataset(Dataset):
                     s[k] = torch.from_numpy(np.asarray(v, dtype=np.int64))
             else:
                 s = add_graph_features(s, key=str(self.paths[i]))
+        if self.angle_triples:
+            key = str(self.paths[i])
+            if key not in self._triples:
+                from .losses import angle_triples as _tri
+                self._triples[key] = _tri(s["bonds"], int(s["n_atoms"]))
+            s["angle_triples"] = self._triples[key]
         return s
 
 
@@ -199,6 +211,8 @@ def collate_fn(samples):
         "mask": mask,
         "n_atoms": torch.tensor([s["n_atoms"] for s in samples], dtype=torch.long),
         "bonds": [s["bonds"] for s in samples],
+        **({"angle_triples": [s["angle_triples"] for s in samples]}
+           if "angle_triples" in samples[0] else {}),
         "chirality_centers": [s["chirality_centers"] for s in samples],
         "pdb_id": [s["pdb_id"] for s in samples],
         "chain_id": [s["chain_id"] for s in samples],
