@@ -115,8 +115,12 @@ class AnchorPool(nn.Module):
     to learn from scratch.
     """
 
-    def __init__(self, d_model: int, n_heads: int):
+    def __init__(self, d_model: int, n_heads: int, slot_norm: bool = False,
+                 fps_anchors: bool = False):
         super().__init__()
+        self.slot_norm = bool(slot_norm)
+        self.fps_anchors = bool(fps_anchors)
+        self.anchor_scale = nn.Parameter(torch.zeros(1)) if fps_anchors else None
         self.h = n_heads
         self.dk = d_model // n_heads
         self.q = nn.Linear(d_model, d_model)
@@ -135,17 +139,64 @@ class AnchorPool(nn.Module):
 
         att = (q @ kk.transpose(-1, -2)) / (self.dk ** 0.5)          # (B,h,L,N)
         att = att.masked_fill(~mask.bool().view(B, 1, 1, N), float("-inf"))
-        att = att.softmax(-1)
+        if self.slot_norm:
+            # Slot Attention normalisation: softmax over LATENTS, not atoms, so
+            # latents COMPETE for each atom instead of each independently
+            # spreading itself over everything. Softmaxing over atoms lets one
+            # latent absorb the whole structure at no cost, which is the
+            # measured failure -- routing gini 0.001 -> 0.90 while distinct
+            # read patterns fell 0.894 -> 0.57. Competition removes that
+            # degenerate optimum by construction rather than by penalty.
+            att = att.softmax(-2)
+            att = att / att.sum(-1, keepdim=True).clamp_min(1e-8)
+        else:
+            att = att.softmax(-1)
 
         pooled = (att @ vv).transpose(1, 2).reshape(B, L, D)
         # Head-averaged weights pool coordinates -> one anchor per latent.
         w = att.mean(1)                                              # (B,L,N)
         anchors = w @ coords                                         # (B,L,3)
+        if self.fps_anchors:
+            # Attention-pooled anchors start collapsed on the centroid and
+            # measurably stay there. Seed with farthest-point samples that
+            # cover the structure and let attention supply a RESIDUAL, so
+            # locality is meaningful from step 0.
+            anchors = farthest_point_anchors(coords, mask, L) + \
+                self.anchor_scale * anchors
         # Atom-level traceability: which latents each atom WRITES to. Kept only
         # when explicitly recording, so training allocates nothing extra.
         if getattr(self, "record", False):
             self.last_write = w.detach()
         return lat + self.o(pooled), anchors
+
+
+def farthest_point_anchors(coords, mask, L):
+    """Farthest-point sampling: L anchor seeds that COVER the structure.
+
+    Anchors are attention-weighted centroids, and at initialisation the
+    attention is uniform, so every anchor lands on the centroid of all atoms --
+    measured spread/Rg = 0.000. The k-nearest routing is then degenerate from
+    step 0, and after training the trained cells still sit at 0.015-0.021,
+    i.e. it never recovers. This is the demonstrated failure, so this is the
+    fix aimed at it: seed the anchors with points that are spread over the
+    structure by construction and let the model refine from there.
+
+    O(N.L), no learned parameters, deterministic given the coordinates.
+    """
+    B, N, _ = coords.shape
+    device = coords.device
+    idx = torch.zeros(B, L, dtype=torch.long, device=device)
+    far = torch.full((B, N), 1e10, device=device)
+    far = far.masked_fill(~mask.bool(), -1.0)          # never pick padding
+    cur = coords.masked_fill(~mask.bool().unsqueeze(-1), 0.0).sum(1) / \
+        mask.sum(1, keepdim=True).clamp_min(1.0)       # start at the centroid
+    for i in range(L):
+        d = torch.linalg.norm(coords - cur.unsqueeze(1), dim=-1)
+        far = torch.minimum(far, d.masked_fill(~mask.bool(), -1.0))
+        nxt = far.argmax(1)
+        idx[:, i] = nxt
+        cur = coords[torch.arange(B, device=device), nxt]
+    return torch.gather(coords, 1, idx.unsqueeze(-1).expand(B, L, 3))
 
 
 def topk_latents(coords, anchors, k):
@@ -257,7 +308,9 @@ class AtomLatentEncoder(nn.Module):
                                   n_global=int(cfg.attn_global))
             for _ in range(max(int(cfg.enc_self_layers), 1))])
         self.q_proj = nn.Linear(cfg.d_model, cfg.d_model)
-        self.pool = AnchorPool(cfg.d_model, cfg.n_heads)
+        self.pool = AnchorPool(cfg.d_model, cfg.n_heads,
+                               slot_norm=getattr(cfg, "latent_slot_norm", False),
+                               fps_anchors=getattr(cfg, "fps_anchors", False))
         self.lat_blocks = nn.ModuleList([
             SelfAttention(cfg.d_model, cfg.n_heads, cfg.ff_mult, cfg.dropout)
             for _ in range(1)])                     # L is small; O(L^2) is fine
@@ -301,7 +354,17 @@ class AtomLatentEncoder(nn.Module):
             lat = blk(lat)
         content = self.to_content(lat)
         # Anchors ride INSIDE the latent and are counted in its budget.
-        return torch.cat([anchors / self.cfg.coord_scale, content], dim=-1)
+        #
+        # NOT divided by coord_scale here: `coords` reaching this encoder are
+        # ALREADY normalised (encode() passes batch["coords"] / coord_scale),
+        # so the anchors are in normalised units too. Dividing again made them
+        # coord_scale too small, while the decoder multiplies exactly once --
+        # so topk_latents was comparing REAL-unit provisional coordinates
+        # against anchors 10x too close to the origin, and the "nearest"
+        # latents were whichever happened to sit near the centre. That is a
+        # unit bug, not a modelling result, and it made the locality routing
+        # meaningless in every arm C and D run.
+        return torch.cat([anchors, content], dim=-1)
 
 
 class AtomLatentDecoder(nn.Module):
@@ -475,6 +538,27 @@ class AtomLatentAutoencoder(nn.Module):
         aligned = kabsch_align_torch(c, batch["coords"], m)
         d2 = ((aligned - batch["coords"]) ** 2).sum(-1) * m
         return d2.sum() / m.sum().clamp_min(1.0)
+
+    def load_balance_loss(self):
+        """MoE-style penalty on uneven latent usage.
+
+        L * sum_l p_l^2, where p_l is latent l's share of the write mass. It is
+        1.0 when every latent carries an equal share and L when one carries
+        everything, so it directly opposes the concentration the traceability
+        measured. Cheaper and more targeted than hoping the reconstruction loss
+        discovers a balanced solution on its own.
+        """
+        w = getattr(self.encoder.pool, "last_write", None)
+        if w is None:
+            return None
+        # Normalise PER ATOM first. Under softmax-over-atoms each latent's row
+        # already sums to 1, so a raw row-sum is uniform by construction and
+        # measures nothing -- the loss would be identically 1.0. What collapses
+        # is how many ATOMS a latent serves, which is the column view.
+        wa = w / w.sum(1, keepdim=True).clamp_min(1e-8)  # (B, L, N) over L
+        p = wa.sum(-1)                                   # (B, L) atoms served
+        p = p / p.sum(-1, keepdim=True).clamp_min(1e-8)
+        return (p.shape[1] * (p ** 2).sum(-1)).mean()
 
     def forward(self, batch, n_latents=None):
         z = self.encode(batch, n_latents=n_latents)

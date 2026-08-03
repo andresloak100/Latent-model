@@ -121,6 +121,14 @@ class ModelConfig:
     #   is unlearned and therefore cannot collapse.
     atom_bottleneck: str = "attention"
     seq_pool_ratio: int = 8
+    # Slot Attention normalisation in the encoder pool: softmax over LATENTS
+    # rather than atoms, so latents compete for atoms and none can absorb the
+    # whole structure. Targets the measured routing collapse directly.
+    latent_slot_norm: bool = False
+    # Seed anchors by farthest-point sampling instead of attention pooling.
+    # Targets the one failure that IS demonstrated: anchors start collapsed on
+    # the centroid (spread/Rg 0.000) and trained cells stay at 0.015-0.021.
+    fps_anchors: bool = False
 
 
 class AtomFeaturizer(nn.Module):

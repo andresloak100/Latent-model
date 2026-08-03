@@ -249,6 +249,9 @@ class LossWeights:
     # Without it the locality routing selects neighbours using a quantity that
     # was never trained to be a position.
     coarse: float = 0.0
+    # Penalty on uneven latent usage (see AtomLatentAutoencoder.load_balance_loss).
+    # 1.0 = perfectly balanced, L = one latent carries everything.
+    load_balance: float = 0.0
 
 
 def _per_sample_mean(values, sample_idx, B):
