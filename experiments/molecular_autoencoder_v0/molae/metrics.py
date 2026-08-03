@@ -77,6 +77,22 @@ def all_atom_rmsd(pred, target):
     return kabsch_rmsd_numpy(pred, target)
 
 
+def ca_rmsd(pred, target, topo: TopologyInfo):
+    """C-alpha-only aligned RMSD -- the metric the protein-codec literature
+    reports, and NOT comparable to our all-atom or 4-atom backbone numbers.
+
+    ProteinAE (arXiv 2510.10634) reports 0.28 +- 0.20 A on CASP15 TS-domains
+    for a per-residue latent at r=1, d=8 -- the same latent shape as our direct
+    codec. Reproducing that claim requires scoring the same quantity, and
+    all-atom RMSD is a strictly harder target: it carries every sidechain.
+    """
+    idx = topo.ca_per_residue
+    idx = idx[idx >= 0]
+    if len(idx) < 3:
+        return float("nan")
+    return float(kabsch_rmsd_numpy(pred[idx], target[idx]))
+
+
 def backbone_rmsd(pred, target, topo: TopologyInfo):
     m = topo.backbone_mask
     if m.sum() < 3:
@@ -187,6 +203,7 @@ def compute_all_metrics(pred, target, topo: TopologyInfo, latent_floats=None):
     out = {
         "all_atom_rmsd": all_atom_rmsd(pred, target),
         "backbone_rmsd": backbone_rmsd(pred, target, topo),
+        "ca_rmsd": ca_rmsd(pred, target, topo),
         "pairwise_distance_error": pairwise_distance_error(pred, target),
         "bond_length_error": bond_length_error(pred, target, topo.bonds),
         "chirality_violation_rate": chirality_violation_rate(pred, target, topo),
