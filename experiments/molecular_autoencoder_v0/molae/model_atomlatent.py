@@ -169,8 +169,12 @@ class LocalCrossAttention(nn.Module):
     def forward(self, atoms, lat, idx, rel=None):
         B, N, D = atoms.shape
         k = idx.shape[-1]
-        ctx = torch.gather(lat.unsqueeze(1).expand(B, N, lat.shape[1], D), 2,
-                           idx.unsqueeze(-1).expand(B, N, k, D))     # (B,N,k,D)
+        # Gather from the SMALL latent (B, L, D) with a flattened index, NOT by
+        # expanding it to (B, N, L, D) first. At B=8, N=3000, L=128, D=128 the
+        # expanded form is 393M elements -- 1.57 GB if the gather materialises
+        # it, per layer per step. This form touches only B.L.D.
+        ctx = lat.gather(1, idx.reshape(B, N * k, 1).expand(B, N * k, D)
+                         ).view(B, N, k, D)
         if rel is not None:
             ctx = ctx + rel
         q = self.q(self.nq(atoms)).view(B, N, self.h, self.dk)
