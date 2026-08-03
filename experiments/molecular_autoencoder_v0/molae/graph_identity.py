@@ -1,5 +1,12 @@
 """Molecule-general atom addressing: no residues, no atom-name vocabulary.
 
+CONTRACT CHANGE PENDING (ROADMAP §8.5): when the reaction channel lands, identity
+must anchor to (element, persistent t=0 index); the graph features here (WL class,
+canonical rank) demote from identity KEY to time-varying CONDITIONING, because
+bond changes re-index atoms mid-trajectory -- the traceability failure this module
+guards against. Not implemented; recorded here as the contract that must change.
+
+
 What `res_pos` was actually providing
 -------------------------------------
 Not biology. ADDRESSABILITY. `(res_pos, slot_idx)` is a unique key per atom,

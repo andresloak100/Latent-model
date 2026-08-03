@@ -482,7 +482,11 @@ taste.
 3. **Long-lag trajectory training** (obj 3). Gated on corpora that already
    exist (MISATO built, mdCATH identified), and directly targets the +0.058
    conformational organisation that is the measured risk to 1e6-step
-   stability.
+   stability. **Second, independent justification** (added, ranking unchanged):
+   trajectory length is the single bind behind three separate limits --
+   dev_modes_99 at 93% of ceiling, the tight-tau latent-width rows (§7), and
+   basin-hopping for obj 3 -- so longer trajectories (mdCATH) now also gate the
+   §7 latent-width decision, not only timescale.
 4. **Perceived- rather than declared-bond training** (obj 2). Cheap probe of
    whether emergent topology is viable at all. Answers a yes/no that decides
    whether obj 2 is an extension or a separate model.
@@ -583,12 +587,18 @@ the measured mean RMSF is 1.05 A, so "0.5 A" is approximately *as good as we
 already are*, a status quo dressed as a requirement. The tolerance has to be
 derived from what breaks downstream (next subsection), not assumed.
 
-Two structural facts from the extended sweep: below ~0.3 A the requirement
+Two structural facts from the extended sweep, and they are a **live risk to the
+4 tok/mol recommendation, not a footnote**: below ~0.3 A the requirement
 **exceeds 4 tok/mol** (14,784) and climbs steeply, and the tightest rows
-(<= 0.1 A) are **truncation-limited lower bounds** -- per-block modes_abs
-saturates at the T=100 rank ceiling (~98 of 99), the same limit as dev_modes_99.
-So if the derived tolerance is tight, 4 tok/mol is not enough and the fork below
-opens.
+(<= 0.1 A) are **rank-ceiling-limited at T=100** (~98 of 99 modes), so they are
+**lower bounds, not estimates**. The r^-12 argument (next subsection) says the
+force-derived tau should land under 0.5 A -- in which case **4 tok/mol may be
+insufficient by an amount we currently cannot measure**. Read "4 tok/mol
+recommended" as provisional, not settled.
+
+This is the **third place trajectory length binds the design**: dev_modes_99 at
+93% of ceiling, these tight-tau width rows, and basin-hopping for objective 3.
+One fix serves all three -- longer trajectories (mdCATH); see 6.6.
 
 **Recommendation stands: 4 tok/mol** for the measured 8 ns / ~0.5 A regime --
 headroom is cheap and the 8 ns caveat argues for slack -- but it is a **tolerance
@@ -785,3 +795,89 @@ Two limits this result does NOT clear:
 3. Sparse events reach only their own atoms.
 4. Removing `g_t` must degrade the prediction: if it does not, the static
    conditioning alone is doing the work and the latent is decorative.
+
+## 8. The validator, the reaction channel, and what they cost
+
+Layer one of the target stack -- the trajectory proposal -- is §7, not new work.
+The full stack:
+
+```
+static atom conditioning + global box latent + per-molecule dynamic tokens
+  + sparse local reaction-event tokens
+    -> atom-level trajectory proposal            (§7)
+      -> energy / force / chemistry validator     (8.1-8.3)
+        -> reaction channel                       (8.4-8.5)
+          -> inverse design + experimental loop   (downstream, ~zero effort)
+```
+
+### 8.1 Validator duty cycle -- the hard budget
+
+Per-frame validation reinstates exactly the cost latent rollout exists to avoid,
+and kills the throughput objective. Order-of-magnitude arithmetic (labelled as
+such):
+
+- 1 ms at 80 ps stride = **1.25e7 decoded frames**.
+- MACE-class E+F over 1e6 atoms ~**10 s/GPU**.
+- Per-frame validation ~= 1.25e8 GPU-s ~= **4 GPU-years per millisecond trajectory**.
+- 1-in-1e3 duty cycle ~= **35 h**; 1-in-1e4 ~= **3.5 h**.
+
+So the validator cannot be per-frame. It is a **sparse global audit** at a fixed
+low duty cycle **plus dense local checks** on the 1e2-1e3 atoms named by the event
+tokens. DFT escalation needs its own rate budget: a few hundred QM atoms is
+minutes to hours, so ~1e3 events per trajectory is days -- a hard cap on the event
+rate, not just on event handling.
+
+### 8.2 Barrier accuracy, not energy MAE
+
+Barrier error enters rates **exponentially** (Arrhenius), so energy MAE can look
+fine while the chemistry -- the rates -- is wrong. The validator's correctness
+metric is **barrier accuracy**, not energy MAE. (Stated in planning for
+"objective 2"; in the current §6 numbering barrier accuracy maps most directly to
+the kinetics / bond-breaking objectives 6.3-6.4 -- flagging the objective label
+for confirmation. The claim itself had no home in the doc; 6.4 is nearest and
+does not state it.)
+
+### 8.3 Route (b) is costable -- via the contact-violation rate
+
+§7's fork is (a) bigger latent vs (b) loose reconstruction + a short local
+relaxation before scoring. Full-box relaxation per frame is the same order as the
+validator it was meant to avoid and dies on the same 1.25e7-frame arithmetic --
+so route (b) is viable **only localized to atoms in tight contact**, and its cost
+then scales with the **contact-violation rate**. The queued noise sweep (§7)
+produces that for free with one added column: at each sigma, the **fraction of
+atoms whose local energy error exceeds threshold**. That fraction x the per-atom
+relaxation cost is route (b)'s price, making the (a)-vs-(b) fork **quantitative
+instead of named**. The column is to be added when the sweep runs.
+
+### 8.4 Reaction channel -- untrainable on the current corpus, not undertrained
+
+MISATO and mdCATH are fixed-topology classical force fields: **zero reaction
+events by construction**. No amount of training on them produces bond-breaking --
+it is untrainable here, not undertrained. This needs a separate **reactive
+corpus**, and it is plausibly the **earliest-start / critical-path** item.
+
+Candidate sources (verify contents before committing; the coverage notes are the
+point):
+- **Transition1x** -- ~1e6 DFT reaction-path points (CI-NEB) for small organic
+  reactions. Covers barriers / TS geometries; does NOT cover proteins or
+  condensed phase.
+- **RGD1** -- organic reaction graphs / paths. Same limitation: small molecules,
+  no biomolecular context.
+- **ANI-1x / ANI-2x, SPICE** -- off-equilibrium DFT E+F for drug-like molecules
+  (SPICE adds peptides). Cover reactive *regions* of the PES (bond stretch) and
+  are good for a force head; do NOT contain complete reactions or enzymatic
+  environments.
+- **Gap:** no large public **enzyme / QM-MM reactive** corpus exists. Protein-
+  context reaction data likely has to be *generated* (QM/MM or reactive
+  ML-potential trajectories), which is why this is earliest-start.
+
+### 8.5 Identity contract change (record, do not implement)
+
+Bond changes break graph-derived addressing: WL classes and canonical order
+shift, so atoms **silently re-index mid-trajectory** -- exactly the traceability
+failure the atom-latent work has been guarding against. When the reaction channel
+is built, the identity contract must change: **identity anchors to (element,
+persistent t=0 index)**, and graph features (WL class, canonical rank) demote from
+**identity key** to **time-varying conditioning**. Recorded as a contract change
+at the top of `molae/graph_identity.py`. Do not implement until the reaction
+channel exists.
