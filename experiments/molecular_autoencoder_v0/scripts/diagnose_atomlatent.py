@@ -219,8 +219,12 @@ def main():
     print("\n=== ATOM-LEVEL TRACEABILITY ===")
     print("ROUTE AGREEMENT   (does the decoder read where the encoder wrote?)")
     print(f"  top-k Jaccard(write, read)        {g('route_agreement_jaccard'):.3f}"
-          "     (0 = the address is not preserved)")
-    print(f"  top-1 latent matches              {g('route_agreement_top1'):.3f}")
+          f"   random={g('route_agreement_random'):.3f}"
+          f"  ratio={g('route_agreement_over_random'):.2f}x")
+    print(f"  top-1 latent matches              {g('route_agreement_top1'):.3f}"
+          f"   random={g('route_top1_random'):.3f}")
+    print("    (random baseline scales as k^2/L -- NEVER compare Jaccard across"
+          " cells with different L)")
     print("\nROUTE COLLAPSE    (can two atoms be told apart by their route?)")
     print(f"  distinct read patterns / atoms    {g('distinct_pattern_frac'):.3f}"
           "     (1 = every atom uniquely addressed)")

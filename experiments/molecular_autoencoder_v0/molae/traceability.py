@@ -43,6 +43,17 @@ def gini(x):
     return float((2 * np.arange(1, n + 1) - n - 1).dot(x) / (n * x.sum()))
 
 
+def random_jaccard(L, k=8):
+    """Expected top-k Jaccard for two INDEPENDENT random routes.
+
+    E[|A n B|] = k^2 / L, so this falls as L grows -- which makes the raw
+    Jaccard meaningless across cells with different L. Reported alongside the
+    measured value so the comparison is always against the right baseline.
+    """
+    inter = (k * k) / max(L, 1)
+    return float(inter / max(2 * k - inter, 1e-9))
+
+
 def route_metrics(write, read, k=8):
     """``write`` (L, N) encoder attention, ``read`` (N, L) decoder attention.
 
@@ -63,7 +74,11 @@ def route_metrics(write, read, k=8):
     jac = [len(set(a) & set(b)) / len(set(a) | set(b))
            for a, b in zip(w_top, r_top)]
     out["route_agreement_jaccard"] = float(np.mean(jac))
+    out["route_agreement_random"] = random_jaccard(L, kk)
+    out["route_agreement_over_random"] = (
+        out["route_agreement_jaccard"] / max(out["route_agreement_random"], 1e-9))
     out["route_agreement_top1"] = float(np.mean(w_top[:, 0] == r_top[:, 0]))
+    out["route_top1_random"] = 1.0 / max(L, 1)
 
     # (4) how many atoms are indistinguishable by their route?
     pats = [tuple(sorted(t.tolist())) for t in r_top]
