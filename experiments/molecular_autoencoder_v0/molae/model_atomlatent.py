@@ -142,11 +142,16 @@ class AnchorPool(nn.Module):
         if self.slot_norm:
             # Slot Attention normalisation: softmax over LATENTS, not atoms, so
             # latents COMPETE for each atom instead of each independently
-            # spreading itself over everything. Softmaxing over atoms lets one
-            # latent absorb the whole structure at no cost, which is the
-            # measured failure -- routing gini 0.001 -> 0.90 while distinct
-            # read patterns fell 0.894 -> 0.57. Competition removes that
-            # degenerate optimum by construction rather than by penalty.
+            # spreading itself over everything, which is what lets one latent
+            # absorb the whole structure at no cost.
+            #
+            # UNTESTED HERE. This is a technique borrowed from Slot Attention
+            # (Locatello et al.), not a fix for anything we have measured. An
+            # earlier version of this comment cited "routing gini 0.001 -> 0.90"
+            # as the motivating evidence; that comparison was between two
+            # different quantities (routing_gini, from decoder top-k over
+            # anchor distances, against a write_gini null) and does not
+            # support the claim. Left as an option to evaluate, not a fix.
             att = att.softmax(-2)
             att = att / att.sum(-1, keepdim=True).clamp_min(1e-8)
         else:
@@ -175,11 +180,14 @@ def farthest_point_anchors(coords, mask, L):
 
     Anchors are attention-weighted centroids, and at initialisation the
     attention is uniform, so every anchor lands on the centroid of all atoms --
-    measured spread/Rg = 0.000. The k-nearest routing is then degenerate from
-    step 0, and after training the trained cells still sit at 0.015-0.021,
-    i.e. it never recovers. This is the demonstrated failure, so this is the
-    fix aimed at it: seed the anchors with points that are spread over the
-    structure by construction and let the model refine from there.
+    measured spread/Rg = 0.000, so the k-nearest routing is degenerate from
+    step 0. Seed the anchors with points spread over the structure by
+    construction and let attention supply a learned residual instead.
+
+    (Trained cells were previously quoted at 0.015-0.021, i.e. never
+    recovering. That reading came through the anchor unit bug fixed in
+    4f66deb, which stored anchors coord_scale too small, so it is not valid.
+    Whether trained anchors recover on their own is now untested.)
 
     O(N.L), no learned parameters, deterministic given the coordinates.
     """
@@ -255,10 +263,16 @@ class SeqPoolBottleneck(nn.Module):
     nearest-neighbour interpolation. Atom i lands in latent floor(i/r) BY
     CONSTRUCTION -- the address is fixed, local and unlearned, so it cannot
     collapse. Our attention-routed bottleneck learns the assignment instead,
-    and the traceability measures what that costs: routing gini 0.001 -> 0.90
-    and distinct read patterns 0.894 -> 0.57, i.e. the model concentrates onto
-    a handful of latents no matter how many it is given, which is why more
-    latent budget bought worse reconstruction.
+    and whether that assignment survives training is what the traceability
+    exists to measure.
+
+    The motivating evidence is the published one, not ours: ProteinAE's
+    register-token variant -- learnable tokens, fixed count, i.e. our arms
+    B/C/D -- "degrades dramatically for structures exceeding the training
+    length limit" (docs/REFERENCE_PROTEINAE.md). An earlier version of this
+    docstring cited routing-gini and pattern-collapse numbers from our own
+    cells; those came from runs affected by the anchor unit bug fixed in
+    4f66deb, and the gini half compared two different quantities. Retracted.
 
     Token count is N/r, so r is a free knob (r=64 puts 1M atoms at ~16k
     tokens) -- but it is NOT independent of N, and that is the honest trade.

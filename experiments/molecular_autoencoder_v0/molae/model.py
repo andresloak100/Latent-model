@@ -123,11 +123,15 @@ class ModelConfig:
     seq_pool_ratio: int = 8
     # Slot Attention normalisation in the encoder pool: softmax over LATENTS
     # rather than atoms, so latents compete for atoms and none can absorb the
-    # whole structure. Targets the measured routing collapse directly.
+    # whole structure. An option to evaluate -- NOT a fix for a measured
+    # failure; the evidence first cited for it did not survive checking.
     latent_slot_norm: bool = False
     # Seed anchors by farthest-point sampling instead of attention pooling.
-    # Targets the one failure that IS demonstrated: anchors start collapsed on
-    # the centroid (spread/Rg 0.000) and trained cells stay at 0.015-0.021.
+    # Attention-pooled anchors are weighted centroids, so uniform attention at
+    # init puts all L of them on the structure centroid -- spread/Rg 0.000,
+    # verified directly. (The 0.015-0.021 figure previously quoted for trained
+    # cells was measured through the anchor unit bug fixed in 4f66deb and is
+    # not a valid reading.)
     fps_anchors: bool = False
 
 
