@@ -1,26 +1,22 @@
-"""Does the multi-molecule mode-count discount compound in K?
+"""Does the multi-molecule mode-count discount compound in K, and which metric
+sizes the latent?
 
 The per-molecule token budget in ROADMAP §7 assumes the dynamic modes of
-independent molecules ADD. `dev_modes_90` (a 90%-variance count) is sub-additive
-across independent blocks even with zero physical sharing, so the question is
-whether that discount stays mild or compounds toward K=231 (1M atoms).
+independent molecules ADD. Three candidate metrics, all computed on the POOLED
+SPECTRUM directly (independent blocks -> eigenvalue union = infinite-T limit,
+ceiling-free; a finite-T measurement would cap pooled counts at ~99 by K=2 and
+disguise truncation as drift). Real block spectra are the measured MISATO
+deviation spectra (scripts/build_traj_probe.py + spectrum_of).
 
-This computes on the POOLED SPECTRUM directly (independent blocks -> eigenvalue
-union), i.e. the infinite-T limit -- removing the T-1 ceiling that would
-otherwise cap a finite-T measurement at ~99 modes by K=2 and disguise truncation
-as drift. Real block spectra are the measured MISATO deviation spectra (built by
-scripts/build_traj_probe.py + trajectory_dimensionality.py's spectrum_of).
+  dev_modes_90 : modes for 90% of pooled variance   (relative; threshold shifts)
+  PR           : (sum L)^2 / sum L^2                 (relative; scale-dominated)
+  modes_abs(t) : min m with residual_var / N <= t    (ABSOLUTE; sizes width)
 
-Two metrics, two block regimes:
-  - dev_modes_90: modes for 90% of pooled variance (the width-relevant count)
-  - PR = (sum L)^2 / sum L^2: participation ratio (effective dimension)
-  - homogeneous  = one real spectrum replicated K times (identical blocks)
-  - heterogeneous = K real spectra sampled with replacement (the mixed-box case)
-
-Finding: dev_modes_90 heterogeneous ratio flattens at ~0.77 (does not compound);
-PR is exactly additive for identical blocks (ratio 1.000) but collapses to ~0.29
-for heterogeneous blocks, so it is NOT the cleaner additivity metric for a real
-mixed box.
+Findings (see §7): under HETEROGENEITY every POOLED criterion is sub-additive --
+dev90 ~0.77, PR ~0.29, modes_abs ~0.74 (0.5A) / ~0.34 (1.0A) at K=231 -- because
+pooling mixes molecule scales. The artifact-free sizing quantity is the
+PER-MOLECULE SUM sum_k modes_abs(block_k) (additive by construction; = per-molecule
+fidelity), not any pooled count. dev90's discount does not compound (flat ~0.77).
 """
 import argparse, glob, sys
 from pathlib import Path
@@ -40,42 +36,66 @@ def d90(s):
     return modes_for(np.sort(np.asarray(s, float))[::-1], 0.90)
 
 
+def modes_abs(spec, N, tau):
+    """min modes so residual per-atom variance <= tau (A^2). Absolute, so a rigid
+    molecule needs few modes and a floppy one many -- no normalisation artifact."""
+    s = np.sort(np.asarray(spec, float))[::-1]
+    tot = s.sum()
+    if tot / N <= tau:
+        return 0
+    return int(np.searchsorted(np.cumsum(s), tot - tau * N, side="left") + 1)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--traj-dir", required=True)
     ap.add_argument("--ks", default="1,2,4,8,16,32,64,128,231")
+    ap.add_argument("--taus", default="0.25,1.0")
     ap.add_argument("--seeds", type=int, default=20)
     args = ap.parse_args()
 
-    specs = []
+    specs, Ns = [], []
     for p in sorted(glob.glob(f"{args.traj_dir}/*.npz")):
         fr = load_frames(Path(p))
         s = spectrum_of((fr - fr[0]).reshape(fr.shape[0], -1))
         specs.append(s[s > 0])
+        Ns.append(fr.shape[1])
+    Ns = np.array(Ns)
     Ks = [int(k) for k in args.ks.split(",")]
-    print(f"loaded {len(specs)} real spectra; block dev90 "
-          f"{min(d90(s) for s in specs)}-{max(d90(s) for s in specs)}")
+    taus = [float(t) for t in args.taus.split(",")]
+    vpn = np.array([specs[i].sum() / Ns[i] for i in range(len(specs))])
+    print(f"loaded {len(specs)} spectra; per-atom variance V/N mean={vpn.mean():.2f} "
+          f"range {vpn.min():.2f}-{vpn.max():.2f} A^2")
+    for tau in taus:
+        ma = [modes_abs(specs[i], Ns[i], tau) for i in range(len(specs))]
+        print(f"  modes_abs(tau={tau}): per-block mean={np.mean(ma):.0f} range {min(ma)}-{max(ma)}")
 
-    med = sorted(specs, key=d90)[len(specs) // 2]
-    print(f"\nrepresentative block: dev90={d90(med)} PR={PR(med):.1f}")
-    print("\nHOMOGENEOUS (identical block x K) -- reference")
-    print("  K     dev90_ratio   PR_ratio")
-    for K in Ks:
-        pool = np.tile(med, K)
-        print(f"  {K:4d}   {d90(pool)/(K*d90(med)):.3f}        {PR(pool)/(K*PR(med)):.3f}")
+    med = sorted(range(len(specs)), key=lambda i: d90(specs[i]))[len(specs) // 2]
 
-    print("\nHETEROGENEOUS (K real spectra, w/ replacement, avg over seeds)")
-    print("  K     dev90_pool   dev90_ratio   PR_ratio")
-    for K in Ks:
-        dr, pr, ab = [], [], []
+    def het(K, fn):
+        vals = []
         for seed in range(args.seeds):
             idx = np.random.RandomState(seed).randint(0, len(specs), size=K)
-            chosen = [specs[i] for i in idx]
-            pool = np.concatenate(chosen)
-            dr.append(d90(pool) / sum(d90(s) for s in chosen))
-            pr.append(PR(pool) / sum(PR(s) for s in chosen))
-            ab.append(d90(pool))
-        print(f"  {K:4d}   {np.mean(ab):9.0f}    {np.mean(dr):.3f}        {np.mean(pr):.3f}")
+            vals.append(fn(idx))
+        return float(np.nanmean(vals))
+
+    print("\nHETEROGENEOUS pooled/sum ratios (the mixed-box case)")
+    print("  K     dev90   PR      mabs.25  mabs1.0   |  sum_mabs.25(width, additive)")
+    for K in Ks:
+        r_d = het(K, lambda ix: d90(np.concatenate([specs[i] for i in ix])) / sum(d90(specs[i]) for i in ix))
+        r_p = het(K, lambda ix: PR(np.concatenate([specs[i] for i in ix])) / sum(PR(specs[i]) for i in ix))
+        def rma(ix, tau):
+            den = sum(modes_abs(specs[i], Ns[i], tau) for i in ix)
+            return modes_abs(np.concatenate([specs[i] for i in ix]), Ns[ix].sum(), tau) / den if den else np.nan
+        r_a = het(K, lambda ix: rma(ix, 0.25))
+        r_b = het(K, lambda ix: rma(ix, 1.0))
+        sum25 = het(K, lambda ix: sum(modes_abs(specs[i], Ns[i], 0.25) for i in ix))
+        print(f"  {K:4d}  {r_d:.3f}   {r_p:.3f}   {r_a:.3f}    {r_b:.3f}    |  {sum25:8.0f}")
+
+    print("\nWIDTH REQUIREMENT = per-molecule-fidelity sum (additive by construction):")
+    for tau in taus:
+        per = np.mean([modes_abs(specs[i], Ns[i], tau) for i in range(len(specs))])
+        print(f"  tau={tau} A^2 ({np.sqrt(tau):.1f} A RMSD): ~231 x {per:.0f} = ~{231*per:.0f} scalars")
 
 
 if __name__ == "__main__":

@@ -550,10 +550,29 @@ molecules**, so the latent scales with **molecule count, not atom count** --
 
 ~68x cheaper per step than per-residue and **constant in atoms-per-molecule**,
 which is the property the search needs. The earlier "one fixed global 1024x16"
-row is struck: 54 modes x 231 systems = 12,474 >> 1024, so a single fixed latent
-cannot carry the additive dynamic state. It holds the box's **global** state
-only; the per-molecule tokens carry the additive part. (Token count: 125,000
+row is struck: a single fixed latent cannot carry the additive dynamic state
+(effective dimension >> 1024, below). It holds the box's **global** state only;
+the per-molecule tokens carry the additive part. (Token count: 125,000
 per-residue vs 924 per-molecule at 4 tok/mol = 135x fewer.)
+
+**Width is now pinned, in scalars** (stated in scalars so the choice survives a
+change in d). The sizing quantity is the per-molecule-fidelity requirement
+`sum_k modes_abs(block_k)` -- the minimum modes to bring each molecule's residual
+per-atom variance under a target, additive by construction (see the control
+below). At **0.5 A RMSD (tau=0.25 A^2)** that is ~231 x 36 = **~8,316 scalars
+required**; provision ~14-15k. At d=16:
+
+- 2 tok/mol = 462 x 16 = 7,392 scalars -- **under requirement, ruled out**
+- **4 tok/mol = 924 x 16 = 14,784 scalars -- selected, 1.55-1.78x headroom**
+- 8 tok/mol = 1,848 x 16 = 29,568 scalars -- wasteful
+
+The 2/4/8 range is resolved to **4**. (dev_modes_90's 9,518 agrees on the choice
+but over-states the requirement -- a relative 90%-of-variance count inflates with
+scale; the absolute modes_abs is the right sizing number.)
+
+**Caveat carried onto the pinned number:** 8,316 is the **8 ns within-basin**
+figure. Basin-hopping over a millisecond adds modes this control never touches --
+the budget is pinned for the regime measured, **not for the 1 ms objective**.
 
 ### The premise, and how it gets checked
 
@@ -625,8 +644,10 @@ Two limits this result does NOT clear:
   | PR, identical blocks | 1.000 | 1.000 | 1.000 | 1.000 |
   | dev_modes_90, heterogeneous (real mix) | 0.927 | 0.791 | 0.780 | **0.766** |
   | PR, heterogeneous (real mix) | 0.726 | 0.365 | 0.324 | **0.285** |
+  | modes_abs 0.5A, heterogeneous | 0.941 | 0.775 | 0.756 | **0.738** |
+  | modes_abs 1.0A, heterogeneous | 0.863 | 0.414 | 0.375 | **0.344** |
 
-  Three results:
+  Four results:
   1. **The discount does not compound.** `dev_modes_90` drops fast then flattens
      at ~0.77 (0.791 at K=16 -> 0.766 at K=231): a measured **~9,518 pooled modes**
      vs the naive 54 x 231 = 12,474. Independent-additive is therefore ~9,500, not
@@ -645,18 +666,38 @@ Two limits this result does NOT clear:
      NOT the cleaner additivity metric for a mixed box; its 1.000 baseline is a
      homogeneity artifact, and `dev_modes_90` (baseline ~0.77) is better behaved
      there.
+  4. **No POOLED metric is additive under heterogeneity -- including the absolute
+     one.** `modes_abs(tau)` = min modes so residual per-atom variance <= tau also
+     sub-adds (0.738 at 0.5 A, 0.344 at 1.0 A, K=231): any box-level criterion
+     lets low-amplitude molecules donate slack, so pooling mixes scales whatever
+     the metric. The fix for SIZING is to not pool the fidelity criterion at all
+     -- require PER-MOLECULE fidelity and size by `sum_k modes_abs(block_k)`,
+     which is additive by construction. At 0.5 A that is ~231 x 36 = **~8,316
+     scalars**, the pinned width requirement (see Cost). That absolute,
+     fidelity-tied number is the sizing quantity; dev_modes_90's 9,518 is a
+     scale-inflated proxy that only happens to agree on 4 tok/mol.
 
   Caveat: the 231 blocks were sampled from only 20 distinct real shapes; a truly
-  231-distinct mix could push the ratio somewhat lower, but the non-compounding
+  231-distinct mix could push the ratios somewhat lower, but the non-compounding
   (flat from K=16) behaviour is robust. Still pending -- the *physics*: genuine
   multi-solute trajectories vs the independent-concatenation baseline of the SAME
   molecules is the only thing that isolates real shared modes from this
   metric/heterogeneity baseline. MISATO has no multi-solute boxes at scale.
 
-  (Metric roles, kept separate: PR measures spectral concentration for the
-  additivity test only; latent WIDTH is sized by variance-threshold counts
-  (dev_modes_90/95/99), never by PR -- on a concentrated spectrum PR lands well
-  below 54 and would under-size the latent.)
+  **Physical reading of the collapse (record, don't build yet).** The steep
+  sub-additivity is not only a metric artifact: per-molecule variance scale is
+  spread very wide across the real mix (V/N 0.81-6.16 A^2 -- floppy complexes vs
+  near-rigid), so a minority of molecules carries most of the pooled variance
+  (order ~30% from the ratio -- an estimate, not a law). Consequence for the
+  encoder's per-molecule head: allocation should scale with each molecule's OWN
+  `modes_abs`, with flat per-molecule allocation as the fallback when per-molecule
+  spectra are not available at box-assembly time. Nothing to rebuild now -- it
+  changes the per-molecule head later.
+
+  (Metric roles, kept separate: latent WIDTH is sized by the absolute per-molecule
+  `modes_abs` sum at a target fidelity (above); `dev_modes_90/95/99` are secondary
+  relative cross-checks; PR measures spectral concentration only and must never
+  size width -- on a concentrated spectrum it lands well below the modes_abs count.)
 
 ### Invariants the implementation must hold
 
