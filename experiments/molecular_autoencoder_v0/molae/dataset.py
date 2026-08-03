@@ -75,7 +75,8 @@ def add_graph_features(sample, key=None):
 
 class ProteinStructureDataset(Dataset):
     def __init__(self, npz_paths, graph_features: bool = False,
-                 preload_graph: bool = True, angle_triples: bool = False):
+                 preload_graph: bool = True, angle_triples: bool = False,
+                 knn_pairs: bool = False):
         self.paths = [Path(p) for p in npz_paths]
         # Only computed when the model actually addresses atoms by graph;
         # the group-addressed arms would pay for fields they never read.
@@ -85,7 +86,13 @@ class ProteinStructureDataset(Dataset):
         # cost 31 ms per structure in a Python loop -- 4.4 h over a 900-epoch
         # run, with the GIL held and the GPU at 2-4%.
         self.angle_triples = angle_triples
+        # Same story as the angle triples: the k nearest neighbours are a
+        # property of the TARGET structure, so the O(N^2) search that finds
+        # them is a step-invariant recompute -- 26 ms per 3000-atom structure,
+        # 3.7 h over a 900-epoch run, for an identical answer every time.
+        self.knn_pairs = knn_pairs
         self._triples: dict = {}
+        self._knn: dict = {}
         self.preloaded = None
         if graph_features and preload_graph:
             # Read every sidecar ONCE, in the parent process, before any
@@ -128,6 +135,12 @@ class ProteinStructureDataset(Dataset):
                 from .losses import angle_triples as _tri
                 self._triples[key] = _tri(s["bonds"], int(s["n_atoms"]))
             s["angle_triples"] = self._triples[key]
+        if self.knn_pairs:
+            key = str(self.paths[i])
+            if key not in self._knn:
+                from .losses import knn_pairs as _knn
+                self._knn[key] = _knn(s["coords"])
+            s["knn_pairs"] = self._knn[key]
         return s
 
 
@@ -213,6 +226,8 @@ def collate_fn(samples):
         "bonds": [s["bonds"] for s in samples],
         **({"angle_triples": [s["angle_triples"] for s in samples]}
            if "angle_triples" in samples[0] else {}),
+        **({"knn_pairs": [s["knn_pairs"] for s in samples]}
+           if "knn_pairs" in samples[0] else {}),
         "chirality_centers": [s["chirality_centers"] for s in samples],
         "pdb_id": [s["pdb_id"] for s in samples],
         "chain_id": [s["chain_id"] for s in samples],

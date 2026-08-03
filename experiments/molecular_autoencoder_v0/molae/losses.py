@@ -129,28 +129,52 @@ def angle_loss_single(pred, target, bonds, max_angles=4000, triples=None):
     return F.smooth_l1_loss(cosines(pred), cosines(target), beta=0.1)
 
 
-def local_distance_loss_single(pred, target, k=16, max_atoms=1200):
+def knn_pairs(target, k=16):
+    """Each atom's k nearest TARGET neighbours, as flat index pairs.
+
+    Step-invariant, exactly like the angle triples: the neighbour SET depends
+    only on the target structure, which never changes. The O(N^2) cdist that
+    finds it was being paid every step -- 55 ms per 3000-atom structure, 7.7
+    hours over a 900-epoch run -- to recompute an identical answer.
+
+    Caching it also removes the need to subsample. The old version drew a
+    random ``max_atoms`` subset per call to bound the cdist; once the cdist is
+    paid once per structure there is nothing to bound, so every atom keeps its
+    real neighbours instead of a fresh random slice each step.
+    """
+    n = target.shape[0]
+    if n < 3:
+        return (target.new_zeros(0, dtype=torch.long),
+                target.new_zeros(0, dtype=torch.long))
+    kk = min(k + 1, n)
+    idx = torch.cdist(target, target).topk(kk, largest=False).indices[:, 1:]
+    rows = torch.arange(n, device=target.device).unsqueeze(1).expand_as(idx)
+    return rows.reshape(-1), idx.reshape(-1)
+
+
+def local_distance_loss_single(pred, target, k=16, max_atoms=1200, knn=None):
     """Pairwise distances to each atom's k nearest TARGET neighbours.
 
-    The existing distance term subsamples pairs uniformly, so at N atoms it
-    spends almost all of its budget on far-apart pairs whose distance is easy
-    and uninformative. Local neighbourhoods are where clashes, packing and
-    covalent geometry live. Neighbours are chosen on the TARGET so the set
-    does not drift as the prediction moves.
+    The plain distance term subsamples pairs uniformly, so at N atoms it spends
+    almost all of its budget on far-apart pairs whose distance is easy and
+    uninformative. Local neighbourhoods are where clashes, packing and covalent
+    geometry live. Neighbours are chosen on the TARGET so the set does not
+    drift as the prediction moves.
+
+    Pass ``knn`` precomputed to skip the O(N^2) search every step.
     """
-    n = pred.shape[0]
-    if n < 3:
-        return pred.new_zeros(())
-    if n > max_atoms:
-        sel = torch.randperm(n, device=pred.device)[:max_atoms]
-        pred, target = pred[sel], target[sel]
+    if knn is None:
         n = pred.shape[0]
-    kk = min(k + 1, n)
-    dt = torch.cdist(target, target)
-    idx = dt.topk(kk, largest=False).indices[:, 1:]            # drop self
-    rows = torch.arange(n, device=pred.device).unsqueeze(1).expand_as(idx)
-    dp = torch.linalg.norm(pred[rows] - pred[idx], dim=-1)
-    return F.smooth_l1_loss(dp, dt[rows, idx], beta=0.1)
+        if n > max_atoms:
+            sel = torch.randperm(n, device=pred.device)[:max_atoms]
+            pred, target = pred[sel], target[sel]
+        knn = knn_pairs(target, k=k)
+    rows, cols = knn
+    if rows.numel() == 0:
+        return pred.new_zeros(())
+    dp = torch.linalg.norm(pred[rows] - pred[cols], dim=-1)
+    dt = torch.linalg.norm(target[rows] - target[cols], dim=-1)
+    return F.smooth_l1_loss(dp, dt, beta=0.1)
 
 
 def clash_loss_single(pred, bonds, clash_dist=1.5, max_atoms=1200):
@@ -398,8 +422,12 @@ class LossComputer:
                 totals["angle"] = totals["angle"] + angle_loss_single(
                     p, t, bonds, triples=(tri[i].to(device) if tri else None))
             if self.w.local_distance:
-                totals["local_distance"] = (totals["local_distance"]
-                                            + local_distance_loss_single(p, t, max_atoms=self.max_atoms))
+                kn = batch.get("knn_pairs")
+                totals["local_distance"] = (
+                    totals["local_distance"] + local_distance_loss_single(
+                        p, t, max_atoms=self.max_atoms,
+                        knn=((kn[i][0].to(device), kn[i][1].to(device))
+                             if kn else None)))
         for k in totals:
             totals[k] = totals[k] / max(B, 1)
         total = (

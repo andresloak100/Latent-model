@@ -50,9 +50,12 @@ def build_datasets(cfg):
     val_paths = [p for p in val_paths if p.exists()]
     gf = getattr(cfg.model, "atom_addressing", "group") == "graph"
     at = bool(getattr(cfg.loss, "angle", 0.0))
-    return (ProteinStructureDataset(train_paths, graph_features=gf, angle_triples=at),
+    kn = bool(getattr(cfg.loss, "local_distance", 0.0))
+    return (ProteinStructureDataset(train_paths, graph_features=gf, angle_triples=at,
+                                    knn_pairs=kn),
             train_keys,
-            ProteinStructureDataset(val_paths, graph_features=gf, angle_triples=at)
+            ProteinStructureDataset(val_paths, graph_features=gf, angle_triples=at,
+                                    knn_pairs=kn)
             if val_paths else None)
 
 
