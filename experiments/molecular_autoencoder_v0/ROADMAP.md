@@ -535,18 +535,25 @@ geometry as conditioning is the task definition, not a shortcut.
 
 ### Cost, which is the point
 
-Per-timestep latent, 1M atoms, 10^6 steps for 1 ms, 1000 candidates per
-evolutionary round:
+Per-timestep latent, 1M atoms (~231 protein-ligand systems at MISATO's mean
+4,320 heavy atoms), 10^6 steps for 1 ms, 1000 candidates per evolutionary round.
+The premise check (below) shows the dynamic modes **add across independent
+molecules**, so the latent scales with **molecule count, not atom count** --
+2/4/8 tokens per molecule at 231 molecules is 462 / 924 / 1,848 tokens:
 
 | per-timestep latent | floats/step | 1 ms | x1000 candidates |
 |---|---|---|---|
 | per-atom d=8 | 8,000,000 | 8.0e12 | 8.0e15 |
 | per-residue d=8 | 1,000,000 | 1.0e12 | 1.0e15 |
 | seqpool r=64 | 125,000 | 1.25e11 | 1.25e14 |
-| **one global 1024x16** | **16,384** | **1.64e10** | **1.64e13** |
+| **per-molecule 4 tok/mol x 231, d=16** | **14,784** | **1.48e10** | **1.48e13** |
 
-61x cheaper per step than per-residue and **constant in N**, which is the
-property the search needs.
+~68x cheaper per step than per-residue and **constant in atoms-per-molecule**,
+which is the property the search needs. The earlier "one fixed global 1024x16"
+row is struck: 54 modes x 231 systems = 12,474 >> 1024, so a single fixed latent
+cannot carry the additive dynamic state. It holds the box's **global** state
+only; the per-molecule tokens carry the additive part. (Token count: 125,000
+per-residue vs 924 per-molecule at 4 tok/mol = 135x fewer.)
 
 ### The premise, and how it gets checked
 
@@ -568,9 +575,56 @@ The middle row is why locality is reported alongside the mode count: a purely
 local event is ALSO low-dimensional, so mode count alone would wrongly endorse
 a global latent. High locality is the measured argument for the sparse channel.
 
+### Measured result (20 systems, 8 ns): premise supported for single systems, two limits
+
+Ran on 20 CA-superposed MISATO protein-ligand trajectories (T=100 frames, 80 ps
+stride = **8.0 ns**; N = 998-16,522 heavy atoms, mean 4,320). Deviation is taken
+from frame 0 after Kabsch alignment on protein CA (removes global tumbling;
+self-test residual < 1e-8 A). Artifacts: `$WORKROOT/misato_traj_probe/`.
+
+| quantity | mean | of ceiling 99 |
+|---|---|---|
+| dev modes 90% | 53.9 | 54% |
+| dev modes 95% | 71.1 | 72% |
+| dev modes 99% | 91.8 | 93% (truncation-limited) |
+| delta modes 90% | 57.2 | -- |
+| top-1% atom variance | 0.131 (max 0.61 in 1PU7) | -- |
+
+**Core call -- deviation is genuinely low-dimensional, and its dimensionality
+does not scale with system size.** 54% of the T-1 ceiling is real concentration,
+not a short-window artifact: the matched isotropic null (N=4,320, T=200) sits at
+175 of 199 = 88%. The load-bearing result is that the 90% mode count is **flat at
+~44-67 across a 13x range of size** (N=1.5k -> 16.5k) -- latent width is set by
+the dynamics, not by N. Locality reaches 0.61 in 1PU7 (a system with only 26
+collective modes but a dominant local event), so the sparse channel is
+load-bearing, not optional. **Premise supported for single systems at ~8 ns.**
+
+Caveat carried forward: dev_modes_99 = 91.8 at 93% of ceiling is
+truncation-limited and **sizes nothing** -- pinning latent width needs longer
+trajectories (raise T to lift the 99-mode ceiling).
+
+Two limits this result does NOT clear:
+
+- **Timescale.** 8.0 ns is 125,000x short of the 1 ms objective. 54 modes
+  describes fluctuation *within one basin*; it says nothing about
+  basin-to-basin transitions, which are exactly what a millisecond model is for.
+  This does not validate the millisecond target.
+- **Multi-molecule additivity.** Measured on ONE protein-ligand system per
+  trajectory. The size-independence above was across DIFFERENT single systems --
+  not evidence that many molecules in one box share modes. Independent molecules
+  have additive modes: 54 x 231 systems (1M atoms) = 12,474, i.e. 12.2x over a
+  1024-token global latent -- which is why the budget scales with molecule count.
+  Direct test pending: rerun on a multi-molecule box (or a concatenation of K
+  independent trajectories) and check whether measured modes approach K x 54
+  (additive) or land below it (shared modes, which would shrink the budget).
+
 ### Invariants the implementation must hold
 
-1. `g_t` has fixed size, independent of atom count.
+1. The global latent `g_t` has fixed size and carries the box's global state.
+   The additive per-molecule dynamics is carried by dynamic tokens that are
+   fixed *per molecule* and scale with molecule count, not atoms per molecule --
+   the additivity arithmetic (limit 2 above) forbids a single fixed latent from
+   holding the whole dynamic state.
 2. Every output atom is individually addressable -- the address comes from the
    static per-atom code, so it cannot be lost in the bottleneck.
 3. Sparse events reach only their own atoms.
