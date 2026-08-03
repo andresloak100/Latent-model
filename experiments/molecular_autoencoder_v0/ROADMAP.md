@@ -498,3 +498,81 @@ Deliberately NOT on this list: inverse conditioning, interface metrics, and
 non-canonical residue identity. All three were ranked highly under the
 previous framing. None of them serve the four objectives directly, and design
 capability in particular is a different product from a dynamics model.
+
+---
+
+## 7. Target architecture for the simulation stage
+
+One shared **global latent per timestep** carrying the dynamic state, with
+atom identity, bonding and reference geometry supplied as **static per-atom
+conditioning**, plus a **sparse local event channel** for bond breaking and
+other microscopic changes the global latent should not have to carry.
+
+```
+static, once per system:   identity + bonds + reference geometry -> S_i  (N x d_s)
+per timestep t:            global dynamic latent g_t  (L_g x d_g, FIXED)
+                           sparse events e_t          (few (atom_idx, vector))
+decode:                    x_i(t) = f(S_i, g_t, e_t)
+```
+
+### Why this is the well-founded version, and the earlier attempts were not
+
+Everything that failed this session was compressing **static structure**
+through a small bottleneck: our fixed-size Perceiver (gap widens with data),
+ProteinAE-Register (breaks past the training length). Static structure of a
+large system is genuinely high-dimensional and there is no evidence anywhere
+that one global latent holds it.
+
+The per-timestep **deviation** is a different object, and PCA-of-MD, tICA and
+Markov-state modelling all report it dominated by a few slow collective modes.
+That is the quantity the global latent carries here, and the static conditioning
+supplies everything the deviation is measured *against*.
+
+Note this also changes what counts as a leak. The no-content-skip rule was
+right for the autoencoder, where the structure WAS the thing being compressed.
+Here the structure is given and the *dynamics* is compressed, so reference
+geometry as conditioning is the task definition, not a shortcut.
+
+### Cost, which is the point
+
+Per-timestep latent, 1M atoms, 10^6 steps for 1 ms, 1000 candidates per
+evolutionary round:
+
+| per-timestep latent | floats/step | 1 ms | x1000 candidates |
+|---|---|---|---|
+| per-atom d=8 | 8,000,000 | 8.0e12 | 8.0e15 |
+| per-residue d=8 | 1,000,000 | 1.0e12 | 1.0e15 |
+| seqpool r=64 | 125,000 | 1.25e11 | 1.25e14 |
+| **one global 1024x16** | **16,384** | **1.64e10** | **1.64e13** |
+
+61x cheaper per step than per-residue and **constant in N**, which is the
+property the search needs.
+
+### The premise, and how it gets checked
+
+The design rests on the deviation being low-dimensional at our system sizes.
+`scripts/trajectory_dimensionality.py` measures it on real trajectories before
+anything is built on it: PCA modes for 90/95/99% of the displacement variance,
+the same for frame-to-frame deltas, and the fraction of variance sitting in the
+top 1% most mobile atoms.
+
+Validated on synthetic cases with known answers:
+
+| case | modes for 90% | variance in top 1% of atoms |
+|---|---|---|
+| 5 collective modes | 5 | 0.02 |
+| one localised event | 3 | **1.00** |
+| independent per-atom motion | 172 (of a 199 ceiling) | 0.01 |
+
+The middle row is why locality is reported alongside the mode count: a purely
+local event is ALSO low-dimensional, so mode count alone would wrongly endorse
+a global latent. High locality is the measured argument for the sparse channel.
+
+### Invariants the implementation must hold
+
+1. `g_t` has fixed size, independent of atom count.
+2. Every output atom is individually addressable -- the address comes from the
+   static per-atom code, so it cannot be lost in the bottleneck.
+3. Sparse events reach only their own atoms.
+4. Removing `g_t` must degrade the prediction: if it does not, the static
+   conditioning alone is doing the work and the latent is decorative.
