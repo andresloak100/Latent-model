@@ -184,6 +184,10 @@ class LossWeights:
     # Distances to each atom's k nearest neighbours, rather than uniformly
     # sampled pairs that are mostly far apart and mostly easy.
     local_distance: float = 0.0
+    # Supervises the atomlatent decoder's PROVISIONAL (pass-1) coordinates.
+    # Without it the locality routing selects neighbours using a quantity that
+    # was never trained to be a position.
+    coarse: float = 0.0
 
 
 def _per_sample_mean(values, sample_idx, B):

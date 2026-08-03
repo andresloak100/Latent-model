@@ -499,6 +499,11 @@ def main():
                     # runs that differed only in RNG consumption.
                     preds, _ = model(model_batch)
                     loss, comp = loss_fn(preds, gb)
+                    if getattr(cfg.loss, "coarse", 0.0) and hasattr(model, "training_aux"):
+                        aux = model.training_aux(gb)
+                        if aux is not None:
+                            loss = loss + cfg.loss.coarse * aux
+                            comp["coarse"] = float(aux.detach())
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.train.grad_clip)

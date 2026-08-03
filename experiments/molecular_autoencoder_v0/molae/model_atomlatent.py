@@ -316,10 +316,33 @@ class AtomLatentAutoencoder(nn.Module):
     def decode(self, z, batch):
         return self.decoder(z, batch)[0]
 
+    def training_aux(self, batch):
+        """Auxiliary supervision for the PROVISIONAL coordinates.
+
+        Pass 2 routes each atom to the k latents whose anchors are nearest its
+        pass-1 position, and that selection is taken through .detach() -- so
+        the routing receives no gradient at all. Pass 1 otherwise trains only
+        through the relative-offset term, which means `coarse` is never
+        required to be a COORDINATE. Locality then gets computed in a space
+        that was never trained to be physical space, and the measured gradient
+        reaching head1 is 5% of what reaches head2.
+
+        This makes pass 1 predict actual positions, so the neighbourhood it
+        selects is a real neighbourhood. Weight it with loss.coarse.
+        """
+        c = getattr(self, "last_coarse", None)
+        if c is None:
+            return None
+        from .alignment import kabsch_align_torch
+        m = batch["mask"]
+        aligned = kabsch_align_torch(c, batch["coords"], m)
+        d2 = ((aligned - batch["coords"]) ** 2).sum(-1) * m
+        return d2.sum() / m.sum().clamp_min(1.0)
+
     def forward(self, batch, n_latents=None):
         z = self.encode(batch, n_latents=n_latents)
         fine, coarse = self.decoder(z, batch)
-        self.last_coarse = coarse            # for the pass-1 auxiliary loss
+        self.last_coarse = coarse            # supervised via cfg.loss coarse term
         return fine, z
 
     @property
