@@ -614,9 +614,19 @@ Two limits this result does NOT clear:
   not evidence that many molecules in one box share modes. Independent molecules
   have additive modes: 54 x 231 systems (1M atoms) = 12,474, i.e. 12.2x over a
   1024-token global latent -- which is why the budget scales with molecule count.
-  Direct test pending: rerun on a multi-molecule box (or a concatenation of K
-  independent trajectories) and check whether measured modes approach K x 54
-  (additive) or land below it (shared modes, which would shrink the budget).
+  The additive 54 x 231 is the **conservative worst case**: physical coupling
+  between molecules in one box can only *reduce* the mode count (shared collective
+  modes), never raise it above independent-additive. Direct test pending, and the
+  naive version is confounded: `dev_modes_90` is a variance-fraction count that is
+  sub-additive across independent blocks even with ZERO sharing (provably-
+  independent synthetic systems give box/sum ~0.85-0.88, lower for concentrated
+  spectra), so "approach K x 54" is the wrong additive prediction -- the
+  concatenation value already IS the independent prediction. And concatenating
+  independent MISATO simulations cannot exhibit physical sharing at all (the
+  molecules are not in one box). A real test needs genuine multi-solute
+  trajectories, compared against the independent-concatenation baseline of the
+  same molecules, using an additivity-preserving effective-dimension metric
+  (participation ratio (Sum L)^2 / Sum L^2), not a 90%-variance count.
 
 ### Invariants the implementation must hold
 
