@@ -564,24 +564,76 @@ depends on the fidelity target:
 
 | target RMSD | tau (A^2) | scalars required (~231 x mean) |
 |---|---|---|
+| 0.05 A | 0.0025 | ~22,700 (truncation-limited) |
+| 0.10 A | 0.01 | ~21,800 (truncation-limited) |
+| 0.20 A | 0.04 | ~19,000 |
+| 0.30 A | 0.09 | ~15,400 |
 | 0.40 A | 0.16 | ~11,700 |
 | 0.50 A | 0.25 | ~8,224 |
 | ~0.53 A | 0.28 | ~7,392  (= 2 tok/mol at d=16) |
 | 0.60 A | 0.36 | ~5,359 |
 | 1.00 A | 1.00 | ~520 |
 
-So the 2-vs-4 tok/mol choice is a **fidelity decision, not a clean measurement
-exclusion**. At d=16: 2 tok/mol = 7,392 scalars suffices at **>= ~0.53 A RMSD**
-and falls only ~11% short at 0.50 A; 4 tok/mol = 14,784 scalars covers 0.50 A at
-1.8x headroom (0.40 A at 1.3x); 8 tok/mol = 29,568 is wasteful. State it as
-**"4 tok/mol at <= 0.5 A; 2 tok/mol suffices at >= ~0.53 A"**, not "2 ruled out".
-**Recommendation: 4 tok/mol** -- the headroom is cheap and the 8 ns caveat argues
-for slack. (dev_modes_90's 9,518 is a scale-inflated relative proxy; the absolute
-modes_abs is the sizing number.)
+The sweep does not *select* a token count -- it shows the **budget is
+tolerance-dominated**. The 2-vs-4 crossover sits at ~0.53 A against a nominal
+0.5 A target: a ~6% move in tau flips the decision, so the measurement does not
+distinguish the options; the choice of tau does. **And 0.5 A itself is
+unjustified and circular** -- arm A already reconstructs C-alpha at 0.365 A and
+the measured mean RMSF is 1.05 A, so "0.5 A" is approximately *as good as we
+already are*, a status quo dressed as a requirement. The tolerance has to be
+derived from what breaks downstream (next subsection), not assumed.
+
+Two structural facts from the extended sweep: below ~0.3 A the requirement
+**exceeds 4 tok/mol** (14,784) and climbs steeply, and the tightest rows
+(<= 0.1 A) are **truncation-limited lower bounds** -- per-block modes_abs
+saturates at the T=100 rank ceiling (~98 of 99), the same limit as dev_modes_99.
+So if the derived tolerance is tight, 4 tok/mol is not enough and the fork below
+opens.
+
+**Recommendation stands: 4 tok/mol** for the measured 8 ns / ~0.5 A regime --
+headroom is cheap and the 8 ns caveat argues for slack -- but it is a **tolerance
+choice, not a measurement outcome**. (dev_modes_90's 9,518 is a scale-inflated
+relative proxy; absolute modes_abs is the sizing number.)
 
 **Caveat carried onto the pinned numbers:** these are the **8 ns within-basin**
 figures. Basin-hopping over a millisecond adds modes this control never touches --
 the budget is pinned for the regime measured, **not for the 1 ms objective**.
+
+### Deriving the tolerance from the validator, and the fork it opens
+
+The tolerance must be set by where reconstruction error becomes invisible to
+whatever scores structures downstream -- energies and forces, which are violently
+sensitive to coordinate error. A repulsive term going as r^-12 means a 0.5 A
+displacement at a 4 A contact moves that term by factors of several, so energy
+error can sit orders of magnitude above the ~1 kcal/mol chemical-accuracy scale
+while RMSD still looks fine. The right tau is where |dE| stays under ~1 kcal/mol
+per molecule and force error under a stated fraction of typical force magnitude.
+
+MEASUREMENT (pending, queued behind the C/D cross; CPU, no training): inject
+isotropic Gaussian coordinate noise (sigma 0.05 .. 1.0 A) into real corpus
+structures and read dE, dF vs sigma. Tooling caveat: **no force field is callable
+in-env** (no OpenMM/ASE/OpenFF/RDKit; only parmed, which reads Amber parameters
+but does not evaluate). The measurement will use a **labelled LJ + harmonic-bond
+stand-in built from the real Amber LJ/bond parameters** parmed extracts per
+prmtop -- correct for the curve SHAPE and the close-contact story, absolute
+kcal/mol indicative only. Expected: the curve is dominated by a few close
+contacts, so tau is set by the tightest contacts, not the average atom -- which
+would make a per-atom uniform tau the wrong shape.
+
+**The fork (latent budget and validator budget are coupled through tau).** If the
+derived tau is tight, two routes trade against each other:
+- **(a) bigger latent** -- buy tight reconstruction directly (>4 tok/mol; the
+  extended sweep shows the scalar cost climbing steeply below 0.3 A).
+- **(b) loose reconstruction + a short local relaxation before scoring** --
+  tolerate larger tau and pay validator/relaxation compute to repair the close
+  contacts that dominate the energy.
+Route (b) spends downstream per-evaluation compute; route (a) spends latent
+width. **Neither budget can be set without the other, through tau.** NOTE: the
+ROADMAP does not yet contain a validator / duty-cycle budget (referenced as "§8"
+in planning, but no such section exists; objective-2 scale caps are in 6.2,
+bond-breaking energetics/QM-MM in 6.4). The validator-compute side of this fork
+is therefore currently **unquantified** and needs its own section before route
+(b) can be costed.
 
 ### The premise, and how it gets checked
 
@@ -694,6 +746,10 @@ Two limits this result does NOT clear:
      atoms are lost). Sizing criterion and architecture requirement are one
      constraint at two scales, not a metric technicality. (dev_modes_90's 9,518 is
      a scale-inflated relative proxy that only happens to agree on 4 tok/mol.)
+
+  The pooling ratio itself cleanly quantifies how wrong pooling gets as
+  heterogeneity grows: 0.980 for identical blocks (pure overshoot slack) down to
+  0.344 for the real heterogeneous mix at 1.0 A -- both numbers measured.
 
   Caveat: the 231 blocks were sampled from only 20 distinct real shapes; a truly
   231-distinct mix could push the ratios somewhat lower, but the non-compounding
