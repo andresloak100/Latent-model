@@ -105,6 +105,10 @@ class ModelConfig:
     dec_local_cross: bool = False
     dec_local_k: int = 8
     dec_local_layers: int = 2
+    # "group": (res_pos, slot_idx) addressing -- needs a residue/fragment
+    # decomposition. "graph": element, charge, bond types, WL class and a
+    # canonical rank -- everything an .sdf actually contains, and nothing else.
+    atom_addressing: str = "group"
 
 
 class AtomFeaturizer(nn.Module):

@@ -1,0 +1,74 @@
+# Universal atom-only path: molecule-general addressing, no residues.
+#
+# atom_addressing: graph  replaces (res_pos, slot_idx) with element, formal
+# charge, bond order, degree, a Weisfeiler-Lehman class, and a canonical rank.
+# Nothing here needs a residue decomposition, so a bare .sdf is a valid input.
+#
+# Identity is deliberately NON-unique -- benzene's six carbons share one WL
+# class, which is correct chemistry. Uniqueness comes from the canonical rank,
+# because two atoms with identical decoder queries would be placed on top of
+# each other.
+#
+# Atoms are sorted into canonical order before the local attention runs. The
+# window slides over tensor order, so without the sort permutation invariance
+# is only empirical -- measured at 2e-4 on an untrained 60-atom chain, versus
+# 6e-6 (float noise) with it.
+data:
+  max_atoms: 3000
+  max_residues: 400
+  min_residues: 20
+  processed_dir: data/processed_complex
+  splits_file: data/splits_complex.json
+loss:
+  angle: 0.5
+  bond: 1.0
+  chirality: 0.2
+  clash: 0.5
+  coord: 1.0
+  distance: 1.0
+  local_distance: 1.0
+model:
+  atom_addressing: graph
+  attn_global: 4
+  attn_window: 64
+  coord_scale: 10.0
+  d_model: 128
+  dec_cross_layers: 2
+  dec_frames: false
+  dec_local_cross: true
+  dec_local_k: 8
+  dec_local_layers: 2
+  dec_self_layers: 2
+  dropout: 0.0
+  enc_self_layers: 2
+  encoder_type: atomlatent
+  ff_mult: 4
+  latent_dim: 16
+  max_chains: 16
+  max_res_pos: 1024
+  n_heads: 4
+  n_latent_tokens: 64
+  objective: reconstruct
+  unbounded_positions: true
+  use_slot_emb: true
+name: atomlatent_universal
+train:
+  augment_rotation: true
+  batch_size: 8
+  ckpt_every: 50
+  clash_dist: 1.5
+  ema_decay: 0.9998
+  epochs: 900
+  eval_every: 25
+  grad_clip: 1.0
+  log_every: 25
+  loss_max_atoms: 3000
+  lr: 0.0003
+  mask_atom_frac: 0.0
+  mask_noise_std: 0.0
+  mask_region_frac: 0.0
+  mask_region_span: 8
+  out_dir: outputs/atomlatent_universal
+  overfit: false
+  seed: 0
+  weight_decay: 0.0

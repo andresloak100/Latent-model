@@ -47,8 +47,9 @@ def build_datasets(cfg):
     train_paths = [p for p in train_paths if p.exists()]
     val_paths = [processed / f"{k}.npz" for k in splits.get("val", [])]
     val_paths = [p for p in val_paths if p.exists()]
-    return (ProteinStructureDataset(train_paths), train_keys,
-            ProteinStructureDataset(val_paths) if val_paths else None)
+    gf = getattr(cfg.model, "atom_addressing", "group") == "graph"
+    return (ProteinStructureDataset(train_paths, graph_features=gf), train_keys,
+            ProteinStructureDataset(val_paths, graph_features=gf) if val_paths else None)
 
 
 def build_tiered_datasets(cfg):

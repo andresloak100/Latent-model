@@ -30,16 +30,56 @@ def _chirality_centers(atom_name_idx, res_pos):
     return np.array(centers, dtype=np.int64) if centers else np.zeros((0, 4), dtype=np.int64)
 
 
+_GRAPH_CACHE: dict = {}
+_GRAPH_CACHE_MAX = 20000
+
+
+def add_graph_features(sample, key=None):
+    """Attach molecule-general addressing to a sample that lacks it.
+
+    Structures parsed before graph addressing existed carry bonds but no WL
+    classes or canonical ranks, and without them every atom presents the
+    decoder with an identical query -- which shows up as a training curve that
+    does not move at all, not as an error.
+
+    Canonical ordering costs ~37 ms at 800 atoms, so it is computed once per
+    structure and cached rather than paid every epoch.
+    """
+    from .graph_identity import graph_atom_features
+    if "wl_class" in sample:
+        return sample
+    if key is not None and key in _GRAPH_CACHE:
+        g = _GRAPH_CACHE[key]
+    else:
+        bonds = sample["bonds"]
+        bonds = bonds.numpy() if hasattr(bonds, "numpy") else np.asarray(bonds)
+        el = sample["element_idx"]
+        el = el.numpy() if hasattr(el, "numpy") else np.asarray(el)
+        g = graph_atom_features(el, None, bonds.reshape(-1, 2), None)
+        if key is not None and len(_GRAPH_CACHE) < _GRAPH_CACHE_MAX:
+            _GRAPH_CACHE[key] = g
+    for k, v in g.items():
+        if k != "element_idx":
+            sample[k] = torch.from_numpy(np.asarray(v, dtype=np.int64))
+    return sample
+
+
 class ProteinStructureDataset(Dataset):
-    def __init__(self, npz_paths):
+    def __init__(self, npz_paths, graph_features: bool = False):
         self.paths = [Path(p) for p in npz_paths]
+        # Only computed when the model actually addresses atoms by graph;
+        # the group-addressed arms would pay for fields they never read.
+        self.graph_features = graph_features
 
     def __len__(self):
         return len(self.paths)
 
     def __getitem__(self, i):
         d = np.load(self.paths[i], allow_pickle=True)
-        return sample_from_arrays(d)
+        s = sample_from_arrays(d)
+        if self.graph_features:
+            s = add_graph_features(s, key=str(self.paths[i]))
+        return s
 
 
 def sample_from_arrays(d) -> dict:
@@ -86,6 +126,12 @@ def sample_from_arrays(d) -> dict:
     }
 
 
+# Molecule-general addressing (molae/graph_identity.py). Present only for
+# graph-addressed inputs; padded like any other integer field when they are.
+GRAPH_FIELDS = ("formal_charge", "wl_class", "canonical_rank", "class_ordinal",
+                "degree", "max_bond_type")
+
+
 def collate_fn(samples):
     B = len(samples)
     nmax = max(s["n_atoms"] for s in samples)
@@ -111,6 +157,7 @@ def collate_fn(samples):
         "slot_idx": pad_int("slot_idx", C.PAD_ATOM_IDX),
         "res_pos": pad_int("res_pos", 0),
         "chain_idx": pad_int("chain_idx", 0),
+        **{k: pad_int(k, 0) for k in GRAPH_FIELDS if k in samples[0]},
         "coords": coords,
         "mask": mask,
         "n_atoms": torch.tensor([s["n_atoms"] for s in samples], dtype=torch.long),

@@ -52,6 +52,57 @@ from . import constants as C
 from .model import ModelConfig, AtomFeaturizer, CrossAttention, SelfAttention
 from .scaling import WindowedSelfAttention, sinusoidal_index
 
+WL_VOCAB = 512          # hashed; real molecules use far fewer classes
+MAX_CHARGE = 8          # formal charge range [-8, +8]
+
+
+class GraphAtomFeaturizer(nn.Module):
+    """Atom identity from the GRAPH alone -- no residues, no atom names.
+
+    Everything here comes out of an .sdf: element, formal charge, bond orders,
+    degree, and the Weisfeiler-Lehman class those induce. Two extra channels
+    carry ADDRESSABILITY rather than chemistry -- the canonical rank, and the
+    ordinal within a symmetry class -- because WL classes are deliberately
+    non-unique and identical queries would place two atoms on top of each
+    other. Both are sinusoidal, so neither caps the atom count.
+    """
+
+    def __init__(self, d_model: int, use_coords: bool):
+        super().__init__()
+        self.d_model = d_model
+        self.elem = nn.Embedding(C.N_ELEMENTS, d_model, padding_idx=C.PAD_ELEMENT_IDX)
+        self.charge = nn.Embedding(2 * MAX_CHARGE + 1, d_model)
+        self.wl = nn.Embedding(WL_VOCAB, d_model)
+        self.degree = nn.Embedding(16, d_model)
+        self.bond_type = nn.Embedding(8, d_model)
+        self.rank_proj = nn.Linear(d_model, d_model)
+        self.ord_proj = nn.Linear(d_model, d_model)
+        self.use_coords = use_coords
+        if use_coords:
+            self.coord_proj = nn.Linear(3, d_model)
+        self.ln = nn.LayerNorm(d_model)
+
+    def forward(self, batch, coords=None):
+        z = batch["element_idx"]
+        g = lambda k: batch[k] if k in batch else torch.zeros_like(z)   # noqa: E731
+        x = (self.elem(z)
+             + self.charge((g("formal_charge") + MAX_CHARGE).clamp(0, 2 * MAX_CHARGE))
+             + self.wl(g("wl_class").clamp(0, WL_VOCAB - 1) % WL_VOCAB)
+             + self.degree(g("degree").clamp(0, 15))
+             + self.bond_type(g("max_bond_type").clamp(0, 7))
+             + self.rank_proj(sinusoidal_index(g("canonical_rank"), self.d_model))
+             + self.ord_proj(sinusoidal_index(g("class_ordinal"), self.d_model)))
+        if self.use_coords and coords is not None:
+            x = x + self.coord_proj(coords)
+        return self.ln(x)
+
+
+def make_featurizer(cfg, use_coords: bool):
+    if getattr(cfg, "atom_addressing", "group") == "graph":
+        return GraphAtomFeaturizer(cfg.d_model, use_coords=use_coords)
+    return AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=use_coords,
+                          max_chains=cfg.max_chains, use_slot_emb=cfg.use_slot_emb)
+
 
 class AnchorPool(nn.Module):
     """Cross-attention that also returns where each latent is looking.
@@ -138,9 +189,7 @@ class AtomLatentEncoder(nn.Module):
     def __init__(self, cfg: ModelConfig):
         super().__init__()
         self.cfg = cfg
-        self.feat = AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=True,
-                                   max_chains=cfg.max_chains,
-                                   use_slot_emb=cfg.use_slot_emb)
+        self.feat = make_featurizer(cfg, use_coords=True)
         # Atoms are NOT pooled into residues. Local attention keeps this O(N.w)
         # -- dense atom self-attention would be O(N^2), the expensive kind.
         self.atom_blocks = nn.ModuleList([
@@ -160,8 +209,28 @@ class AtomLatentEncoder(nn.Module):
         x = self.feat(batch, coords)
         mask = batch["mask"]
         pad = ~mask.bool()
+
+        # The local atom attention windows over TENSOR order, which permuting
+        # the input changes -- so run it in CANONICAL order instead and undo
+        # the sort afterwards. Without this, permutation invariance is only
+        # empirical: measured at 2e-4 on an untrained 60-atom chain, with
+        # nothing keeping it there once the attention has learned to use its
+        # window. Sorting makes the property structural.
+        order = inv = None
+        if "canonical_rank" in batch:
+            key = batch["canonical_rank"] + (~mask.bool()).long() * (2 ** 30)
+            order = torch.argsort(key, dim=1)              # padding sorts last
+            inv = torch.argsort(order, dim=1)
+            g = order.unsqueeze(-1).expand(-1, -1, x.shape[-1])
+            x = torch.gather(x, 1, g)
+            pad = torch.gather(pad, 1, order)
+
         for blk in self.atom_blocks:
             x = blk(x, key_padding_mask=pad)
+
+        if inv is not None:
+            x = torch.gather(x, 1, inv.unsqueeze(-1).expand(-1, -1, x.shape[-1]))
+            pad = ~mask.bool()
 
         # Latent queries from a table-free index encoding, so L is free.
         idx = torch.arange(L, device=x.device)
@@ -186,9 +255,7 @@ class AtomLatentDecoder(nn.Module):
     def __init__(self, cfg: ModelConfig):
         super().__init__()
         self.cfg = cfg
-        self.feat = AtomFeaturizer(cfg.d_model, cfg.max_res_pos, use_coords=False,
-                                   max_chains=cfg.max_chains,
-                                   use_slot_emb=cfg.use_slot_emb)
+        self.feat = make_featurizer(cfg, use_coords=False)
         self.up = nn.Linear(max(cfg.latent_dim - 3, 1), cfg.d_model)
         self.anchor_proj = nn.Linear(3, cfg.d_model)
         # Pass 1: global. Every atom sees every latent; gives provisional xyz.
