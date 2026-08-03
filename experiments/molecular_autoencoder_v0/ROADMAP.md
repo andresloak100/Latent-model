@@ -612,21 +612,51 @@ Two limits this result does NOT clear:
 - **Multi-molecule additivity.** Measured on ONE protein-ligand system per
   trajectory. The size-independence above was across DIFFERENT single systems --
   not evidence that many molecules in one box share modes. Independent molecules
-  have additive modes: 54 x 231 systems (1M atoms) = 12,474, i.e. 12.2x over a
-  1024-token global latent -- which is why the budget scales with molecule count.
-  The additive 54 x 231 is the **conservative worst case**: physical coupling
-  between molecules in one box can only *reduce* the mode count (shared collective
-  modes), never raise it above independent-additive. Direct test pending, and the
-  naive version is confounded: `dev_modes_90` is a variance-fraction count that is
-  sub-additive across independent blocks even with ZERO sharing (provably-
-  independent synthetic systems give box/sum ~0.85-0.88, lower for concentrated
-  spectra), so "approach K x 54" is the wrong additive prediction -- the
-  concatenation value already IS the independent prediction. And concatenating
-  independent MISATO simulations cannot exhibit physical sharing at all (the
-  molecules are not in one box). A real test needs genuine multi-solute
-  trajectories, compared against the independent-concatenation baseline of the
-  same molecules, using an additivity-preserving effective-dimension metric
-  (participation ratio (Sum L)^2 / Sum L^2), not a 90%-variance count.
+  add modes, so the effective dynamic dimension at 1M atoms (~231 systems) is the
+  pooled count of 231 real deviation spectra, not the per-system 54.
+
+  A control settles the scale (`scripts/additivity_control.py`; exact
+  pooled-spectrum calc = independent-blocks / infinite-T limit, ceiling-free, K
+  up to 231):
+
+  | metric / block regime | K=2 | K=16 | K=32 | K=231 |
+  |---|---|---|---|---|
+  | dev_modes_90, identical blocks | 1.000 | 0.996 | 0.996 | 0.995 |
+  | PR, identical blocks | 1.000 | 1.000 | 1.000 | 1.000 |
+  | dev_modes_90, heterogeneous (real mix) | 0.927 | 0.791 | 0.780 | **0.766** |
+  | PR, heterogeneous (real mix) | 0.726 | 0.365 | 0.324 | **0.285** |
+
+  Three results:
+  1. **The discount does not compound.** `dev_modes_90` drops fast then flattens
+     at ~0.77 (0.791 at K=16 -> 0.766 at K=231): a measured **~9,518 pooled modes**
+     vs the naive 54 x 231 = 12,474. Independent-additive is therefore ~9,500, not
+     12,474 -- the worst case is only ~1.3x pessimistic, not uselessly so.
+  2. **The fixed global latent stays dead.** ~9,518 modes is **9.3x over** a 1024
+     global latent; physical coupling can only *reduce* modes below the ~9,518
+     independent baseline, never raise it. So the budget scales with molecule
+     count regardless. Budget decision unchanged.
+  3. **PR is exactly additive only for IDENTICAL blocks** (ratio 1.000 across all
+     K -- pooled spectrum is each eigenvalue with multiplicity K, so both Sum L and
+     Sum L^2 scale by K and PR = (Sum L)^2/Sum L^2 = K x PR_block). This pins the
+     sub-additivity to the 90% *threshold* (greedy selection goes deep into flat
+     blocks, shallow into concentrated ones), not to physics. But for the real
+     HETEROGENEOUS case PR collapses to **0.285** -- worse than dev_modes_90 --
+     because scale spread makes (Sum V)^2/Sum Q track the largest block. So PR is
+     NOT the cleaner additivity metric for a mixed box; its 1.000 baseline is a
+     homogeneity artifact, and `dev_modes_90` (baseline ~0.77) is better behaved
+     there.
+
+  Caveat: the 231 blocks were sampled from only 20 distinct real shapes; a truly
+  231-distinct mix could push the ratio somewhat lower, but the non-compounding
+  (flat from K=16) behaviour is robust. Still pending -- the *physics*: genuine
+  multi-solute trajectories vs the independent-concatenation baseline of the SAME
+  molecules is the only thing that isolates real shared modes from this
+  metric/heterogeneity baseline. MISATO has no multi-solute boxes at scale.
+
+  (Metric roles, kept separate: PR measures spectral concentration for the
+  additivity test only; latent WIDTH is sized by variance-threshold counts
+  (dev_modes_90/95/99), never by PR -- on a concentrated spectrum PR lands well
+  below 54 and would under-size the latent.)
 
 ### Invariants the implementation must hold
 
