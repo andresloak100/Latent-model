@@ -57,6 +57,9 @@ from molae.dataset import collate_fn, sample_from_arrays, add_graph_features  # 
 from molae.model_equivariant import make_autoencoder  # noqa: E402
 from molae.alignment import kabsch_align_torch  # noqa: E402
 from molae.model_atomlatent import topk_latents  # noqa: E402
+from molae.traceability import (  # noqa: E402
+    RouteRecorder, route_metrics, error_vs_routing, symmetry_collapse,
+)
 from molae import utils  # noqa: E402
 
 
@@ -81,6 +84,9 @@ def effective_rank(z):
 @torch.no_grad()
 def diagnose_one(model, batch, cfg):
     out = {}
+    with RouteRecorder(model) as rec:
+        _fine, _z = model(batch)
+        write, read = rec.write(), rec.read()
     z = model.encode(batch)                                   # (1, L, d)
     L = z.shape[1]
     anchors = z[..., :3] * cfg.model.coord_scale              # (1, L, 3)
@@ -126,9 +132,20 @@ def diagnose_one(model, batch, cfg):
     out["rmsd_fine"] = rmsd(fine)
     out["locality_gain"] = out["rmsd_coarse"] - out["rmsd_fine"]
 
-    # --- error vs distance to anchor -------------------------------------
+    # --- atom-level traceability -----------------------------------------
     al = kabsch_align_torch(fine, coords, batch["mask"])[0][m]
     err = torch.linalg.norm(al - real, dim=-1)
+    mk = m.cpu().numpy()
+    if write is not None and read is not None:
+        rm, r_atom = route_metrics(write[:, mk], read[mk])
+        out.update(rm)
+        out["corr_err_vs_read_entropy"] = error_vs_routing(
+            err.cpu().numpy(), r_atom)
+    if "wl_class" in batch:
+        out.update(symmetry_collapse(al.cpu().numpy(), real.cpu().numpy(),
+                                     batch["wl_class"][0][m].cpu().numpy()))
+
+    # --- error vs distance to anchor -------------------------------------
     if err.numel() > 2:
         e = err - err.mean()
         dd = d_to_anchor - d_to_anchor.mean()
@@ -162,8 +179,9 @@ def main():
         if not f.exists():
             continue
         s = sample_from_arrays(np.load(f, allow_pickle=True))
-        if graph:
-            s = add_graph_features(s, key=str(f))
+        # Graph features are needed regardless of addressing: the symmetry test
+        # needs WL classes to know which atoms are interchangeable.
+        s = add_graph_features(s, key=str(f))
         r = diagnose_one(model, collate_fn([s]), cfg)
         r["pdb_id"] = k
         rows.append(r)
@@ -196,6 +214,31 @@ def main():
     print("\nERROR vs ANCHOR DISTANCE  (the direct anchor-placement test)")
     print(f"  corr(per-atom error, dist to nearest anchor)  "
           f"{summary.get('corr_err_vs_anchor_dist', float('nan')):+.3f}")
+
+    g = lambda k: summary.get(k, float("nan"))      # noqa: E731
+    print("\n=== ATOM-LEVEL TRACEABILITY ===")
+    print("ROUTE AGREEMENT   (does the decoder read where the encoder wrote?)")
+    print(f"  top-k Jaccard(write, read)        {g('route_agreement_jaccard'):.3f}"
+          "     (0 = the address is not preserved)")
+    print(f"  top-1 latent matches              {g('route_agreement_top1'):.3f}")
+    print("\nROUTE COLLAPSE    (can two atoms be told apart by their route?)")
+    print(f"  distinct read patterns / atoms    {g('distinct_pattern_frac'):.3f}"
+          "     (1 = every atom uniquely addressed)")
+    print(f"  atoms sharing a pattern           {g('atoms_in_shared_pattern_frac'):.3f}")
+    print(f"  max atoms on one pattern          {g('max_atoms_per_pattern'):.0f}")
+    print("\nLATENT USE        (write side / read side)")
+    print(f"  gini                              {g('write_gini'):.3f} / {g('read_gini'):.3f}")
+    print(f"  unused fraction                   {g('write_unused_frac'):.3f} / "
+          f"{g('read_unused_frac'):.3f}")
+    print("\nROUTE CONCENTRATION  (1 = attends to everything equally)")
+    print(f"  write entropy / log L             {g('write_entropy_frac'):.3f}")
+    print(f"  read  entropy / log L             {g('read_entropy_frac'):.3f}")
+    print(f"  corr(per-atom error, read entropy){g('corr_err_vs_read_entropy'):+.3f}")
+    print("\nSYMMETRY          (label-swapped is FINE; stacked is broken)")
+    print(f"  predicted/target spread ratio     {g('symmetry_spread_ratio'):.3f}"
+          "     (1 = faithful, 0 = collapsed onto one point)")
+    print(f"  classes collapsed below half      {g('symmetry_collapsed_frac'):.3f}")
+    print(f"  symmetry classes seen             {g('n_symmetry_classes'):.1f}")
 
     out = ROOT / args.out
     out.parent.mkdir(parents=True, exist_ok=True)

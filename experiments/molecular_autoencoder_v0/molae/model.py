@@ -172,12 +172,13 @@ class CrossAttention(nn.Module):
             nn.Linear(d_model * ff_mult, d_model),
         )
 
-    def forward(self, q, ctx, key_padding_mask=None):
+    def forward(self, q, ctx, key_padding_mask=None, return_weights=False):
         qn, cn = self.nq(q), self.nc(ctx)
-        a, _ = self.attn(qn, cn, cn, key_padding_mask=key_padding_mask, need_weights=False)
+        a, w = self.attn(qn, cn, cn, key_padding_mask=key_padding_mask,
+                         need_weights=return_weights, average_attn_weights=True)
         q = q + a
         q = q + self.ff(self.nf(q))
-        return q
+        return (q, w) if return_weights else q
 
 
 class SelfAttention(nn.Module):

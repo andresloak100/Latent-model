@@ -137,7 +137,12 @@ class AnchorPool(nn.Module):
 
         pooled = (att @ vv).transpose(1, 2).reshape(B, L, D)
         # Head-averaged weights pool coordinates -> one anchor per latent.
-        anchors = att.mean(1) @ coords                               # (B,L,3)
+        w = att.mean(1)                                              # (B,L,N)
+        anchors = w @ coords                                         # (B,L,3)
+        # Atom-level traceability: which latents each atom WRITES to. Kept only
+        # when explicitly recording, so training allocates nothing extra.
+        if getattr(self, "record", False):
+            self.last_write = w.detach()
         return lat + self.o(pooled), anchors
 
 
@@ -182,6 +187,8 @@ class LocalCrossAttention(nn.Module):
         vv = self.v(ctx).view(B, N, k, self.h, self.dk)
         att = torch.einsum("bnhd,bnkhd->bnhk", q, kk) / (self.dk ** 0.5)
         att = att.softmax(-1)
+        if getattr(self, "record", False):
+            self.last_local = (att.mean(2).detach(), idx.detach())   # (B,N,k),(B,N,k)
         out = torch.einsum("bnhk,bnkhd->bnhd", att, vv).reshape(B, N, D)
         atoms = atoms + self.o(out)
         return atoms + self.ff(self.nf(atoms))
@@ -283,8 +290,12 @@ class AtomLatentDecoder(nn.Module):
         lat = self.up(z[..., 3:]) + self.anchor_proj(anchors / self.cfg.coord_scale)
 
         q = self.feat(batch)                                  # identity only
-        for blk in self.global_blocks:
-            q = blk(q, lat)
+        for bi, blk in enumerate(self.global_blocks):
+            if getattr(self, "record", False):
+                q, w = blk(q, lat, return_weights=True)
+                self.last_read = w.detach()                   # (B,N,L), last layer
+            else:
+                q = blk(q, lat)
         coarse = self.head1(q) * self.cfg.coord_scale
         if not self.local:
             return coarse, coarse
