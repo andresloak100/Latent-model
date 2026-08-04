@@ -82,26 +82,44 @@ it carried the reference, not the displacement. Cause: the trajectory is Kabsch-
 aligned, so the per-atom displacement field has ~zero mean, and a global attention
 pool averages it to that mean. Do not interpret any of those 6 cells.
 
-**Oracle ceilings settle viability (no training, pure PCA of the displacement):**
+**The first oracle LEAKED** (PCA fit on the frames it was scored on; at T=100 the
+displacement has rank <=99, so PCA-64 keeping 64 of <=99 directions is mostly rank
+arithmetic). Redone LEAK-FREE (fit PCA on frames 1-50, evaluate on 51-100), and
+against a structure-only baseline (ANM modes from the reference contact graph, no
+MD). Reduction vs the zero-displacement null:
 
-| reduction vs null | PCA-16 | PCA-64 | region-mean-16 | region-mean-64 |
-|---|---|---|---|---|
-| across 8 systems | 55-71% | **79-87%** | 7-16% | 18-37% |
+| leak-free reduction | L=8 | L=16 | L=32 |
+|---|---|---|---|
+| **T1 all-atom** (split PCA -- the codec's actual target) | ~37% | ~40% | ~42% |
+| T1 CA-only | ~44% | ~48% | ~51% |
+| **T3 ANM** (structure-only contact-graph modes, CA) | ~20% | ~26% | ~32% |
 
-Displacement is **highly L-compressible** -- PCA-64 ~80% (matches the premise
-check's 54 modes/90%), and even **PCA-16 clears the 50% rule**. So the **codec is
-NOT the blocker**; viability is achievable. The two failed bottlenecks were both
-wrong: the attention pool collapses to the ~zero mean (void); region-mean pooling
-carries displacement but is a bad basis (caps ~30%).
+**Viability is NOT established at >=50%.** Leak-free, the *optimal per-system
+linear* ceiling for all-atom displacement (what arm F predicts) is **~40% at
+L16-32, below the rule**. The 79-87% was leak. The T=50-frame fit caps modes at
+<=49, so the rule's **L=64 target is untestable leak-free here -- it needs
+mdCATH's 464 frames** (§6.6). Displacement *looks* moderately compressible
+(CA-level ~50% at L32), not the ~80% the leaky oracle implied.
 
-**Fix: a modal bottleneck** -- L learned global mode-shapes (per-atom weights from
-static conditioning), latent = mode coefficients (PCA-like), order-invariant so it
-transfers to general molecules. Verified the wiring is now live (latent varies
-with frame; armF < zero-latent). But a quick 1-system/250-epoch test reaches only
-~10% -- an **achievable-vs-achieved gap**: the oracle says ~80% is there, the
-trained minimal AE has not reached it. Full sweep rerunning on the modal
-bottleneck to measure the real trained numbers against the rule; the viability
-QUESTION is answered YES by the oracle, the remaining work is optimisation to
-reach it.
+**T3 is the useful signal:** structure-only ANM modes capture **~43-91% of the CA
+leak-free ceiling** (~2/3 mean) -- the contact graph predicts a substantial chunk
+of the collective modes. So the modal bottleneck has a non-learned floor, and ANM
+modes are a concrete init/feature. The trained modal AE (~10%) sits below even the
+free ANM baseline -> a real optimisation gap, but the **binding constraint is the
+~40% all-atom ceiling, not the optimiser**.
 
-_Rerun in progress (modal bottleneck)._
+**Corrected mechanism (general, not a one-off bug):** the encoder does see the
+target frame; the failure was that the CA-aligned displacement field is
+**zero-mean**, and a global mean/attention pool averages ANY zero-mean field to
+~zero -> frame-invariant latent. This is a **design constraint on every future
+pooling choice**, not a wiring typo. The modal bottleneck (per-atom mode weights,
+no mean-pool) avoids it and is order-invariant.
+
+**Bottlenecks tried:** attention pool (collapses to zero-mean, void); region-mean
+(bad basis, ~30% ceiling); modal (correct structure, but the all-atom ceiling is
+~40%). **Redo the whole tier table on mdCATH** once ingested -- 464 frames removes
+the rank cap and makes the L=64 question answerable leak-free.
+
+_Modal sweep (job 10279481) finishing; its trained numbers are secondary now --
+the leak-free ceiling, not the optimiser, is the binding result, and it is below
+the 50% bar at MISATO's frame budget._
