@@ -7,24 +7,40 @@ tests whether that was the wrong dynamical regime.
 
 ## mdCATH matched-window test (PRIMARY decision point)
 
-Within ONE mdCATH trajectory (same domain, temperature, replica; 320 K
-equilibrium), subsample two windows with matched frame count / rank ceiling / PCA
-conditions -- only the time window changes:
+Within ONE mdCATH trajectory -- **same domain, same temperature (320 K), same
+replica** (replica/temperature variation would confound the window comparison) --
+subsample two windows with matched frame count / rank ceiling / PCA conditions;
+only the time window changes:
 - **A**: 50 frames over ~50 ns (~1 ns stride)
 - **B**: 50 frames over ~464 ns (~9 ns stride)
 
 Leak-free tier table (fit first half, eval second half) for **CA / backbone /
-all-atom / side-chain** at **L = 8/16/32**, reported as **% variance captured AND
-absolute residual A**. Subset: 20-30 domains, broad size range, ~20-25 GB on
-$SCRATCH.
+all-atom / side-chain** at **L = 8/16/32**. Subset: 20-30 domains, broad size
+range, ~20-25 GB on $SCRATCH.
 
-**Locked interpretation:**
-- **B substantially better than A** -> slow collective dynamics are more
-  compressible; MISATO tested the wrong regime and the codec question REOPENS on
-  the relevant (slow) signal. Then rerun the tier + nonlinear tests on the slow
-  window.
-- **B approximately equal to A** -> the negative generalises across timescale and
-  becomes a much stronger verdict (all-atom displacement is not chemically
+**Window A at MULTIPLE offsets** (0-50, 200-250, 400-450 ns) and report the
+spread: the first 50 ns may contain relaxation away from the starting structure,
+inflating A's deviation and its apparent compressibility; multiple offsets guard
+against that and against cherry-picking. If offsets disagree materially, that is
+itself a reported result.
+
+**DECISION IS ON ABSOLUTE ANGSTROM, NOT PERCENTAGE.** B spans 464 ns so its null
+is much larger than A's; B can post a HIGHER % reduction while leaving a WORSE
+absolute residual (60% off a 4A null = 1.6A > A's 1.15A). The "chemically invalid"
+argument is absolute, so the read must be too:
+
+- **B beats A iff B's ABSOLUTE residual (A) is lower at matched L.** Report both %
+  and A; the decision is on A.
+- **Report both nulls explicitly.** If B's null is several times A's, flag it
+  prominently -- that alone reframes what "compressible" means here.
+
+**Locked interpretation (on absolute A):**
+- **B's absolute residual substantially below A's** -> slow collective dynamics
+  are more compressible; MISATO tested the wrong regime and the codec question
+  REOPENS on the relevant (slow) signal. Then rerun the tier + nonlinear tests on
+  the slow window.
+- **B's absolute residual ~= or above A's** -> the negative generalises across
+  timescale, a much stronger verdict (all-atom displacement is not chemically
   compressible into 8-32 modes at any accessible timescale).
 
 ## Nonlinear probe (per-system, MISATO) -- ALREADY RUN, asymmetric interpretation
@@ -39,7 +55,22 @@ temporal split and L, nonlinear AE vs PCA.
 
 RESULT: nonlinear UNDERPERFORMED PCA (all-atom L32: 34% vs 42%), attributable to
 50-frame overfitting, not a nonlinear ceiling -> **inconclusive**, not a negative.
-The nonlinear question is deferred to mdCATH's larger frame count.
+AE 34% vs PCA 42% on 50 frames means 50 frames is too few to FIT a nonlinear model
+at all, so the nonlinearity question is gated on FRAME COUNT, not just regime.
+Rerun the probe on mdCATH AFTER the window control lands (same per-system
+constraint, same temporal split, same matched bottleneck, now with enough frames
+that a negative would mean something). **mdCATH therefore resolves BOTH open
+caveats -- window regime AND linear-vs-nonlinear -- which is the strongest
+argument for the ingest.**
+
+## Domain filter (at pull time)
+
+Trajectory length is variable (mean 464 ns, std 76), so a domain whose trajectory
+is e.g. 300 ns cannot supply window B. **Read numFrames per file (from the index)
+and keep only domains supporting BOTH windows**, so B is not ragged across systems
+(same common long span for all kept domains). **Report how many of the 25-30
+survive the filter**; if it is a large cut, say so rather than silently shrinking
+the cohort.
 
 ## High-temperature (450 K) trajectories
 
