@@ -79,6 +79,28 @@ per-residue codec. The single best (C_group_L128_d32, 1.81x) is still ~2x arm A
 and is carried by locality (locgain 5.89), not by addressing (distinct 0.54,
 marginal).
 
+## Corroboration from the B row (no routing)
+
+Two pre-fix monitors fired late with an L128_d32 snapshot and a "~9.3 A bar"
+whose definition does not match the current baselines (arm A aa 5.462; cohort
+mean_shape bb ~5.0; pca_k8 bb ~1.9) -- so that bar framing is discarded. But the
+numbers are the current post-fix runs and add the **B row** (no routing), which
+the 16-cell verdict did not cover:
+
+| arm, L128_d32 | graph aa | group aa | graph aa/A | group aa/A |
+|---|---|---|---|---|
+| **B_global (NO routing)** | 17.53 | 14.02 | 3.21 | 2.57 |
+| C_local | 17.39 | 9.91 | 3.18 | 1.81 |
+| D_local_masked | 17.33 | 13.37 | 3.17 | 2.45 |
+
+B has **no routing at all**, yet fails identically (graph 3.2x, group 2.6x arm A).
+Routing (C/D) vs no routing (B) barely moves the result -- confirming the deficit
+is the shared-latent **bottleneck itself**, not the routing layered on it. And
+graph > group holds in all three arms, so the graph penalty is general, not a
+routing artefact. Every shared-latent variant loses to the direct per-residue
+codec. (The "universal path live" reading from the stale monitor's own framework
+requires both < bar; both are *above* it -- the architecture-fails branch.)
+
 ## Verdict
 
 **The shared-latent atom bottleneck (arms C/D) is refuted.** With the anchor-
