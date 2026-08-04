@@ -278,3 +278,36 @@ coefficient covariance on the mdCATH training pool. EVALUATE unchanged: frozen 7
 absolute A vs ANM at matched scalars. Caveat: B-factors mix crystal packing,
 refinement, resolution, static disorder -- fine for PRETRAINING, not a final target
 (hence pretrain-then-fine-tune, not train-on-B-factors).
+
+## B-factor prototype -- CORRECTED design (the spring map and B-factors rescue each other)
+
+The naive plan (pretrain/finetune on fluctuation, evaluate on reconstruction A) has no
+bridge: fluctuation is the DIAGONAL of the covariance, reconstruction needs MODES. The
+spring-constant reparameterisation IS the bridge:
+
+    structure -> per-residue spring constants (learned shared map)
+              -> build the network Hessian
+              -> predicted per-atom fluctuation   <-- SUPERVISE vs experimental B-factors
+              -> diagonalise the SAME Hessian      <-- modes
+              -> reconstruction A on the frozen 7  <-- EVALUATE vs ANM (1.37 @ 64 scalars)
+
+For an elastic network, per-atom fluctuation ~ diag of the pseudo-inverse, a
+DIFFERENTIABLE function of the springs -- direct supervised regression, NO spectral
+surrogate.
+
+**Why this rescues the earlier failure:** the spring map died because GUARD2 tripped --
+tr(HC)/tr(H) anti-correlated with held-out reconstruction (wrong objective). B-factor
+regression is a well-posed supervised target with ~1e8 labels instead of a spectral
+surrogate. The spring map needed a proper objective; B-factor pretraining needed a path
+from fluctuations to modes. Neither works alone; together they close.
+
+**GNM for pretraining, ANM for evaluation.** GNM (scalar N x N Kirchhoff) is exactly the
+isotropic-B-factor model and far cheaper than 3N x 3N ANM; transfer the learned springs
+into the ANM Hessian for the mode/reconstruction eval.
+
+**Guards:** (1) init springs UNIFORM -> epoch-0 == plain GNM/ANM; assert epoch-0 held-out
+A == plain ANM (1.37) within noise. (2) Pearson(pretraining loss, held-out reconstruction
+A) across checkpoints -- if it doesn't track, GUARD2 again, say so, don't train through.
+(3) per-structure B-factor z-normalisation stated explicitly (else the model learns
+resolution). (4) pretrain-vs-no-pretrain ablation (the whole point). Stopping rule
+unchanged: doesn't beat 1.37 A -> codec question closes.
