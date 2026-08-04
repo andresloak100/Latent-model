@@ -488,7 +488,17 @@ taste.
    trajectory length is the single bind behind three separate limits --
    dev_modes_99 at 93% of ceiling, the tight-tau latent-width rows (§7), and
    basin-hopping for obj 3 -- so longer trajectories (mdCATH) now also gate the
-   §7 latent-width decision, not only timescale.
+   §7 latent-width decision, not only timescale. **mdCATH scoped** (task b, from
+   primary sources): HF `compsciencelab/mdCATH`, CC-BY-4.0, **3.3 TB** HDF5,
+   one file per domain (5,398 domains x 5 replicas x 5 temps). **~464 frames/traj
+   at 1 frame/ns = 4.6x MISATO's frames and 58x its time** -- comfortably lifts
+   the T=100 rank ceiling (pool replicas/temps for thousands of frames/system).
+   Topology is **shipped** (atomic numbers `z` + PSF bond list -> no perception),
+   coords+forces all-atom, torchmd-net has a loader. Ingest path: read `z`
+   (element_idx) + parse PSF (bonds) once/domain, stack `coords` per (temp,
+   replica). Caveats: 3.3 TB -> ingest a domain SUBSET, not the whole set; temps
+   are 320-450 K (450 K drives unfolding transitions but is non-physiological, so
+   temperature is a variable to condition on, not ignore).
 4. **Perceived- rather than declared-bond training** (obj 2). Cheap probe of
    whether emergent topology is viable at all. Answers a yes/no that decides
    whether obj 2 is an extension or a separate model.
