@@ -24,7 +24,23 @@ inflating A's deviation and its apparent compressibility; multiple offsets guard
 against that and against cherry-picking. If offsets disagree materially, that is
 itself a reported result.
 
-**DECISION IS ON ABSOLUTE ANGSTROM, NOT PERCENTAGE.** B spans 464 ns so its null
+**METRIC CORRECTION (supersedes the absolute-only rule below): the two metrics
+answer DIFFERENT questions, do not collapse them.**
+- **Fractional % reduction = is the SIGNAL COMPRESSIBLE** -> this is the
+  timescale-hypothesis test. B% ~= A% -> slow no more compressible (hypothesis
+  dead); B% >> A% -> slow more compressible (different conclusion).
+- **Absolute A = is the OUTPUT USABLE** (chemical accuracy) -> this is the
+  step-gate / usability test.
+B spans 500 ns so its null is larger and a bigger absolute residual follows
+mechanically from bigger motions -- that alone does NOT refute the hypothesis.
+RESULT: A%~=B% (all-atom 47 vs 46, CA 58 vs 56 at L32) -> hypothesis DEAD on the
+correct metric; the locked timescale-negative stands.
+**Also: any saturation claim MUST state L relative to the rank ceiling** (fit
+frames - 1). MISATO L32 = 65% of rank-49 (forced saturation by geometry); Window C
+L64 = 26% of rank-249 (far from ceiling) -- the C L-curve keeps climbing, so the
+MISATO saturation was a rank artifact.
+
+**(Original, now scoped to USABILITY only:) decision on absolute A --** B spans 464 ns so its null
 is much larger than A's; B can post a HIGHER % reduction while leaving a WORSE
 absolute residual (60% off a 4A null = 1.6A > A's 1.15A). The "chemically invalid"
 argument is absolute, so the read must be too:

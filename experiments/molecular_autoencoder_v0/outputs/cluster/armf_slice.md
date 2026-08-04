@@ -184,10 +184,14 @@ transition/unfolding question, not mixed into the equilibrium tier table.
 
 ## mdCATH matched-window RESULT (28 domains, leak-free)
 
-**A vs B (locked, decision on absolute A): B is WORSE -> the negative generalises
-across timescale.** all-atom L32: A@0 2.13A (null 4.66) vs B 2.75A (null 5.83); B
-posts the same % (~46%) but a worse absolute residual because its null is 1.3x
-larger -- the trap in the amended prereg. CA same (A@0 1.41 vs B 1.98A). A-offsets
+**A vs B: the negative generalises across timescale -- now on the CORRECT
+(fractional) metric.** Metric correction: fractional % answers "is the signal
+compressible" (the hypothesis); absolute A answers "is the output usable". B's
+larger absolute residual just follows mechanically from its larger null, so it
+does NOT by itself refute the hypothesis. The fractional numbers do: **A%~=B%**
+(all-atom L32 A@0 47% vs B 46%; CA 58% vs 56%) -> slow dynamics are NOT more
+compressible -> timescale hypothesis DEAD, locked negative stands. (Absolute for
+reference: all-atom L32 A@0 2.13A vs B 2.75A, nulls 4.66 vs 5.83.) CA same (A@0 1.41 vs B 1.98A). A-offsets
 tight (all-atom L16 2.20/2.00/2.08 at 0/200/400 ns) -> A@0 not inflated by
 start-structure relaxation. Slow (500 ns) dynamics are NOT more compressible in
 absolute A than fast (50 ns): the wrong-regime hypothesis is refuted, a stronger
