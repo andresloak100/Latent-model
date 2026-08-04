@@ -876,27 +876,38 @@ events by construction**. No amount of training on them produces bond-breaking -
 it is untrainable here, not undertrained. This needs a separate **reactive
 corpus**, and it is plausibly the **earliest-start / critical-path** item.
 
-Candidate sources (verify contents before committing; the coverage notes are the
-point):
-- **Transition1x** -- ~1e6 DFT reaction-path points (CI-NEB) for small organic
-  reactions. Covers barriers / TS geometries; does NOT cover proteins or
-  condensed phase.
-- **RGD1** -- organic reaction graphs / paths. Same limitation: small molecules,
-  no biomolecular context.
-- **ANI-1x / ANI-2x, SPICE** -- off-equilibrium DFT E+F for drug-like molecules
-  (SPICE adds peptides). Cover reactive *regions* of the PES (bond stretch) and
-  are good for a force head; do NOT contain complete reactions or enzymatic
-  environments.
-**Two distinct problems -- do not conflate them:**
-- *Which dataset* -- open among the candidates above, resolvable by verifying
-  contents. But they are **all small-molecule, largely gas-phase organic**: a
-  **systematic** gap, not a coverage shortfall, so it does not close by adding
-  more of the same kind.
-- *The real hole* -- **enzyme active-site and condensed-phase** reactive data,
-  which **survives any choice among the candidates**. No large public enzyme /
-  QM-MM reactive corpus exists, so protein-context reaction data likely has to be
-  *generated* (QM/MM or reactive ML-potential trajectories). This is the
-  earliest-start item and the actual critical path.
+Candidate sources, **verified against primary sources** (findings recorded, not
+acquired):
+
+- **Transition1x** -- 9.6M DFT configs from 10,073 reactions; **full NEB/CINEB
+  pathways incl. TS**, real bond break/form (<=6 changes/rxn). wB97x/6-31G(d),
+  gas phase, CHON, <=7 heavy atoms. Best substrate for a potential that must be
+  accurate *through* the TS region.
+- **RGD1** -- 176,992 reactions with validated TS (endpoints + TS, not dense MEP).
+  GFN2-xTB + B3LYP-D3/TZVP, gas phase, CHON, <=10 heavy atoms. Better for
+  barrier / TS-geometry ML than along-path training.
+- **ANI-1x / ANI-2x, SPICE** -- **CORRECTION to an earlier draft: these contain
+  ZERO reactions.** ANI are off-equilibrium conformers (fixed topology); SPICE is
+  equilibrium + perturbed conformers. SPICE alone has biomolecular *context*
+  (dipeptides, solvated amino acids, aa-ligand pairs) but no bond changes -- same
+  category as MISATO for reactions, at QM level. Pre-training substrate for a
+  force head, not a reactive corpus.
+- **Newly surfaced, still gas-phase organic:** Reaction-QM (~2.3M rxns GFN2-xTB +
+  ~200k at B3LYP-D3 with full IRC trajectories ~23M configs; extends to
+  Si/P/S/Cl -- the strongest breadth option), HORM (1.84M Hessians for TS opt),
+  QMrxn20 (E2/SN2 TS). **M-CSA** is the enzyme-mechanism database but is 961
+  entries of *2D electron-flow schemes* linked to PDB -- a mechanism/priors
+  source, NOT a training corpus of 3D reactive trajectories.
+
+**The enzyme / condensed-phase hole is confirmed real.** No large public dataset
+of enzyme active-site or condensed-phase reactive events (QM/MM reaction
+trajectories in protein context) exists at scale; enzyme-reactive work is bespoke
+per-system QM/MM (e.g. AbyU EMLE). Consequence: reactive protein-context data
+must be **generated** (QM/MM or ML/MM electrostatic-embedding + metadynamics +
+active learning). The gas-phase reactive sets above are viable **pre-training**
+for the QM reactive core; the active-site distribution has no public equivalent.
+Earliest-start / critical-path item, and it is a generation problem, not a
+download.
 
 ### 8.5 Identity contract change (record, do not implement)
 
