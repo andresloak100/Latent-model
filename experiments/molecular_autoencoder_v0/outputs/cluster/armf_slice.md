@@ -73,4 +73,35 @@ static path (arms A-E, `sdf.py` reads V2000) already handles general-molecule
 follow-up; the dynamics gap is a data problem, recorded here so it is not misread
 as an architecture failure.
 
-_Results pending job 10279117 (L x drop sweep)._
+## Update: first sweep VOID (wiring bug); oracle says the codec IS viable
+
+The first sweep (job 10279117) read ~1-2% below null in every cell and was
+**voided** by the decisive test (encode different frames of one system, compare
+latents): **cosine 1.0000 across frames** -- the latent was frame-invariant, i.e.
+it carried the reference, not the displacement. Cause: the trajectory is Kabsch-
+aligned, so the per-atom displacement field has ~zero mean, and a global attention
+pool averages it to that mean. Do not interpret any of those 6 cells.
+
+**Oracle ceilings settle viability (no training, pure PCA of the displacement):**
+
+| reduction vs null | PCA-16 | PCA-64 | region-mean-16 | region-mean-64 |
+|---|---|---|---|---|
+| across 8 systems | 55-71% | **79-87%** | 7-16% | 18-37% |
+
+Displacement is **highly L-compressible** -- PCA-64 ~80% (matches the premise
+check's 54 modes/90%), and even **PCA-16 clears the 50% rule**. So the **codec is
+NOT the blocker**; viability is achievable. The two failed bottlenecks were both
+wrong: the attention pool collapses to the ~zero mean (void); region-mean pooling
+carries displacement but is a bad basis (caps ~30%).
+
+**Fix: a modal bottleneck** -- L learned global mode-shapes (per-atom weights from
+static conditioning), latent = mode coefficients (PCA-like), order-invariant so it
+transfers to general molecules. Verified the wiring is now live (latent varies
+with frame; armF < zero-latent). But a quick 1-system/250-epoch test reaches only
+~10% -- an **achievable-vs-achieved gap**: the oracle says ~80% is there, the
+trained minimal AE has not reached it. Full sweep rerunning on the modal
+bottleneck to measure the real trained numbers against the rule; the viability
+QUESTION is answered YES by the oracle, the remaining work is optimisation to
+reach it.
+
+_Rerun in progress (modal bottleneck)._

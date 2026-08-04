@@ -72,21 +72,19 @@ def build_frames(ref, bonds, N):
 
 
 class ArmF(nn.Module):
-    def __init__(self, n_elem=64, d_model=128, L=64, latent_dim=8, n_heads=4):
+    def __init__(self, n_elem=64, d_model=128, L=64, latent_dim=8, order="file"):
         super().__init__()
-        self.d = d_model; self.L = L
+        self.d = d_model; self.L = L; self.order = order
         self.elem = nn.Embedding(n_elem, d_model)
         self.ref_proj = nn.Linear(3, d_model)
         self.rank_proj = nn.Linear(d_model, d_model)
         self.mask_token = nn.Parameter(torch.randn(d_model) * 0.02)   # conditioning dropped
-        self.disp_proj = nn.Linear(3, d_model)
-        self.enc_mlp = nn.Sequential(nn.LayerNorm(d_model), nn.Linear(d_model, d_model), nn.GELU())
-        self.query = nn.Parameter(torch.randn(L, d_model) * 0.02)
-        self.pool = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.disp_proj = nn.Sequential(nn.Linear(3, d_model), nn.GELU(), nn.Linear(d_model, d_model))
+        self.enc_w = nn.Linear(d_model, L)          # per-atom encoder mode weights (from static)
+        self.dec_w = nn.Linear(d_model, L)          # per-atom decoder mode weights (from static)
         self.to_latent = nn.Linear(d_model, latent_dim)
         self.from_latent = nn.Linear(latent_dim, d_model)
-        self.read = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
-        self.head = nn.Sequential(nn.LayerNorm(d_model), nn.Linear(d_model, d_model),
+        self.head = nn.Sequential(nn.LayerNorm(2 * d_model), nn.Linear(2 * d_model, d_model),
                                   nn.GELU(), nn.Linear(d_model, 3))
 
     def static_feat(self, batch, cond_drop=None):
@@ -97,19 +95,25 @@ class ArmF(nn.Module):
         return h
 
     def encode(self, batch, cond_drop=None):
-        disp = (batch["target"] - batch["ref"]) / COORD_SCALE
-        h = self.enc_mlp(self.static_feat(batch, cond_drop) + self.disp_proj(disp))
-        q = self.query.unsqueeze(0).expand(h.shape[0], -1, -1)
-        z, _ = self.pool(q, h, h)
+        # Modal projection: the L slots are learned GLOBAL modes. Each slot's
+        # per-atom weight comes from static conditioning (which atoms move together
+        # in mode l); the latent is the mode COEFFICIENT = projection of the
+        # displacement onto that mode. Order-invariant (no segment assignment);
+        # PCA-like, so it can reach the PCA oracle (~80%), unlike region-means
+        # (~30%) or a softmax attention pool (collapses to the ~zero mean).
+        dval = self.disp_proj((batch["target"] - batch["ref"]) / COORD_SCALE)   # (B,N,d)
+        w = self.enc_w(self.static_feat(batch, cond_drop))                      # (B,N,L) mode weights
+        z = torch.einsum("bnl,bnd->bld", w, dval) / dval.shape[1]              # (B,L,d) coefficients
         return self.to_latent(z)
 
     def decode(self, z, batch, cond_drop=None, zero_latent=False):
-        lat = self.from_latent(torch.zeros_like(z) if zero_latent else z)
+        lat = self.from_latent(torch.zeros_like(z) if zero_latent else z)       # (B,L,d)
+        w = self.dec_w(self.static_feat(batch, cond_drop))                      # (B,N,L)
+        ctx = torch.einsum("bnl,bld->bnd", w, lat)                             # (B,N,d) reconstruct from modes
         q = self.static_feat(batch, cond_drop)
-        ctx, _ = self.read(q, lat, lat)
-        local = self.head(q + ctx) * COORD_SCALE                        # (B,N,3) local-frame disp
+        local = self.head(torch.cat([q, ctx], dim=-1)) * COORD_SCALE            # (B,N,3) local-frame disp
         if "frames" in batch:
-            local = torch.einsum("nij,bnj->bni", batch["frames"], local)  # -> global
+            local = torch.einsum("nij,bnj->bni", batch["frames"], local)        # -> global
         return batch["ref"] + local
 
     def forward(self, batch, cond_drop=None, latent_noise=0.0, zero_latent=False):
@@ -168,6 +172,7 @@ def main():
     ap.add_argument("--drop-span", type=int, default=8)
     ap.add_argument("--train-noise", type=float, default=0.3)     # latent noise during training
     ap.add_argument("--local-frame", type=int, default=1)
+    ap.add_argument("--order", default="file", choices=["file", "canonical"])
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
@@ -180,7 +185,7 @@ def main():
     print(f"[armF] {len(syss)} sys T={T} L={args.L} d={args.latent_dim} drop={args.drop_rate} "
           f"train_noise={args.train_noise} local_frame={bool(args.local_frame)} dev={dev}")
 
-    m = ArmF(L=args.L, latent_dim=args.latent_dim).to(dev)
+    m = ArmF(L=args.L, latent_dim=args.latent_dim, order=args.order).to(dev)
     opt = torch.optim.Adam(m.parameters(), lr=3e-4)
     gen = torch.Generator(device=dev).manual_seed(args.seed)
     print(f"[armF] params {sum(p.numel() for p in m.parameters()):,}")
