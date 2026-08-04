@@ -53,3 +53,12 @@ training distribution. Over 1000 steps, 2 systems:
 Caveat: same-system rollout (trained on this trajectory's transitions), so this
 shows in-manifold stability, not cross-system generalisation. But for "ensemble
 vs error-accumulation," the latent evidence is unambiguous: ensemble.
+
+**This 1000-step in-manifold result is the strongest positive the project has
+produced.** Error accumulation over a long rollout was THE central risk for
+objective 3 (a latent that walks off its manifold decodes to garbage); the
+diffusion model instead samples an ensemble -- 0% of steps leave the training
+coefficient range, geometry stable to 1000 steps. Two on-record predictions
+(coefficients drift out of range; geometry degrades start->end) were REFUTED. The
+same-system caveat stays attached: this is stability of the mechanism, not yet
+cross-system generalisation.
