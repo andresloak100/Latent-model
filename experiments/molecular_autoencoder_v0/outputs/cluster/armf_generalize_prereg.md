@@ -149,3 +149,38 @@ _Cross-replica gate pre-registered 2026-08-04, before it was run._
   0.83/1.05/2.03, gap +0.22 A.
 - Outcome sits BETWEEN the two pre-registered branches (cross neither ~=within nor
   near ANM); action is not auto-specified -- reported for the call.
+
+## Pre-authorised continuation (locked before the learning-curve number)
+
+**ONE branch proceeds WITHOUT waiting:**
+- spring closes **>= 30%** of the ANM->cross headroom **AND** held-out A still
+  improving from 10 -> 20 systems -> pull **~20 GB more** mdCATH domains, extend the
+  curve to 40 then 60. Report the pull size (as before), then continue.
+
+**Every other outcome reports and HOLDS:**
+- spring gains but **FLAT 10->20** -> learning saturated; take the number.
+- **spring ~= ANM** -> the physics prior is not improvable from structure at this
+  scale; a real blocker for objective 1 (general molecules).
+- **any guard trips** -> objective problem; report it, do not present the sweep.
+
+## "Learning worked" != "codec is usable" (locked before the number)
+
+Different questions; conflating them is the recurring error.
+- **Headroom closed measures WHETHER LEARNING WORKED** -- does a structure->modes
+  map beat the zero-parameter ANM baseline. That is all it measures.
+- It does **NOT** establish that the general codec is **usable**. No absolute-A
+  figure by itself declares objective 1 solved.
+- Arithmetic: ANM 2.23 A, hard ceiling (cross) 1.17 A, step-2 skeleton ran at
+  0.99 A **with clashes already appearing**. Closing 50% of headroom -> **~1.70 A**:
+  a real ML result, still materially worse than the codec that barely passed.
+  Reaching ~1.2 A needs **~85-95%** of the headroom closed.
+- Per 8.1, **~1.2 A backbone is an unremovable floor**, so usability was never
+  going to be settled by RMSD.
+
+**NAMED FOLLOW-UP (a step-2 test, not a codec test):** usability is decided by
+whether a **short local relaxation of the decoded backbone yields a physically
+valid structure** -- backbone bond/angle within tolerance, no clashes, Ramachandran-
+plausible -- NOT by its RMSD. This is the (b) relax-before-scoring fork (ROADMAP
+8.1); run it on decoded frames once a general codec exists.
+
+_Continuation + usability pre-registered 2026-08-04, before the learning-curve number._
