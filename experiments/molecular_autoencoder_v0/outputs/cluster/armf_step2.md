@@ -62,3 +62,21 @@ coefficient range, geometry stable to 1000 steps. Two on-record predictions
 (coefficients drift out of range; geometry degrades start->end) were REFUTED. The
 same-system caveat stays attached: this is stability of the mechanism, not yet
 cross-system generalisation.
+
+## General config: same rollout with the ANM (general) codec -- stability degrades
+
+Swapping the per-system PCA codec for the general ANM codec (structure-only, no
+fit) is the actual objective-1 configuration. The strong same-system stability does
+NOT transfer:
+- 2cndA01: 13% of steps have a coefficient outside the training range (vs 0% PCA),
+  5/64 modes ever out, worst excursion 1.71sd; minCA 1.67 (severe clash) at start.
+- 2e2dC02: **84% of steps out of range, ALL 64/64 modes leave range**, worst
+  excursion 6.85sd (max 19.3); minCA **0.64** (atoms overlapping) at start.
+
+The raw ANM-decoded structures clash badly at t=0 already -- consistent with the
+usability test (ANM needs relaxation to be valid) -- and the DDPM in the ANM-latent
+space is far worse conditioned than in the trajectory-fit PCA space (the ANM basis
+does not match the trajectory's actual motions, so its coefficients are non-Gaussian
+and leave the training range). So the ensemble-sampling stability was a same-system-
+PCA property; the general codec's rollout is materially less stable and would need
+the mandatory relaxation step (8.1) to be usable. Honest tempering of the positive.
