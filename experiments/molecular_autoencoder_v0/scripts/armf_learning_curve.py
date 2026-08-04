@@ -84,6 +84,18 @@ def resid(ev, M):
     return float(np.sqrt(((rec - ev) ** 2).sum() / (ev.shape[0] * (ev.shape[1] // 3))))
 
 
+def rigid_content(ref, Mpca, var):                                 # variance-weighted PCA content in H's null space
+    n = len(ref); cen = ref - ref.mean(0); T = np.zeros((3 * n, 6))
+    for a in range(3):
+        v = np.zeros((n, 3)); v[:, a] = 1.0; T[:, a] = v.reshape(-1)        # 3 translations
+    for a in range(3):
+        ax = np.zeros(3); ax[a] = 1.0
+        T[:, 3 + a] = np.cross(np.tile(ax, (n, 1)), cen).reshape(-1)        # 3 rotation generators
+    Q, _ = np.linalg.qr(T)                                                  # orthonormal rigid basis (3n,6)
+    proj = Q.T @ Mpca                                                       # (6,L)
+    return float((var * (proj ** 2).sum(0)).sum() / var.sum())
+
+
 # ---------- build the one cohort (both replicas), precompute everything ----------
 S = []
 for fp in sorted(glob.glob(f"{DATA}/*.h5")):
@@ -147,14 +159,24 @@ def spring_loss(net, s):
     return (s["tvar"] * Ek).sum() / g.sum() + 1e-3 * sm.pow(2).mean()   # tr(HC)/tr(H) + tiny reg
 
 
-def train_spring(subset):
+def train_spring(subset, tag=""):
     net = nn.Sequential(nn.Linear(2, 16), nn.Tanh(), nn.Linear(16, 16), nn.Tanh(), nn.Linear(16, 1))
-    nn.init.zeros_(net[-1].weight); nn.init.zeros_(net[-1].bias)   # init -> plain ANM
+    nn.init.zeros_(net[-1].weight); nn.init.zeros_(net[-1].bias)   # init -> plain ANM (zero correction)
     opt = torch.optim.Adam(net.parameters(), lr=5e-3)
-    for _ in range(400):
+    heldA = lambda: float(np.mean([eval_spring(net, s) for s in test]))
+    e0 = heldA()                                                   # GUARD1: epoch-0 must equal plain ANM
+    assert abs(e0 - anm_m) < 0.03, f"GUARD1 FAIL: epoch0 heldout {e0:.3f} != ANM {anm_m:.3f} -> init/eval bug"
+    hist = []; tripped = False
+    for ep in range(400):
         opt.zero_grad(); loss = sum(spring_loss(net, s) for s in subset) / len(subset)
         loss.backward(); opt.step()
-    return net
+        if ep % 80 == 79:
+            hA = heldA(); hist.append((float(loss), hA))
+            if hA > anm_m + 0.05:                                  # monotone away from ANM = wrong-way objective
+                print(f"  [GUARD1 tsz{tag}] WRONG-WAY: heldout {hA:.2f} > ANM {anm_m:.2f}+.05 at ep{ep+1}"
+                      f" -> objective points wrong; STOP.")
+                tripped = True; break
+    return net, hist, e0, tripped
 
 
 def train_direct(subset):
@@ -193,6 +215,9 @@ caps /= len(test)
 bins = [(0, 8), (8, 16), (16, 32), (32, 48), (48, 64)]
 print("  modes " + "  ".join(f"{a+1}-{b}:{caps[a:b].mean():.2f}" for a, b in bins) +
       f"   (overall mean {caps.mean():.2f})")
+rc = np.mean([rigid_content(s["ref"], s["Mpca"], s["var"]) for s in S])
+print(f"  [GUARD3] residual rigid-body content of variance-weighted PCA target "
+      f"(Kabsch should -> ~0; else tr(HC) is contaminated): {rc:.4f}")
 
 # ---------- learning curve ----------
 def rowstats(vals):
@@ -205,24 +230,31 @@ anm_m = np.mean([s["anm"] for s in test]); cross_m = np.mean([s["cross"] for s i
 within_m = np.mean([s["within"] for s in test]); null_m = np.mean([s["null"] for s in test])
 print(f"\n=== LEARNING CURVE (held-out mean absolute A, CA, L={L}; {len(test)} test systems) ===")
 print(f"  fixed refs: null {null_m:.2f}  ANM {anm_m:.2f}  cross(ceiling) {cross_m:.2f}  within {within_m:.2f}")
-print(f"  {'train_sz':>8}{'spring':>8}{'direct':>8}{'ANM':>7}{'cross':>7}   headroom_closed(sp/dir)")
+print(f"  {'train_sz':>8}{'spring':>8}{'direct':>8}{'ANM':>7}{'cross':>7}   headroom(sp/dir)  guard")
+all_ckpts = []; net20 = An20 = None
 for sz in [x for x in (5, 10, 20) if x <= len(train)]:
     idx = np.unique(np.linspace(0, len(train) - 1, sz).round().astype(int))
     sub = [train[i] for i in idx]
-    net = train_spring(sub); An = train_direct(sub)
+    net, hist, e0, tripped = train_spring(sub, tag=str(sz)); An = train_direct(sub)
+    net20, An20 = net, An
     ls = [eval_spring(net, s) for s in test]; ld = [eval_direct(An, s) for s in test]
     ls_m, ls_ko = rowstats(ls); ld_m, ld_ko = rowstats(ld)
     hs = (anm_m - ls_m) / (anm_m - cross_m); hd = (anm_m - ld_m) / (anm_m - cross_m)
-    print(f"  {sz:>8}{ls_m:>8.2f}{ld_m:>8.2f}{anm_m:>7.2f}{cross_m:>7.2f}   {hs:>6.0%} / {hd:>4.0%}"
-          f"   (excl-worst spring {ls_ko:.2f} direct {ld_ko:.2f})")
+    print(f"  {sz:>8}{ls_m:>8.2f}{ld_m:>8.2f}{anm_m:>7.2f}{cross_m:>7.2f}   {hs:>5.0%} / {hd:>4.0%}"
+          f"   ep0 {e0:.2f}{' TRIPPED' if tripped else ' ok'} (excl-worst sp {ls_ko:.2f} dir {ld_ko:.2f})")
+    all_ckpts += hist
 
-# full per-system table at the largest size
+# GUARD2: does the global-spectral surrogate track the top-64 held-out metric?
+La = np.array([c[0] for c in all_ckpts]); Aa = np.array([c[1] for c in all_ckpts])
+r = float(np.corrcoef(La, Aa)[0, 1]) if len(all_ckpts) > 2 else float("nan")
+print(f"\n[GUARD2] surrogate-vs-metric Pearson(train_loss, heldout_A) over {len(all_ckpts)} ckpts = {r:+.2f}  "
+      f"({'tracks -> objective valid' if r > 0.3 else 'DOES NOT TRACK -> switch to variance-weighted subspace loss on leading modes'})")
+
+# full per-system table at the largest size (reuse trained maps)
 print(f"\n=== per-system at train_sz={min(20, len(train))} (absolute A) ===")
 print(f"  {'system':9s}{'n':>5}{'null':>7}{'ANM':>7}{'cross':>7}{'within':>8}{'spring':>8}{'direct':>8}")
-idx = np.unique(np.linspace(0, len(train) - 1, min(20, len(train))).round().astype(int))
-sub = [train[i] for i in idx]; net = train_spring(sub); An = train_direct(sub)
 for s in test:
     print(f"  {s['dom']:9s}{s['n']:>5}{s['null']:>7.2f}{s['anm']:>7.2f}{s['cross']:>7.2f}"
-          f"{s['within']:>8.2f}{eval_spring(net, s):>8.2f}{eval_direct(An, s):>8.2f}")
+          f"{s['within']:>8.2f}{eval_spring(net20, s):>8.2f}{eval_direct(An20, s):>8.2f}")
 print("\n  read: spring < ANM at growing train_sz AND spring < direct -> reparam helps as predicted;"
       "\n        spring ~ ANM -> structure features too weak; direct still <= ANM -> overfitting persists.")
