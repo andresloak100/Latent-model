@@ -23,19 +23,13 @@ Data/split identical to the generalisation study: mdCATH 320K, CA, frozen-7 test
 (held-out rep0 second half), training pool = the rest. Target = Kabsch-aligned
 displacement, mean-centred by the first-half mean (matches null/ANM/cross/within).
 """
-import argparse, glob, os, math, numpy as np, torch, torch.nn as nn, h5py
-DATA = "/network/scratch/j/jacob-junqi.tian/datasets/mdcath/data"
+import argparse, glob, os, math, numpy as np, torch, torch.nn as nn
+CACHE = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace/perceiver_cache"   # numpy-only (no h5py on the node)
 FROZEN = "/network/scratch/j/jacob-junqi.tian/mae_provisional/latent-model/experiments/molecular_autoencoder_v0/outputs/cluster/armf_frozen_test.txt"
 TEMP, R0, R1 = "320", "0", "1"
 BUDGETS = [64, 128, 256, 512]                                      # scalars = L*d, d=8 fixed
 DVAL = 8
 DM = 64                                                            # hidden width
-
-
-def parse_names(g, N):
-    pp = g["pdbProteinAtoms"][()]; pp = pp.decode() if isinstance(pp, bytes) else str(pp)
-    a = [ln for ln in pp.splitlines() if ln.startswith(("ATOM", "HETATM"))][:N]
-    return np.array([ln[12:16].strip() for ln in a])
 
 
 def kabsch(traj, mask):
@@ -140,16 +134,13 @@ class Segment(nn.Module):
 
 # ---------------- data ----------------
 def load_system(dom, eval_split):
-    fp = f"{DATA}/mdcath_dataset_{dom}.h5"
-    with h5py.File(fp, "r") as f:
-        g = f[dom]; z = np.array(g["z"]); N = len(z); nm = parse_names(g, N)
-        if len(nm) != N: return None
-        heavy = z != 1; ca = nm[heavy] == "CA"
-        if ca.sum() < 20: return None
-        c0 = g[TEMP][R0]["coords"][:].astype(np.float64)[:, heavy, :][:, ca, :]
-        need_r1 = eval_split and (R1 in g[TEMP])
-        c1 = g[TEMP][R1]["coords"][:].astype(np.float64)[:, heavy, :][:, ca, :] if need_r1 else None
-    n = ca.sum(); a0 = kabsch(c0, np.ones(n, bool)); d0 = (a0 - a0[0]).reshape(len(a0), -1)
+    fp = f"{CACHE}/{dom}.npz"
+    if not os.path.exists(fp): return None
+    dd = np.load(fp)
+    c0 = dd["c0"].astype(np.float64)
+    if c0.shape[1] < 20: return None
+    c1 = dd["c1"].astype(np.float64) if (eval_split and "c1" in dd) else None
+    n = c0.shape[1]; a0 = kabsch(c0, np.ones(n, bool)); d0 = (a0 - a0[0]).reshape(len(a0), -1)
     ref = a0[0]; h = len(d0) // 2
     mean0 = (d0[:h] if eval_split else d0).mean(0)
     stat = ((ref - ref.mean(0)) / (ref.std(0) + 1e-6)).astype(np.float32)
@@ -181,7 +172,7 @@ def main():
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(0); np.random.seed(0)
     frozen = [d for d in open(FROZEN).read().split() if d]
-    alldoms = sorted(os.path.basename(x)[len("mdcath_dataset_"):-3] for x in glob.glob(f"{DATA}/*.h5"))
+    alldoms = sorted(os.path.basename(x)[:-4] for x in glob.glob(f"{CACHE}/*.npz"))
     train_doms = [d for d in alldoms if d not in frozen]
     if args.smoke:
         train_doms = train_doms[:4]; frozen = frozen[:2]; BUD = [64, 128]
