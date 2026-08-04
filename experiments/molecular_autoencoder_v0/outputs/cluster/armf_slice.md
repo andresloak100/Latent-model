@@ -182,6 +182,32 @@ reopens; **B ~= A** -> the negative generalises across timescale, a stronger
 verdict. High-temperature (450 K) trajectories are analysed SEPARATELY for the
 transition/unfolding question, not mixed into the equilibrium tier table.
 
+## mdCATH matched-window RESULT (28 domains, leak-free)
+
+**A vs B (locked, decision on absolute A): B is WORSE -> the negative generalises
+across timescale.** all-atom L32: A@0 2.13A (null 4.66) vs B 2.75A (null 5.83); B
+posts the same % (~46%) but a worse absolute residual because its null is 1.3x
+larger -- the trap in the amended prereg. CA same (A@0 1.41 vs B 1.98A). A-offsets
+tight (all-atom L16 2.20/2.00/2.08 at 0/200/400 ns) -> A@0 not inflated by
+start-structure relaxation. Slow (500 ns) dynamics are NOT more compressible in
+absolute A than fast (50 ns): the wrong-regime hypothesis is refuted, a stronger
+negative.
+
+**Window C (separate, not rank-matched): the L=64 saturation prediction was
+WRONG.** Full trajectory (500 fr, 1 ns stride, 250/250 split): all-atom L64 =
+**63% (1.79A)** vs predicted 43-44%; CA L64 = 77% (0.96A), backbone 75% (0.99A),
+side-chain 61% (2.16A). The binding variable is **modes/rank + stride** (C's fine
+stride + 250-frame fit vs B's 10 ns + 25-frame fit), NOT timescale -- MISATO's
+100-frame rank cap hid it. The "don't bother with L=64" call is overturned.
+
+**But all-atom is still chemically invalid** (L64 1.79A > 1.54A C-C bond).
+CA/backbone at L64 reach **~1A (near-chemical)** while side-chain stays 2.16A ->
+this **re-supports the collective-vs-jitter split more strongly than MISATO did**:
+the backbone collective is nearly recoverable at L64, the side-chain residual is
+what keeps all-atom invalid. Net: timescale does not rescue the codec, but modes
+(L=64) + fine stride do far more than believed, and the codec question reopens on
+the MODES axis (and the backbone/side-chain split), not the timescale axis.
+
 **Nonlinear probe (per-system, MISATO): INCONCLUSIVE.** A small nonlinear AE
 (per-system, no cross-system sharing, no static shortcut, operating in the
 train-PCA span, matched split/L) UNDERPERFORMS PCA at every L (all-atom L32: PCA
