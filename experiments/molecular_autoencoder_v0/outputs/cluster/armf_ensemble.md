@@ -94,3 +94,30 @@ Two caveats from the pre-registered branches:
 **Well-posed target for any learned propagator (step 3):** capture the non-Gaussian,
 multi-basin, non-Markovian structure OU misses -- with a strengthened acceptance test
 -- and beat OU on it. That is the floor, exactly as ANM was for the codec.
+
+## Step 3 acceptance test -- STRENGTHENED (pre-registered before the sweep)
+
+Step 2 showed the basin-coverage test is too easy (OU covers 72-82%). Three
+discriminators added, in order of value:
+1. **Cross-mode correlation.** OU in the ANM basis is independent per mode BY
+   CONSTRUCTION -> it cannot produce cross-mode coupling. Measure mean |off-diagonal|
+   of the generated coefficient correlation (linear) AND corr(|c_i|,|c_j|) (amplitude
+   coupling), gen vs ref. Any nonzero reference coupling is unreachable by OU and
+   reachable by a learned propagator -- the cleanest discriminator, costs one covariance.
+2. **Basin transition RATE** (not coverage): transitions per 1000 steps between top-2-
+   mode basins (median-split quadrants), gen vs ref. Coverage 72-82% may only mean the
+   Gaussian is wide enough to touch the region; the RATE of basin-crossing separates a
+   dynamics model from a wide blob.
+3. **Non-Gaussianity per mode:** excess kurtosis (Gaussian=0) and per-mode marginal
+   JS, not just std ratio (std 1.0 is compatible with a wrong shape).
+
+**Pre-registered branch (now live):** if OU also passes all three -- near-zero
+reference cross-mode coupling, matched basin-transition rate, near-Gaussian marginals
+-- then the reference dynamics at this lag ARE effectively Gaussian and single-basin,
+and the honest conclusion is **the task does not need a learned propagator at this
+lag**. That is itself a major finding and argues for pushing to longer tau where
+basin-hopping appears. Report it as such rather than forcing a learned win.
+
+Then step 3: tau = 1/10/50/100 ns, per-layer (FiLM) conditioning, delta-vs-absolute
+ablation, DDPM vs OU at MATCHED lag, with the step-1 conditioning guard as a standing
+report, and steps-to-1ms (= 1e6/tau_ns) at each tau.
