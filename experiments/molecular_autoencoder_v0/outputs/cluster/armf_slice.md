@@ -208,6 +208,15 @@ what keeps all-atom invalid. Net: timescale does not rescue the codec, but modes
 (L=64) + fine stride do far more than believed, and the codec question reopens on
 the MODES axis (and the backbone/side-chain split), not the timescale axis.
 
+**Nonlinear rerun on mdCATH (250-frame Window C, per-system): inconclusive AGAIN,
+new reason.** AE underperforms PCA at every L (all-atom L64 AE 46% vs PCA 63%; CA
+L64 55% vs 77%). With 250 frames it is no longer overfitting -- the minimal AE
+simply fails to reach the LINEAR baseline (a proper AE can represent PCA, so it
+should match it), i.e. an optimisation/architecture limitation, not a statement
+about the nonlinear ceiling. The linear-ceiling caveat stays OPEN; the clean test
+is a PCA-INITIALISED AE (starts >= PCA, so any improvement is real nonlinear
+structure). Deferred, not declared.
+
 **Nonlinear probe (per-system, MISATO): INCONCLUSIVE.** A small nonlinear AE
 (per-system, no cross-system sharing, no static shortcut, operating in the
 train-PCA span, matched split/L) UNDERPERFORMS PCA at every L (all-atom L32: PCA
