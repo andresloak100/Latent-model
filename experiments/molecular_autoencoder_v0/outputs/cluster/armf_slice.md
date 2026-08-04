@@ -120,9 +120,12 @@ no mean-pool) avoids it and is order-invariant.
 ~40%). **Redo the whole tier table on mdCATH** once ingested -- 464 frames removes
 the rank cap and makes the L=64 question answerable leak-free.
 
-_Modal sweep (job 10279481) finishing; its trained numbers are secondary now --
-the leak-free ceiling, not the optimiser, is the binding result, and it is below
-the 50% bar at MISATO's frame budget._
+_Modal sweep (job 10279481) DONE: 0.8-1.5% across all L x drop cells (armF ~=
+zero-latent). Cross-system training collapses the single-system ~10% to ~1.5% --
+the transferability gap (learning a SHARED static->modes map across topologies is
+far harder than a per-system fit), below even the ANM baseline. Secondary to the
+leak-free ceiling, but it separates the failure into three measured layers:
+linear ceiling ~40% (binding), transferability 10%->1.5%, optimisation below ANM._
 
 ## Collective-vs-jitter split (leak-free, matched L, absolute A alongside %)
 
