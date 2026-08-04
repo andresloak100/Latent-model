@@ -87,3 +87,34 @@ unambiguous and consistent across all four budgets.
 Open (next control): is the segment win about SPATIAL LOCALITY or just DETERMINISM?
 S+random (segment pooling with a fixed RANDOM ordering) is the true null and
 settles it -- see below.
+
+## S+random control: locality is real (ordering hypothesis STANDS)
+
+S+random = segment pooling with a fixed RANDOM per-atom ordering (Morton replaced by
+a seeded permutation everywhere -- assignment AND the sinusoidal feature), same
+schedule/guards. It is the true null (WL canonical order was never neutral; random
+is). 4-arm sweep, held-out A:
+
+| scalars | P (collapsed) | S+random | S+SFC | ANM |
+|---|---|---|---|---|
+| 64  | 2.59 | 2.66 | 2.46 | 1.37 |
+| 128 | 2.65 | 2.59 | 2.16 | 1.05 |
+| 256 | 2.62 | 2.43 | 1.78 | 0.57 |
+| 512 | 3.01 | 1.93 | 1.25 | 0.13 |
+
+**S+SFC >> S+random at every budget, gap widening with L (0.20 -> 0.68 A).** Locked
+read fires: **spatial locality is real; the "spatial locality made E1-file work"
+hypothesis STANDS** -- the §9 SFC material is validated, not rewritten.
+
+Clean decomposition of the segment win into two separable ingredients:
+- **Determinism** prevents collapse. S+random engages (zero-latent 3.2-3.8 >> held-
+  out, G1 cos 0.86-0.97, scales 2.66 -> 1.93 with L) whereas the LEARNED Perceiver
+  collapses (frame-invariant, inert). S+random beats collapsed P at high budget
+  (1.93 < 3.01 at 512). So deterministic pooling, even with a meaningless ordering,
+  is enough to keep the latent alive.
+- **Locality** adds the rest. On top of determinism, SFC-contiguous segments buy a
+  further 0.2-0.68 A over random segments -- the larger lever at high budget.
+
+All arms remain >= ANM at matched scalars (converging negative unchanged): the
+ordering/locality result is about which learned bottleneck is best, not about
+beating the physics prior.
