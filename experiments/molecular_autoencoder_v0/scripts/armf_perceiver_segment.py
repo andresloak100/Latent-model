@@ -132,6 +132,35 @@ class Segment(nn.Module):
         return self.dec(torch.cat([st, own, left, right], -1))
 
 
+class PerceiverInit(nn.Module):
+    """P-init: SAME val+decoder as Segment (warm-started from a trained S+SFC), plus
+    a LEARNABLE slot attention that at init reproduces the hard segment assignment
+    (gate high, Q=0) so epoch-0 == trained S+SFC, and that training can move off the
+    spatial prior (grow Q, shrink gate). Separates 'learned allocation is worse than
+    spatial' from 'learned attention cannot escape a cold start'."""
+    def __init__(self, sdim, L):
+        super().__init__()
+        self.L = L
+        self.val = nn.Sequential(nn.Linear(3, DM), nn.GELU(), nn.Linear(DM, DVAL))          # <- warm-start
+        self.dec = nn.Sequential(nn.Linear(sdim + 3 * DVAL, DM), nn.GELU(),
+                                 nn.Linear(DM, DM), nn.GELU(), nn.Linear(DM, 3))             # <- warm-start
+        self.key = nn.Sequential(nn.Linear(sdim, DM), nn.GELU(), nn.Linear(DM, DM))
+        self.Q = nn.Parameter(torch.zeros(L, DM))                                            # no learned attn at init
+        self.gate = nn.Parameter(torch.tensor(20.0))                                         # hard segment at init
+
+    def encode(self, static, disp, assign):
+        N = static.shape[0]
+        inseg = torch.full((self.L, N), -1.0, device=static.device)
+        inseg[assign, torch.arange(N, device=static.device)] = 0.0                           # 0 in-segment, -1 out
+        logit = self.Q @ self.key(static).T / math.sqrt(DM) + self.gate * inseg
+        return torch.einsum("ln,bnd->bld", torch.softmax(logit, -1), self.val(disp))
+
+    def decode(self, static, z, assign):
+        own = z[:, assign]; left = z[:, (assign - 1).clamp(min=0)]; right = z[:, (assign + 1).clamp(max=self.L - 1)]
+        st = static[None].expand(z.shape[0], -1, -1)
+        return self.dec(torch.cat([st, own, left, right], -1))
+
+
 # ---------------- data ----------------
 def load_system(dom, eval_split):
     fp = f"{CACHE}/{dom}.npz"
@@ -168,6 +197,7 @@ def main():
     ap.add_argument("--epochs", type=int, default=300)
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--pinit", action="store_true")               # run only the P-init arm (after the main sweep)
     args = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(0); np.random.seed(0)
@@ -202,37 +232,47 @@ def main():
             if b > min(s['Manm_all'].shape[1] for s in test)]
     if caps: print(f"     NOTE ANM capped by 3N-6 on small systems: {caps}")
 
-    def train_cell(arm, L, use_sfc):
+    ASSIGN_ARMS = ("S+SFC", "P-init")
+
+    def make_model(arm, L, use_sfc):
         sdim = 3 + (16 if use_sfc else 0)
-        model = (Segment(sdim, L) if arm == "S+SFC" else Perceiver(sdim, L, use_sfc)).to(dev)
+        if arm == "S+SFC": return Segment(sdim, L).to(dev)
+        if arm == "P-init": return PerceiverInit(sdim, L).to(dev)
+        return Perceiver(sdim, L, use_sfc).to(dev)
+
+    def assign_of(s, L):
+        return torch.tensor((s["rank"] * L // s["n"]).clip(0, L - 1), device=dev)
+
+    def train_model(model, arm, L, use_sfc, epochs, log_every=0):
         opt = torch.optim.Adam(model.parameters(), lr=1e-3)
-        cache = {}
-        for s in train:
-            st = static_feat(s, use_sfc).to(dev)
-            asg = torch.tensor((s["rank"] * L // s["n"]).clip(0, L - 1), device=dev) if arm == "S+SFC" else None
-            cache[s["dom"]] = (st, asg)
-        for ep in range(args.epochs):
+        cache = {s["dom"]: (static_feat(s, use_sfc).to(dev),
+                            assign_of(s, L) if arm in ASSIGN_ARMS else None) for s in train}
+        hist = []
+        for ep in range(epochs):
             for s in np.random.permutation(train):
                 st, asg = cache[s["dom"]]
                 dfull = s["d"] - s["mean0"]; T = dfull.shape[0]
                 idx = np.random.choice(T, min(args.batch, T), replace=False)
                 disp = torch.tensor(dfull[idx].reshape(len(idx), s["n"], 3), dtype=torch.float32, device=dev)
                 opt.zero_grad()
-                if arm == "S+SFC":
-                    z = model.encode(st, disp, asg); pred = model.decode(st, z, asg)
-                else:
-                    z = model.encode(st, disp); pred = model.decode(st, z)
+                if arm in ASSIGN_ARMS: z = model.encode(st, disp, asg); pred = model.decode(st, z, asg)
+                else: z = model.encode(st, disp); pred = model.decode(st, z)
                 (((pred - disp) ** 2).mean()).backward(); opt.step()
-        return model
+            if log_every and (ep % log_every == log_every - 1):
+                hist.append((ep + 1, eval_cell(model, arm, L, use_sfc)[0]))
+        return model, hist
+
+    def train_cell(arm, L, use_sfc):
+        return train_model(make_model(arm, L, use_sfc), arm, L, use_sfc, args.epochs)[0]
 
     def eval_cell(model, arm, L, use_sfc):
         rmsd, zero, cos_list, slotstd = [], [], [], []
         for s in test:
             st = static_feat(s, use_sfc).to(dev)
-            asg = torch.tensor((s["rank"] * L // s["n"]).clip(0, L - 1), device=dev) if arm == "S+SFC" else None
+            asg = torch.tensor((s["rank"] * L // s["n"]).clip(0, L - 1), device=dev) if arm in ASSIGN_ARMS else None
             ev = torch.tensor(s["ev"].reshape(s["ev"].shape[0], s["n"], 3), dtype=torch.float32, device=dev)
             with torch.no_grad():
-                if arm == "S+SFC":
+                if arm in ASSIGN_ARMS:
                     z = model.encode(st, ev, asg); pred = model.decode(st, z, asg)
                     zpred = model.decode(st, torch.zeros_like(z), asg)
                 else:
@@ -244,13 +284,39 @@ def main():
         s0 = test[0]; st = static_feat(s0, use_sfc).to(dev)
         fr = np.linspace(0, s0["ev"].shape[0] - 1, 5).astype(int)
         evc = torch.tensor((s0["ev"][fr]).reshape(5, s0["n"], 3), dtype=torch.float32, device=dev)
-        asg = torch.tensor((s0["rank"] * L // s0["n"]).clip(0, L - 1), device=dev) if arm == "S+SFC" else None
+        asg = torch.tensor((s0["rank"] * L // s0["n"]).clip(0, L - 1), device=dev) if arm in ASSIGN_ARMS else None
         with torch.no_grad():
-            zc = model.encode(st, evc, asg) if arm == "S+SFC" else model.encode(st, evc)
+            zc = model.encode(st, evc, asg) if arm in ASSIGN_ARMS else model.encode(st, evc)
         zf = zc.reshape(5, -1); zf = zf / (zf.norm(dim=1, keepdim=True) + 1e-9)
         cos = float((zf @ zf.T).masked_select(~torch.eye(5, dtype=bool, device=dev)).mean())
         sstd = float((zc.std(0).mean() / (zc.std() + 1e-9)))
         return np.mean(rmsd), np.mean(zero), cos, sstd
+
+    if args.pinit:
+        # ---- P-init arm: warm-start from trained S+SFC, learnable attention can move off the spatial prior ----
+        print("\n=== P-init ARM (warm-start from trained S+SFC; separates 'learned<spatial' from 'cold-start collapse') ===")
+        print(f"  {'arm':8s}{'L':>4}{'scalars':>8}{'epoch0':>8}{'S+SFC':>7}{'heldA':>7}{'zeroA':>7}{'G1cos':>8}  READ")
+        for b in BUD:
+            L = b // DVAL
+            seg = train_cell("S+SFC", L, True)
+            seg_r = eval_cell(seg, "S+SFC", L, True)[0]
+            pin = make_model("P-init", L, True)
+            pin.val.load_state_dict(seg.val.state_dict()); pin.dec.load_state_dict(seg.dec.state_dict())
+            e0 = eval_cell(pin, "P-init", L, True)[0]                 # GUARD: epoch-0 must equal trained S+SFC
+            if abs(e0 - seg_r) > 0.10:
+                print(f"  P-init  {L:>4}{b:>8}{e0:>8.2f}{seg_r:>7.2f}  VOID-INIT (epoch0 != S+SFC by {abs(e0-seg_r):.2f}) -> report, do not train through")
+                continue
+            _, hist = train_model(pin, "P-init", L, True, args.epochs, log_every=max(1, args.epochs // 5))
+            r, z, cos, sstd = eval_cell(pin, "P-init", L, True)
+            read = ("IMPROVES on spatial prior (learned allocation genuinely helps)" if r < seg_r - 0.03 else
+                    "DEGRADES (learned attention actively hurts -> collapse is architectural)" if r > seg_r + 0.03 else
+                    "FLAT at S+SFC (learned freedom buys nothing; spatial prior IS the answer)")
+            curve = " ".join(f"e{e}:{v:.2f}" for e, v in hist)
+            print(f"  P-init  {L:>4}{b:>8}{e0:>8.2f}{seg_r:>7.2f}{r:>7.2f}{z:>7.2f}{cos:>8.4f}  {read}")
+            print(f"          held-out curve: {curve}")
+        print(f"\n  reference: null {null:.2f} | ANM " + " ".join(f"{b}s:{anm_b[b]:.2f}" for b in BUD) +
+              f" | cross {cross:.2f} | within {within:.2f}")
+        return
 
     print("\n=== RESULTS ===")
     print(f"  {'arm':7s}{'L':>4}{'d':>3}{'scalars':>8}{'heldA':>7}{'vsANM':>7}{'zeroA':>7}{'G1cos':>8}{'slotStd':>8}  VOID")
