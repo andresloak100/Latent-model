@@ -34,6 +34,24 @@ def kabsch(traj, mask):
     return out
 
 
+def anm(xyz, K, cutoff=10.0):                                       # structure-only ANM modes (general codec)
+    n = len(xyz); H = np.zeros((3 * n, 3 * n)); ar = np.arange(3)
+    I, J, U = [], [], []
+    for i in range(n):
+        dv = xyz - xyz[i]; dd = np.linalg.norm(dv, axis=1)
+        for j in np.where((dd < cutoff) & (dd > 1e-6))[0]:
+            if j <= i: continue
+            I.append(i); J.append(j); U.append(dv[j] / dd[j])
+    I, J, U = np.array(I), np.array(J), np.array(U); b = U[:, :, None] * U[:, None, :]
+    def scat(a, c, V):
+        rows = (3 * a[:, None, None] + ar[None, :, None]) * np.ones((1, 1, 3), int)
+        cols = (3 * c[:, None, None] + ar[None, None, :]) * np.ones((1, 3, 1), int)
+        np.add.at(H, (rows.ravel(), cols.ravel()), V.ravel())
+    scat(I, I, b); scat(J, J, b); scat(I, J, -b); scat(J, I, -b)
+    w, V = np.linalg.eigh(H)
+    return V[:, 6:6 + K]
+
+
 class Denoiser(nn.Module):
     def __init__(self, L, h=256):
         super().__init__()
@@ -55,6 +73,7 @@ def main():
     ap.add_argument("--Tdiff", type=int, default=100)
     ap.add_argument("--epochs", type=int, default=3000)
     ap.add_argument("--horizon", type=int, default=50)
+    ap.add_argument("--codec", default="pca", choices=["pca", "anm"])   # anm = general (structure-only) codec
     args = ap.parse_args()
     torch.manual_seed(0)
     files = sorted(glob.glob(f"{args.data_dir}/*.h5"))[:args.n_systems]
@@ -76,9 +95,12 @@ def main():
         al = kabsch(coords[:, bb, :], ca[bb])                        # align backbone on CA
         d = (al - al[0]).reshape(al.shape[0], -1)                    # (T, 3*nbb) displacement
         T = d.shape[0]
-        # compress: PCA-L (fit on first 80% for an honest codec)
+        # compress: PCA (fit on first 80%, per-system) OR ANM (structure-only, GENERAL codec)
         h = int(T * 0.8); mean = d[:h].mean(0)
-        _, _, Vt = np.linalg.svd(d[:h] - mean, full_matrices=False); B = Vt[:args.L]
+        if args.codec == "anm":
+            B = anm(al[0], args.L, 10.0)[:, :args.L].T              # (L, 3nbb) from the reference only -- no fit
+        else:
+            _, _, Vt = np.linalg.svd(d[:h] - mean, full_matrices=False); B = Vt[:args.L]
         Z = (d - mean) @ B.T                                         # (T, L) latent
         zmu, zsd = Z[:h].mean(0), Z[:h].std(0) + 1e-6
         Zn = torch.tensor((Z - zmu) / zsd, dtype=torch.float32)      # standardised
@@ -125,7 +147,7 @@ def main():
             D = np.sqrt(((x[:, None] - x[None]) ** 2).sum(-1)); np.fill_diagonal(D, 9); return D.min()
         drift = np.linalg.norm(cac - cac[0], axis=-1).mean(-1)      # CA drift vs rollout start
         H = args.horizon
-        print(f"\n=== {dom}  nbb={bb.sum()} nCA={ca.sum()}  compress->diffuse->decode RAN, horizon={H} ===")
+        print(f"\n=== {dom}  nbb={bb.sum()} nCA={ca.sum()}  codec={args.codec.upper()}  horizon={H} ===")
         finite = np.isfinite(bbc).all()
         print(f"  finite structures: {finite}  latent L={args.L} Tdiff={args.Tdiff}")
 

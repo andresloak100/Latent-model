@@ -230,3 +230,29 @@ spring READOUT requires backprop through eigh(H(g)). Recommended decisive test:
 train spring params with the subspace loss via eigh-in-the-loop, cap training to
 smaller systems for tractability (the spring map is per-residue/shared), eval
 forward-eigh on the frozen 7. Held for the call.
+
+### FINAL VERDICT: the codec track FINISHES at ANM (reframe + usability)
+
+**ANM is not the fallback; it is the answer.** The general-codec track exists to
+serve objective 1, and ANM generalises BY CONSTRUCTION: it needs only a contact
+graph from a reference structure, so it applies to any molecule with coordinates
+(protein or not) with no fitting and no training corpus. The learned map was trying
+to beat a baseline that already satisfies the generality requirement -- losing to
+it is the track finishing, not failing. On the frozen 7, ANM already captures 78%
+of the null->ceiling range (2.63->1.01) with zero parameters; 0.36 A is the total
+remaining prize.
+
+**Usability (armf_usability.md) settles it.** After a short local relaxation,
+ANM-decoded backbones are physically valid and ~= PCA: bonds 97% vs 100%, angles
+94% vs 98%, Rama 88% vs 90%, minCA 3.85 vs 3.88 (both > 3.7). The 2x reconstruction
+gap does not survive relaxation. **Codec question CLOSES at ANM; the eigh build's
+conditional trigger did NOT fire.**
+
+**GUARD2 status:** the spring energy surrogate does not track the metric, so
+"physics prior not improvable from structure" is NOT established -- the question is
+**open-but-deprioritised on headroom grounds** (0.36 A prize, mooted by usability),
+not answered. The eigh-in-the-loop build remains the recorded conditional trigger:
+run it only if a future stricter usability test shows ANM-relaxed fails while
+PCA-relaxed passes with the transition sitting in 1.01-1.37 A.
+
+_Verdict recorded 2026-08-04 after the usability test._

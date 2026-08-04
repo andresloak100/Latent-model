@@ -852,6 +852,20 @@ relaxation before scoring** (§6.6, and the (a)-vs-(b) fork at line ~649) -- is
 decoded frames directly, because the codec cannot deliver sub-A even in principle.
 The relaxation duty cost sits next to this per-frame budget and 8.3 prices it.
 
+**The relax-before-scoring fork is now empirically validated (armf_usability.md).**
+A short local relaxation of an ANM-decoded backbone (recon 1.54 A) yields a
+physically valid structure ~= a PCA-decoded one (recon 0.71 A): bonds 97% vs 100%,
+angles 94% vs 98%, Rama 88% vs 90%, minCA 3.85 vs 3.88. So the ~1.2 A codec floor
+is not a blocker for downstream scoring -- relaxation repairs it. The codec stage
+is settled: **ANM modes are the general codec** (contact graph from any structure,
+no fit, no corpus), and they are usable after relaxation.
+
+**Cost note (list item, not a blocker): ANM diagonalisation is O(N^3).** Full
+`eigh` of the 3N x 3N Hessian is fine at the domain scale used here but infeasible
+at 1e6 atoms. The leading ~64 modes of a SPARSE Hessian (contact graph) come from
+a **Lanczos / implicitly-restarted iterative solver** at a fraction of the cost;
+this is standard and just needs to be on the build list for the simulation stage.
+
 ### 8.2 Barrier accuracy, not energy MAE -- where objectives 2 and 3 couple
 
 Barrier error enters rates **exponentially** (Arrhenius), so energy MAE can look
