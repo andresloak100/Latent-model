@@ -117,3 +117,35 @@ BACKBONE target to match the 0.99 A gate, plus CA to match the codec):
   spending anything further on the learned map.
 
 _Cross-replica gate pre-registered 2026-08-04, before it was run._
+
+### RESULT (honest temporal split; within & cross scored on the SAME held-out frames)
+
+8 domains spanning n_CA 56..482, backbone target (CA nearly identical):
+
+| ref | absolute A (backbone) | meaning |
+|---|---|---|
+| null | 3.19 | do nothing |
+| ANM | 2.23 | structure-only baseline |
+| **cross** | **1.17** | independent replica's modes -> this run (honest, cross-run) |
+| within | 0.93 | this run's own past -> its future (temporal split, ~= the 0.99 gate) |
+| overlap | 0.60 | mean cos^2 principal angle between the two replicas' L=64 subspaces |
+
+**Verdict: the STOP branch is REFUTED. The target is real.**
+- cross 1.17 is nowhere near ANM 2.23 -- it closes **82%** of the ANM->within gap.
+  Per-system PCA modes are NOT trajectory-specific noise; they transfer across an
+  independent run of the same molecule.
+- The 0.99 A step-2 gate is therefore **not a demo**: it transfers to an
+  independent replica at 1.17 A.
+- But cross != within: there is a real **+0.24 A (26%) reproducibility penalty**.
+  Independent runs sample somewhat different subspaces (finite sampling of a rough
+  landscape). That component is trajectory-specific and **unlearnable from
+  structure**, so the honest ceiling for a GENERAL structure->modes codec is
+  **cross ~1.17 A, not within 0.93** -- correcting the reference again.
+- Headroom for a learned map is real: ANM 2.23 -> cross-ceiling 1.17, ~1.06 A to
+  close. The current learned map (1.94 A CA, below ANM) is failing by OVERFITTING,
+  not because the target is noise -> the learning curve is the right next test.
+- Caveat: 4e6sA00 (n=85, high flexibility) is an outlier -- within 1.56, cross
+  2.08, even ANM 4.05; it inflates the mean. Excluding it, within/cross/ANM =
+  0.83/1.05/2.03, gap +0.22 A.
+- Outcome sits BETWEEN the two pre-registered branches (cross neither ~=within nor
+  near ANM); action is not auto-specified -- reported for the call.

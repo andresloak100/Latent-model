@@ -1,10 +1,11 @@
 """GATE: is per-system PCA a structural property, or trajectory-specific noise?
 
-mdCATH ships 5 INDEPENDENT replicas per domain at the same temperature. Fit PCA-64
-on replica 0, reconstruct replica 1's trajectory (absolute A, held-out across an
-independent run of the SAME molecule) and compare against PCA fit on replica 1
-itself (the within-trajectory ~1 A ceiling), ANM, and the null. Also report the
-principal-angle subspace overlap between the two replicas' L=64 mode sets.
+mdCATH ships 5 INDEPENDENT replicas per domain at the same temperature. Both
+`within` and `cross` are scored on the SAME honest held-out frames (rep1 second
+half) so the only difference is whose modes are used: `within` = rep1's own first
+half (temporal split, the ~1 A gate style number), `cross` = an independent replica
+(rep0). Compared against ANM and the null; plus principal-angle subspace overlap
+between the two replicas' L=64 mode sets.
 
 cross ~= within -> modes are structural; cross-molecule is the only problem.
 cross >> within, near ANM -> per-system PCA modes are trajectory-specific; a HARD
@@ -47,10 +48,9 @@ def anm(xyz, K, cutoff):
     return V[:, 6:6 + K]                                             # (3n, K) orthonormal
 
 
-def disp_mc(coords, align_mask):
+def disp_raw(coords, align_mask):
     al = kabsch(coords, align_mask)
-    d = (al - al[0]).reshape(al.shape[0], -1)
-    return d - d.mean(0), al[0]                                      # mean-removed disp, ref frame
+    return (al - al[0]).reshape(al.shape[0], -1), al[0]              # raw disp, ref frame
 
 
 def pca(dc):
@@ -58,9 +58,9 @@ def pca(dc):
     return Vt[:L].T                                                  # (3n, L) orthonormal
 
 
-def resid(dc, M):                                                    # absolute A / atom
-    rec = dc @ M @ M.T
-    return float(np.sqrt(((rec - dc) ** 2).sum() / (dc.shape[0] * (dc.shape[1] // 3))))
+def resid(ev, M):                                                    # absolute A / atom, held-out
+    rec = ev @ M @ M.T
+    return float(np.sqrt(((rec - ev) ** 2).sum() / (ev.shape[0] * (ev.shape[1] // 3))))
 
 
 # ---- gather domains with BOTH replicas present, spanning size ----
@@ -102,14 +102,19 @@ for level in ("CA", "backbone"):
                 c1 = g[TEMP][R1]["coords"][:].astype(np.float64)[:, heavy, :][:, sel, :]
         except Exception:
             continue
-        dc0, ref0 = disp_mc(c0, amask); dc1, _ = disp_mc(c1, amask)
-        M0, M1 = pca(dc0), pca(dc1)
+        d0, ref0 = disp_raw(c0, amask); d1, _ = disp_raw(c1, amask)
+        # HONEST temporal split on rep1; within and cross scored on the SAME held-out
+        # frames (rep1 second half), differing only in whose modes are used.
+        h1 = len(d1) // 2; mean1 = d1[:h1].mean(0)
+        M1 = pca(d1[:h1] - mean1)                                    # rep1's own past
+        M0 = pca(d0 - d0.mean(0))                                    # independent replica 0
+        ev = d1[h1:] - mean1                                         # rep1 future, centered by its past
         ca_ref = ref0[amask] if level == "backbone" else ref0
         Manm = anm(ca_ref, K, cutoff) if level == "CA" else anm(ref0.reshape(-1, 3), K, cutoff)
-        null = float(np.sqrt((dc1 ** 2).sum() / (dc1.shape[0] * (dc1.shape[1] // 3))))
-        within = resid(dc1, M1)                                      # fit-on-rep1 ceiling
-        cross = resid(dc1, M0)                                       # rep0 modes on rep1 (held-out)
-        r_anm = resid(dc1, Manm[:, :L])
+        null = float(np.sqrt((ev ** 2).sum() / (ev.shape[0] * (ev.shape[1] // 3))))
+        within = resid(ev, M1)                                       # rep1 past -> rep1 future (temporal split)
+        cross = resid(ev, M0)                                        # rep0 -> rep1 future (independent run)
+        r_anm = resid(ev, Manm[:, :L])
         overlap = float(((M0.T @ M1) ** 2).sum() / L)               # mean cos^2 principal angle
         rows.append((null, within, cross, r_anm, overlap))
         print(f"  {dom:9s}{nca:>5}{null:>7.2f}{within:>8.2f}{cross:>7.2f}{r_anm:>7.2f}{overlap:>8.2f}")
