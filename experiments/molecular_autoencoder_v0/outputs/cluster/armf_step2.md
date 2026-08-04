@@ -63,40 +63,48 @@ coefficient range, geometry stable to 1000 steps. Two on-record predictions
 same-system caveat stays attached: this is stability of the mechanism, not yet
 cross-system generalisation.
 
-## General config: same rollout with the ANM (general) codec -- stability degrades
+## General config: ANM (general) codec rollout -- WITHDRAWN negative (whitening artifact)
 
 Swapping the per-system PCA codec for the general ANM codec (structure-only, no
-fit) is the actual objective-1 configuration. The strong same-system stability does
-NOT transfer:
-- 2cndA01: 13% of steps have a coefficient outside the training range (vs 0% PCA),
-  5/64 modes ever out, worst excursion 1.71sd; minCA 1.67 (severe clash) at start.
-- 2e2dC02: **84% of steps out of range, ALL 64/64 modes leave range**, worst
-  excursion 6.85sd (max 19.3); minCA **0.64** (atoms overlapping) at start.
+fit) is the actual objective-1 configuration. With the DEFAULT per-mode empirical
+diagonal whitening it LOOKED unstable:
+- 2cndA01: 13% of steps outside the training range, 5/64 modes ever out, excursion 1.71sd.
+- 2e2dC02: **84% out, ALL 64/64 modes out**, excursion 6.85sd; minCA 0.64 at start.
 
-The raw ANM-decoded structures clash badly at t=0 already -- consistent with the
-usability test (ANM needs relaxation to be valid) -- and the DDPM in the ANM-latent
-space is far worse conditioned than in the trajectory-fit PCA space. So the
-ensemble-sampling stability was a same-system-PCA property; the general codec's
-rollout is materially less stable and would need the mandatory relaxation step
-(8.1) to be usable. Honest tempering of the positive.
+**This was a NORMALISATION artifact, not a codec property -- WITHDRAWN.** The layered
+whitening control below collapses the out-of-range rate to ~0% with proper whitening,
+so the "general-codec rollouts are unstable" conclusion does not stand.
 
-### Whitening control -- the negative is not a scale mismatch
+### Whitening control (diag vs full ZCA vs structure-derived ANM)
 
-The obvious explanation for "all 64 modes out" is a per-system normalisation
-mismatch. It is ruled out:
-- **Whitening is already in the pipeline.** Coefficients are standardised per
-  system, per mode (`zmu, zsd = Z[:h].mean/std`; the DDPM sees unit variance;
-  un-whitened at decode). The 13%/84%-out-of-range figures are the WHITENED result,
-  and the DDPM is trained per system, so there is no cross-system scale mismatch to
-  begin with. The negative survives the obvious explanation.
-- **Concentration:** excursions are spread across ALL 64 modes (64/64 ever-out on
-  2e2dC02) with only a mild low-index tilt (low 2.53 vs high 2.07 sd) -- not
-  concentrated in a few soft modes.
-- **Mechanism (correlation, not scale):** mean |off-diagonal coefficient
-  correlation| on the training half is **PCA 0.000 vs ANM 0.23-0.27**. PCA
-  diagonalises the covariance (decorrelated latent); ANM does not (correlated
-  latent). Per-mode whitening removes scale but NOT correlation, and the per-mode-
-  conditional DDPM handles the correlated ANM latent worse. So the general-codec
-  rollout instability is a codec-quality property (ANM does not decorrelate), not a
-  normalisation artifact -- the negative is real and stronger for surviving the
-  control.
+Which whitening is in the default pipeline: **empirical, per-system, per-mode std**
+(`zsd = Z[:h].std(0)`). So the default step-2 consumes the held-out system's own
+trajectory for whitening (and the DDPM is per-system) -- less general than "general
+codec" reads. Layered comparison (2 systems, ANM codec, horizon 1000):
+
+| whitening | 2cndA01 out-of-range | 2e2dC02 out-of-range | excursion |
+|---|---|---|---|
+| diag (empirical per-mode) | 13% | **84%** (64/64) | 1.7 / 6.9 sd |
+| zca (empirical FULL covariance) | **0%** | **0%** (1/64) | 0.5 sd |
+| anm (structure-derived sqrt(kT/lambda), ZERO trajectory) | **0%** | **0%** (1/64) | 1.2 sd |
+
+**Read:**
+- Full empirical ZCA collapses the rate to ~0% -> the instability was normalisation
+  (the diagonal whitening pathologically amplifies low-variance / stiff ANM modes,
+  whose empirical std ~ 0).
+- **The zero-parameter, structure-derived ANM whitening (1/sqrt(kT/lambda)) ALSO
+  collapses it to ~0%** -- better than the pre-registered fork (which expected only
+  empirical ZCA to work). So the fix needs NO trajectory: ANM's own eigenvalues give
+  the correct per-mode scale. This also removes the whitening's trajectory-dependence
+  -- the whitening component is now general (the DDPM training and the mean structure
+  are still per-system; a fully general pipeline needs a cross-system DDPM).
+- The earlier "correlation (PCA off-diag 0.000 vs ANM 0.23-0.27) is the mechanism"
+  reading is superseded: the correlation is real, but a DIAGONAL structure-derived
+  rescale (ANM) already stabilises the rollout, so the dominant fault was per-mode
+  SCALE of low-variance modes, not the cross-mode correlation. Full ZCA is marginally
+  tighter (0.5 vs 1.2 sd excursion) but both keep 0% out of range.
+
+**Net:** the general-codec (ANM basis) latent rollout is STABLE over 1000 steps once
+whitened by structure-derived ANM eigenvalues -- 0% of steps leave the training
+range, ~1.2sd excursion, same-system DDPM. The obj-3 ensemble-sampling result is not
+confined to the per-system PCA codec after all.
