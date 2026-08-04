@@ -192,3 +192,41 @@ plausible -- NOT by its RMSD. This is the (b) relax-before-scoring fork (ROADMAP
 8.1); run it on decoded frames once a general codec exists.
 
 _Continuation + usability pre-registered 2026-08-04, before the learning-curve number._
+
+### LEARNING-CURVE RESULT (frozen 7 test systems; CA, L=64)
+
+Fixed refs: null 2.63, ANM 1.37, cross(ceiling) 1.01, within 0.78 (ANM->cross
+headroom is only 0.36 A on this cohort).
+
+**Guards (read first):**
+- GUARD1 epoch-0 == ANM (1.37) at every train size, no wrong-way trip -> sign
+  empirically correct. PASS.
+- GUARD3 residual rigid-body content of the PCA target = 0.0000 -> tr(HC) clean. PASS.
+- **GUARD2 TRIPPED: Pearson(spring train_loss, held-out A) = -0.30 over 15 ckpts.**
+  The energy surrogate tr(HC)/tr(H) does NOT track top-64 held-out reconstruction
+  (mildly anti-correlated). Per the lock, **the spring sweep is NOT presented as a
+  valid result** -- "spring ~= ANM" cannot be read as "physics prior not
+  improvable" while the objective is the wrong surrogate.
+
+**Valid findings (not subject to GUARD2):**
+- Per-mode cross-replica capture: modes 1-8 **0.88**, 9-16 0.81, 17-32 0.70,
+  33-48 0.56, 49-64 **0.39** (mean 0.63). Confirms the leading high-variance modes
+  reproduce far better than the tail -> variance weighting is justified (req. 2).
+- **DIRECT variant (variance-weighted subspace loss, metric-aligned, valid):
+  1.49/1.49/1.47 A at 5/10/20 -- WORSE than ANM (1.37) at every size (-30..-35%
+  headroom).** Direct mode prediction overfits and loses to ANM even with variance
+  weighting; corroborates the earlier learned-below-ANM finding.
+
+**Continuation did NOT fire** (spring 6% << 30%) and GUARD2 tripped -> report and
+HOLD; no auto-pull.
+
+**Open question + pre-specified fallback.** The learner we can trust (direct,
+metric-aligned) overfits and loses to ANM; the small-class learner (spring) has an
+invalid objective. So "is the physics prior improvable from structure?" is
+UNANSWERED. The pre-specified fallback -- a variance-weighted subspace loss on
+leading modes for the SPRING variant -- is NOT a trivial reuse of the direct loss:
+the direct loss acts on A@M_anm (no eigh), whereas scoring a subspace loss on the
+spring READOUT requires backprop through eigh(H(g)). Recommended decisive test:
+train spring params with the subspace loss via eigh-in-the-loop, cap training to
+smaller systems for tractability (the spring map is per-residue/shared), eval
+forward-eigh on the frozen 7. Held for the call.

@@ -31,3 +31,25 @@ a viability blocker. The mechanism works; making it good is the next arc.
 **Next (quality, not viability):** reduce clashes (a geometry/energy term or a
 better codec), more systems + longer horizon, and the PCA-initialised-AE result
 (whether a nonlinear codec beats PCA-64) feeds back into the compress stage.
+
+## Long rollout (1000 steps) -- latents are the primary metric
+
+Cartesian saturation is decoder-forced (output = ref + sum c_i v_i is confined to
+the mode affine span), so the real obj-3 test is the LATENT coefficients vs the
+training distribution. Over 1000 steps, 2 systems:
+- **Steps with ANY coefficient outside the training [min,max]: 0%. Modes ever
+  out-of-range: 0/64.** Per-step worst-mode excursion 0.51-0.57 sd (max ~2.5 sd).
+  The conditional DDPM stays entirely inside the training manifold -- **it samples
+  an ensemble, it does not accumulate error** (obj-3's binding failure mode does
+  not appear here). Prediction that coefficients drift out of range: WRONG.
+- Drift concentration ~uniform, marginally low-index (0.16-0.18 vs 0.15-0.16 sd) --
+  no runaway band.
+- Geometry START->END stable: CA-CA 3.78->3.68 / 3.71->3.65 (native ~3.80),
+  bb-bond 1.54->1.50 / 1.52->1.48, minCA 2.83->2.83 / 2.41->2.29. Does not degrade
+  over 1000 steps (clashes persist but do not worsen). Prediction that geometry
+  degrades: WRONG.
+- Cartesian (decoder-forced, demoted): saturates ~1.4 A, as expected.
+
+Caveat: same-system rollout (trained on this trajectory's transitions), so this
+shows in-manifold stability, not cross-system generalisation. But for "ensemble
+vs error-accumulation," the latent evidence is unambiguous: ensemble.
