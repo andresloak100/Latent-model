@@ -56,7 +56,34 @@ Read 2 is confounded: P loses partly BECAUSE it collapsed, not necessarily becau
 learned allocation is worse when it engages. The P-init arm (warm-start from trained
 S+SFC + a learnable attention that can move off the spatial prior; epoch-0 == S+SFC
 by construction) separates "learned allocation < spatial" from "learned attention
-cannot escape a cold start." Running as job 10283447. Also, per ROADMAP 9.3, P-init
+cannot escape a cold start." Also, per ROADMAP 9.3, P-init
 is retained on ARCHITECTURAL grounds regardless of this sweep: the SFC segment
 assignment is time-stale (74-97% of atoms change slot, reference vs last frame, at
 L=64), so segments are the better-training-now arm but not the right long-run one.
+
+## P-init result: learned attention ACTIVELY HURTS (confound resolved)
+
+Warm-start from trained S+SFC; epoch-0 == S+SFC by construction (guard passed
+exactly). Then trained with the same schedule.
+
+| L | scalars | epoch0 (=S+SFC) | held-out A | held-out curve | G1 cos | read |
+|---|---|---|---|---|---|---|
+| 8  | 64  | 2.44 | 2.57 | 2.49->2.55->2.52->2.54->2.57 | 0.95 | degrades |
+| 16 | 128 | 2.13 | 2.24 | 2.16->2.19->2.20->2.19->2.24 | 0.89 | degrades |
+| 32 | 256 | 1.78 | 1.88 | 1.80->1.84->1.84->1.86->1.88 | 0.76 | degrades |
+| 64 | 512 | 1.26 | 1.31 | 1.26->1.26->1.27->1.28->1.31 | 0.52 | degrades |
+
+**Locked read fires: P-init DEGRADES at every budget -> learned attention actively
+hurts; the Perceiver's collapse is ARCHITECTURAL, not a cold-start optimisation
+artifact.** Given the spatial prior for free (starting AT the segment solution, no
+cold start), letting the learned attention move (G1 cos falls from ~1 toward 0.52,
+so it does move) makes reconstruction monotonically worse. This resolves the main-
+sweep confound (P losing because it collapsed): even without collapse, learned
+allocation does not beat -- and slightly hurts -- the deterministic spatial
+assignment on this task at this data scale. Magnitude is modest (a few %), and
+P-init stays far better than the collapsed pure-P, but the direction is
+unambiguous and consistent across all four budgets.
+
+Open (next control): is the segment win about SPATIAL LOCALITY or just DETERMINISM?
+S+random (segment pooling with a fixed RANDOM ordering) is the true null and
+settles it -- see below.

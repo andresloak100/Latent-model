@@ -174,8 +174,9 @@ def load_system(dom, eval_split):
     mean0 = (d0[:h] if eval_split else d0).mean(0)
     stat = ((ref - ref.mean(0)) / (ref.std(0) + 1e-6)).astype(np.float32)
     rank = morton_rank(ref)
-    out = dict(dom=dom, n=n, ref=ref, stat=stat, rank=rank, mean0=mean0,
-               d=d0, h=h, sfc=sfc_sin(rank, n))
+    rrank = np.random.RandomState(sum(ord(c) for c in dom) % (2 ** 31)).permutation(n)   # fixed random order (true null)
+    out = dict(dom=dom, n=n, ref=ref, stat=stat, rank=rank, rand=rrank, mean0=mean0,
+               d=d0, h=h, sfc=sfc_sin(rank, n), sfc_rand=sfc_sin(rrank, n))
     if eval_split:
         ev = d0[h:] - mean0; out["ev"] = ev
         out["Mpca"] = pca_modes(d0[:h] - mean0, 64)
@@ -186,9 +187,9 @@ def load_system(dom, eval_split):
     return out
 
 
-def static_feat(s, use_sfc):
+def static_feat(s, use_sfc, arm="P"):
     st = s["stat"]
-    if use_sfc: st = np.concatenate([st, s["sfc"]], 1)
+    if use_sfc: st = np.concatenate([st, s["sfc_rand"] if arm == "S+rand" else s["sfc"]], 1)
     return torch.tensor(st, dtype=torch.float32)
 
 
@@ -232,21 +233,22 @@ def main():
             if b > min(s['Manm_all'].shape[1] for s in test)]
     if caps: print(f"     NOTE ANM capped by 3N-6 on small systems: {caps}")
 
-    ASSIGN_ARMS = ("S+SFC", "P-init")
+    ASSIGN_ARMS = ("S+SFC", "S+rand", "P-init")
 
     def make_model(arm, L, use_sfc):
         sdim = 3 + (16 if use_sfc else 0)
-        if arm == "S+SFC": return Segment(sdim, L).to(dev)
+        if arm in ("S+SFC", "S+rand"): return Segment(sdim, L).to(dev)
         if arm == "P-init": return PerceiverInit(sdim, L).to(dev)
         return Perceiver(sdim, L, use_sfc).to(dev)
 
-    def assign_of(s, L):
-        return torch.tensor((s["rank"] * L // s["n"]).clip(0, L - 1), device=dev)
+    def assign_of(s, L, arm):
+        rk = s["rand"] if arm == "S+rand" else s["rank"]
+        return torch.tensor((rk * L // s["n"]).clip(0, L - 1), device=dev)
 
     def train_model(model, arm, L, use_sfc, epochs, log_every=0):
         opt = torch.optim.Adam(model.parameters(), lr=1e-3)
-        cache = {s["dom"]: (static_feat(s, use_sfc).to(dev),
-                            assign_of(s, L) if arm in ASSIGN_ARMS else None) for s in train}
+        cache = {s["dom"]: (static_feat(s, use_sfc, arm).to(dev),
+                            assign_of(s, L, arm) if arm in ASSIGN_ARMS else None) for s in train}
         hist = []
         for ep in range(epochs):
             for s in np.random.permutation(train):
@@ -268,8 +270,8 @@ def main():
     def eval_cell(model, arm, L, use_sfc):
         rmsd, zero, cos_list, slotstd = [], [], [], []
         for s in test:
-            st = static_feat(s, use_sfc).to(dev)
-            asg = torch.tensor((s["rank"] * L // s["n"]).clip(0, L - 1), device=dev) if arm in ASSIGN_ARMS else None
+            st = static_feat(s, use_sfc, arm).to(dev)
+            asg = assign_of(s, L, arm) if arm in ASSIGN_ARMS else None
             ev = torch.tensor(s["ev"].reshape(s["ev"].shape[0], s["n"], 3), dtype=torch.float32, device=dev)
             with torch.no_grad():
                 if arm in ASSIGN_ARMS:
@@ -281,10 +283,10 @@ def main():
             rmsd.append(float(torch.sqrt(((pred - ev) ** 2).sum() / (ev.shape[0] * s["n"]))))
             zero.append(float(torch.sqrt(((zpred - ev) ** 2).sum() / (ev.shape[0] * s["n"]))))
         # G1 frame-variance on ONE test system: 5 frames
-        s0 = test[0]; st = static_feat(s0, use_sfc).to(dev)
+        s0 = test[0]; st = static_feat(s0, use_sfc, arm).to(dev)
         fr = np.linspace(0, s0["ev"].shape[0] - 1, 5).astype(int)
         evc = torch.tensor((s0["ev"][fr]).reshape(5, s0["n"], 3), dtype=torch.float32, device=dev)
-        asg = torch.tensor((s0["rank"] * L // s0["n"]).clip(0, L - 1), device=dev) if arm in ASSIGN_ARMS else None
+        asg = assign_of(s0, L, arm) if arm in ASSIGN_ARMS else None
         with torch.no_grad():
             zc = model.encode(st, evc, asg) if arm in ASSIGN_ARMS else model.encode(st, evc)
         zf = zc.reshape(5, -1); zf = zf / (zf.norm(dim=1, keepdim=True) + 1e-9)
@@ -323,7 +325,7 @@ def main():
     best = None
     for b in BUD:
         L = b // DVAL
-        for arm, use_sfc in [("P", False), ("P+SFC", True), ("S+SFC", True)]:
+        for arm, use_sfc in [("P", False), ("P+SFC", True), ("S+SFC", True), ("S+rand", True)]:
             model = train_cell(arm, L, use_sfc)
             r, z, cos, sstd = eval_cell(model, arm, L, use_sfc)
             void = cos > 0.9999 or abs(r - z) < 0.02

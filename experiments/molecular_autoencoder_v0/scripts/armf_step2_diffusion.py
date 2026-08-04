@@ -49,7 +49,7 @@ def anm(xyz, K, cutoff=10.0):                                       # structure-
         np.add.at(H, (rows.ravel(), cols.ravel()), V.ravel())
     scat(I, I, b); scat(J, J, b); scat(I, J, -b); scat(J, I, -b)
     w, V = np.linalg.eigh(H)
-    return V[:, 6:6 + K]
+    return V[:, 6:6 + K], w[6:6 + K]                                # modes + eigenvalues (for ANM-predicted whitening)
 
 
 class Denoiser(nn.Module):
@@ -74,6 +74,7 @@ def main():
     ap.add_argument("--epochs", type=int, default=3000)
     ap.add_argument("--horizon", type=int, default=50)
     ap.add_argument("--codec", default="pca", choices=["pca", "anm"])   # anm = general (structure-only) codec
+    ap.add_argument("--whiten", default="diag", choices=["diag", "zca", "anm"])   # diag=per-mode std; zca=full cov; anm=sqrt(kT/lambda)
     args = ap.parse_args()
     torch.manual_seed(0)
     files = sorted(glob.glob(f"{args.data_dir}/*.h5"))[:args.n_systems]
@@ -96,14 +97,27 @@ def main():
         d = (al - al[0]).reshape(al.shape[0], -1)                    # (T, 3*nbb) displacement
         T = d.shape[0]
         # compress: PCA (fit on first 80%, per-system) OR ANM (structure-only, GENERAL codec)
-        h = int(T * 0.8); mean = d[:h].mean(0)
+        h = int(T * 0.8); mean = d[:h].mean(0); lam = None
         if args.codec == "anm":
-            B = anm(al[0], args.L, 10.0)[:, :args.L].T              # (L, 3nbb) from the reference only -- no fit
+            modes, lam = anm(al[0], args.L, 10.0); B = modes[:, :args.L].T; lam = lam[:args.L]
         else:
             _, _, Vt = np.linalg.svd(d[:h] - mean, full_matrices=False); B = Vt[:args.L]
         Z = (d - mean) @ B.T                                         # (T, L) latent
-        zmu, zsd = Z[:h].mean(0), Z[:h].std(0) + 1e-6
-        Zn = torch.tensor((Z - zmu) / zsd, dtype=torch.float32)      # standardised
+        zmu = Z[:h].mean(0); Zc = Z[:h] - zmu
+        # whitening: diag = empirical per-mode std (trajectory); zca = empirical FULL covariance
+        # (trajectory, removes cross-mode correlation); anm = structure-derived sqrt(kT/lambda) (ZERO
+        # trajectory, gamma=1, kT=0.593) -- the theoretically-correct equilibrium prediction.
+        if args.whiten == "zca":
+            C = np.cov(Zc.T) + 1e-6 * np.eye(Zc.shape[1]); w2, V2 = np.linalg.eigh(C)
+            W = V2 @ np.diag(1 / np.sqrt(w2)) @ V2.T; Winv = V2 @ np.diag(np.sqrt(w2)) @ V2.T
+            whiten = lambda X: (X - zmu) @ W; unwhiten = lambda Y: Y @ Winv + zmu
+        elif args.whiten == "anm" and lam is not None:
+            sd = np.sqrt(0.593 / np.clip(lam, 1e-8, None))          # ANM-predicted std (structure-only)
+            whiten = lambda X: (X - zmu) / sd; unwhiten = lambda Y: Y * sd + zmu
+        else:
+            zsd = Zc.std(0) + 1e-6
+            whiten = lambda X: (X - zmu) / zsd; unwhiten = lambda Y: Y * zsd + zmu
+        Zn = torch.tensor(whiten(Z), dtype=torch.float32)
 
         # diffuse: conditional DDPM p(z_{t+1} | z_t)
         m = Denoiser(args.L); opt = torch.optim.Adam(m.parameters(), lr=1e-3)
@@ -134,7 +148,7 @@ def main():
         with torch.no_grad():
             for _ in range(args.horizon):
                 z = step(z); roll.append(z)
-        Zroll = torch.cat(roll, 0).numpy() * zsd + zmu               # (H+1, L) unstandardised
+        Zroll = unwhiten(torch.cat(roll, 0).numpy())                 # (H+1, L) un-whitened
         drec = Zroll @ B + mean                                      # (H+1, 3*nbb)
         bbc = (al[0] + drec.reshape(-1, bb.sum(), 3))                # backbone coords, (H+1, nbb, 3)
 
@@ -147,7 +161,7 @@ def main():
             D = np.sqrt(((x[:, None] - x[None]) ** 2).sum(-1)); np.fill_diagonal(D, 9); return D.min()
         drift = np.linalg.norm(cac - cac[0], axis=-1).mean(-1)      # CA drift vs rollout start
         H = args.horizon
-        print(f"\n=== {dom}  nbb={bb.sum()} nCA={ca.sum()}  codec={args.codec.upper()}  horizon={H} ===")
+        print(f"\n=== {dom}  nbb={bb.sum()} nCA={ca.sum()}  codec={args.codec.upper()}  whiten={args.whiten}  horizon={H} ===")
         finite = np.isfinite(bbc).all()
         print(f"  finite structures: {finite}  latent L={args.L} Tdiff={args.Tdiff}")
 
