@@ -32,6 +32,17 @@ a viability blocker. The mechanism works; making it good is the next arc.
 better codec), more systems + longer horizon, and the PCA-initialised-AE result
 (whether a nonlinear codec beats PCA-64) feeds back into the compress stage.
 
+## Strategic read: physics solved the codec, so the learning belongs in the propagator
+
+ANM beats every learned bottleneck at matched scalars (armf_perceiver_segment.md),
+generalises by construction, costs zero parameters, and its eigenvalues even supply
+the rollout whitening (sqrt(kT/lambda)). The diffusion model -- the ONE place
+learning is irreplaceable, since physics does not hand you a transition operator --
+has had a single skeleton run. **We optimised the component that did not need ML and
+barely touched the one that does.** This governs what gets built next: effort moves
+to the propagator, and the first real test of it is ensemble validation of the
+rollout (below), not more codec work.
+
 ## Long rollout (1000 steps) -- latents are the primary metric
 
 Cartesian saturation is decoder-forced (output = ref + sum c_i v_i is confined to
