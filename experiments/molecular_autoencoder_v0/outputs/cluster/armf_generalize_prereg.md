@@ -38,9 +38,14 @@ L=64, reconstruction residual in ABSOLUTE A, against three references:
 - **learned ~= per-system PCA** -> generalisation solved; the codec is a model.
 - **ANM < learned < PCA** -> learning adds real value; report the fraction of the
   ANM->PCA gap closed.
-- **learned <= ANM** -> learning contributes nothing; **use ANM directly as the
-  general codec and say so plainly** -- a zero-parameter general codec at ~2/3 of
-  ceiling is a legitimate win for objective 4, not a failure.
+- **learned <= ANM** -> learning contributes nothing. **AMENDED (fractional-vs-
+  absolute trap, 2nd occurrence):** ANM is a win ONLY if it clears the absolute
+  accuracy bar. It does not. Every codec claim is now stated in ABSOLUTE A against
+  the passing reference, never as a fraction of ceiling:
+  - CA: ANM 1.91 A vs CA-PCA ceiling 0.84 A -- ~2.3x the ceiling error, does NOT clear.
+  - Backbone gate (what step 2 cleared): per-system PCA 0.99 A. A general codec at
+    ~2x that error is not "2/3 of ceiling is fine"; it is a codec that misses the bar.
+  "Use ANM directly" stands only if ANM reaches ~1 A absolute, which it does not.
 
 Cohort: the mdCATH 28 already downloaded. Train/test split by system.
 
@@ -72,8 +77,43 @@ decoder-forced.
   within noise (the PCA target is fit on 250 frames, so its "ground-truth" modes
   carry sampling error that caps any learned map). If learned ~= PCA -> prediction
   WRONG, generalisation solved, report loudly (largest result of the project).
+  **RESULT (CA, 20 train systems): WRONG, in a direction not considered.** Learned
+  came in at 1.94 A, BELOW ANM (1.91 A) -- the shared map OVERFIT the training
+  systems and generalised worse than plain ANM. Not "between ANM and PCA"; below
+  ANM. Same overfitting failure as the PCA-init AE. Learning-curve + cross-replica
+  gate (below) queued to decide whether the cause is too-few-systems or a noisy
+  target.
 - ROLLOUT: Cartesian drift SATURATES (decoder-forced, uninformative); coefficients
   DRIFT OUT of the training range; backbone bond/angle geometry DEGRADES start->end.
 
-_Pre-registered 2026-08-04, before building the shared map; learning curve and
-rollout-latent metrics added before their results were read._
+## GATE (run BEFORE the learning curve): is the supervision target real?
+
+Two independent methods now overfit at this data scale (PCA-init AE; shared
+ANM->PCA map, learned BELOW ANM). "Too few systems" is one reading -- the learning
+curve tests it. The other: **the supervision target is noise.** Per-system PCA
+modes fit on ~250 frames may not be a stable property of the STRUCTURE, only of
+the particular trajectory. If so, more data cannot help -- the target is not a
+function of anything the model can see. This is the reference we have optimised
+against without ever checking it.
+
+mdCATH makes it decisive and cheap: **5 independent replicas per domain at the
+same temperature, already on disk.** Per domain (several, spanning the size range;
+BACKBONE target to match the 0.99 A gate, plus CA to match the codec):
+1. Fit PCA-64 on replica 0.
+2. Reconstruct REPLICA 1's trajectory with replica 0's modes -> absolute A (cross).
+3. Compare vs: PCA fit on replica 1 itself (within-trajectory ~1 A ceiling), ANM, null.
+4. Principal-angle subspace overlap between the two replicas' L=64 mode sets.
+
+**Locked read:**
+- **cross ~= within** -> modes ARE a structural property; the generalisation
+  problem is purely cross-molecule and a learned map has real headroom. Proceed to
+  the learning curve.
+- **cross >> within, near ANM** -> per-system PCA modes are largely TRAJECTORY-
+  SPECIFIC. That is a HARD UPPER BOUND on any structure->modes codec: no map can
+  beat the reproducibility of the modes themselves. It would also mean the 0.99 A
+  gate was cleared by a codec that does not transfer across independent runs of the
+  SAME molecule -> the step-2 milestone must be restated as a demo, and the
+  learned-codec track needs rethinking, not more data. STOP and report before
+  spending anything further on the learned map.
+
+_Cross-replica gate pre-registered 2026-08-04, before it was run._
