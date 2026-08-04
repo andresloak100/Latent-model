@@ -256,3 +256,25 @@ run it only if a future stricter usability test shows ANM-relaxed fails while
 PCA-relaxed passes with the transition sitting in 1.01-1.37 A.
 
 _Verdict recorded 2026-08-04 after the usability test._
+
+## STOPPING RULE for the codec question (pre-registered before PDB pretraining)
+
+Learned attempts against ANM so far: (1) direct mode map -- below ANM; (2) spring-
+constant map -- guard-tripped / no gain; (3) Perceiver/segment AE -- all arms >= ANM,
+learned allocation hurts. PDB-scale B-factor pretraining -> mdCATH fine-tune would be
+the FOURTH.
+
+**Locked rule:** if pretraining at PDB scale (B-factor pretrain -> PCA-mode fine-tune)
+still does NOT beat ANM at matched scalars on the frozen 7 (ANM 1.37 A @ 64 scalars),
+the codec question is CLOSED -- no fifth architecture. ANM stands as the codec; effort
+stays on the propagator and (deferred) the internal-coordinate non-protein codec.
+Stated in advance so the outcome is not relitigated afterward.
+
+Design (when built): PRETRAIN structure -> per-atom fluctuation (crystallographic
+B-factors, ~1e5 PDB structures), NORMALISED PER STRUCTURE (B-factor scale tracks
+resolution/refinement; without normalisation the model learns resolution, not
+dynamics -- normalisation reported explicitly). FINE-TUNE structure -> PCA modes /
+coefficient covariance on the mdCATH training pool. EVALUATE unchanged: frozen 7,
+absolute A vs ANM at matched scalars. Caveat: B-factors mix crystal packing,
+refinement, resolution, static disorder -- fine for PRETRAINING, not a final target
+(hence pretrain-then-fine-tune, not train-on-B-factors).
