@@ -839,6 +839,19 @@ tokens. DFT escalation needs its own rate budget: a few hundred QM atoms is
 minutes to hours, so ~1e3 events per trajectory is days -- a hard cap on the event
 rate, not just on event handling.
 
+**The decode floor is ~1.2 A backbone and no codec work removes it (measured).**
+The cross-replica gate (armf_generalize_prereg.md) showed per-system PCA modes
+reconstruct an INDEPENDENT run of the same molecule at 1.17 A backbone vs 0.93 A
+for the run's own past -- the residual **0.24 A is genuinely trajectory-specific**
+(independent runs sample different sub-states of a rough landscape) and is
+therefore **unlearnable from structure**. Even a perfect structure->modes codec
+tops out at ~1.17 A. Consequence: **every downstream stage must tolerate ~1.2 A
+backbone error**, so the (b) fork below -- **loose reconstruction + a short local
+relaxation before scoring** (§6.6, and the (a)-vs-(b) fork at line ~649) -- is
+**MANDATORY, not optional**: a scorer that needs sub-A geometry cannot be fed
+decoded frames directly, because the codec cannot deliver sub-A even in principle.
+The relaxation duty cost sits next to this per-frame budget and 8.3 prices it.
+
 ### 8.2 Barrier accuracy, not energy MAE -- where objectives 2 and 3 couple
 
 Barrier error enters rates **exponentially** (Arrhenius), so energy MAE can look
