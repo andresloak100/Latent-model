@@ -161,9 +161,31 @@ as grounds to relax it after seeing the number. Whether the rule measured the
 right quantity is exactly what the CA/backbone/all-atom split probes; the split
 says backbone is only marginally better, so the rule was not merely mis-targeted.
 
-**mdCATH is the definitive next test, WITH a stride control.** mdCATH (464 frames,
-1 ns stride) lifts the T=100 rank cap AND averages out sub-ns jitter -- both raise
-compressibility and are indistinguishable unless MISATO is also subsampled to a
-1 ns stride and run through the same tier table. Add that control when redoing the
-tiers, else the mdCATH gain is uninterpretable. (Caveat: MISATO's 8 ns gives only
-~8 frames at 1 ns stride -- the control is coarse; note the limitation.)
+**Narrowed conclusion:** Arm F establishes only that **80 ps-8 ns all-atom thermal
+fluctuations are not linearly compressible into 8-32 modes at chemical accuracy.**
+It does NOT establish that slower conformational dynamics are incompressible --
+MISATO is 100 frames / ~8 ns, dominated by thermal fluctuation and small
+within-basin motion. More modes on this short signal (L=64) will not change the
+chemical conclusion (the all-atom curve is near saturation at 37/40/42%), so
+mdCATH is NOT primarily an L=64 test.
+
+**mdCATH is the next test -- for TIMESCALE REGIME.** Question: did Arm F measure
+the wrong dynamical regime? The MISATO 1 ns stride control is **RETRACTED** (8
+frames is too few for PCA). The proper control is WITHIN ONE mdCATH trajectory:
+**A = 50 frames over ~50 ns (~1 ns stride), B = 50 frames over ~464 ns (~9 ns
+stride)** -- frame count, rank ceiling, system identity, PCA conditions all
+matched, only the time window changes. Run the leak-free tier table
+(CA/backbone/all-atom/side-chain, L=8/16/32, % + A) for A and B.
+Pre-registered (see `armf_mdcath_prereg.md`): **B >> A** -> slow collective
+dynamics are more compressible, MISATO tested the wrong regime, the codec question
+reopens; **B ~= A** -> the negative generalises across timescale, a stronger
+verdict. High-temperature (450 K) trajectories are analysed SEPARATELY for the
+transition/unfolding question, not mixed into the equilibrium tier table.
+
+**Nonlinear probe (per-system, MISATO): INCONCLUSIVE.** A small nonlinear AE
+(per-system, no cross-system sharing, no static shortcut, operating in the
+train-PCA span, matched split/L) UNDERPERFORMS PCA at every L (all-atom L32: PCA
+42% vs AE 34%; CA L32: 51% vs 39%) -- but that is 50-frame OVERFITTING, not a
+nonlinear ceiling. Per pre-registration this does NOT count as a second
+independent negative; the linear-ceiling caveat stays open and the nonlinear
+question needs mdCATH's frame count.
