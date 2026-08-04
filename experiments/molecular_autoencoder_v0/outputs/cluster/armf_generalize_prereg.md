@@ -44,4 +44,36 @@ L=64, reconstruction residual in ABSOLUTE A, against three references:
 
 Cohort: the mdCATH 28 already downloaded. Train/test split by system.
 
-_Pre-registered 2026-08-04, before building the shared map._
+**Training-set-size learning curve (added, before the result).** With ~20 systems
+the "learned <= ANM" branch is ambiguous -- "learning adds nothing" vs "20 systems
+too few for a structure->correction map." Train on 5 / 10 / 20 systems, report
+held-out absolute A at each:
+- still improving at 20 -> answer is PULL MORE DOMAINS (3,293 filtered available),
+  NOT "learning doesn't help".
+- flat 10 -> 20 -> the negative is real, ANM stands as the codec.
+
+## Rollout metrics (added -- Cartesian saturation is decoder-forced)
+
+With a PCA decoder every output = ref + sum(c_i v_i), so the structure is confined
+to the modes' affine span and cannot wander while coefficients stay bounded --
+Cartesian saturation describes the DECODER's geometry, not the diffusion model.
+PRIMARY rollout metric = the LATENTS:
+- per-mode coefficient mean/std/range over 1000 steps vs the TRAINING SET's per-
+  mode statistics;
+- fraction of steps where ANY coefficient leaves the training range;
+- whether coefficient drift concentrates in low-index (slow, large-amplitude) or
+  high-index modes.
+Cartesian drift + CA-CA/geometry kept but DEMOTED; Cartesian saturation labelled
+decoder-forced.
+
+## Predictions on record (from planning)
+
+- CODEC: ANM < learned < PCA, closing LESS THAN A THIRD of the gap, possibly
+  within noise (the PCA target is fit on 250 frames, so its "ground-truth" modes
+  carry sampling error that caps any learned map). If learned ~= PCA -> prediction
+  WRONG, generalisation solved, report loudly (largest result of the project).
+- ROLLOUT: Cartesian drift SATURATES (decoder-forced, uninformative); coefficients
+  DRIFT OUT of the training range; backbone bond/angle geometry DEGRADES start->end.
+
+_Pre-registered 2026-08-04, before building the shared map; learning curve and
+rollout-latent metrics added before their results were read._

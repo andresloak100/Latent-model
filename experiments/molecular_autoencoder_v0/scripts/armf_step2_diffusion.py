@@ -124,15 +124,42 @@ def main():
         def minnb(x):
             D = np.sqrt(((x[:, None] - x[None]) ** 2).sum(-1)); np.fill_diagonal(D, 9); return D.min()
         drift = np.linalg.norm(cac - cac[0], axis=-1).mean(-1)      # CA drift vs rollout start
-        print(f"\n=== {dom}  nbb={bb.sum()} nCA={ca.sum()}  compress->diffuse->decode RAN, horizon={args.horizon} ===")
-        print(f"  latent L={args.L}, DDPM Tdiff={args.Tdiff}")
-        print(f"  CA-CA consecutive (A): mean={cad.mean():.2f} sd={cad.std():.2f}  (native ~3.80)")
-        print(f"  adjacent backbone-atom dist (A): mean={step_d.mean():.2f} sd={step_d.std():.2f}  (native ~1.3-1.5)")
-        print(f"  min CA-CA over rollout (clash proxy): {min(minnb(cac[i]) for i in range(len(cac))):.2f} A (native >~3.7)")
-        print(f"  CA drift vs rollout start: t=1 {drift[1]:.2f}A  t={args.horizon} {drift[-1]:.2f}A  "
-              f"(blow-up if monotonic->large; native fluctuation ~1-3A)")
+        H = args.horizon
+        print(f"\n=== {dom}  nbb={bb.sum()} nCA={ca.sum()}  compress->diffuse->decode RAN, horizon={H} ===")
         finite = np.isfinite(bbc).all()
-        print(f"  finite structures: {finite}  -> SKELETON {'RUNS end-to-end' if finite else 'PRODUCED NaNs'}")
+        print(f"  finite structures: {finite}  latent L={args.L} Tdiff={args.Tdiff}")
+
+        # ---- PRIMARY: latent coefficients vs the TRAINING distribution ----
+        # (Cartesian saturation is decoder-forced: output = ref + sum c_i v_i is
+        #  confined to the mode affine span; the real test is whether the diffusion
+        #  model keeps coefficients inside the training range.)
+        Ztr = Z[:h]                                                  # (h, L) training coeffs
+        tr_mu, tr_sd = Ztr.mean(0), Ztr.std(0) + 1e-6
+        tr_min, tr_max = Ztr.min(0), Ztr.max(0)
+        Zro = Zroll                                                  # (H+1, L) rollout coeffs
+        out = (Zro < tr_min) | (Zro > tr_max)
+        oor = out.any(1).mean()                                      # frac of steps ANY coeff out of range
+        modes_out = int(out.any(0).sum())                           # modes that ever leave range
+        exc = np.abs(Zro - tr_mu) / tr_sd                          # excursion in training-sigma units
+        half = args.L // 2
+        lo, hi = exc[:, :half].mean(), exc[:, half:].mean()
+        print(f"  [PRIMARY latents] per-step worst-mode excursion {exc.max(1).mean():.2f}sd (max {exc.max():.2f}sd)")
+        print(f"    steps with ANY coeff outside training [min,max]: {oor:.0%}   modes ever-out: {modes_out}/{args.L}")
+        print(f"    drift concentration: low-idx modes(0-{half-1}) {lo:.2f}sd  vs high-idx({half}-{args.L-1}) {hi:.2f}sd"
+              f"  -> {'LOW (slow, large-amplitude)' if lo > hi else 'HIGH (fast)'}")
+
+        # drift-vs-step curve (DECODER-FORCED: PCA span confines it -- not a stability result)
+        pts = [p for p in (1, 10, 50, 100, 200, 400, 800, 1000) if p <= H]
+        print("  [decoder-forced] CA drift vs start (A): " + "  ".join(f"t{p}={drift[p]:.2f}" for p in pts) +
+              "  -> " + ("SATURATES (span-confined, expected)" if drift[-1] < 1.6 * drift[min(50, H)] else "GROWS"))
+        # geometry START vs END of the rollout
+        def geo(i):
+            c = np.linalg.norm(np.diff(cac[i:i+1], axis=1), axis=-1)
+            b = np.linalg.norm(np.diff(bbc[i:i+1], axis=1), axis=-1)
+            return c.mean(), c.std(), b.mean(), b.std(), minnb(cac[i])
+        s, e = geo(1), geo(H)
+        print(f"  START(t1)  CA-CA {s[0]:.2f}+-{s[1]:.2f}  bb-bond {s[2]:.2f}+-{s[3]:.2f}  minCA {s[4]:.2f}")
+        print(f"  END(t{H})   CA-CA {e[0]:.2f}+-{e[1]:.2f}  bb-bond {e[2]:.2f}+-{e[3]:.2f}  minCA {e[4]:.2f}  (native CA-CA~3.80 bond~1.3-1.5 minCA>3.7)")
 
 
 if __name__ == "__main__":

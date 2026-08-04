@@ -75,31 +75,62 @@ sys_data.sort(key=lambda s: s["n"])
 test = sys_data[2::4]; train = [s for s in sys_data if s not in test]       # size-spanning split
 print(f"  train {len(train)} / test {len(test)} (split BY SYSTEM)")
 
-A = torch.zeros(K, L, requires_grad=True)
-with torch.no_grad():
-    A[:L] = torch.eye(L)                                       # init: ANM top-L (the free baseline)
-opt = torch.optim.Adam([A], lr=1e-2)
-Tr = [(torch.tensor(s["Manm"], dtype=torch.float32), torch.tensor(s["Mpca"], dtype=torch.float32)) for s in train]
-for ep in range(1500):
-    opt.zero_grad(); loss = 0.0
-    for Manm, Mpca in Tr:
-        Q, _ = torch.linalg.qr(Manm @ A)                      # orthonormalise predicted modes
-        loss = loss + (L - (Q.T @ Mpca).pow(2).sum())         # subspace loss (proj Frobenius)
-    (loss / len(Tr)).backward(); opt.step()
-An = A.detach().numpy()
+def train_A(subset):
+    A = torch.zeros(K, L, requires_grad=True)
+    with torch.no_grad():
+        A[:L] = torch.eye(L)                                  # init: ANM top-L (the free baseline)
+    opt = torch.optim.Adam([A], lr=1e-2)
+    Tr = [(torch.tensor(s["Manm"], dtype=torch.float32), torch.tensor(s["Mpca"], dtype=torch.float32)) for s in subset]
+    for ep in range(1500):
+        opt.zero_grad(); loss = 0.0
+        for Manm, Mpca in Tr:
+            Q, _ = torch.linalg.qr(Manm @ A)                  # orthonormalise predicted modes
+            loss = loss + (L - (Q.T @ Mpca).pow(2).sum())     # subspace loss (proj Frobenius)
+        (loss / len(Tr)).backward(); opt.step()
+    return A.detach().numpy()
 
-print(f"\n=== HELD-OUT reconstruction (absolute A, L={L}, CA) ===")
+
+def eval_held_out(An):
+    rows = []
+    for s in test:
+        ev = s["ev"]
+        r_pca = resid(ev, s["Mpca"]); r_anm = resid(ev, s["Manm"][:, :L])
+        Q, _ = np.linalg.qr(s["Manm"] @ An); r_lrn = resid(ev, Q)
+        gap = (r_anm - r_lrn) / (r_anm - r_pca) if r_anm > r_pca else float("nan")
+        rows.append((s, r_pca, r_anm, r_lrn, gap))
+    return rows
+
+
+# --- training-set-size learning curve: distinguishes "learning adds nothing"
+#     from "20 systems too few for a structure->correction map" ---
+train.sort(key=lambda s: s["n"])                              # size-spanning subsets
+print(f"\n=== LEARNING CURVE (held-out mean absolute A, L={L}, CA) ===")
+print(f"  {'train_sz':>8}{'PCA':>7}{'ANM':>7}{'learned':>8}{'gap closed':>11}")
+curve = {}
+for sz in [s for s in (5, 10, 20) if s <= len(train)]:
+    idx = np.unique(np.linspace(0, len(train) - 1, sz).round().astype(int))
+    sub = [train[i] for i in idx]
+    rows = eval_held_out(train_A(sub))
+    mp = np.mean([r[1] for r in rows]); ma = np.mean([r[2] for r in rows])
+    ml = np.mean([r[3] for r in rows]); gc = np.nanmean([r[4] for r in rows])
+    curve[sz] = (mp, ma, ml, gc)
+    print(f"  {sz:>8}{mp:>7.2f}{ma:>7.2f}{ml:>8.2f}{gc:>10.0%}")
+szs = sorted(curve); last, prev = curve[szs[-1]], curve[szs[-2]] if len(szs) > 1 else None
+if prev is not None:
+    improving = (prev[2] - last[2]) > 0.02                    # learned still dropping 10->20
+    print("  curve read: " + ("STILL IMPROVING at 20 -> PULL MORE DOMAINS (3,293 available), not 'learning doesn't help'"
+                              if improving else "FLAT 10->20 -> the negative is real, ANM stands as the codec"))
+
+# --- full detailed per-system table at the largest train size ---
+An = train_A(train)
+rows = eval_held_out(An)
+print(f"\n=== HELD-OUT reconstruction, all {len(train)} train systems (absolute A, L={L}, CA) ===")
 print(f"  {'system':9s}{'n':>5}{'null':>7}{'PCA':>7}{'ANM':>7}{'learned':>8}{'gap closed':>11}")
-rows = []
-for s in test:
+for s, r_pca, r_anm, r_lrn, gap in rows:
     ev = s["ev"]; null = float(np.sqrt((ev ** 2).sum() / (ev.shape[0] * s["n"])))
-    r_pca = resid(ev, s["Mpca"]); r_anm = resid(ev, s["Manm"][:, :L])
-    Q, _ = np.linalg.qr(s["Manm"] @ An); r_lrn = resid(ev, Q)
-    gap = (r_anm - r_lrn) / (r_anm - r_pca) if r_anm > r_pca else float("nan")
-    rows.append((r_pca, r_anm, r_lrn, gap))
     print(f"  {s['dom']:9s}{s['n']:>5}{null:>7.2f}{r_pca:>7.2f}{r_anm:>7.2f}{r_lrn:>8.2f}{gap:>10.0%}")
-mp, ma, ml = np.mean([r[0] for r in rows]), np.mean([r[1] for r in rows]), np.mean([r[2] for r in rows])
-gc = np.nanmean([r[3] for r in rows])
+mp = np.mean([r[1] for r in rows]); ma = np.mean([r[2] for r in rows])
+ml = np.mean([r[3] for r in rows]); gc = np.nanmean([r[4] for r in rows])
 print(f"\n  MEAN: PCA {mp:.2f}A  ANM {ma:.2f}A  learned {ml:.2f}A  | ANM->PCA gap closed by learned: {gc:.0%}")
 verdict = ("learned ~= PCA -> GENERALISATION SOLVED" if ml < mp + 0.05 else
            "learned <= ANM -> learning adds nothing; USE ANM as the general codec" if ml >= ma - 0.02 else
