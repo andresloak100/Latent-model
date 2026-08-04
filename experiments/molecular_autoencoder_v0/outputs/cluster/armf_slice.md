@@ -123,3 +123,44 @@ the rank cap and makes the L=64 question answerable leak-free.
 _Modal sweep (job 10279481) finishing; its trained numbers are secondary now --
 the leak-free ceiling, not the optimiser, is the binding result, and it is below
 the 50% bar at MISATO's frame budget._
+
+## Collective-vs-jitter split (leak-free, matched L, absolute A alongside %)
+
+| atom set | null A | L8 | L16 | L32 |
+|---|---|---|---|---|
+| CA-only | 1.64 | 44% (0.89A) | 47% (0.83A) | 51% (0.77A) |
+| backbone N,CA,C,O | 1.65 | 43% (0.90A) | 47% (0.84A) | 50% (0.79A) |
+| **all-atom** | 2.01 | 37% (1.23A) | 40% (1.19A) | **42% (1.15A)** |
+| side-chain | 2.32 | 35% (1.48A) | 37% (1.44A) | 39% (1.39A) |
+
+Side-chain = **66% of all-atom displacement variance** (57-71%). C-C bond ~1.54 A.
+
+**These are LINEAR ceilings (PCA-optimal), not the codec's ceiling** -- a nonlinear
+/ time-lagged (VAMP) encoder can exceed PCA on MD, usually not by 2x. So 42% is a
+serious negative signal, not a hard wall.
+
+**Absolute terms are worse than "just under a bar":** every residual is chemically
+invalid -- backbone L32 = 0.79 A (half a C-C bond), all-atom 1.15 A, side-chain
+1.39 A. Linear compression into 16-32 modes yields chemically meaningless local
+geometry at ANY threshold, backbone included. Report absolute A next to the %.
+
+**Task-misspecification hypothesis (collective + resample-able jitter): only WEAKLY
+supported, not confirmed.** Backbone/CA (50-51%) is ~9 points above all-atom (42%)
+-- the predicted direction but modest, not "well above". And side-chain is NOT
+incompressible: 39% at L32 (pure per-atom jitter would be ~0%), so side-chain
+motion is substantially collective too. On this evidence, do NOT pivot to the
+collective-in-latent / jitter-resampled architecture -- the numbers separate too
+weakly, and this was to be a MEASURED property, not a guess.
+
+**The 50% rule STAYS FAILED** on this evidence (all-atom 42% linear, 1.15 A). Its
+threshold inherited the unjustified tau=0.5 A -- recorded as weak provenance, NOT
+as grounds to relax it after seeing the number. Whether the rule measured the
+right quantity is exactly what the CA/backbone/all-atom split probes; the split
+says backbone is only marginally better, so the rule was not merely mis-targeted.
+
+**mdCATH is the definitive next test, WITH a stride control.** mdCATH (464 frames,
+1 ns stride) lifts the T=100 rank cap AND averages out sub-ns jitter -- both raise
+compressibility and are indistinguishable unless MISATO is also subsampled to a
+1 ns stride and run through the same tier table. Add that control when redoing the
+tiers, else the mdCATH gain is uninterpretable. (Caveat: MISATO's 8 ns gives only
+~8 frames at 1 ns stride -- the control is coarse; note the limitation.)
