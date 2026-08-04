@@ -65,14 +65,13 @@ Caveat: same-system rollout (trained on this trajectory's transitions), so this
 shows in-manifold stability, not cross-system generalisation. But for "ensemble
 vs error-accumulation," the latent evidence is unambiguous: ensemble.
 
-**This 1000-step in-manifold result is the strongest positive the project has
-produced.** Error accumulation over a long rollout was THE central risk for
-objective 3 (a latent that walks off its manifold decodes to garbage); the
-diffusion model instead samples an ensemble -- 0% of steps leave the training
-coefficient range, geometry stable to 1000 steps. Two on-record predictions
-(coefficients drift out of range; geometry degrades start->end) were REFUTED. The
-same-system caveat stays attached: this is stability of the mechanism, not yet
-cross-system generalisation.
+**WITHDRAWN as a positive (see armf_ensemble.md).** The 1000-step "0% out of range"
+result was read as ensemble sampling / the project's strongest positive. Ensemble
+validation showed it was VACUOUS: generated per-mode variance is ~1/3 of reference
+(collapse), autocorrelation time ~6x too short (wrong kinetics), only 18-47% of
+reference free-energy basins covered. A collapsed narrow blob trivially stays in
+range, so "0% out of range" is necessary but not sufficient and this model fails the
+sufficient test. Kept below for the record, but read it as "did not diverge", no more.
 
 ## General config: ANM (general) codec rollout -- WITHDRAWN negative (whitening artifact)
 

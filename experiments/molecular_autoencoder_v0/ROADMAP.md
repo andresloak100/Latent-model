@@ -860,11 +860,15 @@ is not a blocker for downstream scoring -- relaxation repairs it. The codec stag
 is settled: **ANM modes are the general codec** (contact graph from any structure,
 no fit, no corpus), and they are usable after relaxation.
 
-**Cost note (list item, not a blocker): ANM diagonalisation is O(N^3).** Full
-`eigh` of the 3N x 3N Hessian is fine at the domain scale used here but infeasible
-at 1e6 atoms. The leading ~64 modes of a SPARSE Hessian (contact graph) come from
-a **Lanczos / implicitly-restarted iterative solver** at a fraction of the cost;
-this is standard and just needs to be on the build list for the simulation stage.
+**Cost note (MEASURED, armf_generality_scaling.md): the eigensolve is the scaling
+bottleneck.** Full `eigh` is O(N^3). Sparse SHIFT-INVERT Lanczos (scipy eigsh) does
+return the correct leading 64 modes (matches dense to ~1e-9) BUT scales O(N^2.03) --
+the LU factorisation of a 3D-mesh Hessian has O(N^2) fill-in -- so 1e6 atoms projects
+to ~1.9e6 s (~22 days) per eigensolve and the search economics do not close (~0
+candidates/GPU-hour). The fix is a MATRIX-FREE PRECONDITIONED iterative eigensolver
+(LOBPCG + multigrid/Jacobi) that avoids the LU factorisation; not yet tested. So
+"Lanczos at a fraction of the cost" holds for correctness but NOT for scaling with
+shift-invert -- matrix-free is required and is on the build list.
 
 ### 8.2 Barrier accuracy, not energy MAE -- where objectives 2 and 3 couple
 
