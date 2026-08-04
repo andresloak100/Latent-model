@@ -956,3 +956,76 @@ persistent t=0 index)**, and graph features (WL class, canonical rank) demote fr
 **identity key** to **time-varying conditioning**. Recorded as a contract change
 at the top of `molae/graph_identity.py`. Do not implement until the reaction
 channel exists.
+
+**Amendment (simpler than freeze-at-t=0).** With a CONTENT-ADDRESSED decoder (§9)
+-- each atom's decoder query carries its own (element, reference position,
+persistent index) -- graph-derived canonical order is **no longer load-bearing for
+identity at all**. The original §9-style fear (a broken bond re-indexes atoms via
+canonical order) dissolves: don't use graph-derived order for addressing in the
+first place. Content addressing on (element, coordinates, persistent index) is
+topology-robust for free. WL/canonical order stays useful only for symmetry-aware
+METRICS, and those do not have to survive bond changes. So the fix is not "freeze
+canonical order at t=0"; it is "never address by graph-derived order."
+
+## 9. Latent architecture: position, content addressing, and the ordering caveat
+
+The atom-native Perceiver (generic slots, learned allocation) is the intended
+encoder. Four points fix why it is well-posed and where its boundary is.
+
+### 9.1 Two kinds of "position", opposite requirements
+
+INDEX position (array order) is physically meaningless; permutation-invariance with
+respect to it is **desirable**. SPATIAL position is essential and we already have
+it -- **coordinates enter as CONTENT features on each atom token, not as positional
+encodings.** Omitting positional encoding therefore loses only the arbitrary
+ordering, not the geometry. This is precisely why the Perceiver (P) arm is
+well-posed: it drops index order and keeps spatial content. (It is also why the
+key/value split matters: identity+position in the KEY sets frame-stable attention
+weights; displacement in the VALUE carries the dynamics -- a uniform pool over an
+aligned zero-mean displacement field averages to ~0, the measured frame-invariant
+bug.)
+
+### 9.2 Content addressing keeps the latent usable, for free
+
+The decoder is queried PER ATOM, each query carrying that atom's own identity
+(element, reference position, persistent index). Correspondence comes from the
+QUERY, so permutation invariance costs nothing in traceability. Consequence: the
+WL / canonical-order apparatus is **no longer load-bearing for identity** (see the
+§8.5 amendment) -- content addressing on (element, coordinates, persistent index)
+is topology-robust for free.
+
+### 9.3 SFC ordering is not time-stable -- an architectural argument for P-init
+
+Morton/Hilbert rank is computed FROM COORDINATES, so it is not stable along a
+trajectory: as atoms move, codes change and atoms reshuffle between slots, making
+the latent discontinuous in time. Pinning SFC to the REFERENCE (as the sweep spec
+does) avoids the discontinuity but inherits reference staleness -- it degrades
+under large conformational change and is undefined across a topology change.
+
+**Measured (frac of atoms whose slot assignment changes, reference vs last frame):**
+
+| system | n | CA drift A | L=8 | L=16 | L=32 | L=64 |
+|---|---|---|---|---|---|---|
+| 3a5zD02 | 64 | 1.79 | 36% | 61% | 81% | 89% |
+| 3jvvA01 | 100 | 1.60 | 22% | 38% | 59% | 74% |
+| 2k4qA00 | 156 | 11.1 | 81% | 90% | 94% | 97% |
+| 3h7lB02 | 482 | 2.57 | 39% | 60% | 71% | 83% |
+
+At L=64, 74-97% of atoms would land in a different slot -- the reference-pinned
+segment assignment is badly stale, worst where flexibility is highest. Learned
+attention over coordinate CONTENT re-weights continuously and has no such issue.
+
+So the architectural ranking is clearer than the current optimisation results
+suggest: **segments train better NOW, the Perceiver has the right long-run
+properties, and P-init gets both.** This is an architectural justification for the
+P-init arm, not merely an optimisation convenience -- **P-init must not be dropped
+even if the segment arm wins the current sweep.**
+
+### 9.4 Known boundary: absolute coordinates as content are not equivariant
+
+Attention over ABSOLUTE coordinates is not rotation- or translation-invariant. We
+get away with it only because every frame is Kabsch-aligned to the reference,
+putting everything in a canonical frame -- a **PREPROCESSING property, not an
+architectural one.** It BREAKS for multi-molecule systems, where one global
+alignment is meaningless. Relative geometry or an equivariant encoder becomes
+necessary at that point. Recorded as a known boundary, not work now.

@@ -75,8 +75,28 @@ NOT transfer:
 
 The raw ANM-decoded structures clash badly at t=0 already -- consistent with the
 usability test (ANM needs relaxation to be valid) -- and the DDPM in the ANM-latent
-space is far worse conditioned than in the trajectory-fit PCA space (the ANM basis
-does not match the trajectory's actual motions, so its coefficients are non-Gaussian
-and leave the training range). So the ensemble-sampling stability was a same-system-
-PCA property; the general codec's rollout is materially less stable and would need
-the mandatory relaxation step (8.1) to be usable. Honest tempering of the positive.
+space is far worse conditioned than in the trajectory-fit PCA space. So the
+ensemble-sampling stability was a same-system-PCA property; the general codec's
+rollout is materially less stable and would need the mandatory relaxation step
+(8.1) to be usable. Honest tempering of the positive.
+
+### Whitening control -- the negative is not a scale mismatch
+
+The obvious explanation for "all 64 modes out" is a per-system normalisation
+mismatch. It is ruled out:
+- **Whitening is already in the pipeline.** Coefficients are standardised per
+  system, per mode (`zmu, zsd = Z[:h].mean/std`; the DDPM sees unit variance;
+  un-whitened at decode). The 13%/84%-out-of-range figures are the WHITENED result,
+  and the DDPM is trained per system, so there is no cross-system scale mismatch to
+  begin with. The negative survives the obvious explanation.
+- **Concentration:** excursions are spread across ALL 64 modes (64/64 ever-out on
+  2e2dC02) with only a mild low-index tilt (low 2.53 vs high 2.07 sd) -- not
+  concentrated in a few soft modes.
+- **Mechanism (correlation, not scale):** mean |off-diagonal coefficient
+  correlation| on the training half is **PCA 0.000 vs ANM 0.23-0.27**. PCA
+  diagonalises the covariance (decorrelated latent); ANM does not (correlated
+  latent). Per-mode whitening removes scale but NOT correlation, and the per-mode-
+  conditional DDPM handles the correlated ANM latent worse. So the general-codec
+  rollout instability is a codec-quality property (ANM does not decorrelate), not a
+  normalisation artifact -- the negative is real and stronger for surviving the
+  control.
