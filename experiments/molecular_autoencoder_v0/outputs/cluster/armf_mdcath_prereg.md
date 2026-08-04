@@ -72,6 +72,27 @@ and keep only domains supporting BOTH windows**, so B is not ragged across syste
 survive the filter**; if it is a large cut, say so rather than silently shrinking
 the cohort.
 
+**Filter-bias check (adaptive-length simulation could correlate length with
+dynamics).** From the index: retained (numFrames>=451, n=3293) vs excluded
+(n=2105) are **near-indistinguishable** -- heavy 1067 vs 1113, residues 135 vs
+141, gyration range 0.21 vs 0.22, coil 44% vs 45%, alpha 33.6% vs 33.4%. Excluded
+(short) are MARGINALLY more flexible (~5% gyration range) -- the direction that
+would bias toward B~=A -- but the magnitude is negligible. Noted, proceed; not a
+stability-selected cohort.
+
+## Window C (added -- breaks span/stride coupling; leak-free L=64)
+
+A (50 fr / 50 ns / 1 ns stride) and B (50 fr / 500 ns / ~10 ns stride) differ in
+BOTH span and stride; a 10 ns stride aliases fast motion. Window **C = all 500
+frames, 1 ns stride, 250/250 split, L=8/16/32/64** breaks the coupling: A->B moves
+span+stride at fixed rank; B->C moves stride+rank at fixed span; C is best-case.
+C also gives the **leak-free L=64 test** MISATO couldn't (250-frame fit -> up to
+249 modes), checking the prediction that L=64 lands at **43-44% all-atom** in the
+thermal regime -- if it comes in much higher, the saturation argument was wrong.
+**C is reported SEPARATELY, not as the headline**, since it is not rank-matched to
+A/B. (A/B are 50 fr -> 25 fit -> rank<=24, so their L=32 is rank-capped at 24,
+matched across A and B; L=8/16 clean.)
+
 ## High-temperature (450 K) trajectories
 
 Analysed SEPARATELY for the transition/unfolding question; NOT mixed into the
