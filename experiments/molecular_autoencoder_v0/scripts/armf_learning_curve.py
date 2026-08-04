@@ -19,11 +19,12 @@ half): null / ANM / cross-replica (rep1's modes, the honest general ceiling) /
 within (rep0's own past, temporal split) / learned_spring / learned_direct.
 Headroom closed = (ANM - learned)/(ANM - cross), now well-defined (one cohort).
 Level: CA (ANM-natural; CA within/cross = 0.89/1.16 == backbone 0.93/1.17)."""
-import glob, numpy as np, torch, torch.nn as nn, h5py
+import glob, os, numpy as np, torch, torch.nn as nn, h5py
 DATA = "/network/scratch/j/jacob-junqi.tian/datasets/mdcath/data"
 L, K, CUT = 64, 128, 13.0
 TEMP, R0, R1 = "320", "0", "1"
 ALPHA = 2.0
+FROZEN = "/network/scratch/j/jacob-junqi.tian/mae_provisional/latent-model/experiments/molecular_autoencoder_v0/outputs/cluster/armf_frozen_test.txt"
 torch.manual_seed(0)
 
 
@@ -132,8 +133,18 @@ for fp in sorted(glob.glob(f"{DATA}/*.h5")):
 print(f"[curve] {len(S)} systems (both replicas), n_CA {min(s['n'] for s in S)}..{max(s['n'] for s in S)}")
 
 S.sort(key=lambda s: s["n"])
-test = S[2::4]; train = [s for s in S if s not in test]
-print(f"  train {len(train)} / test {len(test)} (split BY SYSTEM)")
+if os.path.exists(FROZEN):                                          # test set FROZEN before any new domain entered
+    frozen = [d for d in open(FROZEN).read().split() if d]
+    test = [s for s in S if s["dom"] in frozen]
+    missing = set(frozen) - {s["dom"] for s in test}
+    assert not missing, f"FROZEN test domains missing from cohort: {missing}"
+    train = [s for s in S if s["dom"] not in frozen]
+else:                                                              # first run ever: derive and persist
+    test = S[2::4]; train = [s for s in S if s not in test]
+    with open(FROZEN, "w") as fh: fh.write("\n".join(s["dom"] for s in test) + "\n")
+assert not ({s["dom"] for s in test} & {s["dom"] for s in train}), "test/train overlap"
+print(f"  train {len(train)} / test {len(test)} (test FROZEN; training pool grows only)")
+print(f"  FROZEN TEST ({len(test)}): " + " ".join(s["dom"] for s in test))
 
 # torch tensors for training
 for s in S:
@@ -232,11 +243,11 @@ print(f"\n=== LEARNING CURVE (held-out mean absolute A, CA, L={L}; {len(test)} t
 print(f"  fixed refs: null {null_m:.2f}  ANM {anm_m:.2f}  cross(ceiling) {cross_m:.2f}  within {within_m:.2f}")
 print(f"  {'train_sz':>8}{'spring':>8}{'direct':>8}{'ANM':>7}{'cross':>7}   headroom(sp/dir)  guard")
 all_ckpts = []; net20 = An20 = None
-for sz in [x for x in (5, 10, 20) if x <= len(train)]:
+for sz in [x for x in (5, 10, 20, 40, 60) if x <= len(train)]:
     idx = np.unique(np.linspace(0, len(train) - 1, sz).round().astype(int))
     sub = [train[i] for i in idx]
     net, hist, e0, tripped = train_spring(sub, tag=str(sz)); An = train_direct(sub)
-    net20, An20 = net, An
+    net20, An20, last_sz = net, An, sz
     ls = [eval_spring(net, s) for s in test]; ld = [eval_direct(An, s) for s in test]
     ls_m, ls_ko = rowstats(ls); ld_m, ld_ko = rowstats(ld)
     hs = (anm_m - ls_m) / (anm_m - cross_m); hd = (anm_m - ld_m) / (anm_m - cross_m)
@@ -251,7 +262,7 @@ print(f"\n[GUARD2] surrogate-vs-metric Pearson(train_loss, heldout_A) over {len(
       f"({'tracks -> objective valid' if r > 0.3 else 'DOES NOT TRACK -> switch to variance-weighted subspace loss on leading modes'})")
 
 # full per-system table at the largest size (reuse trained maps)
-print(f"\n=== per-system at train_sz={min(20, len(train))} (absolute A) ===")
+print(f"\n=== per-system at train_sz={last_sz} (absolute A) ===")
 print(f"  {'system':9s}{'n':>5}{'null':>7}{'ANM':>7}{'cross':>7}{'within':>8}{'spring':>8}{'direct':>8}")
 for s in test:
     print(f"  {s['dom']:9s}{s['n']:>5}{s['null']:>7.2f}{s['anm']:>7.2f}{s['cross']:>7.2f}"

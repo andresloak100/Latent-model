@@ -152,10 +152,18 @@ _Cross-replica gate pre-registered 2026-08-04, before it was run._
 
 ## Pre-authorised continuation (locked before the learning-curve number)
 
+**FROZEN HELD-OUT TEST SET (locked before any new domain enters the cohort).**
+7 systems, n_CA 64..482: **3a5zD02, 2z1kA02, 3jvvA01, 3g7dA03, 2k4qA00, 3a9lA00,
+3h7lB02** (`outputs/cluster/armf_frozen_test.txt`). New domains grow the TRAINING
+POOL only; every curve point (5/10/20/40/60) is scored on exactly these 7, so
+"still improving" cannot be a change of test set. Fresh domain selection is
+asserted disjoint from this list.
+
 **ONE branch proceeds WITHOUT waiting:**
 - spring closes **>= 30%** of the ANM->cross headroom **AND** held-out A still
-  improving from 10 -> 20 systems -> pull **~20 GB more** mdCATH domains, extend the
-  curve to 40 then 60. Report the pull size (as before), then continue.
+  improving from 10 -> 20 systems -> pull **~20 GB more** mdCATH domains (disjoint
+  from the frozen test set), extend the curve to 40 then 60. Report the pull size
+  (as before), then continue.
 
 **Every other outcome reports and HOLDS:**
 - spring gains but **FLAT 10->20** -> learning saturated; take the number.
