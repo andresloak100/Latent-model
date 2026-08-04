@@ -221,6 +221,16 @@ about the nonlinear ceiling. The linear-ceiling caveat stays OPEN; the clean tes
 is a PCA-INITIALISED AE (starts >= PCA, so any improvement is real nonlinear
 structure). Deferred, not declared.
 
+**PCA-init AE (the fair test): linear ceiling SETTLED.** Initialised AT PCA-L
+(select/place + zero nonlinear residual), trained on mdCATH Window C (250 fr,
+per-system). It DEGRADED below its PCA start at every L (all-atom L64 AE 47% vs
+PCA 63%, -16; CA 64% vs 77%, -13). Starting at PCA and getting WORSE on eval means
+the nonlinear residual only OVERFITS the 250 train frames -- no generalizable
+nonlinear structure. **PCA is the codec; nonlinearity does not beat it on the
+accessible data.** Last codec caveat closed. So step 2's compress stage = PCA-64
+on the backbone (0.99A, gate cleared); all-atom PCA-64 (1.79A) stays chemically
+invalid -> side chains are the deferred (b) lever, not a nonlinear codec.
+
 **Nonlinear probe (per-system, MISATO): INCONCLUSIVE.** A small nonlinear AE
 (per-system, no cross-system sharing, no static shortcut, operating in the
 train-PCA span, matched split/L) UNDERPERFORMS PCA at every L (all-atom L32: PCA
