@@ -1143,3 +1143,29 @@ sampling, and an "index-addressing" verdict would not condemn it there either.
    outlier draw per bucket manufacture a cross-bucket trend. Reporting therefore uses **paired
    per-system deficit ratios aggregated by MEDIAN** (each system against its own ceiling, so system
    difficulty cancels) with IQRs and a high-mobility count per bucket. Not excluded, just robust.
+
+### CORRECTION (2026-08-05): intrinsic dimensionality scales with MOBILITY, not atom count
+
+The rank90 29->57 vs N 959->23,895 trend on MISATO (apparently ~N^0.21) **does not survive
+controls**. Measured on mdCATH with 2,500 frames/domain (28 domains, all-atom, 320K, 5 replicas):
+log10(rank90) ~ b*log10(N) + c*log10(medRMSF) gives **b = +0.135 +/- 0.302 (NOT significant)** and
+**c = -1.350 +/- 0.245**, R^2 0.858 (vs 0.124 for N alone). The apparent size effect is a mediated
+confound: corr(logRMSF, logRank90) = **-0.924**, corr(logN, logRMSF) = -0.31 -- bigger proteins are
+more rigid, and rigidity (not size) raises dimensionality. Floppy domain -> one dominant collective
+motion -> rank90 15; stable domain -> diffuse thermal motion -> rank90 387, at LARGER N in one case.
+
+Also: rank90 is severely frame-censored (2-3x higher at 400 vs 79 frames; **8/28 domains still
+unconverged at 2,400 frames**), so all 79-frame values are lower bounds.
+
+**Consequence for objective 1:** the mechanism is MORE favourable than N^0.21 (dimensionality does
+not grow with atom count at fixed dynamical character), but **no numerical 1M-atom latent budget is
+licensed** -- 11x measured N range, ~130x extrapolation, and b's CI alone gives 65x uncertainty each
+way. Do not quote "rank90 ~125 at 1e6". **Plan latent budget against dynamical complexity, not atom
+count**: two systems of equal size differed 26x in required dimensionality here.
+Full writeup: outputs/cluster/armf_intrinsic_dim.md
+
+**Methodological (both corpora):** artifact screening on MAX per-atom displacement is invalid --
+max-over-atoms grows with N by extreme-value statistics and preferentially drops large systems (it
+dropped 7/8 and 8/8 of the top two MISATO buckets). Screen instead on a DETACHED step population
+(fraction of atoms above 3x the system's own p99.9). Result: **0 exclusions in either corpus**; no
+PBC unwrapping is present in MISATO or mdCATH.
