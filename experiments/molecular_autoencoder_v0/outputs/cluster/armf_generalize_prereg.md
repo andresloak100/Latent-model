@@ -311,3 +311,14 @@ A) across checkpoints -- if it doesn't track, GUARD2 again, say so, don't train 
 (3) per-structure B-factor z-normalisation stated explicitly (else the model learns
 resolution). (4) pretrain-vs-no-pretrain ablation (the whole point). Stopping rule
 unchanged: doesn't beat 1.37 A -> codec question closes.
+
+## STOPPING RULE TRIGGERED -- codec question CLOSED (2026-08-04)
+
+The B-factor track's oracle closed it BEFORE training (armf_bfactor.md): fitting springs
+PERFECTLY to the frozen-7 parent-PDB crystallographic B-factors gives oracle-B = 1.45 A,
+WORSE than ANM 1.37. Crystal B is the wrong diagonal (B-vs-MD-RMSF corr 0.01-0.73); even
+the trajectory's own diagonal (oracle-RMSF 1.26) buys only 0.11 A. A learned map <= the
+oracle, so it cannot beat ANM. Per the pre-registered stopping rule, the codec question
+is CLOSED after the 4th learned attempt. **ANM is the codec.** Effort stays on the
+propagator; the deferred non-protein codec decodes internal coordinates, not Cartesian
+fluctuation.
