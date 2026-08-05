@@ -259,3 +259,35 @@ table. Report the FRACTION of systems where the learned model beats OU on each o
 
 Report format: per-system rows (pass/fail per discriminator) -> fraction passing each ->
 fraction beating OU on the two OU-impossible discriminators. Thresholds stated at the top.
+
+## CORRECTED: variance collapse is a GLOBAL constant -> a general one-number fix (slow-mode prediction refuted)
+
+Corrected deficit measurement (gen.std/ref.std, raw space; the earlier whitened-space
+number was confounded by sqrt(kT/lambda) != empirical):
+
+| system | true deficit (mean) | slow | mid | fast | whiten ratio (emp/sd) |
+|---|---|---|---|---|---|
+| 3a5zD02 | 0.36 | 0.36 | 0.36 | 0.35 | 2.26 |
+| 3jvvA01 | 0.32 | 0.31 | 0.31 | 0.33 | 2.30 |
+| 3a9lA00 | 0.29 | 0.27 | 0.28 | 0.31 | 3.37 |
+| 2z1kA02 | 0.37 | 0.32 | 0.38 | 0.42 | 4.28 |
+| across-system | 0.33 +-13% | | flat vs mode index | | 2.3-4.3 |
+
+- **Slow-mode prediction REFUTED:** deficit is FLAT across modes (~0.33), not the predicted
+  ~5x slow-collapse (0.19 slow / 0.97 fast). Weak ~10-30% slow tilt at most. The AR(1)-
+  persistence mechanism is not the dominant cause.
+- **The ANM per-mode variance error CANCELS in whiten->un-whiten:** whitening by sd
+  injects the CV-0.42 error into Zn, the model learns Zn's shape, un-whitening by sd
+  removes it -> gen_none has the CORRECT per-mode variance shape (hence deficit flat).
+- **What remains is a single global under-scale ~0.33** (the DDPM's intrinsic under-
+  production when trained on non-unit-variance data), ~constant across systems (+-13%).
+- **A single global constant (x3 = 1/0.33) restores marginals:** varRatio 0.87/0.96/1.08/
+  1.11 -> all inside the pre-committed [0.80,1.25]. ZERO per-system parameters. GENERAL.
+
+**Correction to the prior "no general calibration works" conclusion: withdrawn.** It was
+based on the script's global-const/anm-permode variants, which targeted ANM's (wrong) sd,
+not the global under-scale. The units-rescue intuition was right in spirit -- a global
+constant -- sourced from the DDPM's under-production, not ANM's sd. The OU-residual hybrid's
+motivation (slow-mode persistence) is also refuted; not needed. Next: confirm the global
+constant on 10-15 systems (scale-up), per-system pass/fail against the pre-committed
+thresholds, + earns-its-cost vs OU.
