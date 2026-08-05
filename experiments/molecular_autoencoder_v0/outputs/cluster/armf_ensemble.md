@@ -330,3 +330,18 @@ MAGNITUDE and heavy-tail control are system-inconsistent, so it is a strong PART
 clean 'first component to pass a real acceptance test'. Remaining, concrete: consistent
 coupling-magnitude capture + heavy-tail control (both point at model capacity / training on
 the coupling structure, not the variance calibration, which is solved).
+
+## Propagator: DECLARED ADEQUATE and STOPPED (closing diagnostics)
+
+Two closing diagnostics (armf_prop_diag2): (1) lambda-conditioning -- the deficit is FLAT across
+mode index/lambda (2lkl 0.26/0.25/0.27, 3a5z 0.37/0.37/0.36, 2m1x 0.37/0.45/0.37), consistent
+with the global-constant fix; (2) lambda_min/kurtosis -- the heavy-tail kurtosis is SPREAD across
+modes (2lkl max at mode 22, NOT the softest third), so the 2lkl blow-up is a generic sampler
+heavy tail on an outlier system, not a slow-mode pathology.
+
+**Adequate for its role:** 10/10 kinetics, 10/10 transitions, 10/10 beats OU on cross-mode
+coupling, general one-constant variance fix (marginals 8/10 held-out). Strict-threshold gaps
+documented (coupling magnitude under-captured on high-coupling systems 5/10; heavy tails on a
+couple of systems). **Propagator work STOPS** -- no capacity work, v-prediction, or larger GPU
+run. Revisit only if a downstream stage proves it insufficient (the 5-of-5 bar was self-imposed,
+not tied to a validator need).

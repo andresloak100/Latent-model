@@ -72,3 +72,32 @@ deliver (a) validated pipeline, (b) event/format spec discovered by needing it, 
 trajectory. Resource note: the pilot fits in the margins (semi-empirical GFN2-xTB, CPU); the
 FULL campaign is a serious sustained-DFT allocation that needs Andres's own resources or an
 explicit arrangement on this borrowed account -- flag when the campaign decision comes.
+
+## Torsional-ANM: physics does NOT solve the ligand codec -> learned codec is necessary
+
+Torsional network model (torsional analogue of ANM): Cartesian ANM Hessian projected onto
+z-matrix torsional DOF (K=J^T H J, G=J^T J), softest L modes, reconstruct via reference
+bonds/angles + torsional displacement -> NeRF -> Cartesian. Round-trip 0.00 (geometry validated).
+Same protocol/metric as the oracle. Mean over 12 MISATO ligands, held-out:
+
+| L | Cartesian ANM | internal-coord PCA (ceiling) | TORSIONAL-ANM |
+|---|---|---|---|
+| 4 | 0.77 | 0.49 | 0.86 |
+| 8 | 0.74 | 0.42 | 0.87 |
+| 16 | 0.73 | 0.34 | 0.66 |
+
+**Pre-registered read fires (third branch): torsional-ANM is ~= or WORSE than Cartesian ANM at
+low L, far from the internal-PCA ceiling.** Inconsistent per system: matches the ceiling on some
+(1PU7 0.16 vs 0.10, 2H4G 0.26 vs 0.18, 2XYS 0.18 vs 0.10) but collapses to ~null on others (10GS
+1.43 vs 0.33, 5A0A 1.16 vs 0.32); on a few it gets WORSE with more modes (5VC6, 5A0A -- anti-
+informative harmonic modes).
+
+**So structure alone does NOT give torsional modes -- the OPPOSITE of proteins (where ANM won
+four times over).** Mechanism: the ANM contact-graph Hessian does not predict WHICH torsions are
+soft -- rotatable-bond barriers are chemical, not steric-contact, so the softest ANM-torsional
+modes are not the actually-sampled torsions. **Verdict: a LEARNED general internal-coordinate
+codec IS necessary for ligands.** The representation is right (oracle 0.49 ceiling), the physics
+baseline does not reach it (0.86), and there is real headroom (0.86 -> 0.49) for a learned map.
+This is the justified next build. (Local-geometry validity fold-in: torsional-ANM decodes have
+reference bonds/angles by construction but can clash, minD ~0.5-1.3 A; the bond/angle-deviation
+numbers had a reorder bug and will be redone cleanly with the learned codec.)
