@@ -101,3 +101,28 @@ baseline does not reach it (0.86), and there is real headroom (0.86 -> 0.49) for
 This is the justified next build. (Local-geometry validity fold-in: torsional-ANM decodes have
 reference bonds/angles by construction but can clash, minD ~0.5-1.3 A; the bond/angle-deviation
 numbers had a reorder bug and will be redone cleanly with the learned codec.)
+
+## Two ceilings: torsions carry the signal AND softness is the right knob -> build the learned map
+
+Same ligands/frames/L/metric. Mean over 12 held-out:
+
+| L | Cartesian ANM | internal PCA | torsion-only PCA | softness oracle |
+|---|---|---|---|---|
+| 4 | 0.77 | 0.49 | 0.53 | 0.72 |
+| 8 | 0.74 | 0.42 | 0.46 | 0.51 |
+| 16 | 0.73 | 0.34 | 0.39 | 0.30 |
+
+Variance split (Cartesian amplitude of each DOF alone): dihedral ~74% / angle ~20% / bond ~7%.
+
+- **Ceiling 1 (torsion-only PCA) ~= internal PCA** (0.53 vs 0.49 at L4; gap ~0.04A). Torsions carry
+  the Cartesian signal; bond/angle variance (27% internal) contributes ~0.04A (stiff, small-
+  amplitude). A torsion-only method targets ~0.53 -- nearly the full ceiling, not an unreachable one.
+- **Ceiling 2 (softness oracle) matches/beats torsion-only PCA at usable L**: L8 0.51 vs 0.46, L16
+  0.30 vs 0.39; only short at L4 (0.72 vs 0.53, diagonal param can't pick the best 4). Softness is
+  the right knob at L>=8.
+
+**VERDICT: BUILD THE LEARNED PER-TORSION-SOFTNESS MAP.** Torsions dominate, the softness
+parameterisation reaches the torsional ceiling at L>=8, and the physics baseline (torsional-ANM
+0.86) leaves large headroom to the oracle (~0.46-0.51). Learned map: per-torsion chemistry
+features -> softness -> torsional modes (diag(k), G) -> reconstruct; trained across ligands,
+eval held-out vs these ceilings.
