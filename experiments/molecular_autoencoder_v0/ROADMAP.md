@@ -1169,3 +1169,31 @@ max-over-atoms grows with N by extreme-value statistics and preferentially drops
 dropped 7/8 and 8/8 of the top two MISATO buckets). Screen instead on a DETACHED step population
 (fraction of atoms above 3x the system's own p99.9). Result: **0 exclusions in either corpus**; no
 PBC unwrapping is present in MISATO or mdCATH.
+
+### ARCHITECTURAL DIRECTION (record, do not implement): ORDERED / NESTED LATENT CODE
+
+Earned by the mobility result above: intrinsic dimensionality spans **26x at fixed N** (rank90
+15-387 across mdCATH domains of comparable size), and it is predicted by mobility, not atom count.
+A single fixed L is therefore **over-provisioned for floppy systems and under-provisioned for rigid
+ones simultaneously**. Sizing L for the worst case spends inference compute on most of the corpus
+that the corpus does not need -- which cuts directly against **objective 4 (single-GPU inference)**.
+
+Direction: an **ORDERED / NESTED latent code** -- variance-ordered slots (a variance-ordering loss)
+or Matryoshka-style nesting -- so that ONE trained model serves variable L at inference **by
+truncation**, with L chosen per system from its dynamical character rather than fixed globally.
+This also composes with the codec/propagator stack already built, since both consume a latent
+vector whose leading components would carry the most variance by construction.
+
+Not implemented, not scheduled. Recorded so the Phase-2 grid (skip connections, denoising objective,
+local-frame coordinates -- all remedies for latent UNDER-utilisation) is not confused with this,
+which is a remedy for latent MIS-allocation across systems. Measure before prescribing either.
+
+### METHODOLOGICAL RULES carried forward (both earned by errors made here)
+
+1. **`max`-over-atoms is an extreme-value statistic**, so any FIXED threshold on it is an
+   N-correlated filter BY CONSTRUCTION -- larger systems draw more extreme values and get dropped
+   preferentially. Screen on within-system relative criteria (e.g. a detached population above 3x
+   the system's own p99.9), never on a global max threshold.
+2. **An underpowered null is not evidence of no effect.** A drop-rate-vs-N regression returned
+   p=0.58 ("uniform in N") while the raw counts showed 7/8 and 8/8 of the two largest buckets being
+   dropped. The raw counts were right. Same failure shape as the n=1 GNM-vs-B r=0.38.
