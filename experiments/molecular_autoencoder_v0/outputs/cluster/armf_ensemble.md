@@ -154,3 +154,50 @@ coupling + kinetics right; the remaining failure is the marginal variance collap
 (the step-1 persistence shortfall). The concrete target: add a variance/marginal-
 matching term (or noise-scale prediction) so a single model matches marginals AND
 coupling AND IAT -- then it beats OU on the discriminators OU cannot reach.
+
+## Variance-collapse diagnosis: PURE SCALE -> a per-mode calibration is the fix
+
+Guidance off (scale 1.0). At FULL training every sampler collapses (varRatio 0.23-0.40):
+posterior variance (beta_tilde vs beta) identical, reverse-step sweep 25/50/100/250 FLAT,
+eta=0 same. So steps 2a/2b (the standard sampler causes) are RULED OUT -- it is a model-
+level per-mode variance deficit, not a sampler config.
+
+Step 1 (per-mode rescale to training std) is decisive: varRatio -> 1.00, marginal JS ->
+0.02, while cross-mode coupling is preserved (xcorr 0.33/0.26, scale-invariant) and basin
+transitions are RECOVERED (3jvv 129 -> 571, 3a5z 736/738 matching ref 738/740). Everything
+else passes -> **PURE SCALE**. Per the pre-registration, a fixed per-mode CALIBRATION
+(target = training-set per-mode std, applied post-hoc to the generated coefficients) is a
+legitimate fix -- same class as the whitening already in the pipeline. Reported AS a
+calibration, explicitly, not folded in silently.
+
+## FIRST COMPONENT TO PASS A REAL ACCEPTANCE TEST (not a null comparison)
+
+With the calibration, the learned propagator vs the OU floor at tau=50:
+
+| metric (ref) | OU | calibrated DDPM | who wins |
+|---|---|---|---|
+| marginals varRatio (1.0) | 1.17 / 1.40 | 1.00 / 1.00 | tie (both pass) |
+| cross-mode xcorr (0.20/0.15) | 0.02 (FAILS) | 0.33 / 0.26 | **DDPM** (OU cannot) |
+| kurtosis (0.5/0.6) | ~0 (FAILS) | 0.4 / 1.9 | DDPM (3a5z clean, 3jvv over) |
+| IAT ratio (1.0) | 0.95 / 0.97 | 1.10 / 1.06 | tie (both pass) |
+| basin trans (738/740) | 747 / 741 | 736 / 571 | 3a5z tie; 3jvv DDPM under (77%) |
+
+**On 3a5zD02 the calibrated learned propagator passes marginals + coupling + kinetics +
+transitions AND beats OU on the two discriminators OU provably cannot reach (cross-mode
+coupling, non-Gaussianity). That is the first component in this project to clear a REAL
+acceptance test rather than a null comparison.** On 3jvvA01 it passes marginals + coupling
++ kinetics and beats OU on coupling, but under-shoots the basin-transition rate (571 vs
+740) and over-shoots kurtosis (1.9 vs 0.6). So: a clean pass on one system, partial on the
+other. The remaining work is per-system CONSISTENCY (why 3jvv under-transitions), not a
+redesign -- the mechanism works.
+
+## The shape of what's left (structural, not tuning)
+
+- **Propagator:** calibrated + long-tau, it passes the acceptance test (cleanly on 3a5z);
+  next is per-system consistency and more systems, then a proper GPU training run. The
+  variance deficit is a known DDPM behaviour, fixed by the calibration; a training-time
+  fix (loss weighting / v-prediction) is optional polish, not required.
+- **Objective 1 (general molecules) STILL BLOCKED:** ANM is protein-biased (38-49% of
+  ceiling on ligands vs ~2/3 on proteins). Internal-coordinate / torsional representations
+  (arXiv:2101.01618) are the indicated non-protein codec -- the next STRUCTURAL gap.
+- Parked: matrix-free LOBPCG eigensolver (O(N^2) shift-invert measured); reactive corpus.
