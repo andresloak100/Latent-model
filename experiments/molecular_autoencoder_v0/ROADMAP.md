@@ -1055,3 +1055,10 @@ proteins. On MISATO ligands, a learned **graph codec** (message-passing GNN over
 
 Full writeup + guards (bond/angle exact by construction; min non-bonded 1.96 vs 2.05 A ref, no
 catastrophic clash): outputs/cluster/armf_intcoord.md.
+
+**HONEST SCOPE of both objective-1 milestones (codec + propagator transfer):** ligand-SIZED
+molecules (8-90 heavy atoms), FIXED topology (no bond changes), NANOSECOND MISATO trajectories that
+are decorrelated frame-to-frame (equilibrium ensembles, not dense dynamics). The propagator-
+transfer result is an EQUILIBRIUM-distribution transfer (marginals/coupling/non-Gaussianity);
+ligand dynamics are untestable on MISATO. These are the first objective-1 movements, not general-
+reactive-molecule generality.
