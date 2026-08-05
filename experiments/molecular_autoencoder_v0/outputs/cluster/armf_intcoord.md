@@ -151,3 +151,47 @@ generalises. Two joint causes, both must be fixed for a real codec: (1) n=8 trai
 tiny; (2) local features lack graph context. NEXT: scale to many MISATO ligands + a graph encoder
 (message passing) so each torsion's softness is predicted from its molecular neighbourhood, target
 low-L generalisation. This is the "full graph codec" branch of the pre-registered fork.
+
+## Full graph codec (GNN softness map, 142 train / 48 held-out ligands): beats ANM + GENERALISES
+
+Message-passing GNN over the molecular bond graph -> per-atom embeddings -> per-torsion softness
+(read from the 4 dihedral atoms + central-bond ring/length) -> softest-L modes of (diag(k), G) ->
+reconstruct dihedrals -> NeRF. Trained end-to-end (through eigh) on all frames of 142 ligands,
+eval on 48 HELD-OUT ligands (no per-system fit). Stabilised training (cosine LR, L={4,8}) barely
+moved held-out from the first run -> ~0.64 at L8 is real capacity, not an optimisation artifact.
+
+**GUARDS (L=8, held-out, NO relaxation) -- reported before RMSD:**
+- bond/angle deviation: **0 by construction** (reference bonds+angles reused; only dihedrals moved).
+- min non-bonded heavy-heavy distance: recon **1.96 A** vs reference 2.05 A (mean). Reconstruction
+  packs marginally tighter; no contact below the reference's own floor -- **no catastrophic clashes**.
+  (Sub-2.0A fraction 54% recon vs 33% reference; 2.0A is a soft threshold that already flags a
+  third of real frames, so this is mild tightening, not clashing.)
+
+**RMSD (absolute A, held-out frames):**
+
+| L | graph-codec train | graph-codec HELD-OUT | v1 held-out | Cartesian ANM | torsion PCA ceiling | softness oracle |
+|---|---|---|---|---|---|---|
+| 4 | 0.76 | 0.80 | 1.32 | 0.77 | 0.53 | 0.72 |
+| 8 | 0.60 | 0.64 | 1.17 | 0.74 | 0.46 | 0.51 |
+| 16 | 0.43 | 0.44 | 0.41 | 0.73 | 0.39 | 0.30 |
+
+**MILESTONE: first learned codec in this project to beat ANM AND generalise.** Train ~= held-out
+across 48 held-out molecules (0.76/0.80, 0.60/0.64, 0.43/0.44) -> the graph context + ~140
+molecules closed v1's generalisation failure (v1 L8: train 0.44 / held-out 1.17). Beats Cartesian
+ANM at L8 (0.64 < 0.74) and L16 (0.44 < 0.73, ~ceiling). **This is the OPPOSITE of the protein
+result** (where ANM beat 4 learned attempts): ligand softness is not predicted by ANM's contact
+graph but IS learnable by a GNN from molecular structure.
+
+**BOUNDARY (honest):**
+- At L4 (extreme compression) it only TIES ANM (0.80 vs 0.77) -- with 4 modes you must nail the
+  softness ranking exactly and structure-only prediction can't.
+- It does NOT reach the per-system ceilings at L4/L8 (0.64 vs torPCA 0.46 / oracle 0.51 at L8).
+  Those ceilings are fit to each test molecule's OWN trajectory; the codec predicts softness from
+  structure with ZERO test-time params. The residual gap = the system-specific part of softness
+  (conformational/environmental) that structure alone can't see. At L16 the gap nearly closes
+  (0.44 vs 0.39).
+
+**Where the codec stands:** a general, zero-test-time-param ligand codec that beats ANM at
+practical L and nearly reaches the torsional ceiling at L16. Open levers if more is wanted:
+scale ligands (used 190 of ~17k MISATO) + bigger GNN toward the L8 ceiling; or few-shot test-time
+softness adaptation to close the per-system gap (reintroduces a small per-system fit).
