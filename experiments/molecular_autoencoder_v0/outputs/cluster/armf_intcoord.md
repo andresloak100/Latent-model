@@ -126,3 +126,28 @@ parameterisation reaches the torsional ceiling at L>=8, and the physics baseline
 0.86) leaves large headroom to the oracle (~0.46-0.51). Learned map: per-torsion chemistry
 features -> softness -> torsional modes (diag(k), G) -> reconstruct; trained across ligands,
 eval held-out vs these ceilings.
+
+## Learned softness map, v1 (local features, 8 training ligands): generalises at L16, fails at L4/L8
+
+Structure-only per-torsion features (element x4 dihedral atoms, central-bond length, degrees, ring
+membership) -> shared MLP -> stiffness -> softest-L modes of (diag(k), G). Trained end-to-end
+(through eigh) on 8 ligands' torsional displacement, eval on 4 HELD-OUT ligands (no per-system fit).
+
+| L | learned train | learned HELD-OUT | softness oracle | torsion PCA | Cartesian ANM |
+|---|---|---|---|---|---|
+| 4 | 0.64 | 1.32 | 0.72 | 0.53 | 0.77 |
+| 8 | 0.44 | 1.17 | 0.51 | 0.46 | 0.74 |
+| 16 | 0.30 | 0.41 | 0.30 | 0.39 | 0.73 |
+
+- **Fits**: train tracks the oracle (0.44/0.30 at L8/16) -> softness->modes parameterisation is
+  expressive and trainable.
+- **Generalises at L16 only**: held-out 0.41 beats Cartesian ANM 0.73, near the ceilings.
+- **Fails at L4/L8**: held-out 1.17 > cANM 0.74. The softness RANKING (which few torsions are
+  softest) does not transfer from local features. With top-4/8 modes you must nail the ranking;
+  with top-16 the subspace is wide enough that exact ranking stops mattering.
+
+Diagnosis: not a dead concept (oracle says softness is right; map fits training) -- the MAP under-
+generalises. Two joint causes, both must be fixed for a real codec: (1) n=8 training molecules is
+tiny; (2) local features lack graph context. NEXT: scale to many MISATO ligands + a graph encoder
+(message passing) so each torsion's softness is predicted from its molecular neighbourhood, target
+low-L generalisation. This is the "full graph codec" branch of the pre-registered fork.
