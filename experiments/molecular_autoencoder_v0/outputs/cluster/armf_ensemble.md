@@ -201,3 +201,28 @@ redesign -- the mechanism works.
   ceiling on ligands vs ~2/3 on proteins). Internal-coordinate / torsional representations
   (arXiv:2101.01618) are the indicated non-protein codec -- the next STRUCTURAL gap.
 - Parked: matrix-free LOBPCG eigensolver (O(N^2) shift-invert measured); reactive corpus.
+
+## Prediction on record + pre-registered follow-up (before the deficit-vs-mode-index result)
+
+**Prediction:** the variance deficit will be STRONGLY MODE-DEPENDENT, concentrated in the
+SLOW modes -> the global-constant calibration FAILS. Derivation from step 1's own numbers:
+step 1 measured a ~20% persistence shortfall (a_ddpm ~= 0.8 a_ref). For AR(1), stationary
+variance ~ 1/(1-a^2), so the SAME shortfall gives very different variance deficits by mode:
+  slow  a_ref 0.96 -> a_ddpm 0.77 : variance ratio 0.19
+  fast  a_ref 0.30 -> a_ddpm 0.24 : variance ratio 0.97
+The observed aggregate 0.23-0.40 is what slow-mode-dominated averaging produces. If the
+deficit-vs-mode-index shows this shape, a single constant is the WRONG correction.
+
+**Pre-registered follow-up (conditional on a slow-mode-weighted deficit) -- preferred over
+training-time reweighting:** PREDICT THE RESIDUAL FROM A PER-MODE OU BASELINE, not the state.
+
+    z_{t+1} = OU_step(z_t) + f_theta(z_t, noise),   f trained on the residual after OU.
+
+OU reproduces per-mode persistence + marginals EXACTLY (by construction), and the learned
+model already captures the cross-mode coupling OU provably CANNOT. Compose them: the
+denoiser never has to learn near-unity autocorrelation (precisely what it fails at), so the
+persistence/variance-collapse problem DISAPPEARS rather than being reweighted around.
+Physics floor + learned correction -- the same shape as ANM+learned on the codec side,
+except here the learned part adds something OU cannot reach, which is why it is worth
+building. Cheaper than loss reweighting and better motivated. Build it IFF the deficit is
+slow-mode-weighted; report the deficit-vs-mode-index against the prediction first.
