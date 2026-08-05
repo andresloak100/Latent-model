@@ -291,3 +291,42 @@ constant -- sourced from the DDPM's under-production, not ANM's sd. The OU-resid
 motivation (slow-mode persistence) is also refuted; not needed. Next: confirm the global
 constant on 10-15 systems (scale-up), per-system pass/fail against the pre-committed
 thresholds, + earns-its-cost vs OU.
+
+## Scale-up (10 held-out systems, global c=2.87 fit on 5): promising, not a clean pass
+
+Per-system pass/fail vs the pre-committed thresholds; fractions (never a mean):
+
+| discriminator | fraction passing (n=10) |
+|---|---|
+| marginals (one global constant, fit on 5) | 8/10 |
+| kinetics (IAT ratio) | 10/10 |
+| basin transitions | 10/10 |
+| cross-mode coupling (within 2x ref) | 5/10 |
+| non-Gaussianity (|dkurt|<=0.5) | 7/10 |
+| beats OU on cross-mode coupling | 10/10 |
+| beats OU on non-Gaussianity | 4/10 |
+| ALL FIVE discriminators | 4/10 |
+
+**Consolidated:**
+- The GLOBAL-CONSTANT variance fix GENERALISES: c=2.87 fit on 5 systems -> marginals pass on
+  8/10 held-out. The corrected global-constant finding holds at scale (misses: 2lklA01 0.77
+  just under, 3g7dA03 1.57 over).
+- Dynamics generalise cleanly: kinetics 10/10, transitions 10/10.
+- The propagator BEATS OU on cross-mode coupling on ALL 10 -- it always adds the coupling OU
+  provably cannot. The 'earns its cost' criterion is met universally on coupling.
+
+**Not a clean pass (milestone NOT established):**
+- Coupling MAGNITUDE inconsistent: the DDPM adds ~0.03-0.18 coupling regardless of ref, so it
+  passes when ref coupling is low (0.16-0.20) but under-captures when ref is high (0.25-0.33)
+  -> within-2x-ref only 5/10 (beats OU everywhere, but below reference magnitude on half).
+- Heavy-tail blowups recur (the watched n=2 pattern): 2lklA01 kurtosis +37.8 -- rare large
+  excursions, not real dynamics.
+- ALL-FIVE strict pass: 4/10 (2p9xA00, 2yx1A01, 3a5zD02, 3a9lA00). (Log's 'ALL-FIVE: 10' is a
+  placeholder bug; true count 4/10 from the table.)
+
+**Verdict:** with the general one-constant variance fix, the propagator generalises on
+marginals + kinetics + transitions and beats OU on coupling on every system -- but coupling
+MAGNITUDE and heavy-tail control are system-inconsistent, so it is a strong PARTIAL, not the
+clean 'first component to pass a real acceptance test'. Remaining, concrete: consistent
+coupling-magnitude capture + heavy-tail control (both point at model capacity / training on
+the coupling structure, not the variance calibration, which is solved).
