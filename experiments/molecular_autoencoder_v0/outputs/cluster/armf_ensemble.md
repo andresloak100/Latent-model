@@ -226,3 +226,36 @@ Physics floor + learned correction -- the same shape as ANM+learned on the codec
 except here the learned part adds something OU cannot reach, which is why it is worth
 building. Cheaper than loss reweighting and better motivated. Build it IFF the deficit is
 slow-mode-weighted; report the deficit-vs-mode-index against the prediction first.
+
+## Pre-registered before the scale-up (locked; post-hoc thresholds would be worthless)
+
+### If the OU-residual hybrid is built: zero-residual control from the start
+z_{t+1} = OU_step(z_t) + f_theta(z_t, noise). Force f_theta's output to zero -> recovers
+plain OU EXACTLY. Same guard structure as epoch-0==ANM (spring map) and epoch-0==S+SFC
+(P-init): the hybrid cannot do worse than the physics floor at init, and any degradation
+is then diagnostic, not ambiguous.
+- ASSERT zero-residual output == plain OU on every discriminator, within noise.
+- LOG the full discriminator set at EVERY checkpoint, not just at the end.
+- If ANY discriminator goes BELOW its zero-residual value during training -> STOP and
+  report: the learned part is actively hurting (the exact pattern P-init showed --
+  monotonic degradation off its warm start).
+
+### Scale-up pass thresholds (PRE-COMMITTED, 10-20 held-out systems)
+Per-system pass/fail per discriminator against these fixed thresholds; then the FRACTION
+passing each (never a mean over systems). Thresholds printed at the top of the table.
+
+| discriminator | PASS if |
+|---|---|
+| marginals (varRatio) | 0.80 <= varRatio <= 1.25 |
+| cross-mode coupling (xcorr) | 0.5*ref <= gen <= 2.0*ref |
+| kinetics (IAT ratio) | 0.50 <= IAT_gen/IAT_ref <= 2.00 |
+| basin transitions | 0.50 <= gen/ref <= 2.00 |
+| non-Gaussianity (kurtosis) | \|kurt_gen - kurt_ref\| <= 0.5 ABSOLUTE (ratio unstable, ref kurt ~ 0) |
+
+**Second, SEPARATE criterion -- "earns its cost":** does the learned model BEAT OU on the
+two discriminators OU provably CANNOT reach (cross-mode coupling, non-Gaussianity)? A
+system can pass the thresholds while adding nothing over OU; different claims, both in the
+table. Report the FRACTION of systems where the learned model beats OU on each of those two.
+
+Report format: per-system rows (pass/fail per discriminator) -> fraction passing each ->
+fraction beating OU on the two OU-impossible discriminators. Thresholds stated at the top.
