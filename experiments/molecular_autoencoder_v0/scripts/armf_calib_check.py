@@ -155,10 +155,13 @@ for dom in USE:
     emp_std = Z[:h].std(0)                                       # empirical per-mode target
     m = train(torch.tensor(Zn), h, TAU)
     roll = rollout(m, torch.tensor(Zn[h:h + 1]))                # whitened generated
-    wstd = roll.std(0)                                          # per-mode deficit (target 1.0); modes slow->fast (asc lambda)
+    wstd = roll.std(0)                                          # whitened output std (confounded: whitening scale != 1)
+    gen_none = roll * sd + zmu
+    deficit = gen_none.std(0) / (Z.std(0) + 1e-9)              # TRUE per-mode raw deficit = gen.std/ref.std; modes slow->fast
+    whiten_ratio = float((Z[:h].std(0) / sd).mean())          # whitening accuracy: 1.0 if sqrt(kT/lambda) matched empirical
     th = L // 3
-    slow, midb, fast = wstd[:th].mean(), wstd[th:2*th].mean(), wstd[2*th:].mean()
-    defic.append((dom, wstd.mean(), wstd.std() / wstd.mean(), wstd, slow, midb, fast))
+    slow, midb, fast = deficit[:th].mean(), deficit[th:2*th].mean(), deficit[2*th:].mean()
+    defic.append((dom, deficit.mean(), deficit.std() / deficit.mean(), deficit, slow, midb, fast, whiten_ratio))
     rc = roll - roll.mean(0)
     cals = {
         "none": roll * sd + zmu,
@@ -166,16 +169,16 @@ for dom in USE:
         "anm-permode": rc / (wstd + 1e-9) * sd + zmu,            # target sqrt(kT/lambda)  (ZERO-PARAM)
         "emp-permode": rc / (wstd + 1e-9) * emp_std + zmu,       # target empirical (per-system MD)
     }
-    print(f"\n=== {dom} (nCA {ca.sum()})  whitened-output deficit: mean {wstd.mean():.2f} (target 1.0), "
-          f"across-mode CV {wstd.std()/wstd.mean():.2f}; by mode-index slow {slow:.2f} / mid {midb:.2f} / fast {fast:.2f} ===")
+    print(f"\n=== {dom} (nCA {ca.sum()})  TRUE deficit gen/ref: mean {deficit.mean():.2f} (target 1.0), "
+          f"by mode-index slow {slow:.2f} / mid {midb:.2f} / fast {fast:.2f}; whitening ratio(emp/sd) {whiten_ratio:.2f} ===")
     print(f"  {'calibration':14s}{'varRatio':>9}{'xcorr':>7}{'kurt':>6}{'iatR':>6}{'trG/R':>10}")
     for name, gen in cals.items():
         b = bench(gen, ref, top2, thr, TAU)
         print(f"  {name:14s}{b['vr']:>9.2f}{b['xc']:>7.2f}{b['kurt']:>6.1f}{b['iat']:>6.2f}{b['tr']:>5.0f}/{b['trr']:<4.0f}")
-print("\n=== CHECK 2: deficit DISTRIBUTION ===")
-print(f"  {'system':9s}{'mean':>6}{'slow':>6}{'mid':>6}{'fast':>6}")
-for dom, m_, cv, w, s, mm, ff in defic:
-    print(f"  {dom:9s}{m_:>6.2f}{s:>6.2f}{mm:>6.2f}{ff:>6.2f}")
+print("\n=== CHECK 2: TRUE deficit (gen.std/ref.std) DISTRIBUTION ===")
+print(f"  {'system':9s}{'mean':>6}{'slow':>6}{'mid':>6}{'fast':>6}{'whiten':>8}")
+for dom, m_, cv, w, s, mm, ff, wr in defic:
+    print(f"  {dom:9s}{m_:>6.2f}{s:>6.2f}{mm:>6.2f}{ff:>6.2f}{wr:>8.2f}")
 ms = np.array([x[1] for x in defic]); gm = ms.mean()
 within = np.all(np.abs(ms - gm) / gm < 0.10)
 print(f"  across-SYSTEM: mean {gm:.2f}, spread +/-{100*max(np.abs(ms-gm))/gm:.0f}% (min {ms.min():.2f} max {ms.max():.2f})"
