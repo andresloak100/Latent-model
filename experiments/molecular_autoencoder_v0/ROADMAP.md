@@ -1033,3 +1033,25 @@ putting everything in a canonical frame -- a **PREPROCESSING property, not an
 architectural one.** It BREAKS for multi-molecule systems, where one global
 alignment is meaningless. Relative geometry or an equivariant encoder becomes
 necessary at that point. Recorded as a known boundary, not work now.
+
+## MILESTONE (2026-08-05): first objective-1 movement -- general LIGAND codec
+
+Objective 1 (general molecules) has moved for the first time; every prior codec result was
+proteins. On MISATO ligands, a learned **graph codec** (message-passing GNN over the bond graph
+-> per-torsion softness -> softest-L modes of (diag(k), G) -> NeRF) is a **general ligand codec**:
+
+- **Beats Cartesian ANM** at L8 (held-out 0.64 vs 0.74 A) and L16 (0.44 vs 0.73 A).
+- **Generalises across held-out ligands**: train ~= held-out (L8 0.60/0.64; L16 0.43/0.44) over
+  48 held-out molecules -- zero test-time params.
+- Measured against a **per-trajectory-fit ceiling** (softness oracle 0.51 / torsion-PCA 0.46 at
+  L8) that **no general method can reach by construction** (the ceiling sees each test molecule's
+  own trajectory). The L4/L8 residual gap is **documented-and-accepted**, not a failure; it is the
+  system-specific part of softness that structure alone cannot predict. At L16 the gap nearly
+  closes (0.44 vs 0.39).
+- **Opposite of the protein result** (where ANM beat 4 learned attempts): ligand softness is not
+  predicted by ANM's contact graph but IS learnable by a GNN.
+- **Scaling headroom on record**: trained on **190 of ~17k MISATO ligands** with a small GNN.
+  Whenever the L8 ceiling gap matters, more ligands + a bigger model is the untried lever.
+
+Full writeup + guards (bond/angle exact by construction; min non-bonded 1.96 vs 2.05 A ref, no
+catastrophic clash): outputs/cluster/armf_intcoord.md.

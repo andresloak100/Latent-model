@@ -41,3 +41,30 @@ opts (~10-50 SCF/frame, ~50-200 frames/path). Per-path DFT ~hours-days; corpus ~
 the pilot fit in the margins (xtb, CPU, sub-second); the full campaign is a serious sustained-DFT
 allocation that needs Andres's own resources or an explicit arrangement -- NOT fundable silently
 on a borrowed account. Raise at the campaign go/no-go.
+
+## DECISION BLOCK for Andres -- reactive campaign go/no-go (figures, not a recommendation)
+
+**Measured (GFN2-xTB, this pilot):** single-point 0.11 s / 4-atom H2O2; 20-step bond-dissociation
+scan 0.28 s / 4 atoms, 23 MB.
+
+**Extrapolation to one realistic reactive trajectory (assumptions explicit):**
+- system: ~50 heavy-atom reactive site / QM region (ASSUMPTION);
+- path: ~100-300 optimised frames per reactive event, ~10-30 SCF/frame (ASSUMPTION);
+- xtb scaling O(N^2-N^3): xtb single-point ~0.5-1 s at 50 atoms -> **xtb ~1-10 min / trajectory**.
+
+**xtb -> DFT scaling factor: ESTIMATED ~1e2-1e3x** (hybrid DFT e.g. B3LYP/def2-TZVP vs GFN2-xTB;
+grows with system size). **NOT measured** -- no DFT code installed (no psi4/orca/cp2k module,
+venv has no pip). Timing a real DFT single-point needs a module request or a $SCRATCH install; that
+is the one missing figure and it is a prerequisite, flagged.
+
+**Implied DFT cost / trajectory:** (1-10 min) x (1e2-1e3) = **~2 h to ~1 week per trajectory**.
+
+**Implied corpus cost (size per ROADMAP 8.4 -- enzyme / condensed-phase active-site events,
+a GENERATION problem, ~1e3-1e4 reactive trajectories):**
+- at ~2 h/traj (optimistic DFT, small system): 1e3-1e4 traj -> **~2e3-2e4 CPU-hours (~0.2-2 CPU-yr)**;
+- at ~1 week/traj (large system / dense path): -> **~1e5-1e6 CPU-hours (~10-100 CPU-yr)**.
+
+**Assumptions behind the extrapolation:** QM region size (50 atoms), frames/event (100-300),
+SCF/frame (10-30), xtb->DFT factor (1e2-1e3, unmeasured), corpus size (1e3-1e4 trajectories,
+per 8.4's "generation problem" framing since no public enzyme-reactive corpus exists). QM/MM (not
+pure DFT) would change the per-frame cost. **No further reactive work until Andres decides.**
