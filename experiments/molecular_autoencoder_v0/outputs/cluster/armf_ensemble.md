@@ -121,3 +121,36 @@ basin-hopping appears. Report it as such rather than forcing a learned win.
 Then step 3: tau = 1/10/50/100 ns, per-layer (FiLM) conditioning, delta-vs-absolute
 ablation, DDPM vs OU at MATCHED lag, with the step-1 conditioning guard as a standing
 report, and steps-to-1ms (= 1e6/tau_ns) at each tau.
+
+## Step 3 result: strengthened benchmark discriminates; learned model captures coupling, collapses marginals
+
+Reference has real structure OU cannot produce: xcorr 0.15-0.20, amplitude coupling
+0.09-0.10, kurtosis 0.5-0.6. The "OU is enough" branch does NOT fire -- learning target
+is real. Two systems, tau=1/10/50/100, FiLM conditioning, delta/absolute.
+
+| model | marginals (std) | cross-mode xcorr (ref 0.15-0.20) | amp (ref ~0.1) | kurt (ref 0.5-0.6) | IAT ratio | steps->1ms |
+|---|---|---|---|---|---|---|
+| OU | 1.2-1.4 (good) | 0.02 (FAILS) | 0.02 (FAILS) | ~0 (FAILS) | ->1 at long tau | 1e6..1e4 |
+| DDPM-absolute | 0.17-0.45 (COLLAPSE) | 0.24-0.33 (captures) | 0.12-0.19 (captures) | 0.2-5.6 (variable) | ->1 at long tau | 1e6..1e4 |
+| DDPM-delta | 5.4 / unstable | 0.05-0.25 | 0.79-0.97 (spurious) | -1.8..15 | 0.1-12 (wild) | -- |
+
+**Findings:**
+- The strengthened benchmark WORKS: OU provably fails cross-mode coupling + amplitude
+  coupling + non-Gaussianity (all ~0 by construction), while the reference has them.
+  So OU is a floor on marginals/kinetics but NOT a complete model -- a learned
+  propagator is needed for the coupling. (Pre-registered "no learned needed" branch
+  refuted.)
+- **DDPM-absolute captures the coupling OU cannot** (xcorr 0.24-0.33 vs OU 0.02) and
+  matches IAT at long tau -- but COLLAPSES the marginals (std 0.2-0.45). Neither model
+  wins both: OU marginals, DDPM coupling+kinetics.
+- **delta parameterisation is unstable** (random-walk: std 5.4 at tau=1, IAT 12x at
+  tau=10) -- confirms the delta+drift prediction; absolute is the better parameterisation.
+- **Longer tau helps** (IAT ratio 0.14->~1 from tau=1->100 for both OU and DDPM-absolute)
+  AND cuts steps-to-1ms from 1e6 to 1e4 -- accuracy and objective 3 improve together.
+- Conditioning guard: DDPM-absolute cg 0.6-1.6 (live); delta cg 1.6-5.8 (over-amplifying).
+
+**Next for the propagator:** absolute-parameterisation, long-tau DDPM already gets
+coupling + kinetics right; the remaining failure is the marginal variance collapse
+(the step-1 persistence shortfall). The concrete target: add a variance/marginal-
+matching term (or noise-scale prediction) so a single model matches marginals AND
+coupling AND IAT -- then it beats OU on the discriminators OU cannot reach.
