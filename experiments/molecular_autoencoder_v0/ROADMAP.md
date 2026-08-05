@@ -1071,9 +1071,22 @@ measured over 400 complexes). Temporal split 80/20 -> PCA-64 is fit on ~80 frame
 the frame rank. G7 pre-check (armf_phase1_g7precheck.py), held-out FVE, temporal split:
 - PCA-64 **train** FVE 0.94-0.98 (rank-SATURATED); **held-out** FVE only 0.33-0.61; train-vs-held-out
   gap **+0.31 to +0.69**. Signal rank90 = 40-56 (comparable to 64, not << it).
-=> the L=64 ceiling is a rank artifact on MISATO; the deficit-ratio read is void. This is exactly
-the error that made the earlier L=64 extrapolation wrong. **MISATO cannot support arbitrary-L at
-L=64.** (It remains fine for L<=~24, well below the 79-frame rank.)
+=> the L=64 ceiling is a rank artifact on MISATO; the deficit-ratio read is void -- the same error
+that made the earlier L=64 extrapolation wrong.
+
+**RULE (general, any corpus): L must stay below ~30% of usable rank**, where usable rank = frames
+surviving the temporal split. Below 20% is solidly clean; 20-30% is the deliberate edge; above ~50%
+the PCA ceiling is frame-limited and the deficit-ratio read is void. MISATO is not dead as a
+corpus -- only for large L.
+
+MISATO instantiated (100 frames/complex, 80/20 split -> 79 usable):
+- L=12 -> 15% of rank, clean
+- L=24 -> 30% of rank, deliberate upper slope-test point
+- L=64 -> 81% of rank, VOID (the G7 negative above)
+
+Phase-1 MISATO run therefore uses **L in {12, 24}**. Two L values guard the low-L confound: matching
+deficit-ratio-vs-N slopes mean the slope is a property of the addressing scheme; diverging slopes
+mean bottleneck saturation and the single-L version would have fooled us.
 
 **Corpus switch for Phase 1: mdCATH.** 500 frames/replica (5 temperatures x 5 replicas/domain) ->
 400 train frames, L=64 at 16% of frame rank, G7 clean. Heavy-atom spread 11.3x (342-3869, med 904)
