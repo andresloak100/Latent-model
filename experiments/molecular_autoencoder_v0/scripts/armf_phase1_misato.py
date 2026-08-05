@@ -82,7 +82,8 @@ def load():
         rp = ((ref - ref.mean(0)) / (ref.std() + 1e-6)).astype(np.float32)
         stat = np.concatenate([oh, rp], 1)
         picked[b].append(dom)
-        data.append(dict(dom=dom, bucket=b, N=N, dw=dw, stat=stat, h=h, T=T, ref=ref,
+        mag = np.linalg.norm(disp, axis=-1); rmsf = float(np.median(np.sqrt((mag ** 2).mean(0))))
+        data.append(dict(dom=dom, bucket=b, N=N, dw=dw, stat=stat, h=h, T=T, ref=ref, rmsf=rmsf,
                          disp=disp.astype(np.float64), scale=scale))
         if all(len(picked[b]) >= PERB[b] for b in BUCKETS): break
     return data
@@ -130,7 +131,8 @@ def train_eval(data, L):
         h = d["h"]; mo = model_fve(m, d, h, d["T"])
         trd = d["disp"][:h].reshape(h, -1); hod = d["disp"][h:].reshape(d["T"]-h, -1); mu = trd.mean(0)
         pca = pca_fve(trd, hod, mu, L); anm = anm_fve(d["ref"], hod, mu, L)
-        rows.append(dict(dom=d["dom"], bucket=d["bucket"], N=d["N"], model=mo, pca=pca, anm=anm))
+        rows.append(dict(dom=d["dom"], bucket=d["bucket"], N=d["N"], model=mo, pca=pca, anm=anm,
+                         rmsf=d["rmsf"], gap=pca-mo, ratio=(pca-mo)/pca if pca > 1e-6 else np.nan))
     return m, tr, he, rows, tr_fve
 
 
@@ -161,21 +163,45 @@ for L in LS:
     print(f"\n=== L={L} (G7: {L}/79 = {L/79*100:.0f}% of usable rank, clean) | train-FVE {trf:.2f} (adequacy) ===", flush=True)
     print(f"  GUARDS: G1 frame-cos {g['g1']:.3f} (<0.99 pass) | G4 base {g['base']:.2f}->zero {g['zero']:.2f} (must collapse) | "
           f"G6 perm {g['g6']:.2f} vs base {g['base']:.2f} (must match)", flush=True)
-    print(f"  {'bucket':14s}{'nsys':>5}{'medN':>7}{'model':>7}{'PCA':>6}{'ANM':>6}{'deficit':>9}", flush=True)
+    # RAW numbers first (median [IQR] -- paired per-system, robust to the ~8% high-mobility tail
+    # whose ceilings run 3-4x bucket-typical and would swing ratio-of-means aggregation)
+    print(f"  {'bucket':14s}{'n':>3}{'medN':>7}{'modelFVE':>19}{'ceiling(PCA)':>19}{'ANM':>6}{'absGAP':>8}{'ratio':>7}{'hiMob':>6}", flush=True)
     for b in BUCKETS:
         br = [r for r in rows if r["bucket"] == b]
         if not br: continue
-        mo = np.mean([r["model"] for r in br]); pc = np.mean([r["pca"] for r in br]); an = np.nanmean([r["anm"] for r in br])
-        dr = (pc-mo)/pc if pc > 0 else float('nan')
-        print(f"  {str(b):14s}{len(br):>5}{int(np.median([r['N'] for r in br])):>7}{mo:>7.2f}{pc:>6.2f}{an:>6.2f}{dr:>9.2f}", flush=True)
+        mo = np.array([r["model"] for r in br]); pc = np.array([r["pca"] for r in br])
+        gp = np.array([r["gap"] for r in br]); rt = np.array([r["ratio"] for r in br])
+        an = np.nanmean([r["anm"] for r in br]); hm = sum(1 for r in br if r["rmsf"] > 3.0)
+        q = lambda a: f"{np.median(a):.3f}[{np.percentile(a,25):.2f},{np.percentile(a,75):.2f}]"
+        anm_s = "  n/a" if not np.isfinite(an) else f"{an:>6.2f}"
+        print(f"  {str(b):14s}{len(br):>3}{int(np.median([r['N'] for r in br])):>7}{q(mo):>19}{q(pc):>19}{anm_s}"
+              f"{np.median(gp):>8.3f}{np.nanmedian(rt):>7.2f}{hm:>6}", flush=True)
 
-print("\n=== DEFICIT-RATIO-vs-N (the experiment) ===", flush=True)
-for L in LS:
-    rows = allrows[L]; drs = []
+print("\n=== DEFICIT-RATIO-vs-N (the experiment) -- AMENDED RULE: ratio AND absolute gap must agree ===", flush=True)
+print("  arbitrary-L SURVIVES : ratio span <1.3x AND absolute-gap growth <0.02 FVE", flush=True)
+print("  INDEX-ADDRESSING     : ratio span >2.0x AND absolute-gap growth >0.03 FVE", flush=True)
+print("  NEITHER (ceiling compression / cannot discriminate): ratio >2x but absolute growth <0.02", flush=True)
+for L in LS:                                                     # L=12 leads (LS = [12, 24])
+    rows = allrows[L]; rs, gs, ns = [], [], []
     for b in BUCKETS:
         br = [r for r in rows if r["bucket"] == b]
         if not br: continue
-        mo = np.mean([r["model"] for r in br]); pc = np.mean([r["pca"] for r in br]); drs.append((pc-mo)/pc if pc > 0 else np.nan)
-    v = [x for x in drs if np.isfinite(x) and x > 0]; span = max(v)/min(v) if len(v) > 1 else float('nan')
-    print(f"  L={L}: " + " ".join(f"{x:.2f}" for x in drs) + f"  | span {span:.2f}x", flush=True)
-print("  read: span <1.3x -> content-addressed, arbitrary-L survives. >2x -> index-addressing. slopes must match across L.", flush=True)
+        rs.append(np.nanmedian([r["ratio"] for r in br])); gs.append(np.median([r["gap"] for r in br]))
+        ns.append(int(np.median([r["N"] for r in br])))
+    v = [x for x in rs if np.isfinite(x) and x > 0]
+    span = max(v)/min(v) if len(v) > 1 else float('nan')
+    growth = gs[-1]-gs[0]; gspan = max(gs)-min(gs)
+    print(f"\n  L={L}  (G7 {L}/79 = {L/79*100:.0f}% of rank)", flush=True)
+    print(f"    ratio by bucket : " + " ".join(f"{x:.2f}" for x in rs) + f"   -> SPAN {span:.2f}x", flush=True)
+    print(f"    absGAP by bucket: " + " ".join(f"{x:.3f}" for x in gs) +
+          f"   -> growth(lowN->highN) {growth:+.3f}, max-min {gspan:.3f} FVE", flush=True)
+    if span < 1.3 and gspan < 0.02: v_ = "ARBITRARY-L SURVIVES (content-addressed)"
+    elif span > 2.0 and gspan > 0.03: v_ = "INDEX-ADDRESSING (will not reach 1M atoms)"
+    elif span > 2.0 and gspan < 0.02: v_ = "NEITHER -- ceiling compression, task cannot discriminate at this L"
+    else: v_ = "IN BETWEEN -- report the number, no verdict"
+    print(f"    VERDICT: {v_}", flush=True)
+print("\n  NOTE: the PCA ceiling itself falls ~2.2x across the N range (0.59->0.27 at L=24; rank90 29->57),", flush=True)
+print("  so raw model FVE MUST fall with N for reasons unrelated to addressing -- that is what the ratio", flush=True)
+print("  normalises. Corollary: the absolute-gap criterion is lenient at high N by construction (the gap", flush=True)
+print("  cannot exceed a ~0.27 ceiling), so ratio carries the discriminating power at high N, absolute at low N.", flush=True)
+print("  Slopes must match at L=12 and L=24; if they diverge it is bottleneck saturation, not addressing.", flush=True)

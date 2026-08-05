@@ -1115,3 +1115,31 @@ MISATO's (4k,8k) bucket, so its role is a **frame-rich replication at low-to-mid
 check the deficit-ratio trend is not a 79-frame artifact), NOT the high-N arm.
 **mdCATH stores `element` at domain level** (per-atom array beside `coords`) -- static atom identity
 is read directly, no derivation and no ordering-desync risk.
+
+### SCOPE LIMIT on the arbitrary-L result (written BEFORE the result exists, 2026-08-05)
+
+Measured PCA ceilings on MISATO held-out frames (temporal split, all-atom), median over 3
+complexes/bucket: PCA-12 0.50/0.37/0.28/0.21/0.21/0.24 and PCA-24 0.59/0.45/0.34/0.26/0.24/0.27
+across buckets (700,1k)...(16k,32k); signal rank90 rises 29 -> 57 with N.
+
+**The displacement field over 100 frames of ns-scale MISATO MD is genuinely low-dimensional
+(~24-57 modes carry it).** Whatever the arbitrary-L test shows about L-independence therefore holds
+**FOR THAT REGIME ONLY**. It says nothing about multi-millisecond trajectories, where the accessible
+conformational space is far richer and the intrinsic dimensionality is NOT ~24. **Objective 3
+(multi-millisecond timescales) is untouched by this result in either direction** -- a "content-
+addressed, arbitrary-L survives" verdict does not license extrapolating L=12-24 to long-timescale
+sampling, and an "index-addressing" verdict would not condemn it there either.
+
+**Two measurement properties that constrain how the result may be read:**
+1. **The ceiling FALLS ~2.2x across the N range** (0.59 -> 0.27 at L=24). The task genuinely gets
+   harder with N (more atoms -> more independent local modes at fixed 79 frames). Raw model FVE
+   must therefore fall with N for reasons unrelated to addressing; the deficit RATIO normalises
+   this, raw FVE does not. Corollary: the absolute-gap criterion is **lenient at high N by
+   construction** (gap cannot exceed a ~0.27 ceiling), so ratio carries the discriminating power at
+   high N and absolute gap at low N -- they are not symmetric across the axis.
+2. **Per-system ceiling heterogeneity is large and mobility-driven**: ~8% of complexes have a
+   dominant large-amplitude motion (e.g. 1CBR, median RMSF 5.05 A vs typical 1.2 A) giving PCA-24
+   ceilings of 0.92 vs bucket-typical 0.25 -- 3-4x. Aggregating as ratio-of-means would let the
+   outlier draw per bucket manufacture a cross-bucket trend. Reporting therefore uses **paired
+   per-system deficit ratios aggregated by MEDIAN** (each system against its own ceiling, so system
+   difficulty cancels) with IQRs and a high-mobility count per bucket. Not excluded, just robust.
