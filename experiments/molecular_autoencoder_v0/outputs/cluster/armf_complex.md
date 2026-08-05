@@ -36,12 +36,15 @@ exactly valid, not grossly violated.
   ~0.03-0.18 to strong coupling"): the coupling is weak enough that the joint captures it fully,
   even slightly over (-0.021). That weakness is a strong-coupling phenomenon.
 - **BUT the joint model loses on marginals** (2/8 vs independent 8/8), and a refit c does NOT fix
-  it (deficit is non-uniform, one constant insufficient). Cause: the 16-dim joint DDPM is data-
-  starved on MISATO (T=100 -> ~79 training pairs); two 8-dim models fit their marginals far
-  better on the same data. This is a capacity/data limit, not a fundamental one.
-- So the choice is objective-dependent: **independent** for marginal fidelity, **joint** if the
-  weak cross-block coupling matters downstream. With longer trajectories the joint would likely
-  recover its marginals and dominate; on MISATO's 100 frames it does not.
+  it (deficit is non-uniform, one constant insufficient). Cause: this joint DDPM was trained on ONE
+  complex's ~79 pairs. **This is a CORPUS-USE limit, not a corpus-length limit** -- the propagator
+  is trained ACROSS systems by design (pooled pairs), and MISATO has ~17k complexes. Training the
+  same 16-dim model across 500-5,000 complexes gives 4e4-4e5 pairs. Correction to the earlier
+  framing: nothing about MISATO's 100-frame trajectories blocks this; the fix is corpus SCALE, and
+  it is available now.
+- Resolved by the corpus-scale learning curve (armf_complex_scale.md): whether the joint recovers
+  marginals at 10-50x the complexes decides "joint wins outright" vs "independent for marginals,
+  joint when coupling matters".
 
 ## c calibration: mechanism transfers, value is regime-specific (third data point)
 joint-fit c = **1.34** (protein 2.87, ligand 1.03). A single global constant remains the shape of
