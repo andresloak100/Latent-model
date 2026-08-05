@@ -1062,3 +1062,21 @@ are decorrelated frame-to-frame (equilibrium ensembles, not dense dynamics). The
 transfer result is an EQUILIBRIUM-distribution transfer (marginals/coupling/non-Gaussianity);
 ligand dynamics are untestable on MISATO. These are the first objective-1 movements, not general-
 reactive-molecule generality.
+
+## NEGATIVE (2026-08-05): MISATO frame counts cannot support the arbitrary-L measurement at L=64
+
+Phase-1 arbitrary-L scaling test (N atom tokens -> L=64 latent slots -> N atom outputs) needs a
+per-system PCA-L ceiling with a temporal split. **MISATO has exactly 100 frames/complex** (uniform,
+measured over 400 complexes). Temporal split 80/20 -> PCA-64 is fit on ~80 frames, i.e. 64/79 of
+the frame rank. G7 pre-check (armf_phase1_g7precheck.py), held-out FVE, temporal split:
+- PCA-64 **train** FVE 0.94-0.98 (rank-SATURATED); **held-out** FVE only 0.33-0.61; train-vs-held-out
+  gap **+0.31 to +0.69**. Signal rank90 = 40-56 (comparable to 64, not << it).
+=> the L=64 ceiling is a rank artifact on MISATO; the deficit-ratio read is void. This is exactly
+the error that made the earlier L=64 extrapolation wrong. **MISATO cannot support arbitrary-L at
+L=64.** (It remains fine for L<=~24, well below the 79-frame rank.)
+
+**Corpus switch for Phase 1: mdCATH.** 500 frames/replica (5 temperatures x 5 replicas/domain) ->
+400 train frames, L=64 at 16% of frame rank, G7 clean. Heavy-atom spread 11.3x (342-3869, med 904)
+> the 4x floor, so the 1.3x/2x deficit-ratio thresholds are meaningful. Caveats on record: only 28
+domains; high-N tail is THIN (3 domains in 2-4k heavy, 0 above 3869); single proteins, not
+complexes; N tops at ~3.9k heavy (not 8k). The scaling axis is 11x but pinned low-mid-N.
