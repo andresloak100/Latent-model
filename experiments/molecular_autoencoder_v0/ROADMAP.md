@@ -1197,3 +1197,29 @@ which is a remedy for latent MIS-allocation across systems. Measure before presc
 2. **An underpowered null is not evidence of no effect.** A drop-rate-vs-N regression returned
    p=0.58 ("uniform in N") while the raw counts showed 7/8 and 8/8 of the two largest buckets being
    dropped. The raw counts were right. Same failure shape as the n=1 GNM-vs-B r=0.38.
+
+### G8 CONVERGENCE GUARD (added 2026-08-05) -- mandatory, same standing as G1/G4/G6/G7
+
+A fixed step budget can produce a FALSE "index-addressing" verdict. If large-N systems converge more
+slowly than small-N ones -- the DEFAULT expectation, since more atom tokens means more
+cross-attention work per system -- the deficit ratio grows with N for pure OPTIMISATION reasons and
+would be misread as the architecture failing to reach 1M atoms.
+
+**G8:** train to a PLATEAU, not a step count. Patience-based early stop on held-out FVE; every
+bucket must show <1% relative improvement over the final 25% of steps; a bucket that has not
+plateaued is **VOID FOR THAT BUCKET** and excluded from the regression rather than included.
+Steps-to-plateau is reported PER BUCKET and regressed on N.
+
+**Steps-to-plateau vs N is a finding in its own right, belonging to objective 4:** training cost
+scaling with system size is exactly what "spend training compute to buy inference efficiency" must
+be priced against. Not a footnote.
+
+Related sampler fix found while implementing this: FRAMES_PER_STEP was memory-budgeted
+(`300000//N`), giving small systems 80 frames/step and large systems 13 -- the same
+undertraining-at-high-N artifact G8 exists to catch, baked into the sampler. Now CONSTANT across N.
+
+Also fixed in the same pass: the model was trained to predict RAW displacement while being scored
+against a TRAIN-MEAN-CENTERED denominator, so it had to additionally learn each complex's drift --
+work the PCA ceiling gets for free (its reconstruction is mu + projection). Predicting ~0 against a
+centered denominator yields FVE ~ -1, which is exactly what the first run produced. Input, target
+and metric are now all centered, making the model's task identical to PCA's.
