@@ -46,3 +46,29 @@ oracle changed the picture as oracles have every time this project ran one. Next
 internal-coordinate codec (or, given PCA already does this well, an internal-coord PCA codec
 + the propagator on the torsional latent) -- and the same acceptance discipline (held-out
 ligands, absolute A, vs the oracle ceiling here).
+
+## Pre-build checks (dihedral periodicity, rings) + design decisions
+
+**Dihedral periodicity -- confirmed handled.** The oracle used sin/cos encoding (to_internal
+returns [bonds, angles, sin(dih), cos(dih)]; reconstruction via atan2), and 0.49/0.77 are
+CARTESIAN RMSD after NeRF round-trip (not internal RMSE). Necessity verified: 12/12 sampled
+ligands have torsions that cross +-pi in their trajectory, so raw-dihedral PCA would have been
+wrong. The result stands.
+
+**Rings -- the common case, already handled; rule stated.** 10/12 ligands are cyclic (up to 7
+rings). The oracle breaks rings via a BFS spanning tree from atom 0 (non-tree edges = ring-
+closure bonds are dropped from the internal-coord set); round-trip 0.000 confirms the tree
+fully determines Cartesian, and any imperfect ring closure on PCA-reconstruction shows up IN
+the Cartesian RMSD (so 0.49 is honest about rings). **Ring-breaking rule for the codec (stated
+up front):** deterministic BFS spanning tree from a canonical root, dropping non-tree bonds;
+closure error measured as the reconstruction Cartesian RMSD. Refinement option if closure error
+proves large: add the ring-closure bonds as redundant internal features so the codec can
+enforce closure. Decide once, apply to every molecule.
+
+**Reactive-corpus pilot -- tooling.** No QM code is installed (no xtb/psi4/pyscf/ase; the venv
+lacks pip/ssl). Pilot needs the xtb static binary fetched to $SCRATCH (curl, no pip). Pilot is
+PILOT-not-campaign per Andres: one reaction family, a handful of trajectories, modest theory;
+deliver (a) validated pipeline, (b) event/format spec discovered by needing it, (c) cost per
+trajectory. Resource note: the pilot fits in the margins (semi-empirical GFN2-xTB, CPU); the
+FULL campaign is a serious sustained-DFT allocation that needs Andres's own resources or an
+explicit arrangement on this borrowed account -- flag when the campaign decision comes.
