@@ -1093,3 +1093,25 @@ mean bottleneck saturation and the single-L version would have fooled us.
 > the 4x floor, so the 1.3x/2x deficit-ratio thresholds are meaningful. Caveats on record: only 28
 domains; high-N tail is THIN (3 domains in 2-4k heavy, 0 above 3869); single proteins, not
 complexes; N tops at ~3.9k heavy (not 8k). The scaling axis is 11x but pinned low-mid-N.
+
+### Corpus sizing for the arbitrary-L scaling axis (measured 2026-08-05)
+
+**N-AXIS CONVENTION: ALL-ATOM including hydrogens** -- model input, PCA ceiling, ANM baseline and
+the regression N-axis are all counted this way (what the model consumes; what the 1M-atom objective
+counts). NOTE: earlier ligand/protein codec work used HEAVY-atom counts; the two are not mixed
+silently. ANM baselines are skipped above 10k atoms (eigensolver cost) and reported NaN, not faked.
+
+**MISATO (all-atom):** min 673, median 4,977, **max 40,530**. Availability at stride-2 (8,486
+complexes scanned): (700,1k) 18 | (1k,2k) 410 | (2k,4k) 1,970 | (4k,8k) 3,935 | (8k,16k) 1,717 |
+(16k,32k) 416; 434 complexes >=16k, 18 >=32k. Realized bucket span ~20x -- ample power for the
+1.3x/2x deficit-ratio thresholds. **MISATO is the only corpus here with real N-range.**
+
+**mdCATH:** 5,398 domains, 500 frames/replica x 5 temperatures x 5 replicas. File size is a VALID
+atom-count proxy -- calibrated on all 28 local domains, bytes = 327,232*atoms - 7.84e6, **R^2 =
+0.9944**, residual mean 3.2% / max 17.4% (=> frames/temps uniform corpus-wide). **Projected max
+~7,520 all-atom (~3,685 heavy); ZERO domains above 8,000 all-atom at any download volume.**
+=> mdCATH cannot supply a high-N arm. Under the all-atom convention its 7.5k ceiling sits inside
+MISATO's (4k,8k) bucket, so its role is a **frame-rich replication at low-to-mid N** (useful to
+check the deficit-ratio trend is not a 79-frame artifact), NOT the high-N arm.
+**mdCATH stores `element` at domain level** (per-atom array beside `coords`) -- static atom identity
+is read directly, no derivation and no ordering-desync risk.
