@@ -34,12 +34,12 @@ from scipy import stats
 from scipy.spatial import cKDTree
 from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import eigsh
-MD = "/network/scratch/j/jacob-junqi.tian/datasets/misato/MD.hdf5"
+MDC = "/network/scratch/j/jacob-junqi.tian/datasets/mdcath/data/*.h5"   # CAPACITY AXIS runs on mdCATH
 WR = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace"
-CACHE = f"{WR}/phase1_data_v2.pkl"; RESJSON = f"{WR}/phase1_dm_rows.json"
-BUCKETS = [(700, 1000), (1000, 2000), (2000, 4000), (4000, 8000), (8000, 16000), (16000, 32000)]
-PERB = {(700, 1000): 36, (1000, 2000): 48, (2000, 4000): 48, (4000, 8000): 48, (8000, 16000): 48, (16000, 32000): 48}
-LS = [1]; DMS = [16, 64, 256, 512]; ANM_MAXN = 6000   # L=1 fixed; DM is the CAPACITY AXIS.
+CACHE = f"{WR}/mdcath_dm_data.pkl"; RESJSON = f"{WR}/phase1_dm_rows.json"
+BUCKETS = [(700, 1200), (1200, 2000), (2000, 3500), (3500, 8000)]      # mdCATH all-atom spans 711-7,524
+PERB = {b: 99 for b in BUCKETS}      # take every available mdCATH domain (28 local)
+LS = [1]; DMS = [16, 64, 256, 512]; ANM_MAXN = 4000   # L=1 fixed; DM is the CAPACITY AXIS.
 # "One global latent per frame, width independent of atom count." L=1 x DM is a DM-DIMENSIONAL
 # code -- NOT one number. For a 1M-atom system that is 3e6 coordinates -> DM floats per frame.
 # DM range sized by the rank90 asymptote (median 168, range 13-500, mobility-driven not N-driven).
@@ -59,7 +59,7 @@ LS = [1]; DMS = [16, 64, 256, 512]; ANM_MAXN = 6000   # L=1 fixed; DM is the CAP
 # not one number. Judge L=1 on flatness of the deficit ratio in N, not on its absolute FVE.
 FRAMES_PER_STEP = 8                     # CONSTANT across N (was memory-budgeted -> N-correlated undertraining)
 COMPETENCE = 0.05   # early stopping is gated on this
-MAXSTEPS = 150000; EVAL_EVERY = 1000; PATIENCE = 5; PLATEAU_TOL = 0.01; RANKVOID = 0.30 * 79
+MAXSTEPS = 150000; EVAL_EVERY = 1000; PATIENCE = 5; PLATEAU_TOL = 0.01; RANKVOID = 0.30 * 1999      # mdCATH: 2000 train frames -> PCA-k valid to k~600, covering DM=512
 np.random.seed(0); torch.manual_seed(0)
 dev = "cuda" if torch.cuda.is_available() else "cpu"
 ELEMS = [1, 6, 7, 8, 16, 15, 9, 17]
@@ -75,29 +75,51 @@ def kabsch_traj(traj):
 
 
 def load():
+    """mdCATH, 320K, 5 replicas concatenated -> 2,500 frames (2,000 train / 500 held-out).
+    ALL-ATOM. Same centred-displacement convention as the MISATO run so the protocol matches, but the
+    two axes are measured on DIFFERENT CORPORA and absolute numbers must NOT be cross-compared."""
+    import glob
     if os.path.exists(CACHE):
-        d = pickle.load(open(CACHE, "rb")); print(f"  loaded cache ({len(d)} complexes)", flush=True); return d
-    f = h5py.File(MD, "r"); picked = {b: [] for b in BUCKETS}; data = []
-    for dom in list(f.keys()):        # stride 1: the (700,1000) bucket is supply-limited
-        g = f[dom]; el = np.array(g["atoms_element"]); N = len(el)
-        b = next((b for b in BUCKETS if b[0] <= N < b[1] and len(picked[b]) < PERB[b]), None)
-        if b is None: continue
-        co = np.array(g["trajectory_coordinates"]).astype(np.float64)
-        eln = np.array(g["atoms_number"]); al = kabsch_traj(co); ref = al[0]
-        disp = al - ref; T = len(disp); h = 80
-        mu = disp[:h].mean(0)                                   # TRAIN-frame mean (static per system)
-        dc = disp - mu                                          # CENTERED -- same object PCA reconstructs
-        scale = float(np.sqrt((dc[:h] ** 2).sum(-1).mean()) + 1e-6)
-        oh = np.zeros((N, len(ELEMS) + 1), np.float32)
-        for a in range(N): oh[a, ELEMS.index(int(eln[a])) if int(eln[a]) in ELEMS else -1] = 1.0
-        rp = ((ref - ref.mean(0)) / (ref.std() + 1e-6)).astype(np.float32)
-        mag = np.linalg.norm(disp, axis=-1)
-        picked[b].append(dom)
-        data.append(dict(dom=dom, bucket=b, N=N, h=h, T=T, scale=scale,
-                         stat=np.concatenate([oh, rp], 1), dc=dc.astype(np.float32),
-                         ref=ref.astype(np.float32), rmsf=float(np.median(np.sqrt((mag ** 2).mean(0))))))
-        if all(len(picked[bb]) >= PERB[bb] for bb in BUCKETS): break
+        d = pickle.load(open(CACHE, "rb")); print(f"  loaded cache ({len(d)} domains)", flush=True); return d
+    data = []
+    for fp in sorted(glob.glob(MDC)):
+        try:
+            ff = h5py.File(fp, "r"); dom = list(ff.keys())[0]; g = ff[dom]
+            T0 = sorted([k for k in g.keys() if k.isdigit()], key=int)[0]
+            reps = sorted(g[T0].keys(), key=lambda x: int(x))
+            ref = np.array(g[T0][reps[0]]["coords"][0]).astype(np.float64); N = len(ref)
+            b = next((b for b in BUCKETS if b[0] <= N < b[1]), None)
+            if b is None: ff.close(); continue
+            al = np.concatenate([kabsch_traj_to(np.array(g[T0][r]["coords"]).astype(np.float64), ref)
+                                 for r in reps], 0)
+            eln = np.array(g["element"])
+            eln = np.array([int(x) if not isinstance(x, bytes) else 0 for x in eln]) if eln.dtype == object else eln
+            ff.close()
+            disp = al - ref; T = len(disp); h = int(T * 0.8)
+            mu = disp[:h].mean(0); dc = disp - mu
+            scale = float(np.sqrt((dc[:h] ** 2).sum(-1).mean()) + 1e-6)
+            oh = np.zeros((N, len(ELEMS) + 1), np.float32)
+            for a in range(N):
+                e = int(eln[a]) if a < len(eln) else 0
+                oh[a, ELEMS.index(e) if e in ELEMS else -1] = 1.0
+            rp = ((ref - ref.mean(0)) / (ref.std() + 1e-6)).astype(np.float32)
+            mag = np.linalg.norm(disp, axis=-1)
+            data.append(dict(dom=dom, bucket=b, N=N, h=h, T=T, scale=scale,
+                             stat=np.concatenate([oh, rp], 1), dc=dc.astype(np.float32),
+                             ref=ref.astype(np.float32), rmsf=float(np.median(np.sqrt((mag ** 2).mean(0))))))
+            print(f"    {dom} N={N} T={T} h={h}", flush=True)
+        except Exception as e:
+            print(f"    {fp.split('/')[-1]}: skipped ({type(e).__name__}: {e})", flush=True)
     pickle.dump(data, open(CACHE, "wb")); return data
+
+
+def kabsch_traj_to(traj, ref):
+    rc = ref.mean(0); Q = ref - rc; out = np.empty_like(traj)
+    for t in range(len(traj)):
+        P = traj[t]; pc = P.mean(0); Pc = P - pc
+        U, S, Vt = np.linalg.svd(Pc.T @ Q); dd = np.sign(np.linalg.det(Vt.T @ U.T))
+        out[t] = (P - pc) @ (Vt.T @ np.diag([1, 1, dd]) @ U.T).T + rc
+    return out
 
 
 def ceilings(d, DMS):                                           # PCA-DM (rank-limited) + ANM-DM (frame-free)
@@ -206,16 +228,29 @@ def train_eval(data, L, tr, he, track, dm):
 def g8(hist, steps_done):                                       # per-bucket plateau + steps-to-plateau
     out = {}
     for b, h in hist.items():
-        if len(h) < 4: out[b] = dict(plateau=False, rel=float('nan'), steps=None, final=float('nan')); continue
-        cut = 0.75 * steps_done; pre = [v for s, v in h if s <= cut]; final = h[-1][1]
-        base = pre[-1] if pre else h[0][1]
-        rel = (final - base) / (abs(final) + 1e-9)
-        sfp = next((s for s, v in h if v >= final - 0.01 * abs(final)), h[-1][0])
-        out[b] = dict(plateau=bool(rel < PLATEAU_TOL), rel=float(rel), steps=int(sfp), final=float(final))
+        if len(h) < 8: out[b] = dict(plateau=False, rel=float('nan'), slope=float('nan'), hw=float('nan'),
+                                     steps=None, final=float('nan'), tail=[]); continue
+        cut = 0.80 * steps_done; tail = [(s_, v) for s_, v in h if s_ >= cut]
+        final = h[-1][1]
+        pre = [v for s_, v in h if s_ <= 0.75 * steps_done]
+        rel = (final - (pre[-1] if pre else h[0][1])) / (abs(final) + 1e-9)
+        if len(tail) >= 4:
+            lr = stats.linregress([s_ for s_, _ in tail], [v for _, v in tail])
+            hw = stats.t.ppf(0.975, len(tail) - 2) * lr.stderr
+            plateau = bool(lr.slope - hw <= 0 <= lr.slope + hw)   # slope indistinguishable from ZERO
+            sl, hh = float(lr.slope), float(hw)
+        else:
+            plateau, sl, hh = False, float('nan'), float('nan')
+        sfp = next((s_ for s_, v in h if v >= final - 0.01 * abs(final)), h[-1][0])
+        out[b] = dict(plateau=plateau, rel=float(rel), slope=sl, hw=hh, steps=int(sfp), final=float(final),
+                      tail=[round(v, 4) for _, v in tail[-6:]])
+    return out
     return out
 
 
-print(f"[phase1] device={dev}; ALL-ATOM; centered task; G8 convergence guard", flush=True)
+print(f"[phase1-CAPACITY] device={dev}; CORPUS=mdCATH (2000 train frames -> PCA-k valid to k~600);", flush=True)
+print(f"  L=1, DM sweep {DMS}. The N axis is measured SEPARATELY on MISATO -- different corpora,", flush=True)
+print(f"  absolute numbers are NOT comparable between the two runs.", flush=True)
 t0 = time.time(); data = load()
 print(f"  {len(data)} complexes ({time.time()-t0:.0f}s)", flush=True)
 for b in BUCKETS:
@@ -226,6 +261,7 @@ track = {b: [d for d in he if d["bucket"] == b][:4] for b in BUCKETS}
 print(f"  train {len(tr)} / held-out {len(he)}; plateau tracking on {sum(len(v) for v in track.values())} systems", flush=True)
 print("  precomputing PCA/ANM ceilings ...", flush=True)
 for d in he: d["ceil"] = ceilings(d, DMS)
+print("  NOTE: capacity axis = mdCATH; N axis = MISATO. Do NOT cross-compare absolute numbers.", flush=True)
 print(f"  ceilings done ({time.time()-t0:.0f}s)", flush=True)
 
 allres = {}
@@ -258,7 +294,8 @@ for DM_ in DMS:
     print(f"  G8 (steps run {sd}); TAKEOFF = first step crossing FVE {COMPETENCE}:", flush=True)
     for b in BUCKETS:
         g = G[b]; print(f"    {str(b):14s} plateau {'YES' if g['plateau'] else 'NO -> BUCKET VOID':17s} "
-                        f"rel {g['rel']:+.4f}  steps-to-plateau {g['steps']}  TAKEOFF {tko[b]}", flush=True)
+                        f"tail-slope {g['slope']*1e5:+.3f}e-5 +/-{g['hw']*1e5:.3f}  rel {g['rel']:+.4f}  "
+                        f"steps-to-plateau {g['steps']}  TAKEOFF {tko[b]}  tail {g['tail']}", flush=True)
     rows = []
     for d in he:
         v = fve(m, d, d["h"], d["T"]); ce = d["ceil"]
@@ -280,7 +317,7 @@ for DM_ in DMS:
         pcs = (q(pc) if pv and pc else ("RANK-VOID" if pc else "n/a"))
         gp = [r["gap_anm"] for r in br if np.isfinite(r["gap_anm"])]; rt = [r["ratio_anm"] for r in br if np.isfinite(r["ratio_anm"])]
         print(f"  {str(b):14s}{len(br):>3}{int(np.median([r['N'] for r in br])):>7}{q([r['model'] for r in br]):>19}"
-              f"{(q(an) if an else 'n/a (N>6000)'):>19}{pcs:>16}"
+              f"{(q(an) if an else f'n/a (N>{ANM_MAXN})'):>19}{pcs:>19}"
               f"{(f'{np.median(gp):.3f}' if gp else '  n/a'):>8}{(f'{np.nanmedian(rt):.2f}' if rt else ' n/a'):>7}"
               f"{'ok' if G[b]['plateau'] else 'VOID':>6}", flush=True)
 
@@ -318,7 +355,9 @@ for L in DMS:
     elif span > 2.0 and gspan < 0.02: vd = "NEITHER -- ceiling compression, cannot discriminate at this L"
     else: vd = "IN BETWEEN -- report the number, no verdict"
     print(f"    VERDICT: {vd}", flush=True)
-print("\n  Deficit FLAT IN N is the whole claim. L=1 has no slot assignment, so degradation with N here", flush=True)
-print("  would be a CAPACITY limit (index-addressing excluded by construction), not routing.", flush=True)
-print("  Ceiling = ANM-DM (structure-predicted, zero-parameter, frame-independent). PCA-DM is RANK-VOID", flush=True)
-print("  above DM=23 on 79 train frames -- the same G7 failure that killed L=64.", flush=True)
+print("\n  CAPACITY AXIS (mdCATH). Question: does L=1 at width DM approach PCA-DM, and is the deficit", flush=True)
+print("  FLAT IN N? PCA-DM is RANK-VALID here (2,000 train frames -> k~600 available, covering DM=512);", flush=True)
+print("  on MISATO's 79 train frames it is void above k=23, which is why this axis is measured on a", flush=True)
+print("  DIFFERENT CORPUS. Absolute numbers are NOT comparable with the MISATO N-axis run.", flush=True)
+print("  An N effect at L=1 is NOT a capacity limit -- rank90 and TICA both say intrinsic dimensionality", flush=True)
+print("  does not grow with atom count. It would localise to the POOLING/BROADCAST pathway (outcome B).", flush=True)

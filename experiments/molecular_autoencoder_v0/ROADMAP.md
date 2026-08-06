@@ -1376,3 +1376,33 @@ moves with N cannot support an N-trend comparison, which is the only thing it wa
 **Consequence: PCA-k is the primary ceiling where rank-valid (k <= 23, available at ALL N, no
 N-dependent bias). Above k=23 no valid per-system ceiling exists on MISATO's 79 train frames --
 state that as a limitation rather than substituting a biased baseline.**
+
+### RELAUNCH DESIGN (2026-08-05): axes split by corpus, architecture held constant
+
+**1. FiLM AT EVERY L.** The decoder uses cross-attention over the L tokens AND FiLM from the pooled
+latent, identically at L=1, 12 and 24. If L=1 used FiLM while L=12/24 used attention alone, the
+A-vs-B read would confound LATENT COUNT with CONDITIONING MECHANISM. Architecture constant, only L
+varies.
+
+**2. AXES SPLIT BY CORPUS -- each used for what it can support.**
+| axis | corpus | why |
+|---|---|---|
+| **N-axis** (L in {1,12,24} at DM=64) -- the A/B/C run | **MISATO**, n=276, 79 train frames | PCA-k rank-valid at k=1/12/24; wide N range (906-19,702) |
+| **CAPACITY axis** (L=1, DM in {16,64,256,512}) | **mdCATH**, 2,500 frames -> 2,000 train | PCA-k valid to k~600, covering DM=512. On MISATO PCA-k is void above k=23, so the deficit ratio for DM=64/256/512 is simply UNDEFINED there |
+**The two axes are measured on DIFFERENT CORPORA. Absolute numbers must NOT be cross-compared** --
+mdCATH PCA-16 runs 0.48-0.65 vs MISATO PCA-12 ~0.10-0.33, because mdCATH has 25x the frames.
+
+**3. PLATEAU CRITERION TIGHTENED.** The old test ("<1% relative improvement over the final 25%")
+fires on a genuine slow monotone climb -- which is exactly how the last run reported steps-to-plateau
+of 31-40k while every curve was still rising at 50k. Both cannot be true. New criterion: the
+**absolute held-out FVE slope over the final 20% must be statistically indistinguishable from zero**,
+and the **raw tail of every curve is printed alongside the verdict**. This matters because
+"steps-to-plateau flat in N" is load-bearing for arguing the N-trend is not optimisation-driven, so
+it needs a criterion that slow monotone growth cannot satisfy.
+
+**4. RETAINED:** competence gate (early stopping cannot fire below held-out FVE 0.05) and takeoff-step
+recording, to be regressed on N and on DM.
+
+**Ceiling policy:** PCA-k is the SOLE ceiling, used only where rank-valid. Above the rank limit no
+per-system ceiling is reported and the limitation is stated -- rather than substituting CG-ANM, whose
+validation showed a -0.059 median bias that is itself N-dependent (slope +0.110 +/- 0.039).

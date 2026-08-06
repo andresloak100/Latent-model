@@ -189,12 +189,23 @@ def train_eval(data, L, tr, he, track):
 def g8(hist, steps_done):                                       # per-bucket plateau + steps-to-plateau
     out = {}
     for b, h in hist.items():
-        if len(h) < 4: out[b] = dict(plateau=False, rel=float('nan'), steps=None, final=float('nan')); continue
-        cut = 0.75 * steps_done; pre = [v for s, v in h if s <= cut]; final = h[-1][1]
-        base = pre[-1] if pre else h[0][1]
-        rel = (final - base) / (abs(final) + 1e-9)
-        sfp = next((s for s, v in h if v >= final - 0.01 * abs(final)), h[-1][0])
-        out[b] = dict(plateau=bool(rel < PLATEAU_TOL), rel=float(rel), steps=int(sfp), final=float(final))
+        if len(h) < 8: out[b] = dict(plateau=False, rel=float('nan'), slope=float('nan'), hw=float('nan'),
+                                     steps=None, final=float('nan'), tail=[]); continue
+        cut = 0.80 * steps_done; tail = [(s_, v) for s_, v in h if s_ >= cut]
+        final = h[-1][1]
+        pre = [v for s_, v in h if s_ <= 0.75 * steps_done]
+        rel = (final - (pre[-1] if pre else h[0][1])) / (abs(final) + 1e-9)
+        if len(tail) >= 4:
+            lr = stats.linregress([s_ for s_, _ in tail], [v for _, v in tail])
+            hw = stats.t.ppf(0.975, len(tail) - 2) * lr.stderr
+            plateau = bool(lr.slope - hw <= 0 <= lr.slope + hw)   # slope indistinguishable from ZERO
+            sl, hh = float(lr.slope), float(hw)
+        else:
+            plateau, sl, hh = False, float('nan'), float('nan')
+        sfp = next((s_ for s_, v in h if v >= final - 0.01 * abs(final)), h[-1][0])
+        out[b] = dict(plateau=plateau, rel=float(rel), slope=sl, hw=hh, steps=int(sfp), final=float(final),
+                      tail=[round(v, 4) for _, v in tail[-6:]])
+    return out
     return out
 
 
@@ -236,7 +247,8 @@ for L in LS:
     print(f"  G8 CONVERGENCE (steps run {sd}); TAKEOFF = first step crossing FVE {COMPETENCE}:", flush=True)
     for b in BUCKETS:
         g = G[b]; print(f"    {str(b):14s} plateau {'YES' if g['plateau'] else 'NO -> BUCKET VOID':17s} "
-                        f"rel {g['rel']:+.4f}  steps-to-plateau {g['steps']}  TAKEOFF {tko[b]}", flush=True)
+                        f"tail-slope {g['slope']*1e5:+.3f}e-5 +/-{g['hw']*1e5:.3f}  rel {g['rel']:+.4f}  "
+                        f"steps-to-plateau {g['steps']}  TAKEOFF {tko[b]}  tail {g['tail']}", flush=True)
     rows = []
     for d in he:
         v = fve(m, d, d["h"], d["T"])
