@@ -1568,3 +1568,35 @@ intercept-vs-slope question is settled at n=700, not asserted now.
 
 Width-chain anchor: apply the measured median inflation (~1.03) to the 168 asymptote if the n=700
 test confirms intercept-only.
+
+### REPLICA-COUNT SWEEP: measure the artifact optimum instead of arguing it
+
+The two artifacts move in OPPOSITE directions with join count -- concatenation inflation grows with
+joins, censoring shrinks with total frames -- so there is an optimum and it is measurable. Sweep
+joins = 1, 2, 3, 5, reporting per join: total/usable frames, rank90 as % of usable rank (censoring
+axis), budget-matched inflation vs 1 replica (concatenation axis), and b with CI.
+
+**Pilot (3 domains) confirms the shape**, e.g. 2ac1A02 (N=3,044):
+| joins | frames | rank usage | matched inflation |
+|---|---|---|---|
+| 1 | 440 | **36.9%** | 1.00 (baseline) |
+| 2 | 880 | 25.8% | x1.05 |
+| 3 | 1320 | 18.7% | x1.01 |
+| 5 | 2200 | **11.2%** | x1.07 |
+Rank usage falls monotonically as expected; inflation stays ~1.00-1.07 rather than climbing steeply,
+so the censoring axis is the steeper of the two.
+
+**Selection is now made FROM THE CURVE, not by argument:** the analysis picks the lowest-inflation
+join among those clearing the 30% rank line, reports b at every join, and explicitly tests whether b
+is stable across joins 2-5 -- printing "STABLE: the join choice does not matter, and that stability
+IS the answer" or "MOVES WITH JOIN COUNT: concatenation slope-bias detected DIRECTLY" according to
+whether the b-spread exceeds the typical CI half-width. This detects the slope-bias directly and is
+cleaner than inferring it from the inflation-vs-N correlation. If no join clears the line, it says so
+rather than picking one.
+
+**Censoring is SYSTEM-DEPENDENT, so the median would hide it:** the pilot's three domains sit at
+4.1% / 22.6% / 36.9% of rank at J=1 -- floppy systems barely use any rank, rigid ones approach
+saturation. Selection therefore uses the **p90** of rank usage, not the median, and the full
+distribution (median / p90 / max / fraction over the void line) is printed per join. Otherwise a join
+that looks clean on average would be picked while censored precisely for the rigid tail, which is
+where the slope gets its leverage.

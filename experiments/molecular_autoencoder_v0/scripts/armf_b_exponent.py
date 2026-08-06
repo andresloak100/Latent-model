@@ -38,8 +38,17 @@ INV = f"{SC}/mdcath_inv.json"; OUTDIR = f"{SC}/bexp"
 # spread kept as a per-domain error bar. The concatenated value is ALSO computed, purely to quantify
 # the inflation factor -- which retroactively bounds the earlier concatenated mdCATH numbers,
 # including the rank90 asymptote 168 that anchors the width chain.
-BUDGETS = [79, 200, 400]                   # per-replica: a replica is ~500 frames, so 400 is the top
-CAT_BUDGETS = [79, 200, 400, 800, 1600, 2000]   # concatenated, for the inflation check only
+# REPLICA-COUNT SWEEP. The two artifacts move in OPPOSITE directions with join count -- concatenation
+# inflation grows with joins, censoring shrinks with total frames -- so there is an optimum and it can
+# be MEASURED rather than argued. For each join count we record: total frames, rank90 as % of usable
+# rank (censoring axis), budget-matched inflation vs 1 replica (concatenation axis), and b.
+# If b is stable across joins 2-5 the choice does not matter and that stability IS the answer; if b
+# moves systematically with join count, that is the concatenation slope-bias detected directly --
+# cleaner than inferring it from an inflation-vs-N correlation.
+JOINS = [1, 2, 3, 5]
+MATCHNF = 400                              # fixed budget for the inflation axis, so joins are comparable
+BUDGETS = [79, 200, 400]                   # per-replica ladder (artifact check)
+CAT_BUDGETS = [79, 200, 400, 800, 1600, 2000]   # frame-budget ladder on the full 5-join series
 # stratification targets: oversample the sparse tails, take the whole top bin (only 50 exist)
 STRATA = [((0, 1000), 140), ((1000, 1500), 140), ((1500, 2500), 140),
           ((2500, 4000), 140), ((4000, 6000), 90), ((6000, 99999), 50)]
@@ -79,6 +88,17 @@ def _one(disp, nf):
 def ladder(per_rep, cat):
     """per_rep: list of (F_i, 3N) displacement arrays, one per replica. cat: concatenated."""
     rec = {}
+    # ---- REPLICA-COUNT SWEEP ----
+    for J in JOINS:
+        if len(per_rep) < J: continue
+        j = np.concatenate(per_rep[:J], 0)
+        m_, r_ = _one(j, len(j))
+        rec[f"j{J}_r"] = int(r_); rec[f"j{J}_nf"] = int(len(j)); rec[f"j{J}_rmsf"] = float(m_)
+        rec[f"j{J}_pct"] = float(r_ / max(len(j) - 1, 1))          # censoring axis
+        take = MATCHNF // J                                        # concatenation axis, BUDGET-MATCHED
+        if all(len(d) >= take for d in per_rep[:J]) and take >= 8:
+            mm = np.concatenate([d[:take] for d in per_rep[:J]], 0)
+            _, rm = _one(mm, len(mm)); rec[f"j{J}_mix"] = int(rm); rec[f"j{J}_mixnf"] = int(len(mm))
     for nf in BUDGETS:                                    # PRIMARY: per-replica, averaged
         rs, ms = [], []
         for d in per_rep:

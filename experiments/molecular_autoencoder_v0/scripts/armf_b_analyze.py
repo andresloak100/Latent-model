@@ -17,6 +17,7 @@ SC = os.environ.get("BSC", "/network/scratch/j/jacob-junqi.tian/latent-model-wor
 # the wrong trade. Rank usage: per-replica 400 puts the rank90 tail near ~50% of available rank
 # (past the 30% void line); concatenated 2,000 sits at ~10% median, ~19-24% at the tail.
 CAT_BUDGETS = [79, 200, 400, 800, 1600, 2000]   # PRIMARY ladder
+JOINS = [1, 2, 3, 5]; MATCHNF = 400
 BUDGETS = [79, 200, 400]                        # per-replica: ARTIFACT CHECK
 MIS_B, MIS_HW = 0.101, 0.021          # MISATO n=276 at 79 frames (censored)
 ASYMPTOTE, FLOPPY_TO_BOUND, ANCHOR_N = 168.0, 0.65, 1804.0
@@ -148,3 +149,53 @@ for nf in BUDGETS:
     f_ = fit(nf, None, "")
     if f_: print(f"    {nf:>4}: b {f_['b']:+.3f}+/-{f_['bhw']:.3f}  c {f_['c']:+.3f}+/-{f_['chw']:.3f}  "
                  f"n={f_['n']}  maxRank90 {int(f_['maxr'])} = {f_['cap']*100:.0f}% of rank")
+
+
+# ---------------- REPLICA-COUNT SWEEP: measure the optimum instead of arguing it ----------------
+print("\n=== REPLICA-COUNT SWEEP: censoring vs concatenation move OPPOSITE ways; find the optimum ===")
+print(f"  {'joins':>6}{'n':>5}{'totalFrames':>13}{'usable':>8}{'rank90':>9}{'%ofRank':>9}"
+      f"{'inflation':>11}{'b (CI)':>20}{'c (CI)':>20}")
+JF = {}
+for J in JOINS:
+    A = [(r["N"], r[f"j{J}_rmsf"], r[f"j{J}_r"], r[f"j{J}_nf"], r[f"j{J}_pct"],
+          r.get(f"j{J}_mix", np.nan), r.get(f"j1_mix", np.nan))
+         for r in rows.values() if f"j{J}_r" in r]
+    if len(A) < 20: continue
+    A = np.array(A, float)
+    X = np.column_stack([np.log10(A[:, 0]), np.log10(A[:, 1]), np.ones(len(A))]); y = np.log10(A[:, 2])
+    b, *_ = np.linalg.lstsq(X, y, rcond=None); res = y - X @ b; dof = len(A) - 3
+    se = np.sqrt(np.diag((res ** 2).sum() / dof * np.linalg.inv(X.T @ X))); tc = stats.t.ppf(0.975, dof)
+    infl = np.nanmedian(A[:, 5] / np.maximum(A[:, 6], 1e-9)) if J > 1 else 1.0
+    JF[J] = dict(b=b[0], hw=tc * se[0], c=b[1], chw=tc * se[1], n=len(A),
+                 nf=np.median(A[:, 3]), pct=np.median(A[:, 4]), infl=infl)
+    print(f"  {J:>6}{len(A):>5}{np.median(A[:,3]):>13.0f}{np.median(A[:,3])-1:>8.0f}"
+          f"{np.median(A[:,2]):>9.0f}{np.median(A[:,4])*100:>8.0f}%{infl:>11.3f}"
+          f"{f'{b[0]:+.3f}+/-{tc*se[0]:.3f}':>20}{f'{b[1]:+.3f}+/-{tc*se[1]:.3f}':>20}")
+
+if len(JF) >= 3:
+    ks = sorted(JF); bs = np.array([JF[k]["b"] for k in ks]); hw = np.array([JF[k]["hw"] for k in ks])
+    stable = [k for k in ks if k >= 2]
+    if len(stable) >= 2:
+        bb = np.array([JF[k]["b"] for k in stable]); hh = np.array([JF[k]["hw"] for k in stable])
+        spread = bb.max() - bb.min(); typ = float(np.mean(hh))
+        print(f"\n  b across joins 2-5: " + " ".join(f"J{k}:{JF[k]['b']:+.3f}" for k in stable))
+        print(f"  spread {spread:.3f} vs typical CI half-width {typ:.3f}  -> "
+              f"{'STABLE: the join choice does not matter, and that stability IS the answer' if spread < typ else 'MOVES WITH JOIN COUNT: concatenation slope-bias detected DIRECTLY'}")
+        lr = stats.linregress([np.log10(k) for k in stable], bb)
+        print(f"  b vs log10(joins): slope {lr.slope:+.4f}  (p={lr.pvalue:.3f})")
+    # pick primary from the measured curve
+    print("\n  RANK-USAGE DISTRIBUTION per join (censoring is system-dependent -- the median hides it):")
+    for J in ks:
+        P = np.array([r[f"j{J}_pct"] for r in rows.values() if f"j{J}_pct" in r])
+        print(f"    J={J}: median {np.median(P)*100:>5.1f}%  p90 {np.percentile(P,90)*100:>5.1f}%  "
+              f"max {P.max()*100:>5.1f}%   frac over 30% void line: {(P>0.30).mean()*100:>4.0f}%")
+    ok = [k for k in ks if np.percentile([r[f"j{k}_pct"] for r in rows.values() if f"j{k}_pct" in r], 90) < 0.30]
+    if ok:
+        pick = min(ok, key=lambda k: JF[k]["infl"])
+        print(f"\n  PRIMARY BY MEASUREMENT: J={pick}  (rank usage {JF[pick]['pct']*100:.0f}% < 30% void line, "
+              f"lowest inflation x{JF[pick]['infl']:.3f} among uncensored joins)")
+        print(f"    b = {JF[pick]['b']:+.4f} +/- {JF[pick]['hw']:.4f}   [n={JF[pick]['n']}]")
+        sc = (1e6 / ANCHOR_N) ** JF[pick]["b"]
+        print(f"    width chain at this b: {ASYMPTOTE/FLOPPY_TO_BOUND*sc:.0f} dims @1e6-atom bound complex")
+    else:
+        print("\n  NO JOIN COUNT CLEARS THE 30% RANK LINE -- every option is censored; report as such.")
