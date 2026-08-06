@@ -1634,3 +1634,54 @@ HIGHER than +0.101.** Mechanism: bigger proteins are more rigid (corr(logN, logR
 means higher rank90 (c ~ -0.9 to -1.35), higher rank90 means more censoring -- so censoring truncates
 the dependent variable preferentially at HIGH N and FLATTENS the slope. **If b comes back LOWER, that
 mechanism is wrong, and that fact is worth as much as the number.**
+
+## PRE-FLIGHT CHECKLIST -- run all four against EVERY new arm before submission
+
+Each family below has fired 3-5 times in this project. They have different signatures and different
+fixes, and **the error-discovery rate -- not compute -- is the pace limiter here.** Running these
+costs minutes; discovering them one job at a time has cost several runs.
+
+### FAMILY A -- non-random exclusion correlated with a regressor
+**Instances:** maxDisp>25A threshold (dropped 7/8 and 8/8 of the top MISATO buckets); the
+2,000-frame paired subset (drops short replicas = floppy); download/parse failures under a fixed
+timeout (large files fail preferentially -> drops high N).
+**Signature:** a fixed cutoff on a quantity whose scale varies systematically with N or mobility.
+**CHECK:** for every filter, report **n dropped and the mean of each regressor in kept vs dropped**.
+Never apply a fixed ABSOLUTE threshold to a quantity whose scale varies with a regressor --
+normalise per system first (e.g. "3x this system's own p99.9", not "25 A").
+
+### FAMILY B -- a count or dimension pinned to its own measurement limit
+**Instances:** L=64 at 81% of available rank; the 2 A cutoff at 2399/2400 states; TICA basis varying
+with temperature; state count as a fraction of frames; rank90 censoring at high N; steps-to-plateau
+pinned to MAXSTEPS.
+**Signature:** the reported number tracks the MEASUREMENT'S CEILING rather than the system.
+**CHECK:** print every count/dimension as a **PERCENTAGE OF ITS CEILING** next to the raw value.
+**Above ~30% it is a BOUND, not a value**, and must be reported as such.
+
+### FAMILY C -- an underpowered null believed
+**Instances:** GNM-vs-B at n=1 (0.38 vs a true 0.55); exclusion-uniformity p=0.58 while raw counts
+showed 7/8 and 8/8; b's CI spanning zero at n=28; inflation-vs-N at n=17.
+**Signature:** a non-significant result read as "no effect."
+**CHECK:** never report a null without **the CI and the effect size the CI still permits**. State
+explicitly what the upper bound would do to the DOWNSTREAM number (e.g. "permits a b-shift of 0.08,
+which moves the 1e6 width chain by 1.6x").
+
+### FAMILY D -- a measurement that cannot express the effect it tests for
+**Instances:** the L=1 softmax degeneracy (one key -> uniform output, so the arm measured the
+decoder, not the pathway); G8 certifying a dead model as plateaued; the centering mismatch scoring
+the model against a denominator PCA got for free.
+**Signature:** a configuration in which the quantity under test is STRUCTURALLY unable to vary.
+**CHECK:** before any arm, ask **what it would report if the mechanism were perfect, and if it were
+absent. If those two answers coincide, the arm is void before it runs.**
+
+### AUDIT OF THE CURRENT ARMS (four new instances found and fixed)
+- **A:** download/parse failures were an invisible filter -- large files fail a fixed timeout first.
+  Timeout raised to 2400 s and every failure now logged with its projected N; the analysis prints
+  failed-vs-kept median N and flags an N-correlated failure set.
+- **A:** G8-VOID buckets are dropped from the deficit-ratio regression -- if plateau failure tracks
+  N that is a Family A exclusion. Regressor means for kept-vs-void buckets must be reported.
+- **B:** steps-to-plateau and TAKEOFF now print as a **% of MAXSTEPS**; near the cap they are bounds.
+- **C:** the join-stability verdict is a NULL, so it now states the b-shift it still permits and the
+  resulting width-chain factor.
+- **D:** the rank-usage threshold sweep can collapse the retained N range, making b unidentifiable
+  while returning noise that mimics drift; it now flags when the retained log10(N) range < 0.5.

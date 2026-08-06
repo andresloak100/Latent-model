@@ -248,7 +248,8 @@ for L in LS:
     for b in BUCKETS:
         g = G[b]; print(f"    {str(b):14s} plateau {'YES' if g['plateau'] else 'NO -> BUCKET VOID':17s} "
                         f"tail-slope {g['slope']*1e5:+.3f}e-5 +/-{g['hw']*1e5:.3f}  rel {g['rel']:+.4f}  "
-                        f"steps-to-plateau {g['steps']}  TAKEOFF {tko[b]}  tail {g['tail']}", flush=True)
+                        f"steps-to-plateau {g['steps']} ({(g['steps'] or 0)/MAXSTEPS*100:.0f}% of cap)  "
+                        f"TAKEOFF {tko[b]}{'' if tko[b] is None else f' ({tko[b]/MAXSTEPS*100:.0f}%)'}  tail {g['tail']}", flush=True)
     rows = []
     for d in he:
         v = fve(m, d, d["h"], d["T"])

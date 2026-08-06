@@ -53,6 +53,8 @@ CAT_BUDGETS = [79, 200, 400, 800, 1600, 2000]   # frame-budget ladder on the ful
 STRATA = [((0, 1000), 140), ((1000, 1500), 140), ((1500, 2500), 140),
           ((2500, 4000), 140), ((4000, 6000), 90), ((6000, 99999), 50)]
 URL = "https://huggingface.co/datasets/compsciencelab/mdCATH/resolve/main/"
+TIMEOUT = 2400   # generous: a FIXED timeout truncates LARGE files preferentially, which would
+# drop high N and bias b downward -- Family A (non-random exclusion correlated with a regressor)
 np.random.seed(0)
 
 
@@ -138,7 +140,7 @@ def main():
         if dom in done: continue
         loc = f"{tmp}/w{w}.h5"
         try:
-            r = subprocess.run(["curl", "-sL", "--max-time", "900", URL + it["path"], "-o", loc],
+            r = subprocess.run(["curl", "-sL", "--max-time", str(TIMEOUT), URL + it["path"], "-o", loc],
                                capture_output=True)
             if r.returncode != 0 or not os.path.exists(loc): raise RuntimeError("download failed")
             ff = h5py.File(loc, "r"); dm = list(ff.keys())[0]; g = ff[dm]
@@ -155,7 +157,13 @@ def main():
             if nd % 10 == 0:
                 print(f"[w{w}] {nd} done ({time.time()-t0:.0f}s, {(time.time()-t0)/nd:.1f}s/domain)", flush=True)
         except Exception as e:
-            print(f"[w{w}] {dom}: {type(e).__name__}: {e}", flush=True)
+            # FAMILY A: a failure is a FILTER. Large files fail a fixed timeout preferentially, which
+            # would drop high N and bias b downward. Log projected N so the exclusion is auditable.
+            fl = f"{OUTDIR}/fail_w{w}.json"
+            fails = json.load(open(fl)) if os.path.exists(fl) else {}
+            fails[dom] = {"projN": it["N"], "size": it["size"], "err": f"{type(e).__name__}: {e}"}
+            json.dump(fails, open(fl, "w"))
+            print(f"[w{w}] FAIL {dom} projN={it['N']:.0f}: {type(e).__name__}", flush=True)
         finally:
             if os.path.exists(loc): os.remove(loc)          # DELETE IMMEDIATELY -- never accumulate
     print(f"[w{w}] FINISHED {nd} new, {len(done)} total ({time.time()-t0:.0f}s)", flush=True)

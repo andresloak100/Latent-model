@@ -26,6 +26,15 @@ rows = {}
 for fp in sorted(glob.glob(f"{SC}/bexp/w*.json")):
     rows.update(json.load(open(fp)))
 print(f"[b-exponent] {len(rows)} domains streamed")
+_f = {}
+for fp in sorted(glob.glob(f"{SC}/bexp/fail_w*.json")): _f.update(json.load(open(fp)))
+if _f:
+    fn = np.array([v["projN"] for v in _f.values()], float); kn = np.array([r["N"] for r in rows.values()], float)
+    print(f"  FAMILY A CHECK -- {len(_f)} domains FAILED (a filter, not a non-event): "
+          f"failed projN median {np.median(fn):.0f} vs kept median {np.median(kn):.0f}; "
+          f"{'*** N-CORRELATED FAILURE -- biases b ***' if abs(np.median(fn)-np.median(kn))/max(np.median(kn),1)>0.25 else 'no large N skew'}")
+else:
+    print("  FAMILY A CHECK -- 0 download/parse failures (no hidden filter)")
 if len(rows) < 30: print("  too few to fit"); raise SystemExit
 
 Nv = np.array([r["N"] for r in rows.values()], float)
@@ -190,6 +199,9 @@ if len(JF) >= 3:
         bb = np.array([JF[k]["b"] for k in stable]); hh = np.array([JF[k]["hw"] for k in stable])
         spread = bb.max() - bb.min(); typ = float(np.mean(hh))
         print(f"\n  b across joins 2-5: " + " ".join(f"J{k}:{JF[k]['b']:+.3f}" for k in stable))
+        print(f"  FAMILY C: a 'stable' verdict here is a NULL -- it permits a b-shift of up to "
+              f"{spread+typ:.3f} across joins, which moves the 1e6 width chain by "
+              f"x{(1e6/ANCHOR_N)**(spread+typ):.2f}")
         print(f"  spread {spread:.3f} vs typical CI half-width {typ:.3f}  -> "
               f"{'STABLE: the join choice does not matter, and that stability IS the answer' if spread < typ else 'MOVES WITH JOIN COUNT: concatenation slope-bias detected DIRECTLY'}")
         lr = stats.linregress([np.log10(k) for k in stable], bb)
@@ -232,9 +244,11 @@ for JFIX in [j for j in JOINS if j >= 3]:
         X = np.column_stack([np.log10(A[:, 0]), np.log10(A[:, 1]), np.ones(len(A))]); y = np.log10(A[:, 2])
         bb, *_ = np.linalg.lstsq(X, y, rcond=None); res = y - X @ bb; dof = len(A) - 3
         se = np.sqrt(np.diag((res ** 2).sum() / dof * np.linalg.inv(X.T @ X))); tc = stats.t.ppf(0.975, dof)
+        _rng = np.log10(A[:, 0].max()) - np.log10(A[:, 0].min())
+        _flag = "  <-- FAMILY D: N range collapsed, b unidentifiable" if _rng < 0.5 else ""
         print(f"    {th:>8.2f}{len(A):>7}{len(A)/len(have)*100:>6.0f}%"
               f"{f'{int(A[:,0].min())}-{int(A[:,0].max())}':>16}{np.median(A[:,1]):>9.2f}"
-              f"{f'{bb[0]:+.3f}+/-{tc*se[0]:.3f}':>20}{f'{bb[1]:+.3f}+/-{tc*se[1]:.3f}':>20}")
+              f"{f'{bb[0]:+.3f}+/-{tc*se[0]:.3f}':>20}{f'{bb[1]:+.3f}+/-{tc*se[1]:.3f}':>20}{_flag}")
         prev = (th, bb[0])
     print("    read: b STABLE across thresholds -> censoring is not biasing b.")
     print("          b DRIFTS UPWARD as the threshold tightens -> that IS the censoring bias, measured;")
