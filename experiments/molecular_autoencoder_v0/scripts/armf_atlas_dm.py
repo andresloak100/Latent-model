@@ -83,8 +83,24 @@ dev = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class Codec(nn.Module):
-    def __init__(self, Fs, L, dm, heads=4):
+    """INBOX 005. `dlat` separates LATENT width from NETWORK width.
+
+    DM alone is the whole-network width, so a saturation in it means "this architecture stops
+    improving past width X", not "the latent needs X dimensions". Those are different quantities and
+    only one of them matters for objective 4: network width sets encode/decode cost, but LATENT width
+    sets the GENERATOR's cost, and the single-GPU claim turns on the latter. "One token of width DM
+    per frame" is a claim about the latent, not about d_model.
+
+    With `dlat < dm` the token is projected down to dlat and back up before the decoder, so d_model is
+    held fixed and only the code narrows. encode() returns the DLAT-dimensional code -- the actual
+    object a propagator would model -- so the participation ratio and the criterion-4 dynamics
+    measurements apply to it automatically rather than to the d_model-wide internal representation."""
+
+    def __init__(self, Fs, L, dm, heads=4, dlat=None):
         super().__init__()
+        self.dm = dm; self.dlat = dlat if (dlat and dlat < dm) else dm
+        self.down = nn.Linear(dm, self.dlat) if self.dlat < dm else None
+        self.up = nn.Linear(self.dlat, dm) if self.dlat < dm else None
         self.lat = nn.Parameter(torch.randn(L, dm) * 0.02)
         self.in_tok = nn.Linear(Fs + 3, dm); self.q_tok = nn.Linear(Fs, dm)
         self.enc = nn.MultiheadAttention(dm, heads, batch_first=True)
@@ -97,12 +113,15 @@ class Codec(nn.Module):
         self.out = nn.Linear(dm, 3)
 
     def encode(self, stat, disp):
+        """Returns the (B, L, dlat) CODE -- what the generator would model, not the internal width."""
         tok = self.in_tok(torch.cat([stat, disp], -1))
         lat = self.lat.unsqueeze(0).expand(stat.shape[0], -1, -1)
         lat = self.l1(lat + self.enc(lat, tok, tok)[0]); lat = self.l2(lat + self.sa(lat, lat, lat)[0])
-        return self.l3(lat + self.ff(lat))
+        lat = self.l3(lat + self.ff(lat))
+        return self.down(lat) if self.down is not None else lat
 
     def decode(self, stat, lat):
+        if self.up is not None: lat = self.up(lat)
         q = self.q_tok(stat); a = self.dec(q, lat, lat)[0]
         g, b = self.film(lat.mean(1, keepdim=True)).chunk(2, -1)
         h = self.l4(q + a) * (1 + g) + b
@@ -225,8 +244,8 @@ def latent_dynamics(mdl, systems, dm, nf=400):
                 phi=float(np.median(phis)))
 
 
-def train(tr, HOt, dm, lr, tag, L):
-    mdl = Codec(tr[0]["stat"].shape[1], L, dm).to(dev)
+def train(tr, HOt, dm, lr, tag, L, dlat=None):
+    mdl = Codec(tr[0]["stat"].shape[1], L, dm, dlat=dlat).to(dev)
     opt = torch.optim.Adam(mdl.parameters(), lr); hist = []; t0 = time.time()
     used = MAXSTEPS; stopped = "maxsteps"
     for st in range(1, MAXSTEPS + 1):
@@ -275,30 +294,35 @@ if __name__ == "__main__":
           f"plateau signal on {len(HOt)} systems, final eval on all {len(HO)}", flush=True)
 
     rows = json.load(open(RES)) if os.path.exists(RES) else []
-    done = {(r["L"], r["n_train"], r["dm"], r["lr"], r.get("seed", 0)) for r in rows}
+    done = {(r["L"], r["n_train"], r["dm"], r["lr"], r.get("seed", 0), r.get("dlat", r["dm"]))
+            for r in rows}
 
-    def run(TR, n, dm, lr, Lv, seed=0):
-        if (Lv, n, dm, lr, seed) in done: return None
-        tag = f"L{Lv} n{n} DM{dm} lr{lr:g} s{seed}"
+    def run(TR, n, dm, lr, Lv, seed=0, dlat=None):
+        dl = dlat if (dlat and dlat < dm) else dm
+        arch = "bottleneck" if dl < dm else "network"
+        if (Lv, n, dm, lr, seed, dl) in done: return None
+        tag = f"L{Lv} n{n} dm{dm}/dlat{dl} lr{lr:g} s{seed}"
         try:
             torch.manual_seed(seed); np.random.seed(seed + 1)
-            mdl, hist, used, stopped, improving = train(TR, HOt, dm, lr, tag, Lv)
+            mdl, hist, used, stopped, improving = train(TR, HOt, dm, lr, tag, Lv, dlat=dlat)
             mdl.eval()
             per = [fve_model(mdl, x) for x in HO]             # per-system, for the N-slope
             fve = float(np.mean(per))
-            p = participation_ratio(mdl, TR[:min(len(TR), len(HO))], HO, dm)
-            p.update(latent_dynamics(mdl, HOt[:8], dm))       # CRITERION 4
+            # PR and criterion 4 measure the DLAT-dimensional CODE -- the object the generator models.
+            p = participation_ratio(mdl, TR[:min(len(TR), len(HO))], HO, dl)
+            p.update(latent_dynamics(mdl, HOt[:8], dl))       # CRITERION 4
             lr_ = stats.linregress(np.log10([x["N"] for x in HO]), per)
             hw = stats.t.ppf(0.975, len(per) - 2) * lr_.stderr
             # snapshot noise: a single final eval is one draw. Report the tail mean alongside it.
             tail = float(np.mean([h[1] for h in hist[-5:]])) if hist else float("nan")
-            rec = dict(L=Lv, n_train=n, dm=dm, lr=lr, seed=seed, fve=fve, med=float(np.median(per)),
+            rec = dict(L=Lv, n_train=n, dm=dm, dlat=dl, arch=arch, lr=lr, seed=seed,
+                       fve=fve, med=float(np.median(per)),
                        tail_track=tail, steps=used, stopped=stopped, improving=improving,
                        best_track=max(h[1] for h in hist), nho=len(HO),
                        nslope=float(lr_.slope), nslope_ci=float(hw),
                        per=[float(v) for v in per], Ns=[int(x["N"]) for x in HO], **p)
-            rows.append(rec); json.dump(rows, open(RES, "w")); done.add((Lv, n, dm, lr, seed))
-            print(f"    {tag}: FVE {fve:+.4f}  PR {p['pr']:.1f}/{dm} ({100*p['pr_frac']:.0f}%"
+            rows.append(rec); json.dump(rows, open(RES, "w")); done.add((Lv, n, dm, lr, seed, dl))
+            print(f"    {tag}: FVE {fve:+.4f}  PR {p['pr']:.1f}/{dl} ({100*p['pr_frac']:.0f}%"
                   f"{', CENSORED n_obs=' + str(p['n_obs']) if p['censored'] else ''})  "
                   f"identity {100*p['ident_frac']:.0f}%  N-slope {lr_.slope:+.4f}+/-{hw:.4f}  "
                   f"steps {used} ({stopped})"
@@ -318,10 +342,37 @@ if __name__ == "__main__":
             # collapse is not evidence ABOUT DM -- it is one draw. Repeat the winning LR at extra
             # seeds so what gets reported is a COLLAPSE RATE, not an anecdote.
             if dm >= 256:
-                c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == dm]
+                c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == dm
+                 and r.get("arch", "network") == "network"]
                 if c:
                     bl = max(c, key=lambda r: r["fve"])["lr"]
                     for s in (1, 2): run(TR, n, dm, bl, L_PRIMARY, seed=s)
+        # ===== INBOX 005: BOTTLENECK ARM. REQUIRED, ALONGSIDE -- NOT A FOLLOW-UP. =====
+        # The network sweep above varies d_model, so its saturation is a statement about the
+        # ARCHITECTURE's width, not the LATENT's. Objective 4 turns on the latent: network width sets
+        # encode/decode cost, latent width sets the GENERATOR's cost. Hold d_model fixed at the widest
+        # value that actually TRAINS (512 if healthy, else 256 -- decided from the measured arm, not
+        # assumed) and vary only the token's bottleneck.
+        hb = None
+        for cand in (512, 256):
+            c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == cand
+                 and r["dlat"] == cand]
+            if c:
+                b512 = max(c, key=lambda r: r["fve"])
+                if not b512["improving"] and b512["pr_frac"] > 0.1 and b512["fve"] > 0.01:
+                    hb = b512; break
+        if hb:
+            DMOD, blr = hb["dm"], hb["lr"]
+            print(f"  --- BOTTLENECK SWEEP (005): d_model FIXED at {DMOD} (trains healthily: "
+                  f"FVE {hb['fve']:+.4f}, PR/DM {100*hb['pr_frac']:.0f}%), varying DM_latent ---",
+                  flush=True)
+            for dl in [x for x in (16, 64, 128, 256, 512) if x <= DMOD]:
+                run(TR, n, DMOD, blr, L_PRIMARY, dlat=dl)
+        else:
+            print(f"  --- BOTTLENECK SWEEP SKIPPED at n_train={n}: neither DM=512 nor DM=256 trained "
+                  f"healthily, so there is no sound fixed d_model to hold. Not a null result. ---",
+                  flush=True)
+
         # ADDRESSING DIAGNOSTIC ONLY -- NOT candidate designs.
         # Run TWO WAYS, because total latent capacity is L x DM: at the same DM, L=12 carries 12x the
         # capacity of L=1, so a slope difference there could be CAPACITY rather than ADDRESSING.
@@ -341,13 +392,18 @@ if __name__ == "__main__":
 
     if not rows: raise SystemExit
 
-    def saturating_dm(n, Lv):
+    def saturating_dm(n, Lv, arch="network"):
+        """First width at which FVE stops improving by >2%. Keyed on dlat for the bottleneck arm,
+        since there the CODE width is the axis and d_model is held fixed."""
         prev = None; s = None
-        for dm in DMS:
-            c = [r for r in rows if r["L"] == Lv and r["n_train"] == n and r["dm"] == dm]
+        pool = [r for r in rows if r["L"] == Lv and r["n_train"] == n
+                and r.get("arch", "network") == arch]
+        widths = sorted({(r["dlat"] if arch == "bottleneck" else r["dm"]) for r in pool})
+        for w in widths:
+            c = [r for r in pool if (r["dlat"] if arch == "bottleneck" else r["dm"]) == w]
             if not c: continue
             b = max(c, key=lambda r: r["fve"])
-            if prev is not None and s is None and b["fve"] <= prev * 1.02: s = dm
+            if prev is not None and s is None and b["fve"] <= prev * 1.02: s = w
             prev = max(prev, b["fve"]) if prev is not None else b["fve"]
         return s
 
@@ -359,7 +415,8 @@ if __name__ == "__main__":
         print(f"    {'DM':>5}{'FVE':>9}{'seedspread':>12}{'bestLR':>9}{'PR':>8}{'PR/DM':>7}"
               f"{'ident':>7}{'N-slope':>18}{'steps':>7}{'flag':>16}")
         for dm in DMS:
-            c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == dm]
+            c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == dm
+                 and r.get("arch", "network") == "network"]
             if not c: continue
             b = max(c, key=lambda r: r["fve"])
             sds = [r["fve"] for r in c if r["lr"] == b["lr"]]
@@ -385,6 +442,42 @@ if __name__ == "__main__":
                       f"{100*t['pr_frac']:.0f}% of its width. The saturating DM is a FLOOR. "
                       f"EXTEND TO DM=1024 BEFORE REPORTING A WIDTH ANSWER. ***", flush=True)
 
+    print(f"\n=== INBOX 005: THE TWO CURVES ON THE SAME AXES. WHERE THEY DIVERGE IS THE ANSWER. ===",
+          flush=True)
+    print(f"  network sweep   = FVE vs DM with d_model = DM      (varies the whole architecture)")
+    print(f"  bottleneck      = FVE vs DM_latent at FIXED d_model (varies ONLY the code)")
+    print(f"  Latent width sets the GENERATOR's cost, which is what objective 4 turns on.", flush=True)
+    for n in sorted({r["n_train"] for r in rows if r["L"] == L_PRIMARY}):
+        net = {r["dm"]: r for r in sorted([r for r in rows if r["L"] == L_PRIMARY
+               and r["n_train"] == n and r["arch"] == "network"], key=lambda r: r["fve"])}
+        bot = {r["dlat"]: r for r in sorted([r for r in rows if r["L"] == L_PRIMARY
+               and r["n_train"] == n and r["arch"] == "bottleneck"], key=lambda r: r["fve"])}
+        if not bot: continue
+        dmod = max(r["dm"] for r in bot.values())
+        print(f"  n_train={n}, bottleneck d_model fixed at {dmod}")
+        print(f"    {'width':>7}{'network FVE':>14}{'bottleneck FVE':>17}{'PR/width':>11}"
+              f"{'AR(1) phi':>11}")
+        for w in sorted(set(net) | set(bot)):
+            a = f"{net[w]['fve']:+.4f}" if w in net else "-"
+            b_ = f"{bot[w]['fve']:+.4f}" if w in bot else "-"
+            pr = f"{100*bot[w]['pr_frac']:.0f}%" if w in bot else "-"
+            ph = f"{bot[w]['phi']:.3f}" if w in bot and "phi" in bot[w] else "-"
+            print(f"    {w:>7}{a:>14}{b_:>17}{pr:>11}{ph:>11}", flush=True)
+        bs = saturating_dm(n, L_PRIMARY, arch="bottleneck"); ns_ = saturating_dm(n, L_PRIMARY)
+        top = bot.get(dmod)
+        print(f"    network saturates at {ns_}   bottleneck saturates at {bs}", flush=True)
+        if bs and bs < dmod * 0.5:
+            print(f"    => THE LATENT NEEDS LESS WIDTH THAN THE NETWORK DOES. Objective 4 gets")
+            print(f"       materially cheaper, and DM_latent={bs} -- NOT the network figure -- is the")
+            print(f"       headline number.", flush=True)
+        elif bs and ns_ and bs == ns_:
+            print(f"    => THE TWO CURVES TRACK. Network capacity is the binding constraint, DM was")
+            print(f"       never measuring 'latent width', and the network saturation figure MUST NOT")
+            print(f"       be quoted as one.", flush=True)
+        elif top and not bs:
+            print(f"    => STILL CLIMBING AT DM_latent = d_model = {dmod}. The latent requirement is")
+            print(f"       NOT BRACKETED; a wider d_model is needed before ANY width claim.", flush=True)
+
     print(f"\n=== CRITERION 4: is the latent something a PROPAGATOR can model? ===", flush=True)
     print(f"  004b demotes per-frame FVE. A code that reconstructs well but jumps between consecutive")
     print(f"  frames is useless to stage 2. If the FVE ranking and this ranking DISAGREE, that")
@@ -392,7 +485,8 @@ if __name__ == "__main__":
     print(f"    {'DM':>5}{'FVE':>9}{'tau_lat':>10}{'step':>8}{'AR(1) phi':>11}{'verdict':>26}")
     for n in sorted({r["n_train"] for r in rows if r["L"] == L_PRIMARY}):
         for dm in DMS:
-            c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == dm]
+            c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == dm
+                 and r.get("arch", "network") == "network"]
             if not c: continue
             b = max(c, key=lambda r: r["fve"])
             if "tau_lat" not in b: continue

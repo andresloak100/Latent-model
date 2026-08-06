@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 004
+last_acted: 005
 ```
 
 | item | restatement | status | commit |
@@ -13,6 +13,34 @@ last_acted: 004
 | 003 | L=1 is the architecture, not a swept variable: one latent token per frame whatever the atom count, so DM is the only capacity knob and everything once framed as "how many tokens" becomes "how wide is the one token." L=12/24 are demoted to addressing diagnostics — they localise any N-degradation to slot assignment (present at L=12/24, absent at L=1) versus the pooling/broadcast pathway (present at L=1 too) — and must never be reported as "the best L" or averaged across. Lead with the L=1 row, and lead the ATLAS curve with the headline: does codec-vs-ANM hold flat from ~600 to ~33,500 atoms. State the compression claim explicitly. | ACCEPTED | (this commit) |
 
 | 004 | Delete the pre-committed ANM-basis-decoder branch from `armf_atlas_curve.py`'s verdict logic before the curve runs — a flat curve must print "run the diagnosis fan-out," never a design, because naming one cause for an unseen result risks an open-ended ANM optimisation loop. ANM is a diagnostic, not the bar: it has no generator and cannot be the product architecture, so losing to it on per-frame FVE does not kill the codec. Report against four real criteria in order — dynamical fidelity via the existing ensemble acceptance test, generalisation to unseen systems, N-scaling at L=1, and whether the latent is something a propagator can actually model. If the curve is flat, run the six-hypothesis fan-out and report which one the evidence supports before proposing any design. Stop putting calendar estimates on objectives 2 and 3. | ACCEPTED | (this commit) |
+
+| 005 | The bottleneck arm is required and runs alongside, not after: because network width sets encode/decode cost while LATENT width sets the generator's cost, and objective 4 turns on the latter, a sweep of d_model cannot answer "how wide does the one token need to be." Hold d_model fixed at the widest value that trains reliably, vary only a linear down/up projection on the token, sweep DM_latent in {16,64,128,256,512} capped at d_model, and plot both curves on the same axes — where they diverge is the answer. Apply the cross-fit participation ratio and the criterion-4 dynamics measurements to the bottleneck arms, because there the latent IS the object the generator will model. | ACCEPTED | (this commit) |
+
+## Notes on 005
+
+Implemented and smoke-tested; the bottleneck runs in the same job as the network sweep, not after it.
+
+**The detail that made this worth doing carefully.** `encode()` now returns the DM_latent-dimensional
+code rather than the d_model-wide internal representation, so the participation ratio and the
+criterion-4 measurements attach to the code automatically. Had I bolted the bottleneck on without
+that, PR would have kept measuring the d_model activations — reporting a healthy 512-wide
+representation while the actual code the propagator sees was 16 numbers. That is the same class of
+error as measuring rank90 in-sample: an instrument pointed at the wrong object returns a flattering
+number rather than an obviously broken one. Verified: code shape tracks `dlat` exactly.
+
+**One judgement call I made rather than asking.** "Use the largest d_model you can train reliably —
+512 if it trains, else 256" is a runtime decision, so the script *measures* it instead of assuming:
+it takes DM=512 from the network sweep and requires that arm to be non-`improving`, PR/DM > 10%, and
+FVE > 0.01 before adopting 512 as the fixed d_model, falling back to 256 on the same test. If neither
+qualifies the bottleneck sweep is SKIPPED with an explicit message, because a bottleneck measured
+against a d_model that never trained would be uninterpretable — and I would rather report "no sound
+fixed d_model to hold" than a curve that looks like a result.
+
+**Pre-registered reads wired in verbatim**, printing the corresponding verdict: bottleneck saturates
+below half of d_model => the latent needs less width than the network and DM_latent is the headline
+number; the two curves track => network capacity is binding, DM never measured latent width, and the
+network figure must not be quoted as one; still climbing at DM_latent = d_model => the latent
+requirement is not bracketed and d_model must widen before any width claim.
 
 ## Notes on 004
 
