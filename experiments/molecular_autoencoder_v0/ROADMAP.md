@@ -1328,3 +1328,51 @@ The outcome must be labelled A/B/C explicitly in the report. **If B, do not writ
 
 In all three cases the follow-up is **mechanistic, not statistical**. The price of statistical
 certainty is now known (~565 sampled systems) and it is to be paid deliberately, not by default.
+
+### RUN-KILLING BUGS FOUND IN THE n=276 SCALE-UP (2026-08-05) -- all four L=1 arms VOID
+
+**1. Early stopping killed every L=1 arm below competence.** A plateau detector cannot distinguish
+"flat because converged" from "flat because not yet taken off" -- identical signal. All four L=1
+arms (DM=16/64/256/512) sat at FVE ~0.000 and were early-stopped at 8k-17k steps. G8 then reported
+4/6 buckets as `plateau YES, status ok, ratio 1.00` -- **a dead model certified as converged,
+producing exactly the index-addressing signature.** Only G4 (base > 0.05) caught it, at arm level.
+**G8 tests CONVERGENCE, not COMPETENCE.**
+FIX APPLIED: early stopping does not activate until some bucket exceeds held-out FVE 0.05
+(`COMPETENCE`); below that, train to MAXSTEPS regardless of curve flatness. TAKEOFF STEP (first
+crossing of 0.05) is now recorded per bucket and per arm, to be regressed on N and on DM.
+Steps-to-TAKEOFF is a different quantity from steps-to-PLATEAU and has never been measured.
+
+**2. L=1 was untestable as built -- a decoder degeneracy, not a finding.** With L=1, decoder
+cross-attention has ONE key, so softmax is identically 1.0 for every query: `dec(q,lat,lat)` returns
+the SAME vector for every atom and the latent enters only as a uniform additive shift before
+LayerNorm -- the weakest possible conditioning. L=12 trains because it has 12 keys to attend over.
+**Any N effect from the old L=1 arms would have reflected this bug, NOT the pooling/broadcast
+pathway** -- outcome B must not be read from them.
+FIX APPLIED: FiLM conditioning in the decoder (per-channel scale+shift from the pooled code), which
+works even when attention is constant.
+
+**3. The powered L=12/L=24 arms are UNDERTRAINED.** All six buckets at L=12 are G8-VOID with
+rel-improve +0.05 to +0.16 at 50,000 steps -- still climbing. MAXSTEPS raised 50k -> 150k.
+Steps-to-plateau was flat in N (31k-40k), so the undertraining is NOT N-correlated.
+
+**Signal that survives (undertrained, so provisional):** at n=276 the U-shape is GONE and the
+deficit ratio rises monotonically with N at both L: L=12 gives 0.24/0.19/0.23/0.27/0.30/**0.40**
+and L=24 gives 0.25/0.28/0.27/0.31/0.31/**0.38** across medN 906->19,702. **Both density-matched
+pairs confirm at power**: A (avail 410 vs 416) 0.19 vs 0.40; B (avail 1970 vs 1717) 0.23 vs 0.30.
+
+### CG-ANM IS NOT USABLE AS AN N-COMPARISON BASELINE -- retracted before use
+
+The earlier "CG-ANM validates within ~0.01" claim was based on TWO systems at N=2,627 and 2,621,
+i.e. effectively one size point, and it was wrong. Across 160 systems the median gap at k=64 is
+**-0.059** (CG-ANM systematically OVERSHOOTS all-atom ANM), an order of magnitude larger and in the
+direction that matters. **And the gap is N-dependent**: -0.122 at N~965, -0.058 at ~1,840, -0.046 at
+~3,280, -0.043 at ~4,607; slope **+0.110 +/- 0.039** vs log10(N), significant. Extrapolated to
+N=22,755 the gap flips sign (+0.043), which is meaningless.
+
+Diagnosis: QR-orthonormalising rigid-residue modes in all-atom space does not approximate all-atom
+ANM -- it produces a DIFFERENT, better-aligned subspace (rigid-residue collective motion explains
+more held-out variance at matched k), whose bias varies systematically with N. A baseline whose bias
+moves with N cannot support an N-trend comparison, which is the only thing it was introduced for.
+**Consequence: PCA-k is the primary ceiling where rank-valid (k <= 23, available at ALL N, no
+N-dependent bias). Above k=23 no valid per-system ceiling exists on MISATO's 79 train frames --
+state that as a limitation rather than substituting a biased baseline.**

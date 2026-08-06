@@ -45,7 +45,8 @@ LS = [1, 12, 24]; DM = 64; ANM_MAXN = 2500   # L=1 is a MECHANISM probe: with on
 # -> the problem is specifically slot assignment. NOTE: L=1 at DM=64 is a 64-DIMENSIONAL code,
 # not one number. Judge L=1 on flatness of the deficit ratio in N, not on its absolute FVE.
 FRAMES_PER_STEP = 8                     # CONSTANT across N (was memory-budgeted -> N-correlated undertraining)
-MAXSTEPS = 50000; EVAL_EVERY = 1000; PATIENCE = 6; PLATEAU_TOL = 0.01   # raised: at L=24, 3/6 buckets
+COMPETENCE = 0.05   # early stopping is gated on this
+MAXSTEPS = 150000; EVAL_EVERY = 1000; PATIENCE = 6; PLATEAU_TOL = 0.01   # raised: at L=24, 3/6 buckets
 # hit the 30000 cap and were VOIDed by G8 rather than reaching plateau. Early stopping still decides.
 np.random.seed(0); torch.manual_seed(0)
 dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -126,14 +127,18 @@ class Perceiver(nn.Module):
         self.l1 = nn.LayerNorm(dm); self.l2 = nn.LayerNorm(dm); self.l3 = nn.LayerNorm(dm); self.l4 = nn.LayerNorm(dm)
         self.ff = nn.Sequential(nn.Linear(dm, dm*2), nn.GELU(), nn.Linear(dm*2, dm))
         self.dff = nn.Sequential(nn.Linear(dm, dm*2), nn.GELU(), nn.Linear(dm*2, dm))
+        self.film = nn.Linear(dm, 2*dm); nn.init.zeros_(self.film.weight); nn.init.zeros_(self.film.bias)
         self.out = nn.Linear(dm, 3)
     def encode(self, stat, disp):
         B = stat.shape[0]; tok = self.in_tok(torch.cat([stat, disp], -1))
         lat = self.lat.unsqueeze(0).expand(B, -1, -1)
         lat = self.l1(lat + self.enc(lat, tok, tok)[0]); lat = self.l2(lat + self.sa(lat, lat, lat)[0])
         return self.l3(lat + self.ff(lat))
-    def decode(self, stat, lat):                                # static query residual + per-atom MLP (no displacement path)
-        q = self.q_tok(stat); h = self.l4(q + self.dec(q, lat, lat)[0]); return self.out(h + self.dff(h))
+    def decode(self, stat, lat):                                # static query + FiLM-conditioned per-atom MLP
+        q = self.q_tok(stat); a = self.dec(q, lat, lat)[0]
+        g, b = self.film(lat.mean(1, keepdim=True)).chunk(2, -1)  # global code -> per-channel scale+shift
+        h = self.l4(q + a) * (1 + g) + b                          # FiLM: works even when L=1 makes attention constant
+        return self.out(h + self.dff(h))
     def forward(self, stat, disp): return self.decode(stat, self.encode(stat, disp))
 
 
@@ -151,6 +156,7 @@ def fve(m, d, lo, hi, chunk=8):
 def train_eval(data, L, tr, he, track):
     Fs = data[0]["stat"].shape[1]; m = Perceiver(Fs, L).to(dev); opt = torch.optim.Adam(m.parameters(), 1e-3)
     hist = {b: [] for b in BUCKETS}; steps_done = 0; best = {b: -9e9 for b in BUCKETS}; bad = 0
+    takeoff = {b: None for b in BUCKETS}          # first step where held-out FVE crosses COMPETENCE
     for st in range(1, MAXSTEPS + 1):
         d = tr[np.random.randint(len(tr))]
         idx = np.random.randint(0, d["h"], FRAMES_PER_STEP)      # CONSTANT frames/step for every N
@@ -165,12 +171,19 @@ def train_eval(data, L, tr, he, track):
                 v = float(np.mean([fve(m, d2, d2["h"], d2["T"]) for d2 in sel])); hist[b].append((st, v))
                 if v > best[b] * (1 + PLATEAU_TOL) or (best[b] < 0 and v > best[b] + 0.01): best[b] = max(best[b], v); improved = True
                 else: best[b] = max(best[b], v)
+                if takeoff[b] is None and hist[b][-1][1] > COMPETENCE: takeoff[b] = st
             m.train()
-            bad = 0 if improved else bad + 1
+            # COMPETENCE GATE: a flat curve at ~0 is a PRE-TAKEOFF phase, not a plateau. A plateau
+            # detector cannot tell them apart, and if takeoff step correlates with N or DM then early
+            # stopping kills those arms preferentially and MANUFACTURES the N-trend under test (a killed
+            # arm reports ratio ~1.0 -- the index-addressing signature). Observed: all four L=1 arms died
+            # this way. So stopping does not activate until some bucket is actually competent.
+            competent = any(h and h[-1][1] > COMPETENCE for h in hist.values())
+            bad = 0 if (improved or not competent) else bad + 1
             print(f"    step {st:>6}: " + " ".join(f"{b[0]//1000}k:{hist[b][-1][1]:+.3f}" for b in BUCKETS if hist[b]), flush=True)
             if bad >= PATIENCE:
-                print(f"    early stop at {st} (no bucket improved >1% for {PATIENCE} evals)", flush=True); break
-    return m, hist, steps_done
+                print(f"    early stop at {st} (competent, no bucket improved >1% for {PATIENCE} evals)", flush=True); break
+    return m, hist, steps_done, takeoff
 
 
 def g8(hist, steps_done):                                       # per-bucket plateau + steps-to-plateau
@@ -201,7 +214,7 @@ print(f"  ceilings done ({time.time()-t0:.0f}s)", flush=True)
 allres = {}
 for L in LS:
     print(f"\n=== L={L}  DM={DM}  (code = {L}x{DM} = {L*DM} dims; G7: {L}/79 = {L/79*100:.0f}% of usable rank) ===", flush=True)
-    m, hist, sd = train_eval(data, L, tr, he, track)
+    m, hist, sd, tko = train_eval(data, L, tr, he, track)
     G = g8(hist, sd)
     try:
         d0 = he[0]; nf = min(8, d0["T"] - d0["h"])
@@ -220,10 +233,10 @@ for L in LS:
     except Exception as e:
         gs = f"FAILED ({type(e).__name__}: {e}) -- run VOID per the guard rule"
     print(f"  GUARDS: {gs}", flush=True)
-    print(f"  G8 CONVERGENCE (steps run {sd}):", flush=True)
+    print(f"  G8 CONVERGENCE (steps run {sd}); TAKEOFF = first step crossing FVE {COMPETENCE}:", flush=True)
     for b in BUCKETS:
         g = G[b]; print(f"    {str(b):14s} plateau {'YES' if g['plateau'] else 'NO -> BUCKET VOID':17s} "
-                        f"rel-improve(final 25%) {g['rel']:+.4f}  steps-to-plateau {g['steps']}", flush=True)
+                        f"rel {g['rel']:+.4f}  steps-to-plateau {g['steps']}  TAKEOFF {tko[b]}", flush=True)
     rows = []
     for d in he:
         v = fve(m, d, d["h"], d["T"])
@@ -231,7 +244,8 @@ for L in LS:
                          pca=d["ceil"]["pca"][L], anm=d["ceil"]["anm"][L],
                          gap=d["ceil"]["pca"][L]-v, ratio=(d["ceil"]["pca"][L]-v)/d["ceil"]["pca"][L] if d["ceil"]["pca"][L] > 1e-6 else float('nan'),
                          void=not G[d["bucket"]]["plateau"]))
-    allres[L] = dict(rows=rows, g8={str(k): v for k, v in G.items()}, steps=sd)
+    allres[L] = dict(rows=rows, g8={str(k): v for k, v in G.items()}, steps=sd,
+                     takeoff={str(k): v for k, v in tko.items()})
     json.dump(allres, open(RESJSON, "w"))
     print(f"  {'bucket':14s}{'n':>3}{'medN':>7}{'modelFVE':>19}{'ceiling':>19}{'ANM':>7}{'absGAP':>8}{'ratio':>7}{'G8':>6}", flush=True)
     for b in BUCKETS:
