@@ -22,7 +22,10 @@ MEASURED (not assumed):
     BOTH ENDS of the N axis and gives a slightly LONGER lever for the 1e6 extrapolation, not the same
     one. CAVEAT: the fit is anchored on L=38-212, so L=2,128 is a 10x extrapolation -- confirm by
     caching the largest entries directly before treating the top as established.
-  - 2,501 frames x 3 replicas -> ~108 GB for 700 proteins (compressed npz); storable and reusable
+  - 2,501 frames x 3 replicas -> ~157 GB for 700 proteins stored UNCOMPRESSED .npy so it can be
+    MEMMAPPED. 108 GB compressed would be smaller on disk but npz CANNOT be memmapped -- it must be
+    fully inflated, and neither figure fits in RAM. Training reads 8 random frames per step, so
+    memmap reads only those slices.
   - ATLAS bandwidth 4.9 MB/s (NOT HuggingFace's 25): 700 proteins ~ 0.34 TB ~ 19 h serial, ~5 h on 4
   - mdtraj 1.10.3 loaded from a wheel unzipped onto PYTHONPATH (the venv has no SSL, so pip is dead;
     the shared venv is never modified)
@@ -73,7 +76,7 @@ def main():
     print(f"[w{w}] {len(items)} proteins assigned", flush=True)
     t0 = time.time(); nd = 0
     for it in items:
-        pc = it["PDB"]; dst = f"{OUT}/{pc}.npz"
+        pc = it["PDB"]; dst = f"{OUT}/{pc}.npy"
         if os.path.exists(dst): continue
         wd = f"{tmp}/w{w}"; shutil.rmtree(wd, ignore_errors=True); os.makedirs(wd, exist_ok=True)
         z = f"{wd}/a.zip"
@@ -91,9 +94,13 @@ def main():
                 reps.append((tr.xyz.astype(np.float32) * 10.0))  # nm -> Angstrom
             el = [a.element.atomic_number if a.element else 0
                   for a in md.load(f"{wd}/{top}").topology.atoms]
-            np.savez_compressed(dst, coords=np.stack(reps), elem=np.array(el, np.int16),
-                                length=int(float(it["length"])), pdb=pc,
-                                rmsf_ref=float(it.get("avg_RMSF", "nan") or "nan"))
+            arr = np.stack(reps)                                 # (R, F, N, 3) float32
+            np.save(dst, arr)                                    # UNCOMPRESSED -> memmap-able
+            json.dump({"pdb": pc, "length": int(float(it["length"])), "atoms": int(arr.shape[2]),
+                       "reps": int(arr.shape[0]), "frames": int(arr.shape[1]),
+                       "elem": [int(x) for x in el],
+                       "rmsf_ref": float(it.get("avg_RMSF", "nan") or "nan"),
+                       "bytes": int(arr.nbytes)}, open(dst.replace(".npy", ".json"), "w"))
             nd += 1
             print(f"[w{w}] {pc} L={it['length']} {reps[0].shape} -> {os.path.getsize(dst)/1e6:.0f} MB "
                   f"({time.time()-t0:.0f}s, {nd} done)", flush=True)

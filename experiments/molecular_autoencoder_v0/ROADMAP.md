@@ -2023,3 +2023,50 @@ frames?**
 - **ATLAS is the first setting where both sides are sound.**
 **Report fraction-positive and signed gap there as the HEADLINE.** That number is the project's
 central claim and **it has never actually been measured.**
+
+## THE COMPARISON SET, CORRECTED: per-system PCA is an ORACLE, not a peer
+
+**The earlier "fair test" framing was wrong** and would have produced a headline that reads as
+refuting the thesis while refuting nothing.
+
+| | fitted on | evaluated on | per-system parameters |
+|---|---|---|---|
+| **per-system PCA-k** | 2,000 frames **OF THE TARGET SYSTEM** | held-out frames of that SAME system | **3N x k** -- at N=2,077, k=256 that is **~1.6 MILLION** |
+| **the codec** | OTHER systems | held-out **SYSTEMS**, target trajectory never seen | **ZERO** |
+
+Within-system fit vs zero-shot transfer. **Beating it would be remarkable; losing it is the NULL
+EXPECTATION.** (The parameter asymmetry was measured earlier and the conclusion not drawn.)
+
+### CORRECT COMPARISON SET
+- **ORACLE (upper bound):** per-system PCA-k. Report the codec as a **FRACTION of it** --
+  *"zero-shot reaches X% of a within-system fit"* -- which is the honest and genuinely interesting
+  number.
+- **PEER (the bar that matters):** methods that ALSO never see the target trajectory -- **ANM /
+  structure-predicted basis**, and the existing **graph codec**. This is where the thesis lives, and
+  it is the comparison the project already won once (learned codec beat ANM on ligands).
+- **FLOOR:** zero displacement, i.e. predicting the train mean -- FVE = 0 by construction.
+
+### ANM PEER-BASELINE COVERAGE ON ATLAS (measured)
+Dense eigensolver limit ~6,000 atoms (~276 s/system; ~87 s at 4,000, ~650 s at 8,000).
+| N bucket | n | ANM computable |
+|---|---|---|
+| 591-1,159 | 190 | 100% |
+| 1,159-2,272 | 575 | 100% |
+| 2,272-4,454 | 647 | 100% |
+| 4,454-8,731 | 427 | **54.6% PARTIAL** |
+| 8,731-17,115 | 94 | **0% -- NO ZERO-SHOT PEER** |
+| 17,115-33,551 | 5 | **0% -- NO ZERO-SHOT PEER** |
+**ANM covers the bottom ~85% of the corpus** (1,645/1,938 at the 6,000 limit). Above ~6,000 atoms
+there is **NO zero-shot peer baseline until a sparse solver exists** -- state this plainly rather
+than filling the gap. **CG-ANM is NOT a substitute**: its bias was measured at -0.059 median and is
+**N-DEPENDENT** (slope +0.110 +/- 0.039), which is exactly the contamination it would introduce into
+an N-scaling comparison. Retracted and staying retracted.
+
+### HEADLINE, RESTATED
+1. **PRIMARY: codec vs ANM at matched k, both zero-shot**, on the buckets where ANM is computable.
+2. **SECONDARY: codec FVE as a FRACTION of the per-system PCA oracle**, across the full N range.
+3. **THE N-QUESTION (objective 1): does EITHER of those degrade with N?**
+
+Note the consequence for the top of the N axis: the primary comparison is unavailable above ~6,000
+atoms, so the N-trend for the PEER comparison rests on 591-8,731 (~15x span, still ample), while the
+ORACLE-fraction trend spans the full 591-33,551. Report both spans explicitly.
