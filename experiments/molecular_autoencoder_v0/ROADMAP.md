@@ -1453,3 +1453,54 @@ mdCATH is sized for the FLOPPY end and would UNDER-PROVISION bound complexes by 
 Per the 26x spread across systems this is exactly the direction that needs LESS width, so the
 capacity axis gives a LOWER BOUND on the DM required for deployment on protein-ligand complexes.
 Recorded before the capacity results exist so the number is not over-read later.
+
+### IS b ATTENUATED TOO? -- paired frame-budget test on mdCATH, and the WIDTH CHAIN
+
+Censoring was shown to attenuate c (-0.950 at 79 frames -> -1.350 at 2,400). There is no reason it
+would spare b, and b governs whether latent width must scale with system size. Paired test on the
+SAME 28 mdCATH domains at six budgets (each system its own control):
+
+| frames | b(N) | c(RMSF) | max rank90 (% of cap) |
+|---|---|---|---|
+| 79 | -0.057 +/- 0.129 | -0.950 +/- 0.123 | 68% |
+| 200 | -0.052 +/- 0.197 | -1.282 +/- 0.185 | 55% |
+| 400 | -0.004 +/- 0.230 | -1.350 +/- 0.206 | 48% |
+| 800 | +0.042 +/- 0.232 | -1.384 +/- 0.192 | 30% |
+| 1600 | +0.063 +/- 0.278 | -1.370 +/- 0.223 | 20% |
+| 2400 | +0.246 +/- 0.404 | -1.313 +/- 0.455 | 16% |
+
+**THE MULTIPLICATIVE-FACTOR METHOD FAILS FOR b, and its output must not be used.** b CROSSES ZERO
+across the ladder, so the ratio 2400/79 = -4.33x divides through a sign change. Propagating it gives
+b = -0.438 (dimensionality SHRINKING with atom count) and a 16-dimension width chain -- nonsense.
+Both discarded.
+
+What the data does support:
+1. **c's attenuation factor is well determined: 1.38x**, independently reproducing the known
+   -0.950 -> -1.350 steepening.
+2. **b is UNMEASURABLE on mdCATH at any budget** -- its CI spans zero at all six. n=28 is too few for
+   the N axis; this is the same underpowering that produced the original "b spans zero" error.
+3. **The DIRECTION supports the attenuation hypothesis**: b drifts monotonically upward with budget
+   (-0.057 -> -0.052 -> -0.004 -> +0.042 -> +0.063 -> +0.246), consistent with attenuation toward
+   zero at low budgets. So **MISATO's b = +0.101 +/- 0.021 (79 frames) is a LOWER BOUND on the true
+   exponent.** It cannot be de-attenuated directly: MISATO has only 100 frames, so a
+   higher-budget MISATO fit is impossible.
+4. Provisional correction using c's factor (assumes censoring attenuates both coefficients of the
+   same regression similarly -- defensible, not proven): **b ~ 0.14**.
+
+### WIDTH CHAIN, auditable (anchor: mdCATH asymptote 168 at medN 1,804; floppy->bound divide by 0.65)
+| b | N^b to 1e6 | dims for a 1e6-atom BOUND complex |
+|---|---|---|
+| 0.101 (raw, censored -> LOWER bound) | 1.89 | **489** |
+| 0.139 (x1.38 c-derived, provisional) | 2.41 | **622** |
+| 0.20 | 3.54 | 914 |
+| 0.30 | 6.65 | 1720 |
+
+**Design sensitivity:** at b ~ 0.10-0.14, DM ~ 500-620 covers a 1M-atom bound complex and DM=512 sits
+right at the edge. At b >= 0.20 it takes ~900+, and at b ~ 0.30 the single-global-latent claim needs
+qualification rather than just a wider DM. The conclusion is sensitive to b over exactly the range
+censoring could plausibly move it, and b is currently known only as a lower bound.
+
+**CAVEATS ON THE SAME LINE:** 2.5-decade extrapolation (1,804 -> 1e6 atoms); ns-us regime only;
+variance-weighted so rare states are excluded (the coverage question is open, not answered); floppy
+-> bound factor 0.65 derived from a 1.65x RMSF ratio via c ~ -0.9; and **b itself is a censored
+lower bound.**
