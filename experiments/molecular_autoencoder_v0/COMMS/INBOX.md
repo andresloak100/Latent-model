@@ -97,3 +97,77 @@ numbers, and the 256 does not grow with N.
 function of L, lead with the L=1 row and present L=12/24 beneath it as the
 addressing diagnostic. Do not average across L, and do not let a better
 number at L=12 read as a recommendation.
+
+---
+
+## 004 — ANM is a diagnostic, not the bar. Replace the pre-committed flat-curve branch.
+
+Correction from Andres, and it supersedes what I told you in the previous
+two items. Two changes, one of them live in code right now.
+
+### 4a. Remove the pre-committed ANM-residual branch from the verdict logic
+
+You wrote my "(b)-branch" into `armf_atlas_curve.py`'s own verdict output:
+if the curve is flat across the 14x range, it prints the ANM-basis-decoder
+design as the recorded next step. **Delete that.** It pre-commits to a
+single diagnosis of a result we have not seen, and it risks pulling the
+project into another month-long ANM optimisation loop.
+
+Replace it with the diagnosis fan-out in 4c. A flat curve should print
+"FLAT — run the diagnosis fan-out," not a design.
+
+### 4b. ANM is a scientific baseline, not the product architecture
+
+I let "beats ANM" become the success criterion. It is not. ANM cannot
+produce a programmable latent dynamics system; it is a fixed-topology
+structural prior with no generator. A one-token codec that fails to beat
+ANM on every reconstruction metric is **not thereby dead**.
+
+Keep ANM as the honest zero-shot comparator — it tells us whether the
+learned map carries information a physics prior does not. But report it as
+a diagnostic, and stop treating it as a gate.
+
+**The real success criteria for the representation, in reporting order:**
+
+1. **Retains enough dynamical information** — not just per-frame FVE.
+   Decoded trajectories must preserve the *dynamics*, so run the ensemble
+   acceptance test already built for the propagator: per-mode marginal std
+   ratio, integrated autocorrelation time, cross-mode coupling, and the 2D
+   free-energy projection. A codec with mediocre FVE that preserves
+   autocorrelation structure is more useful to us than one with better FVE
+   that flattens it.
+2. **Generalises to unseen systems** — held-out systems, not held-out
+   frames. Already the protocol; keep it.
+3. **Scales with N** — the codec-vs-N trend at L=1 across 600 to 33,500
+   atoms.
+4. **Supports the downstream generator** — measurable now, not later: is
+   the latent time-series something a propagator can model? Report its
+   autocorrelation time, its smoothness frame-to-frame, and whether an
+   AR(1)/OU fit in latent space produces stable rollouts. A latent that
+   reconstructs well but jumps discontinuously between frames is useless to
+   stage 2, and we would rather find that now.
+
+### 4c. Flat-curve diagnosis fan-out — run this, don't assume a cause
+
+If the learning curve is flat in n_train, the cause is one of at least six
+things. Each has a distinguishing test. Run them before proposing any
+redesign:
+
+| hypothesis | distinguishing test |
+|---|---|
+| decoder capacity | raise decoder depth/width at fixed L=1, DM. FVE rises → decoder-limited |
+| one-token information limit | the DM sweep itself. FVE still rising at DM=512 → information-limited, not architectural |
+| conditioning insufficient | enrich static features (local frames, neighbour geometry) at fixed L=1, DM. FVE rises → conditioning-limited |
+| objective mismatch | train with a geometry-aware loss (pairwise-distance or per-mode weighted). Dynamical fidelity improves while MSE does not → the loss was wrong, not the architecture |
+| representation | local-frame / internal-coordinate target instead of Cartesian displacement. Already a recorded hyperparameter |
+| encoder pooling | G6 permutation plus effective rank of the latent across systems. A latent whose realised rank is far below DM means the encoder is not filling the token |
+
+Report which hypothesis the evidence supports. Only then propose a design.
+
+### 4d. Timeline language
+
+Stop expressing objectives 2 and 3 as calendar estimates. Bond-changing
+chemistry and genuine millisecond state generation are research problems
+with real risk of not working. They are milestones with uncertainty, not
+dates. Levels 1 and 2 (one-token codec, then end-to-end latent dynamics)
+can carry estimates; those two cannot.
