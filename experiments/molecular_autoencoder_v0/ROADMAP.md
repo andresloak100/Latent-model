@@ -1857,3 +1857,74 @@ systems, not 565** -- and it buys certainty about a statistic that is invalid on
 (1) a frame-rich corpus so per-system PCA stops overfitting (mdCATH has 2,000 train frames vs
 MISATO's 80); (2) the direct instruments -- realised effective rank and subspace overlap -- which
 need no ceiling at all and are already wired in.
+
+## FINDING (reframed): A SHARED LEARNED CODEC BEATS PER-SYSTEM PCA ON HELD-OUT FRAMES
+
+**PCA-L is a per-system BASELINE fitted on 80 TRAIN frames -- it was never a ceiling.** A single
+codec trained across 207 systems beating it on HELD-OUT frames is **the thesis of this project**: a
+learned shared representation extracting more generalisable structure than per-system classical
+decomposition. Reported as a finding; the ratio framing that made it look like a broken denominator
+is RETIRED.
+| L | systems where the codec beats per-system PCA | best case |
+|---|---|---|
+| 1 | 22/69 (32%) | 1A0Q **+0.136 FVE** |
+| 12 | 14/69 (20%) | 184L +0.076 FVE |
+| 24 | 6/46 (13%) | 1AU2 +0.041 FVE |
+
+### PRIMARY STATISTIC: SIGNED GAP = model FVE - PCA-L FVE
+Continuous, no denominator, no sign pathology, **no drops -- every system retained**.
+| L | n | slope vs log10(N) | half-width | change permitted across range | vs median abs(gap) |
+|---|---|---|---|---|---|
+| 1 | 69 | +0.0594 | 0.0666 | 0.105 | **3.1x** |
+| 12 | 69 | +0.0227 | 0.0483 | 0.076 | **1.8x** |
+| 24 | 46 | +0.0274 | 0.0423 | 0.067 | 0.9x |
+**The CI permits a gap change 1-3x the size of the gap itself. No discrimination.**
+
+### SUPPORTING (DEMOTED, Family C on a statistic I proposed): FRACTION WITH POSITIVE GAP
+Binary-per-system discards magnitude, and at ~12 systems/bucket the **binomial SE floor is 9-13
+percentage points** while the entire observed spread is 29-36 pp -- **2xSE alone spans most of the
+range**. Slopes are +0.079+/-0.332, -0.058+/-0.445, -0.051+/-0.719: a null with no discriminating
+power, NOT evidence of flatness. Retained as an interpretable descriptive number ("the codec beats
+per-system PCA on ~20-30% of systems"), **not as an N-scaling test.**
+
+### THE DECISIVE RESULT: MISATO CANNOT ANSWER THE N QUESTION BY ANY BASELINE-REFERENCED STATISTIC
+Not merely underpowered -- **structurally confounded. The PCA baseline itself degrades with N,
+significantly:**
+| L | PCA baseline slope (CI) | model FVE slope (CI) |
+|---|---|---|
+| 1 | **-0.0877 [-0.1647,-0.0055]** | -0.0283 [-0.0749,+0.0196] flat |
+| 12 | **-0.1660 [-0.2588,-0.0654]** | -0.1433 [-0.2145,-0.0685] |
+| 24 | **-0.1790 [-0.2742,-0.0782]** | -0.1516 [-0.2197,-0.0733] |
+All three PCA slopes EXCLUDE ZERO. PCA-L is fitted on 80 frames in a 3N-dimensional space, so as N
+grows frames/dimensions falls and it overfits progressively worse -- **a baseline-side artifact**.
+It degrades FASTER than the model (-0.166 vs -0.143 at L=12), which is exactly why the signed-gap
+slope comes out positive. **Any baseline-referenced N-scaling statistic on MISATO inherits this.**
+Only the CEILING-FREE instruments (realised effective rank, subspace overlap) can work there.
+
+## ATLAS SCOPED VIA API -- NO DOWNLOAD (specs differ from recollection; verify, don't assume)
+| spec | recalled | **measured** |
+|---|---|---|
+| proteins | ~1,390 | **1,938** |
+| length | 3 x 100 ns | **100 ns confirmed** (nsteps 50e6 x dt 2 fs) |
+| frames | ~1e4 | **10,001/replica** at 10 ps (nstxout_compressed=5000); ~30,000 per protein |
+| size | 1k-20k atoms | **38-2,128 residues** (median 175) = ~361-20,216 all-atom |
+
+**Download volume MEASURED by HEAD on 3 entries** (383/708/750 MB at 184/322/350 residues):
+`bytes = 2.26 MB/residue x L - 30 MB`, **R^2 0.9971** -> **TOTAL 0.94 TB** for protein-only bundles
+(vs the ~1.2 TB estimate -- close). The `_total.zip` variant including solvent is **5.2 GB for a
+single protein**, ~7x larger, and is NOT wanted. Streaming a stratified subset: 300 -> 0.15 TB
+(0.4 h on 4 workers), 700 -> 0.34 TB (1.0 h), all 1,938 -> 0.94 TB (2.6 h).
+**Stream-compute-delete as with mdCATH; do NOT stage ~1 TB on a borrowed account's scratch.**
+
+### ATLAS EXTENDS THE BOTTOM OF THE N AXIS, NOT THE TOP
+| corpus | N min | N median | N max | span | train frames |
+|---|---|---|---|---|---|
+| ATLAS | 361 | 1,662 | **20,216** | 56x | **~30,000** |
+| MISATO | 717 | 4,977 | **26,861** | 37.5x | 80 |
+| mdCATH | 711 | 1,804 | 7,524 | 10.6x | 2,000 |
+**ATLAS's top (20,216) is BELOW MISATO's (26,861); its 56x span comes from reaching DOWN to ~361.**
+It buys a valid ceiling and large n -- it does NOT give a longer lever at high N, and **the 1e6-atom
+extrapolation still rests on the same upper end already in hand.**
+**Scope difference:** ATLAS is SINGLE CHAINS, MISATO is COMPLEXES -- different chemistry and mobility
+regimes. Do not pool without checking, and expect ATLAS to sit on the FLOPPIER side as mdCATH did
+(mdCATH single domains measured 1.65x the RMSF of MISATO complexes).
