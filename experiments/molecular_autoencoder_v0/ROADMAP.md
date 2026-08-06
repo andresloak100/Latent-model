@@ -1928,3 +1928,52 @@ extrapolation still rests on the same upper end already in hand.**
 **Scope difference:** ATLAS is SINGLE CHAINS, MISATO is COMPLEXES -- different chemistry and mobility
 regimes. Do not pool without checking, and expect ATLAS to sit on the FLOPPIER side as mdCATH did
 (mdCATH single domains measured 1.65x the RMSF of MISATO complexes).
+
+## ATLAS: SUBSAMPLE-AND-STORE (not stream). Feasibility VERIFIED on real data.
+
+**Why subsample rather than take all 10,001 frames.** MISATO's PCA baseline overfits because 80
+frames sit BELOW the median rank90 (~168). The fix is frames comfortably ABOVE rank90, not more
+frames without limit: **~1,000 frames/replica -> ~800 train frames ~ 5x median rank90**, which is
+well-conditioned. Frames beyond that buy almost nothing for a PCA ceiling at k<=24.
+
+**Why store rather than stream.** Streaming was correct for the b-exponent (spectra out, data
+discarded). It is WRONG here: **training reads frames many times over**, so the subsample must be
+reusable rather than re-downloaded per run. The archive is deleted immediately; only the subsample
+is kept.
+
+### FEASIBILITY BLOCKERS FOUND AND RESOLVED (neither was anticipated)
+1. **No trajectory reader anywhere**: no mdtraj/MDAnalysis/pytraj/chemfiles in the venv, no GROMACS
+   module, and **pip is dead -- the venv's Python has no SSL module**. ATLAS ships `.xtc`, so without
+   a reader its specs are irrelevant. RESOLVED by fetching the cp310 manylinux **wheel with curl and
+   unzipping it onto PYTHONPATH** (`$WR/pylibs`), plus pure-Python deps pyparsing and packaging the
+   same way. **mdtraj 1.10.3 works; the shared venv is never modified.**
+2. **ATLAS bandwidth is 4.9 MB/s, not HuggingFace's 25** (383 MB in 78 s, measured). 700 proteins
+   ~ 0.34 TB ~ **19 h serial, ~5 h on 4 workers**. The download is the real cost, paid ONCE.
+
+### MEASURED ON REAL DATA (2y44_A)
+- **10,001 frames/replica CONFIRMED**, matching the production .mdp exactly
+- **14.7 atoms/residue all-atom** (2,701 atoms for 184 residues) -- NOT the ~9.5 assumed, so the
+  raw storage estimate was ~3.5x low
+- stride 10 -> 1,001 frames in 1.5 s; compressed npz observed **16-32 MB/protein at L=38-81**
+  (~0.35 MB/residue) -> **~43 GB for 700 proteins, ~118 GB for all 1,938**. Storable and reusable.
+
+### SCOPE NOTES to carry wherever the ATLAS ceiling is used
+- **Uniform subsampling across the full 100 ns preserves the SLOW COLLECTIVE MODES** that dominate
+  variance at low k. What is lost is fast local motion, which is not what a k<=24 ceiling measures.
+- **ATLAS is SINGLE CHAINS, MISATO is COMPLEXES** -- different chemistry and mobility regimes. Do not
+  pool without checking; expect ATLAS on the floppier side (mdCATH single domains measured 1.65x the
+  RMSF of MISATO complexes).
+- **ATLAS extends the BOTTOM of the N axis**: top ~20,216 atoms vs MISATO's 26,861. It buys a valid
+  ceiling and large n, **NOT a longer lever** -- the 1e6-atom extrapolation still rests on the
+  existing upper end.
+
+### GUARD-FIRST PROTOCOL FOR THE ATLAS N-AXIS RERUN
+**Run the PCA-baseline-vs-N slope FIRST, before reading anything else.** On MISATO that slope was
+-0.088/-0.166/-0.179 with all CIs EXCLUDING ZERO -- the baseline degraded with N because 80 frames in
+3N dimensions overfit worse as N grows, which contaminated every baseline-referenced statistic.
+- **flat on ATLAS -> the ceiling is sound and every downstream statistic is trustworthy.**
+- **still sloping -> subsample deeper (2,000 frames) and re-check.**
+It is a GUARD, not a result. Then: direct instruments (realised effective rank, subspace overlap)
+alongside as an independent ceiling-free read, with signed gap and fraction-positive supporting.
+**What it answers:** whether the model's own -0.143 degradation with N is real or shares the
+baseline's cause -- the objective-1 question, unanswerable on MISATO by construction.
