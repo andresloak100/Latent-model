@@ -2161,3 +2161,37 @@ codec **0.800/0.640/0.440** vs swept ANM **0.594/0.571/0.549** at L=4/8/16.
 - **The propagator results are unaffected** -- they never referenced an ANM baseline for a win claim.
 - **The intrinsic-dimensionality / mobility-law results are unaffected** -- no comparator involved.
 - **AT RISK and now withdrawn:** only the ligand graph-codec peer win.
+
+## FAMILY E -- a comparator handicapped by an unswept hyperparameter
+
+**Instances:** ANM-10 on all-atom proteins (ANM-5 beats it by **+0.135 FVE**, on every protein
+tested); ANM-8 on 8-90-atom ligands.
+**Signature:** a win reported against a baseline whose settings were never optimised. **The
+comparison cannot fail, so it proves nothing.**
+**CHECK:** before reporting any comparison, sweep every baseline hyperparameter on TRAINING data,
+report the curve, and use the best. **A baseline you did not try to make strong is not a baseline.**
+
+### FAMILY E's first application RETRACTED THE PROJECT'S ONLY PEER WIN -- and found a worse bug
+Re-running the ligand comparison revealed the cited ANM numbers (`cANM 0.77/0.74/0.73`) were a
+**HARDCODED PRINT STRING** in `armf_graph_codec.py:239`, carried over from a **12-ligand** run, while
+the codec was evaluated on **48 held-out ligands**. The baseline was never computed on the codec's
+own held-out set -- the two sides were measured on DIFFERENT MOLECULES.
+Correct, same-split comparison: **codec LOSES at L=4 (0.800 vs 0.594) and L=8 (0.640 vs 0.571)**, and
+wins only at L=16 (0.440 vs 0.549) where Family B flags 9/48 molecules past 30% of their 3N-6 rank.
+Note the cutoff itself was NOT the ligand problem: 5-8 A is a broad optimum there and ANM-8 was a
+reasonable choice; on proteins ANM-10 genuinely is weak. Two different errors, one family.
+Second peer tested and REFUTED: a bond-graph ENM (1-2 + 1-3, weight swept) scores 1.29-1.50 A vs
+0.55-0.59 A for distance-cutoff ANM -- a distance cutoff is the better network at this scale.
+Full writeup: outputs/cluster/armf_ligand_peer_rerun.md
+
+### GRAPH-CODEC WIN: RETRACTED (was PROVISIONAL, now resolved against it)
+The ligand codec result must NOT be cited as supporting evidence for the thesis. **The project
+currently has NO surviving peer-comparison win**, which is precisely why the ATLAS run matters: it is
+the first setting where such a comparison could be *established* rather than re-litigated.
+
+### WHAT IS **NOT** AT RISK -- and one conclusion that STRENGTHENS
+The **codec-arc closure** rested on ANM (1.37 A) beating oracle-B (1.45 A) on the B-factor track.
+A STRONGER ANM makes that track **deader, not less dead** -- the stopping rule stands and is
+reinforced. Also unaffected: the intrinsic-dimensionality/mobility law (c ~ -0.9 to -1.35,
+reproduced cross-corpus), the TICA/window objective-3 results, the propagator transfer results, and
+the §7 additivity measurement -- none of these involve a comparator with an unswept hyperparameter.
