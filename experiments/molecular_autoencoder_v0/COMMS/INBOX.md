@@ -62,3 +62,38 @@ That argument is now bounded below and cannot be tightened with available
 data. The codec's saturation curve replaces it, and it is the better
 instrument anyway — it measures what the architecture achieves rather than
 what an idealised per-system decomposition would.
+
+---
+
+## 003 — L=1 is the design point, not one option in a sweep
+
+Direct from Andres: **the token count stays at 1 regardless of whether the
+system has 1,000, 30,000, or eventually 1,000,000 atoms.**
+
+Treat that as the binding constraint, not a hypothesis under test. It
+changes what the current sweep is for:
+
+- **L=1 is the architecture.** One latent token per frame, always. Its width
+  DM is the only capacity knob.
+- **L=12 and L=24 are demoted to diagnostics.** They exist to answer the
+  addressing question — whether degradation with N comes from slot
+  assignment (present at L=12/24, absent at L=1) or from the
+  pooling/broadcast pathway (present at L=1 too). They are not candidate
+  designs and must not be reported as "the best L."
+- **DM is the capacity axis.** Everything previously framed as "how many
+  tokens" is now "how wide is the one token."
+
+**The headline question, restated:** at L=1, does the codec-vs-ANM
+comparison hold flat as N goes from ~600 to ~33,500 atoms? That is
+objective 1 in a single number, and it is what the ATLAS learning curve
+should lead with.
+
+**State the compression claim explicitly in the writeup**, because it is the
+objective-4 argument in one line: one token of width DM per frame, for a
+system of any size. At DM=256 and N=1e6 that is 3,000,000 coordinates → 256
+numbers, and the 256 does not grow with N.
+
+**Consequence for reporting:** wherever a result is currently presented as a
+function of L, lead with the L=1 row and present L=12/24 beneath it as the
+addressing diagnostic. Do not average across L, and do not let a better
+number at L=12 read as a recommendation.
