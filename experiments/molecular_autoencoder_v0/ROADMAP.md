@@ -1797,3 +1797,63 @@ held-out is 20 frames, all-frames cap is 99, and system rank90 already runs 29-5
 of cap. Model and system rank usage are therefore printed as a % of cap next to the values, and
 flagged as BOUNDS above 30%. The instrument is consequently **much cleaner on mdCATH (2,500 frames)
 than on MISATO (100)** -- which is worth knowing before reading its MISATO output.
+
+## PERMANENT VERDICT RULE: log10(ratio) ~ log10(N). SPAN AND MAX-MIN ARE RETIRED.
+
+The slope IS the power-law exponent, and a "K-fold change across the range" maps to a threshold that
+depends ONLY on the N range -- never on the baseline, so it cannot move between runs:
+
+    threshold slope = log10(K) / log10(N_max / N_min)
+
+**Use the ACTUAL fitted per-system N range, not bucket medians.** For this corpus the per-system
+range is **717 - 26,861 = 37.5x, log10 = 1.574** (bucket medians 913-22,755 give 1.396 and slightly
+looser thresholds -- the fitted range is the correct denominator):
+| K | threshold slope (this corpus) |
+|---|---|
+| 1.3x -- arbitrary-L holds | **+0.0724** |
+| 2.0x -- index-addressing | **+0.1913** |
+Comparable across L, across reruns, and across corpora after rescaling by that corpus's own log N
+range. **The span (max/min) and max-min gap rules are retired** -- span was pinned to whichever
+bucket happened to be smallest and fired INDEX-ADDRESSING on an arm whose gap slope was NEGATIVE.
+
+Implementation, both required: **bootstrap CIs over systems** (log(ratio) has high leverage as a
+ratio approaches zero -- measured max leverage 0.074-0.090 here, so no single point dominates), and
+**ratios must be strictly positive; a ratio <= 0 is a FAMILY D SIGNAL to be reported, never clipped.**
+
+### FAMILY D FIRED: THE PCA "CEILING" IS NOT A CEILING, AND THE RATIO IS INVALID
+**22/69 systems at L=1, 14/69 at L=12, 6/46 at L=24 have ratio <= 0 -- the model BEATS its own PCA
+ceiling** (184L reaches -10.07). This is not a bug. **PCA-L is fitted on 80 TRAIN frames and applied
+to HELD-OUT frames, so it is NOT an upper bound on held-out performance**: a model trained across 207
+systems generalises better than a per-system PCA that overfits its 80 frames. Consequence: the
+deficit ratio's denominator can vanish AND change sign, which is the actual disease behind the
+U-shapes, the L=1 scatter, and the near-zero bucket that broke the span rule.
+
+**The log-log form therefore drops 9-32% of systems by construction.** That exclusion is NOT
+N-correlated (p=0.738 / 0.254 / 0.937) but it IS **ceiling-correlated**: dropped systems have median
+PCA ceiling 0.036 vs 0.135 (L=1), 0.200 vs 0.286 (L=12), 0.275 vs 0.377 (L=24). It removes exactly
+the systems where the ceiling is weakest -- a property of the CEILING, not of the model -- so the
+surviving fit is biased toward systems where PCA happens to generalise well.
+
+### ROBUST ALTERNATIVE: the ABSOLUTE GAP (ceiling - model), in FVE points
+Defined for either sign, no denominator, **no drops**. Thresholds set directly in FVE rather than via
+a ratio: a 0.05-FVE degradation across the range -> slope +0.0318.
+| L | n | gap slope | bootstrap CI | excludes 0? |
+|---|---|---|---|---|
+| 1 | 69 | -0.0594 | [-0.1267,+0.0065] | no |
+| 12 | 69 | -0.0227 | [-0.0715,+0.0251] | no |
+| 24 | 46 | -0.0274 | [-0.0681,+0.0164] | no |
+
+### RE-PRICED (the 565-systems figure came from the stale mapping and is VOID)
+n for CI half-width below half the 0.0724-0.1913 gap (target 0.0594), from THIS run's residuals:
+| L | current half-width | n held-out needed | systems to sample (4:1) |
+|---|---|---|---|
+| 1 | 0.176 (n=47) | 411 | ~1,644 |
+| **12** | **0.204 (n=55)** | **651** | **~2,604** |
+| 24 | 0.131 (n=40) | 195 | ~780 |
+Gap-based pricing agrees: L=12 needs n=637 held-out. **So certainty on the ratio costs ~2,600 sampled
+systems, not 565** -- and it buys certainty about a statistic that is invalid on 9-32% of systems.
+
+**CONCLUSION: do not buy it.** The binding defect is the CEILING, not n. Fixes, in order:
+(1) a frame-rich corpus so per-system PCA stops overfitting (mdCATH has 2,000 train frames vs
+MISATO's 80); (2) the direct instruments -- realised effective rank and subspace overlap -- which
+need no ceiling at all and are already wired in.
