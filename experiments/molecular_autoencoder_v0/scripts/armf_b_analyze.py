@@ -47,6 +47,17 @@ def fit(nf, subset=None, pre=""):
 
 # paired subset: domains with BOTH 79 and 2400
 paired = {k for k, r in rows.items() if "cat_r79" in r and "cat_r2000" in r}
+# The paired LADDER subset requires 2,000 frames, which drops SHORT-REPLICA domains -- short replicas
+# correlate with unfolding, i.e. FLOPPY. That is a non-random, mobility-correlated exclusion, so it is
+# quantified here and the ladder is reported as DIAGNOSTIC. The PRIMARY join-sweep fit below excludes
+# NOTHING: it keeps every domain that has the given join count.
+_drop = [r for k, r in rows.items() if k not in paired]
+if _drop:
+    _kept = [r for k, r in rows.items() if k in paired]
+    _mk = np.median([r["j1_rmsf"] for r in _kept if "j1_rmsf" in r] or [np.nan])
+    _md = np.median([r["j1_rmsf"] for r in _drop if "j1_rmsf" in r] or [np.nan])
+    print(f"  LADDER paired subset drops {len(_drop)}/{len(rows)} domains (short replicas). "
+          f"medRMSF kept {_mk:.2f} vs dropped {_md:.2f} -- exclusion is mobility-correlated, ladder is DIAGNOSTIC ONLY.")
 print(f"\n=== PRIMARY: b ACROSS THE CONCATENATED LADDER (paired subset n={len(paired)}) ===")
 print(f"  {'frames':>7}{'n':>5}{'b(N)':>20}{'c(RMSF)':>20}{'R^2':>7}{'maxRank90':>11}{'%cap':>7}")
 F = {}
@@ -199,3 +210,34 @@ if len(JF) >= 3:
         print(f"    width chain at this b: {ASYMPTOTE/FLOPPY_TO_BOUND*sc:.0f} dims @1e6-atom bound complex")
     else:
         print("\n  NO JOIN COUNT CLEARS THE 30% RANK LINE -- every option is censored; report as such.")
+
+
+# ---------------- ITEM 2: RANK-USAGE THRESHOLD SWEEP, AT FIXED JOIN ----------------
+# DIAGNOSTIC SUBSETTING, NOT AN EXCLUSION RULE. The primary fit keeps every domain. Here we fit b on
+# progressively less-censored subsets to see whether b DRIFTS -- drift measures the censoring bias
+# directly and extrapolates to a corrected b. Axes are crossed one at a time: this holds JOIN fixed
+# and varies THRESHOLD; the sweep above holds THRESHOLD fixed (none) and varies JOIN.
+print("\n=== ITEM 2: b vs RANK-USAGE THRESHOLD (join fixed) -- measures censoring bias directly ===")
+for JFIX in [j for j in JOINS if j >= 3]:
+    have = [(k, r) for k, r in rows.items() if f"j{JFIX}_r" in r]
+    if len(have) < 40: continue
+    print(f"  --- join J={JFIX} (n available {len(have)}) ---")
+    print(f"    {'thresh':>8}{'nKept':>7}{'%kept':>7}{'N range':>16}{'medRMSF':>9}{'b (CI)':>20}{'c (CI)':>20}")
+    prev = None
+    for th in [0.40, 0.30, 0.20, 0.15, 0.10]:
+        sub = [(k, r) for k, r in have if r[f"j{JFIX}_pct"] < th]
+        if len(sub) < 25: 
+            print(f"    {th:>8.2f}{len(sub):>7}   too few to fit"); continue
+        A = np.array([[r["N"], r[f"j{JFIX}_rmsf"], r[f"j{JFIX}_r"]] for _, r in sub], float)
+        X = np.column_stack([np.log10(A[:, 0]), np.log10(A[:, 1]), np.ones(len(A))]); y = np.log10(A[:, 2])
+        bb, *_ = np.linalg.lstsq(X, y, rcond=None); res = y - X @ bb; dof = len(A) - 3
+        se = np.sqrt(np.diag((res ** 2).sum() / dof * np.linalg.inv(X.T @ X))); tc = stats.t.ppf(0.975, dof)
+        print(f"    {th:>8.2f}{len(A):>7}{len(A)/len(have)*100:>6.0f}%"
+              f"{f'{int(A[:,0].min())}-{int(A[:,0].max())}':>16}{np.median(A[:,1]):>9.2f}"
+              f"{f'{bb[0]:+.3f}+/-{tc*se[0]:.3f}':>20}{f'{bb[1]:+.3f}+/-{tc*se[1]:.3f}':>20}")
+        prev = (th, bb[0])
+    print("    read: b STABLE across thresholds -> censoring is not biasing b.")
+    print("          b DRIFTS UPWARD as the threshold tightens -> that IS the censoring bias, measured;")
+    print("          extrapolate the trend to threshold->0 for a corrected b.")
+    print("    NOTE: tightening the threshold preferentially keeps FLOPPY/low-rank systems, so the N")
+    print("          range and mobility range shrink too -- both are printed so the loss of leverage is visible.")

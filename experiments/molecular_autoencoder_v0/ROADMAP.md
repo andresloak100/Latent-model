@@ -1600,3 +1600,37 @@ saturation. Selection therefore uses the **p90** of rank usage, not the median, 
 distribution (median / p90 / max / fraction over the void line) is printed per join. Otherwise a join
 that looks clean on average would be picked while censored precisely for the rigid tail, which is
 where the slope gets its leverage.
+
+### FOUR SAFEGUARDS ON THE b MEASUREMENT (recorded BEFORE results exist)
+
+**1. NO EXCLUSION OF CENSORED DOMAINS -- the primary fit keeps every domain.** Dropping domains that
+fail a rank-usage threshold would be a non-random exclusion CORRELATED WITH N (rigid -> high rank90
+-> censored -> dropped, and rigid correlates with large). **This is the same shape as the maxDisp bug
+that dropped 7/8 and 8/8 of the top MISATO buckets -- the THIRD occurrence of this pattern**, after
+that one and the underpowered drop-rate null. p90 rank usage selects a JOIN COUNT; it is never a
+filter on which domains are fitted.
+AUDIT RESULT: the primary join-sweep fit keeps every domain that has the given join. One leak found
+and now made visible rather than silent -- the secondary LADDER fit uses a paired subset requiring
+2,000 frames, which drops SHORT-REPLICA domains, and short replicas correlate with unfolding
+(floppy). That exclusion is now quantified in the output (n dropped, medRMSF kept vs dropped) and the
+ladder is labelled DIAGNOSTIC ONLY.
+
+**2. RANK-USAGE THRESHOLD SWEEP AT FIXED JOIN.** Fit b on subsets with rank usage below
+10/15/20/30/40%, reporting b, CI, n retained, N range retained and median RMSF at each. Stable ->
+censoring is not biasing b. Drifting upward as the threshold tightens -> that IS the censoring bias
+measured directly, and the trend extrapolates to a corrected b. **DIAGNOSTIC SUBSETTING, NOT AN
+EXCLUSION RULE.** Axes are crossed ONE AT A TIME -- joins at fixed threshold, threshold at fixed join
+-- since varying both confounds them. Tightening the threshold preferentially retains floppy/low-rank
+systems, shrinking the N and mobility ranges, so both are printed and the loss of leverage is visible.
+
+**3. ADAPTIVE PER-DOMAIN JOIN -- held in reserve as the remedy if (2) shows drift.** Choose the join
+per domain so every domain clears the same rank-usage target, equalising censoring instead of letting
+it track mobility. Cost: join count then correlates with mobility, so inflation correlates with c --
+**if used, report c BOTH ways.** This is the right side of the trade, since inflation is x1.00-1.07
+while censoring is the artifact that flips b's sign.
+
+**4. DIRECTIONAL PREDICTION, ON RECORD BEFORE THE NUMBERS EXIST: de-censored b should come back
+HIGHER than +0.101.** Mechanism: bigger proteins are more rigid (corr(logN, logRMSF) = -0.31), rigid
+means higher rank90 (c ~ -0.9 to -1.35), higher rank90 means more censoring -- so censoring truncates
+the dependent variable preferentially at HIGH N and FLATTENS the slope. **If b comes back LOWER, that
+mechanism is wrong, and that fact is worth as much as the number.**
