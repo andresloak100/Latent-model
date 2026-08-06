@@ -2495,3 +2495,31 @@ Remaining load-bearing claims are concentrated in the objective-3 writeups (`arm
 `armf_window_scaling.md`, `armf_slowness.md`) and the phase-1 scripts, all of which assert some form
 of "dimensionality does not grow with atom count, so a fixed budget covers it." Every one of those
 inherits the same floor and is to be read as a lower bound until re-derived from the codec curve.
+
+### FULL IN-SAMPLE RESULT (n=123 held-out ATLAS systems) -- b DOUBLES OUT OF SAMPLE
+`armf_rank90_insample.py`, job 10305712. Fit PCA on replicas 0+1, evaluate on replica 2.
+
+| quantity | value |
+|---|---|
+| held-out variance covered by the **in-sample rank90 modes** | median **77.1%**, not 90% |
+| systems where that falls below 90% | **123/123** (min 49.9%) |
+| `rank90_out > rank90_in` | **118/118** of those that reach 90% at all |
+| `rank90_out / rank90_in` | median **3.49x**, IQR 2.26-6.08x |
+| systems that NEVER reach 90% at any k | **5/123** -- N 13,543-33,377, median 14,018 (corpus median 3,249) |
+| **in-sample b** (`log10 rank90_in ~ log10 N`) | **+0.4657 +/- 0.2158** |
+| **out-of-sample b** | **+0.9285 +/- 0.2220** |
+
+**The b exponent roughly DOUBLES out of sample** -- and the out-of-sample figure is *itself* biased
+low, because the 5 systems excluded from it are precisely the high-N ones that failed to reach 90%
+(FAMILY A: a non-random exclusion correlated with the regressor). The censored systems being the
+LARGEST is the signature the second bias predicts.
+
+rank90_in sits at median 4.0% / max 19.3% of usable rank under the 2-replica train set (milder than
+the 32.3% seen with one replica), but that percentage **RISES with N at +0.0348 +/- 0.0152** -- the
+measurement ceiling binds hardest exactly where the b slope takes its leverage.
+
+**Consequence for the "one global latent, width independent of atom count" claim:** measured out of
+sample on this corpus, rank90 grows at roughly `N^0.93` -- close to linear. That does not by itself
+refute the architecture, because rank90 is a per-system PCA quantity and the codec is a shared model
+sized by its own saturation curve; but it does remove the last version of the *physics* argument that
+a fixed width suffices. The claim now stands or falls on `armf_atlas_dm.py`.
