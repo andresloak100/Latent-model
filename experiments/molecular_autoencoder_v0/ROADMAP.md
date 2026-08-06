@@ -1301,3 +1301,30 @@ larger latent than anything trained so far: **if it voids on the cap, raise and 
 rather than reading a capped bucket.** Report steps-to-plateau vs DM alongside steps-to-plateau vs
 N. If convergence cost scales with DM but not with N, that is a SECOND objective-4 number and it
 prices the width choice directly.
+
+### PRE-REGISTERED THREE-WAY READ on the L=1 arm (supersedes the earlier two-way framing)
+
+**CORRECTION to what was written earlier in this file and in armf_phase1_dm.py:** an N effect at
+L=1 was described as a "CAPACITY limit". That is wrong and contradicts a measurement already in
+hand -- rank90's mobility-controlled N-exponent CI spans zero, and TICA dimensionality is flat and
+uncensored. **The physics says intrinsic dimensionality does not grow with atom count, so a
+fixed-width code suffices.** Capacity is therefore already excluded as an explanation.
+
+| outcome | observation | localisation | fix |
+|---|---|---|---|
+| **A** | N effect at L=12/24 but NOT at L=1 | slot assignment / routing | addressing mechanism |
+| **B** | N effect at L=1 as well (rank90/TICA flat in N) | **POOLING / BROADCAST PATHWAY** -- encoder aggregating N tokens into a fixed code, or decoder broadcasting one code back to N atoms. **NOT capacity.** | aggregation architecture: hierarchical pooling, deeper cross-attention, relative-position conditioning |
+| **C** | no N effect anywhere | arbitrary-L holds, subject to the stated power limit | -- |
+
+The outcome must be labelled A/B/C explicitly in the report. **If B, do not write "capacity limit"**
+-- that phrasing contradicts an existing measurement and would send the next round at the wrong fix.
+
+### PRE-COMMITTED DECISION TREE (so it is not relitigated after results)
+- **Outcome C:** do NOT immediately spend 565 sampled systems to certify <1.3x. Excluding
+  index-addressing is enough to proceed; the certification run is scheduled only if something
+  downstream depends on the tighter bound.
+- **Outcome A:** next run is the ADDRESSING MECHANISM, not more systems.
+- **Outcome B:** next run is the AGGREGATION ARCHITECTURE, not more systems.
+
+In all three cases the follow-up is **mechanistic, not statistical**. The price of statistical
+certainty is now known (~565 sampled systems) and it is to be paid deliberately, not by default.

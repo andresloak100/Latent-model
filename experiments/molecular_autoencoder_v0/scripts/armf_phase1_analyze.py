@@ -30,6 +30,8 @@ def read(fn, key, ratio_key, gap_key):
         excl = lr.slope + hw < s20; conf = lr.slope + hw < s13
         print(f"    INDEX-ADDRESSING (>2x): {'EXCLUDED' if excl else 'NOT excluded'}   "
               f"ARBITRARY-L SURVIVES (<1.3x): {'CONFIRMED' if conf else 'not confirmable at this n'}")
+        try: EFFECT[(key, float(arm))] = bool(lr.slope - hw > 0)      # is there a positive N effect at all?
+        except Exception: pass
         gl = stats.linregress(np.log10(N), gp); ghw = stats.t.ppf(0.975, len(N)-2)*gl.stderr
         print(f"    absolute gap slope {gl.slope:+.4f} +/- {ghw:.4f} (must agree with the ratio)")
         print(f"    DENSITY-MATCHED PAIRS (availability held ~fixed, N varies):")
@@ -49,6 +51,9 @@ def read(fn, key, ratio_key, gap_key):
         print(f"    steps-to-plateau by bucket: " + " ".join(f"{b[0]//1000}k:{s}" for b, s in st.items() if s))
 
 
+EFFECT = {}
+
+
 print("=== L SWEEP (DM=64) ===")
 read(f"{WR}/phase1_rows_v2.json", "L", "ratio", "gap")
 print("\n=== DM SWEEP (L=1) ===")
@@ -65,3 +70,29 @@ for fn, key in [(f"{WR}/phase1_dm_rows.json", "DM"), (f"{WR}/phase1_rows_v2.json
               f"   [{' '.join(f'{key}={int(a)}:{int(b)}' for a,b in zip(xs,ys))}]")
         print(f"    -> objective-4: convergence cost scales with {key} " +
               ("YES" if abs(lr.slope) > 0.2 else "NO (flat)"))
+
+
+# ---------------- THREE-WAY READ (pre-registered; label explicitly) ----------------
+print("\n=== THREE-WAY READ ===")
+l1 = [v for (k, a), v in EFFECT.items() if a == 1.0]
+lhi = [v for (k, a), v in EFFECT.items() if k == "L" and a in (12.0, 24.0)]
+if not l1 or not lhi:
+    print("  insufficient arms reported yet (need L=1 and L=12/24) -- no label")
+else:
+    e1 = any(l1); ehi = any(lhi)
+    if ehi and not e1:
+        print("  OUTCOME A: N effect at L=12/24 but NOT at L=1 -> SLOT ASSIGNMENT / ROUTING.")
+        print("    Fix: addressing mechanism. NEXT RUN IS MECHANISTIC, not more systems.")
+    elif e1:
+        print("  OUTCOME B: N effect at L=1 as well. rank90 (N-exponent CI spans 0) and TICA (flat, uncensored)")
+        print("    already EXCLUDE capacity -- the physics says a fixed-width code suffices. This localises to the")
+        print("    POOLING/BROADCAST PATHWAY: encoder aggregating N tokens into a fixed code, or decoder")
+        print("    broadcasting one code to N atoms. DO NOT call this a capacity limit.")
+        print("    Fix: aggregation architecture (hierarchical pooling / deeper cross-attention / relative-position")
+        print("    conditioning). NEXT RUN IS MECHANISTIC, not more systems.")
+    else:
+        print("  OUTCOME C: no N effect anywhere -> arbitrary-L holds, SUBJECT TO THE STATED POWER LIMIT")
+        print("    (failure mode excluded at >2x; success mode <1.3x NOT certified at this n).")
+        print("    Pre-committed: do NOT spend 565 sampled systems to certify <1.3x now. Excluding")
+        print("    index-addressing is enough to proceed; schedule certification only if something downstream")
+        print("    depends on the tighter bound.")

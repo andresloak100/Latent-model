@@ -50,9 +50,12 @@ LS = [1]; DMS = [16, 64, 256, 512]; ANM_MAXN = 6000   # L=1 fixed; DM is the CAP
 # assignment, so a G6 permutation failure here would mean the ENCODER index-addresses -- a more
 # serious problem than slot assignment. Old L=1 comment follows:
 # L=1 is a MECHANISM probe: with one slot there is no
-# slot assignment to learn, so routing is impossible by construction. Degradation with N still
-# present at L=1 -> CAPACITY limit (index-addressing excluded). Degradation at L=12 but not L=1
-# -> the problem is specifically slot assignment. NOTE: L=1 at DM=64 is a 64-DIMENSIONAL code,
+# slot assignment to learn, so routing is impossible by construction. An N effect at L=1 is NOT a
+# capacity limit -- rank90 (N-exponent CI spans zero) and TICA (flat, uncensored) both say intrinsic
+# dimensionality does not grow with atom count, so the physics says a fixed-width code suffices.
+# It would instead localise to the POOLING/BROADCAST pathway (encoder aggregating N tokens into a
+# fixed code, or decoder broadcasting one code back to N atoms) -- an architectural bottleneck with
+# different fixes (hierarchical pooling, deeper cross-attention, relative-position conditioning). NOTE: L=1 at DM=64 is a 64-DIMENSIONAL code,
 # not one number. Judge L=1 on flatness of the deficit ratio in N, not on its absolute FVE.
 FRAMES_PER_STEP = 8                     # CONSTANT across N (was memory-budgeted -> N-correlated undertraining)
 MAXSTEPS = 20000; EVAL_EVERY = 1000; PATIENCE = 5; PLATEAU_TOL = 0.01; RANKVOID = 0.30 * 79
