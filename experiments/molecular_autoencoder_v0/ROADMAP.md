@@ -1487,23 +1487,34 @@ What the data does support:
 4. Provisional correction using c's factor (assumes censoring attenuates both coefficients of the
    same regression similarly -- defensible, not proven): **b ~ 0.14**.
 
-### WIDTH CHAIN, auditable (anchor: mdCATH asymptote 168 at medN 1,804; floppy->bound divide by 0.65)
+### WIDTH CHAIN -- ***RETIRED AS A SIZING INSTRUMENT. EVERY ROW BELOW IS A FLOOR.*** (INBOX 002)
+> **DO NOT SIZE DM FROM THIS TABLE.** Two independent biases, both pushing the SAME direction, make
+> every number here a lower bound of unknown tightness, and neither can be fixed with available data.
+> Superseded by the codec's own held-out FVE-vs-DM curve (`armf_atlas_dm.py`). Retained for audit
+> only. See "WIDTH CHAIN IS A FLOOR" below for the measurements.
+
+(anchor: mdCATH asymptote 168 at medN 1,804; floppy->bound divide by 0.65)
+
 | b | N^b to 1e6 | dims for a 1e6-atom BOUND complex |
 |---|---|---|
-| 0.101 (raw, censored -> LOWER bound) | 1.89 | **489** |
-| 0.139 (x1.38 c-derived, provisional) | 2.41 | **622** |
-| 0.20 | 3.54 | 914 |
-| 0.30 | 6.65 | 1720 |
+| 0.101 (raw, censored -> LOWER bound) | 1.89 | **>= 489** |
+| 0.139 (x1.38 c-derived, provisional) | 2.41 | **>= 622** |
+| 0.20 | 3.54 | >= 914 |
+| 0.30 | 6.65 | >= 1720 |
 
-**Design sensitivity:** at b ~ 0.10-0.14, DM ~ 500-620 covers a 1M-atom bound complex and DM=512 sits
-right at the edge. At b >= 0.20 it takes ~900+, and at b ~ 0.30 the single-global-latent claim needs
-qualification rather than just a wider DM. The conclusion is sensitive to b over exactly the range
-censoring could plausibly move it, and b is currently known only as a lower bound.
+**Design sensitivity -- ITSELF VOID.** It formerly read: "at b ~ 0.10-0.14, DM ~ 500-620 covers a
+1M-atom bound complex and DM=512 sits right at the edge." **That conclusion is withdrawn.** It
+compared a DM budget against a quantity now known to be a floor, so "DM=512 sits right at the edge"
+is unsupported in the only direction that matters -- the true requirement can only be HIGHER, never
+lower. What survives is the qualitative sensitivity: the single-global-latent claim needs
+qualification rather than a wider DM once the requirement passes ~900, and nothing here bounds it
+below that.
 
 **CAVEATS ON THE SAME LINE:** 2.5-decade extrapolation (1,804 -> 1e6 atoms); ns-us regime only;
 variance-weighted so rare states are excluded (the coverage question is open, not answered); floppy
--> bound factor 0.65 derived from a 1.65x RMSF ratio via c ~ -0.9; and **b itself is a censored
-lower bound.**
+-> bound factor 0.65 derived from a 1.65x RMSF ratio via c ~ -0.9; **b itself is a censored lower
+bound**; and now **the 168 anchor is a lower bound too** -- it was measured in-sample on mdCATH,
+which never had its n_eff checked.
 
 ### b-EXPONENT MEASUREMENT: design, staged (2026-08-05)
 
@@ -2305,3 +2316,78 @@ trajectory length that would fix it.** Consequently:
   intended population explicit and by distinguishing **never attempted** (coverage shortfall, cache
   still building) from **failed** (size-correlated dropout). **A warning that cries wolf trains the
   reader to ignore the one warning that must never be ignored.**
+
+## WIDTH CHAIN IS A FLOOR, NOT AN ESTIMATE -- AND rank90 IS RETIRED AS A SIZING INSTRUMENT
+
+INBOX 002. Two independent biases push the SAME direction, so they compound rather than cancel.
+
+### BIAS 1 -- rank90 is measured IN-SAMPLE. MEASURED, not argued.
+PCA maximises explained variance on the very frames it was fitted to, so rank90 is a LOWER BOUND on
+the modes a NEW frame needs. With n_eff at 1-7% of raw frames the gap is not a rounding error.
+Measured on ATLAS under the actual protocol (fit replicas 0+1, evaluate replica 2),
+`armf_rank90_insample.py`:
+
+| N | rank90_in | rank90_out | ratio | held-out FVE at rank90_in |
+|---|---|---|---|---|
+| 598 | 31 | 70 | 2.26x | 80.2% |
+| 1,173 | 103 | 257 | 2.50x | 79.9% |
+| 1,709 | 27 | 13 | 0.48x | 93.9% |
+| 2,433 | 217 | 960 | 4.42x | 69.0% |
+| 3,475 | 259 | 889 | 3.43x | 79.0% |
+| 4,919 | 399 | 2,136 | 5.35x | 69.0% |
+| 7,495 | 314 | 2,417 | 7.70x | 70.3% |
+| 33,377 | 914 | **never reaches 90%** | **CENSORED** | 56.3% (max 72.5%) |
+
+**The in-sample rank90 modes explain a median of 74.7% of held-out variance, not 90%.** At the top of
+the N axis rank90 is not merely underestimated -- it is **UNDEFINED out of sample**.
+**And the ratio GROWS with N** (2.26x -> 7.70x -> censored), so bias 1 attacks the **b exponent**
+too, independently of bias 2.
+
+### BIAS 2 -- rank90 is CENSORED at large N (Family B)
+rank90 reaches **32.3%** of usable rank at the top of the N axis, past the 30% edge where a count
+starts pressing against its own measurement ceiling. That censors rank90 **at large N specifically**,
+which is exactly where the b slope takes its leverage, so the measured growth understates the true
+growth.
+
+### CONSEQUENCE
+`168 / 0.65 x 1.83 ~= 490 dims at 1e6 atoms` is a **FLOOR**. The 168 anchor inherits the same n_eff
+problem and mdCATH never had it checked. **"DM=512 sits right at the edge" is withdrawn** -- a budget
+compared against a floor is unsupported in the only direction that matters.
+
+### THIS IS CORPUS-INDEPENDENT -- there is NO dataset move that fixes it
+n_eff at 1-7% is trajectory length versus decorrelation time, not a property of ATLAS.
+MISATO **10 ns** / mdCATH **2.5 us** / ATLAS **100 ns** -- none supplies enough independent samples to
+fit a few-hundred-dimensional per-system subspace. **Exactly as with the ceiling, the answer is to
+change instrument, not corpus.**
+
+### WITHDRAWN: `PCA-256 = 0.958` ("256 dimensions capture ~96% of displacement variance")
+Do not cite it. At k=256, n_eff is 94-165, so the fit carries **more dimensions than effective
+samples in 237 of 239 systems** (n_eff per fitted dimension **0.53**; at k=24 it is 0.87, below 1 in
+188/239). Held-out evaluation could not penalise it because the held-out replica sits only **1.18x**
+further away than the training frames sit from each other -- 100 ns does not decorrelate the
+replicas. Under the current protocol the PCA-256 median is **0.8614**, and that number is subject to
+the identical objection: it is not usable as a capacity claim either.
+(The `0.958` is not in the committed record -- a repo-wide search finds it only as an unrelated
+mdCATH PCA-DM-512 ceiling in `armf_capacity_axis.md`. Recorded here so it cannot be resurrected.)
+
+### THEREFORE: SIZE THE LATENT FROM THE CODEC, NOT FROM rank90
+The codec's held-out FVE-vs-DM curve has **no per-system overfitting problem**: the model is SHARED,
+fitted across many systems, and evaluated on **systems it never saw**, so its effective sample size
+is the **CORPUS**, not one trajectory. This was built as a capacity probe; it is now also the only
+sound way to answer "how wide does the latent need to be."
+
+**What this costs, stated honestly:** rank90 and the width chain were the *physics* argument for "one
+global latent, width independent of atom count." That argument is now bounded below and cannot be
+tightened with available data. The codec curve replaces it and is the better instrument anyway -- it
+measures what the architecture **achieves** rather than what an idealised per-system decomposition
+would need. But it is an *empirical* answer on a *measured* N range, not a physics argument, so the
+1e6-atom extrapolation is no longer supported by anything and must be dropped or re-derived.
+
+### PRE-REGISTERED READ (before the DM run exists)
+- Held-out FVE rises with DM then flattens; the flattening DM is the architectural width answer.
+- **A flat curve is only width saturation if the wide arms actually USED their width.** The prior
+  mdCATH DM sweep collapsed at DM=256/512 to constant output (G1 cos = 1.0000) on 21 training
+  domains and was VOID. So each arm reports the **participation ratio** of the learned latent
+  alongside FVE: `PR = (sum lambda_i)^2 / sum lambda_i^2` on the latent covariance across held-out
+  frames and systems. **PR ~ DM => genuine saturation. PR << DM => capacity that failed to train,
+  which is a DIFFERENT finding and must not be reported as the first.**

@@ -190,22 +190,28 @@ if __name__ == "__main__":
     reg(x, np.log10(tr_), "tau random projection", "   <- unselected reference")
     for k in KS: reg(x, np.log10([r[f"tau{k}"] for r in rows]), f"tau mean over {k} modes")
     for k, v in ((24, n24), (256, n256)): reg(x, np.log10(v), f"n_eff at k={k}")
-    s_n, h_n = reg(x, np.log10(nr9), "n_eff over rank90 modes")
-    s_c, h_c = reg(x, np.log10(nr9 / r90), "n_eff(r90) / rank90", "   <- conditioning quantity")
+    s_n, h_n = reg(x, np.log10(n256), "n_eff at FIXED k=256", "   <- attribution basis")
     s_r, h_r = reg(x, np.log10(r90), "rank90", "   <- for attribution")
+    s_c, h_c = s_n - s_r, h_n + h_r
+    s_m, h_m = reg(x, np.log10(nr9), "n_eff over rank90 modes", "   <- COMPOSITION-CONFOUNDED, see 2b")
+    reg(x, np.log10(nr9 / r90), "n_eff(r90) / rank90", "   <- same confound, reported for completeness")
 
-    print(f"\n=== 2b. ATTRIBUTION -- the conditioning slope decomposes EXACTLY ===", flush=True)
-    print(f"  log(n_eff/rank90) = log(n_eff) - log(rank90), so the slopes must add:")
-    print(f"    n_eff slope   {s_n:+.4f}   (IAT growing with N)          {100*abs(s_n)/max(abs(s_n)+abs(s_r),1e-9):>5.1f}% of the total")
-    print(f"    -rank90 slope {-s_r:+.4f}   (more modes needed at large N) {100*abs(s_r)/max(abs(s_n)+abs(s_r),1e-9):>5.1f}% of the total")
-    print(f"    sum           {s_n-s_r:+.4f}   vs measured {s_c:+.4f}   "
-          f"(residual {abs(s_n-s_r-s_c):.2e})", flush=True)
+    print(f"\n=== 2b. ATTRIBUTION -- and why it must use FIXED k ===", flush=True)
+    print(f"  n_eff averaged over rank90 modes has slope {s_m:+.4f} -- POSITIVE. That is NOT improved")
+    print(f"  sampling: at large N rank90 is larger, so the average sweeps in more of the FAST")
+    print(f"  high-index modes (tau ~1-4 beyond mode 200), pulling the mean tau down. It is a")
+    print(f"  COMPOSITION effect of a moving window, not a statement about how well any given")
+    print(f"  direction is sampled. Attribution therefore uses FIXED k, where the window is held")
+    print(f"  still and the comparison is like-for-like:")
+    tot = abs(s_n) + abs(s_r)
+    print(f"    n_eff at k=256   {s_n:+.4f}   (IAT growing with N)           {100*abs(s_n)/max(tot,1e-9):>5.1f}%")
+    print(f"    -rank90          {-s_r:+.4f}   (more modes needed at large N) {100*abs(s_r)/max(tot,1e-9):>5.1f}%")
+    print(f"    conditioning     {s_c:+.4f}   at fixed k", flush=True)
 
     print(f"\n=== 3. VERDICT ===", flush=True)
-    tau_grows = s_tl - h_tl > 0
-    tau24 = np.array([r["tau24"] for r in rows]); s_t24, h_t24 = stats.linregress(x, np.log10(tau24))[0], 0
+    tau_grows = s_n + h_n < 0          # n_eff FALLING at fixed k <=> tau GROWING at fixed k
     print(f"  tau(PC1) vs N: [{s_tl-h_tl:+.4f}, {s_tl+h_tl:+.4f}] -- PC1 alone is a noisy extreme order")
-    print(f"  statistic; the MODE-AVERAGED tau is the well-measured version (see the k=24/256 rows).")
+    print(f"  statistic (R^2 ~0.08); the MODE-AVERAGED tau at fixed k is the well-measured version.")
     if s_c + h_c < 0:
         print(f"  Conditioning (n_eff/rank90) DEGRADES with N: [{s_c-h_c:+.4f}, {s_c+h_c:+.4f}].", flush=True)
         dom = "IAT growth" if abs(s_n) > abs(s_r) else "rank90 growth"

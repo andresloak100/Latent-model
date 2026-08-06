@@ -70,37 +70,52 @@ the mode-averaged quantity, not PC1, carries the result.
 
 ## IAT does grow with N — but it is the minority mechanism
 
-Interim, n=20 spanning N = 598 → 33,377 (slopes are per decade of N, 95% CI):
+**FINAL, n=239** spanning N = 598 → 33,377 (55.8×, 1.75 decades). Slopes per decade of N, 95% CI.
+Lag-cap censoring after the fix: **0 of 68,539** mode-series failed to reach rho<0.05.
 
 | quantity | slope | R² | |
 |---|---|---|---|
-| tau, PC1 alone | +0.1405 ± 0.1696 | 0.14 | n.s. — noisy extreme order statistic |
-| tau, random projection | +0.1082 ± 0.2287 | 0.05 | n.s. — unselected reference |
-| **tau, mean over 24 modes** | **+0.1713 ± 0.0554** | 0.70 | **significant** |
-| **tau, mean over 256 modes** | **+0.1745 ± 0.0416** | 0.81 | **significant** |
-| n_eff at k=256 | −0.1745 ± 0.0416 | 0.81 | significant |
-| n_eff / rank90 | −0.8239 ± 0.4569 | 0.44 | significant — the conditioning quantity |
-| rank90 | +0.6494 ± 0.4712 | 0.32 | significant — for attribution |
+| tau, PC1 alone | +0.2200 ± 0.0965 | 0.078 | significant but **R²=0.08** — a noisy order statistic |
+| tau, random projection | +0.1643 ± 0.0748 | 0.073 | unselected reference |
+| **tau, mean over 24 modes** | **+0.1706 ± 0.0190** | 0.568 | **significant** |
+| **tau, mean over 256 modes** | **+0.1794 ± 0.0138** | 0.735 | **significant** |
+| n_eff at fixed k=256 | −0.1794 ± 0.0138 | 0.735 | significant |
+| rank90 | +0.5183 ± 0.1607 | 0.146 | significant — for attribution |
+| n_eff over *rank90* modes | +0.2556 ± 0.1259 | 0.063 | **composition-confounded, see below** |
 
-**The hypothesis is confirmed but is not the whole story.** IAT-vs-N is real: τ roughly **doubles**
-across the realised 1.75-decade span (10^(0.1745×1.75) = 2.02×), so n_eff falls from ~165 to ~94 at
-k=256. But the conditioning slope decomposes exactly:
+**The hypothesis is confirmed.** τ at fixed k grows with N at +0.1794 ± 0.0138 (R²=0.735), so τ
+roughly **doubles** across the span and n_eff falls correspondingly.
+
+**One trap worth recording, because I fell into it.** Averaging τ over each system's *rank90* modes —
+which I added to make numerator and denominator span the same subspace — makes n_eff appear to *rise*
+with N (+0.2556). That is not better sampling. At large N rank90 is larger, so the average sweeps in
+more of the fast high-index modes (τ ≈ 1–4 beyond mode 200), pulling the mean τ down. It is a
+**composition effect of a moving window**. Attribution must therefore use **fixed k**, where the
+window is held still:
 
 ```
-log(n_eff/rank90) = log(n_eff) − log(rank90)
-    −0.1745  (IAT growing with N)        =  21% of the degradation
-    −0.6494  (more modes needed at large N) =  79% of the degradation
+log(n_eff/rank90) = log(n_eff) − log(rank90)      [at fixed k=256]
+    −0.1794  (IAT growing with N)           =  25.7% of the degradation
+    −0.5183  (more modes needed at large N)  =  74.3% of the degradation
     ───────
-    −0.8239  matches the measured −0.8239
+    −0.6977  conditioning, at fixed k
 ```
 
-So slower collective modes in bigger proteins are a **confirmed minority mechanism at ~21%**. The
-dominant term is simply that large proteins need more modes to reach 90% variance, against an n_eff
-that is small for every system regardless of size.
+So slower collective modes in bigger proteins are a **confirmed minority mechanism at ~26%**. The
+dominant term is simply that large proteins need more modes, against an n_eff that is small for every
+system regardless of size.
 
-Note the single most alarming number is not a slope at all: **n_eff at k=24 is 14–24 raw-equivalent
-samples**, and at k=256 it is 94–165 — against 2,501 frames. Efficiency is ~1–7%. At k=256 the ceiling
-is fitting a 256-dimensional subspace from fewer than 256 effective samples in **every** system.
+τ collapses with mode index, which is why the fixed-k framing matters:
+
+| mode | 0 | 1 | 4 | 9 | 49 | 199 | 499 |
+|---|---|---|---|---|---|---|---|
+| τ (median frames) | 655 | 322 | 164 | 87 | 15.2 | 3.7 | 1.8 |
+| n_eff (median) | 4 | 8 | 15 | 29 | 165 | 684 | 1374 |
+| % of frames | 0.2% | 0.3% | 0.6% | 1.2% | 6.6% | 27.4% | 54.9% |
+
+**The single most alarming number is not a slope.** n_eff per fitted dimension is **0.53 at k=256,
+below 1.0 in 237 of 239 systems**; at k=24 it is 0.87, below 1.0 in 188/239. The ceiling fits more
+dimensions than it has independent samples in essentially every system on the corpus.
 
 ## Neither more frames nor more replicas fixes this
 
@@ -134,11 +149,24 @@ That is survivable, and the reason it is survivable was designed in beforehand:
 The decision this forecloses: do **not** spend another corpus move chasing a sound ceiling. No
 available dataset supplies the trajectory length that would fix it.
 
+## The frames-per-rank90 table, restated in n_eff (n=239)
+
+| N bin | n | rank90 | raw 1rep | raw 2rep | n_eff | n_eff/rank90 | overstatement |
+|---|---|---|---|---|---|---|---|
+| 598–1,460 | 60 | 49 | 51.1× | 102.3× | 42 | **0.91×** | 56× |
+| 1,460–3,025 | 59 | 103 | 24.3× | 48.6× | 68 | **0.68×** | 36× |
+| 3,025–5,332 | 60 | 186 | 13.5× | 26.9× | 97 | **0.53×** | 25× |
+| 5,332–33,377 | 60 | 275 | 9.1× | 18.2× | 124 | **0.46×** | 20× |
+
+The old table was overstated by **20–56×**, not the ~2× a redundant replica would explain. The
+effective samples-per-dimension ratio is **below 1.0 in every bin**.
+
 ## Open
 
-- rank90 reaches 807 of 2,501 usable rank (32%) at the top of the N axis, past the 30% edge where
-  rank90 itself starts pressing against its own measurement ceiling (Family B). The full run reports
-  this per system; if it bites, the +0.6494 rank90 slope is itself an underestimate.
+- rank90 reaches **32.3%** of usable rank at the top of the N axis, past the 30% edge where rank90
+  presses against its own measurement ceiling (Family B). So the +0.5183 rank90 slope is itself an
+  underestimate — which is one of the two biases that makes the width chain a floor
+  (see `ROADMAP.md`, "WIDTH CHAIN IS A FLOOR").
 - 2 held-out systems (3vth_A, 2po4_A) still uncached; guard is provisional on 123/125 pending the
   cache job. Extremes are preserved (realised range == selected range) and FAILED = 0.
 - `conservation_report` fired a false "RUN IS VOID" banner on the guard: its denominator was the whole
