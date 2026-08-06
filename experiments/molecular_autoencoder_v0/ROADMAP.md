@@ -1760,3 +1760,40 @@ dependence, so frames drawn from five replicas are simply BROADER SAMPLING of th
 ensemble -- **strictly better training data, not discontinuities**. `armf_phase1_dm.py` therefore
 keeps concatenated frames, and both headers now carry the cross-reference so neither gets "fixed"
 into the other's convention later. **Different use, different concern.**
+
+### PRE-COMMITTED: THE INCONCLUSIVE-AGAIN BRANCH (do NOT reflexively scale n)
+
+If the deficit ratio again fails to separate flat from sloped, the reflex is "more systems".
+**Resist it. Three inconclusive reads on the same statistic is evidence the STATISTIC is weak, not
+only that n is small** -- and certainty is priced at ~565 sampled systems, a large bill for an
+instrument that has not yet discriminated.
+
+**The deficit ratio is a scalar summary of a subspace comparison, and it discards the structure that
+would answer the question.** Two more direct statistics, both now computed INLINE:
+
+1. **EFFECTIVE RANK OF THE MODEL'S RECONSTRUCTIONS vs N.** SVD the model's reconstruction matrix per
+   system, take the 90%-variance rank of what the model actually REALISES, compare to that system's
+   own rank90.
+   - model rank TRACKS system rank90 across N -> the model realises the available dimensionality,
+     arbitrary-L holds.
+   - model rank SATURATES while system rank90 grows -> **the bottleneck is measured DIRECTLY, in
+     dimensions**, not inferred from a ratio of scalars.
+2. **SUBSPACE OVERLAP** -- principal angles / Grassmann distance between the model's realised
+   subspace and the system's top-k PCA subspace, as a function of N. This says whether the model
+   finds the **RIGHT DIRECTIONS**, which the FVE ratio conflates with how much variance it captures.
+
+If both also come back flat, then no N-dependence exists at the available resolution and paying for
+565 systems is justified. If they discriminate where the ratio did not, the run is saved and the
+instrument is better.
+
+**CORRECTION TO THE PREMISE:** this is NOT post-hoc on the runs finishing now -- `fve()` computes
+predictions and discards them, and no model checkpoint was saved either. So the current jobs cannot
+support it. Cost of the branch is therefore **one re-run at the SAME n** (cheap), not a scale-up.
+Both statistics are now computed INLINE per system, and **`torch.save` of each arm's state_dict is
+added**, so they never again require retraining to recover.
+
+**FAMILY B APPLIES TO THE NEW INSTRUMENT TOO:** both ranks are capped by the frame count -- MISATO
+held-out is 20 frames, all-frames cap is 99, and system rank90 already runs 29-57 there, i.e. 30-58%
+of cap. Model and system rank usage are therefore printed as a % of cap next to the values, and
+flagged as BOUNDS above 30%. The instrument is consequently **much cleaner on mdCATH (2,500 frames)
+than on MISATO (100)** -- which is worth knowing before reading its MISATO output.

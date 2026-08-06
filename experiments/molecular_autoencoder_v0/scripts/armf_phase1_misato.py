@@ -174,6 +174,42 @@ def fve(m, d, lo, hi, chunk=8):
     return 1 - sse / (sst + 1e-12)
 
 
+@torch.no_grad()
+def realised_spectrum(m, d, L):
+    """DIRECT instrument, computed INLINE (reconstructions are not persisted otherwise).
+
+    The deficit ratio is a scalar summary of a subspace comparison and throws away the structure that
+    answers the question. Two direct statistics instead:
+      1. EFFECTIVE RANK of what the model actually realises -- SVD the model's reconstruction matrix
+         and take the 90%-variance rank -- compared to the SYSTEM's own rank90.
+         tracks system rank90 across N -> the model realises the available dimensionality.
+         saturates while system rank90 grows -> the bottleneck is measured DIRECTLY, in dimensions.
+      2. SUBSPACE OVERLAP (principal angles) between the model's realised subspace and the system's
+         top-k PCA subspace -- says whether the model finds the RIGHT directions, which FVE conflates
+         with how much variance it captures.
+    Family B applies: both ranks are capped by the frame count, so rank usage is reported alongside.
+    """
+    N = d["N"]; T = d["T"]; st0 = torch.tensor(d["stat"], device=dev)
+    R = np.empty((T, 3 * N), np.float32)
+    for s in range(0, T, 8):
+        e = min(s + 8, T); dw = torch.tensor(d["dc"][s:e] / d["scale"], device=dev)
+        R[s:e] = (m(st0.unsqueeze(0).expand(e - s, -1, -1), dw).cpu().numpy() * d["scale"]).reshape(e - s, -1)
+    D = d["dc"].astype(np.float64).reshape(T, -1)
+    def r90(X):
+        X = X - X.mean(0); S = np.linalg.svd(X, compute_uv=False)
+        c = np.cumsum(S ** 2) / ((S ** 2).sum() + 1e-12)
+        return int(np.searchsorted(c, 0.90) + 1), S
+    mr, _ = r90(R.astype(np.float64)); dr, _ = r90(D)
+    k = min(L, T - 2)
+    _, _, VmT = np.linalg.svd(R.astype(np.float64) - R.astype(np.float64).mean(0), full_matrices=False)
+    _, _, VdT = np.linalg.svd(D - D.mean(0), full_matrices=False)
+    sv = np.linalg.svd(VmT[:k] @ VdT[:k].T, compute_uv=False)     # principal-angle cosines
+    return dict(model_r90=int(mr), sys_r90=int(dr), cap=int(T - 1),
+                model_rankuse=float(mr / max(T - 1, 1)), sys_rankuse=float(dr / max(T - 1, 1)),
+                overlap_mean=float(np.clip(sv, 0, 1).mean()),
+                overlap_min=float(np.clip(sv, 0, 1).min()), k=int(k))
+
+
 def train_eval(data, L, tr, he, track):
     Fs = data[0]["stat"].shape[1]; m = Perceiver(Fs, L).to(dev); opt = torch.optim.Adam(m.parameters(), 1e-3)
     hist = {b: [] for b in BUCKETS}; steps_done = 0; best = {b: -9e9 for b in BUCKETS}; bad = 0
@@ -273,11 +309,12 @@ for L in LS:
                         f"TAKEOFF {tko[b]}{'' if tko[b] is None else f' ({tko[b]/MAXSTEPS*100:.0f}%)'}  tail {g['tail']}", flush=True)
     rows = []
     for d in he:
-        v = fve(m, d, d["h"], d["T"])
+        v = fve(m, d, d["h"], d["T"]); rs = realised_spectrum(m, d, L)
         rows.append(dict(dom=d["dom"], bucket=list(d["bucket"]), N=d["N"], rmsf=d["rmsf"], model=v,
                          pca=d["ceil"]["pca"][L], anm=d["ceil"]["anm"][L],
                          gap=d["ceil"]["pca"][L]-v, ratio=(d["ceil"]["pca"][L]-v)/d["ceil"]["pca"][L] if d["ceil"]["pca"][L] > 1e-6 else float('nan'),
-                         void=not G[d["bucket"]]["plateau"]))
+                         void=not G[d["bucket"]]["plateau"], **rs))
+    torch.save(m.state_dict(), f"{WR}/ckpt_L{L}.pt")
     allres[L] = dict(rows=rows, g8={str(k): v for k, v in G.items()}, steps=sd,
                      takeoff={str(k): v for k, v in tko.items()})
     json.dump(allres, open(RESJSON, "w"))
@@ -290,6 +327,21 @@ for L in LS:
         print(f"  {str(b):14s}{len(br):>3}{int(np.median([r['N'] for r in br])):>7}{q(mo):>19}{q(pc):>19}"
               f"{('n/a' if not np.isfinite(an) else f'{an:.2f}'):>7}{np.median([r['gap'] for r in br]):>8.3f}"
               f"{np.nanmedian([r['ratio'] for r in br]):>7.2f}{'ok' if G[b]['plateau'] else 'VOID':>6}", flush=True)
+
+print("\n=== DIRECT INSTRUMENT: realised effective rank + subspace overlap vs N ===", flush=True)
+for _a in allres:
+    _rw = allres[_a]["rows"]
+    print(f"  arm {_a}: " + "  ".join(
+        f"{b[0]//1000}k:mR{int(np.median([r['model_r90'] for r in _rw if tuple(r['bucket'])==b])):>3}"
+        f"/sR{int(np.median([r['sys_r90'] for r in _rw if tuple(r['bucket'])==b])):>3}"
+        f"/ov{np.median([r['overlap_mean'] for r in _rw if tuple(r['bucket'])==b]):.2f}"
+        for b in BUCKETS if any(tuple(r["bucket"])==b for r in _rw)), flush=True)
+    _mu = np.median([r["model_rankuse"] for r in _rw]); _su = np.median([r["sys_rankuse"] for r in _rw])
+    print(f"    FAMILY B: model rank usage {_mu*100:.0f}%, system rank usage {_su*100:.0f}% of the "
+          f"{_rw[0]['cap']}-frame cap" + ("   <-- BOUNDS, not values" if max(_mu,_su) > 0.30 else ""), flush=True)
+print("    read: model rank TRACKS system rank across N -> arbitrary-L holds. Model rank SATURATES", flush=True)
+print("    while system rank grows -> bottleneck measured DIRECTLY in dimensions. Overlap says whether", flush=True)
+print("    the model finds the RIGHT directions, which the FVE ratio conflates with how much it captures.", flush=True)
 
 print("\n=== STEPS-TO-PLATEAU vs N (objective 4: training cost vs system size) ===", flush=True)
 for L in LS:
