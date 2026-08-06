@@ -1390,7 +1390,15 @@ varies.
 | **N-axis** (L in {1,12,24} at DM=64) -- the A/B/C run | **MISATO**, n=276, 79 train frames | PCA-k rank-valid at k=1/12/24; wide N range (906-19,702) |
 | **CAPACITY axis** (L=1, DM in {16,64,256,512}) | **mdCATH**, 2,500 frames -> 2,000 train | PCA-k valid to k~600, covering DM=512. On MISATO PCA-k is void above k=23, so the deficit ratio for DM=64/256/512 is simply UNDEFINED there |
 **The two axes are measured on DIFFERENT CORPORA. Absolute numbers must NOT be cross-compared** --
-mdCATH PCA-16 runs 0.48-0.65 vs MISATO PCA-12 ~0.10-0.33, because mdCATH has 25x the frames.
+mdCATH PCA-16 runs 0.48-0.65 vs MISATO PCA-12 ~0.10-0.33. **The cause is MOBILITY, not frame count.**
+(An earlier draft of this line blamed frame count; that has the sign backwards -- more frames sample
+MORE dynamics, so PCA-k at fixed k captures LESS. Frames push mdCATH DOWN relative to MISATO; it is
+higher anyway, so frames work AGAINST the observed direction and cannot be the mechanism.)
+MEASURED, identical all-atom Kabsch convention, 79 frames each: **MISATO medRMSF 0.904 A (bound
+complexes, n=276) vs mdCATH 1.493 A (unpartnered single domains, n=28) = 1.65x floppier,
+p=2e-10**. Time-matched control (mdCATH's first 10 frames ~ 10 ns = MISATO's ENTIRE window) gives
+1.502 A, ratio 1.66x -- unchanged, so this is a corpus effect, not an observation-window effect.
+Floppy concentrates variance into fewer modes (c<0 below), which raises PCA-k at fixed k.
 
 **3. PLATEAU CRITERION TIGHTENED.** The old test ("<1% relative improvement over the final 25%")
 fires on a genuine slow monotone climb -- which is exactly how the last run reported steps-to-plateau
@@ -1406,3 +1414,42 @@ recording, to be regressed on N and on DM.
 **Ceiling policy:** PCA-k is the SOLE ceiling, used only where rank-valid. Above the rank limit no
 per-system ceiling is reported and the limitation is stated -- rather than substituting CG-ANM, whose
 validation showed a -0.059 median bias that is itself N-dependent (slope +0.110 +/- 0.039).
+
+### CROSS-CORPUS VALIDATION of the mobility law -- and TWO CORRECTIONS it forces
+
+Fitting log10(rank90) ~ b*log10(N) + c*log10(medRMSF) at a MATCHED 79-frame budget on both corpora:
+
+| corpus | n | b(N) | c(RMSF) | R^2 |
+|---|---|---|---|---|
+| MISATO (bound complexes) | 276 | **+0.101 +/- 0.021** | **-0.887 +/- 0.075** | 0.743 |
+| mdCATH (single domains) | 28 | -0.057 +/- 0.129 | **-0.950 +/- 0.123** | 0.917 |
+
+**The mobility law REPRODUCES on an independent corpus**: c = -0.887 +/- 0.075 (MISATO) vs
+-0.950 +/- 0.123 (mdCATH) overlap tightly. Free cross-corpus validation of the finding that sizes DM.
+
+**CORRECTION 1 -- c depends on FRAME BUDGET.** The headline c = -1.350 +/- 0.245 was measured on
+mdCATH at 2,400 frames. At 79 frames the same corpus gives -0.950 +/- 0.123; the CIs do NOT overlap.
+Censoring at 79 frames compresses rank90's dynamic range and attenuates the exponent toward zero, so
+**-1.35 (uncensored) is the better estimate of the true exponent, and -0.9 is the attenuated
+frame-matched value.** Cross-corpus comparisons must be made at matched frame budget; only the
+matched numbers above license the "reproduces" claim.
+
+**CORRECTION 2 -- dimensionality DOES grow with atom count, weakly.** The earlier conclusion
+"b's CI spans zero, so intrinsic dimensionality does not grow with N" was measured on mdCATH at
+n=28 and was UNDERPOWERED. On MISATO at n=276, **b = +0.101 +/- 0.021 is clearly positive**:
+rank90 ~ N^0.10. Over the measured range (906 -> 19,702) that is 1.36x; extrapolated from medN 4,415
+to 1e6 atoms it is ~1.7x. Small, but real and no longer dismissible.
+**This does NOT undermine the deficit-ratio logic**: rank90 growth is already absorbed by the PCA-k
+CEILING (which falls with N), and the ratio measures the model's shortfall RELATIVE to its own
+ceiling. But it does weaken the blanket premise "the physics excludes capacity" used in the
+three-way read -- capacity grows weakly with N, and outcome B's wording must say that the deficit
+ratio (not raw FVE) is what isolates the pooling/broadcast pathway from it.
+
+### SCOPE LIMIT ON THE CAPACITY AXIS (mdCATH is the floppy end)
+
+mdCATH is 1.65x floppier than MISATO. With c ~ -0.9, that implies mdCATH systems need
+1.65^-0.9 ~ **0.65x the dimensionality** of MISATO complexes at matched N -- i.e. **DM sized on
+mdCATH is sized for the FLOPPY end and would UNDER-PROVISION bound complexes by roughly 1.5x.**
+Per the 26x spread across systems this is exactly the direction that needs LESS width, so the
+capacity axis gives a LOWER BOUND on the DM required for deployment on protein-ligand complexes.
+Recorded before the capacity results exist so the number is not over-read later.
