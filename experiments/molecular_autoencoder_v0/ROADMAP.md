@@ -2195,3 +2195,47 @@ A STRONGER ANM makes that track **deader, not less dead** -- the stopping rule s
 reinforced. Also unaffected: the intrinsic-dimensionality/mobility law (c ~ -0.9 to -1.35,
 reproduced cross-corpus), the TICA/window objective-3 results, the propagator transfer results, and
 the §7 additivity measurement -- none of these involve a comparator with an unswept hyperparameter.
+
+## THREE CORRECTIONS BEFORE THE ATLAS CURVE
+
+### 1. THE GUARD NUMBER WAS STALE -- re-measurement submitted (job 10304109)
+The -0.1096 +/- 0.1311 was measured with held-out frames from the SAME trajectory. Under the new
+split PCA is fitted on replicas 0+1 and evaluated on replica 2 -- a different and harder test, so the
+ceiling should DROP and the N-slope may move in either direction. **Neither old number may be quoted.**
+Re-measured on 114+ held-out systems at k in {24, 256}, reporting slope, Family C bound, rank
+validity per system, s_k/s_1 conditioning, and realised log-N span.
+
+### 2. ATLAS REPLICAS ARE ONLY WEAKLY INDEPENDENT -- the claim is WALKED BACK
+Replicas share a start structure and differ only by velocity seed. Measured across 10 proteins
+spanning N=598-33,377:
+| statistic | value |
+|---|---|
+| between-replica / within-replica RMSD | **median 1.177**, range 1.085-1.442 |
+| ratio = 1.0 would mean | replicas INDISTINGUISHABLE from within-replica variation |
+Replicas sit only **~18% further apart than frames within a replica**: 100 ns does NOT fully
+decorrelate them. Replica 2 is a **somewhat harder test than a temporal split, not a categorically
+different one** -- the phrase "independent trajectory" is withdrawn from the scripts and the writeups.
+N-dependence of the ratio: slope +0.0695 +/- 0.1604, p=0.347 at n=10. **That is UNDERPOWERED
+(FAMILY C), not "no effect"** -- the CI permits +-0.28 across the range against an observed spread of
+0.36, so it must be re-measured at full n. If decorrelation DOES vary with N, the held-out test
+changes difficulty along the very axis under test, which would be an N-correlated artifact in the
+EVALUATION itself.
+
+### 3. b MOVED TO ATLAS; THE mdCATH STREAM IS CANCELLED
+| | ATLAS | mdCATH |
+|---|---|---|
+| N range | **56x** | 11x |
+| systems | **825 cached** (1,938 available) | 28 |
+| frames | **7,503** | 2,000 |
+| rank position of k~500 | **10% (clean)** | 31% (EDGE) |
+b decides whether "one global latent, width independent of atom count" holds at 1e6 atoms, and the
+ATLAS cache is already built for the learning curve, so this costs nothing. `armf_b_exponent.py` is
+marked SUPERSEDED, `bexp.sbatch` deleted, and the 0.34 TB mdCATH download is dropped entirely (it was
+staged, never submitted -- nothing to abort).
+`armf_atlas_b.py` carries the machinery over unchanged with **replicas as the join unit**: join sweep
+(1/2/3) with the optimum MEASURED rather than argued, p90-based selection (censoring is
+system-dependent, and a median-clean join can still be censored for the RIGID tail where the slope's
+leverage lives), threshold sweep as DIAGNOSTIC subsetting that never excludes from the primary fit,
+mandatory mobility control (the naive N-exponent is a mediated confound: bigger proteins are more
+rigid at corr -0.31, and rigidity raises rank90 at c ~ -0.9 to -1.35), Family D flagging when a
+subset's N range collapses, and conservation of n with every failure logged against its N.

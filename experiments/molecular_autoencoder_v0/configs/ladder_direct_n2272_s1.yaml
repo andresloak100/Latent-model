@@ -1,0 +1,65 @@
+# ARCHITECTURE x DATA ladder -- the decisive test of the scaling bet.
+#
+# Diagnosis from the depth grid: the perceiver is NOT capacity-limited. It
+# fits TRAIN to 1.32 A and generalises to 8.26 A -- a 6.25x gap, against the
+# direct codec's 2.04x. It memorises a per-structure routing instead of
+# learning a general one, which is what a model that must LEARN what the
+# direct decoder has BY CONSTRUCTION does when data is scarce.
+#
+# The 2-D data study already showed this failure mode is the one data fixes:
+# val/train closed 3.71 -> 1.23 as n went 450 -> 2272.
+#
+# So: run BOTH architectures over the same data ladder at the same generous
+# step budget and compare the val-vs-n SLOPES. Steeper perceiver slope =>
+# it is on track to overtake and the scaling bet is live. Parallel slopes =>
+# it carries a constant handicap and the bet is dead. Either way decisive.
+#
+# 242k steps everywhere (not the 60k the earlier ds_* ladder used -- that
+# under-converged the high-n rungs, and the perceiver was still descending at
+# 242k). Both arms get the same budget so neither is handicapped.
+
+name: ladder_direct_n2272
+data:
+  processed_dir: data/processed_small
+  splits_file: data/splits_small_n2272.json
+  min_residues: 20
+  max_residues: 110
+  max_atoms: 800
+model:
+  d_model: 128
+  n_heads: 4
+  n_latent_tokens: 16
+  latent_dim: 8
+  enc_self_layers: 2
+  dec_self_layers: 2
+  ff_mult: 4
+  dropout: 0.0
+  max_res_pos: 1024
+  coord_scale: 10.0
+  encoder_type: direct
+  k_neighbors: 8
+  rope_freqs: 128
+  rope_spherical: false
+  objective: reconstruct
+  flow_steps: 50
+loss:
+  coord: 1.0
+  distance: 1.0
+  bond: 1.0
+  clash: 0.5
+  chirality: 0.2
+train:
+  seed: 1
+  epochs: 1704
+  batch_size: 16
+  lr: 0.0003
+  weight_decay: 0.0
+  grad_clip: 1.0
+  log_every: 42
+  eval_every: 85
+  ckpt_every: 284
+  clash_dist: 1.5
+  loss_max_atoms: 1200
+  out_dir: outputs/ladder/ladder_direct_n2272
+  overfit: false
+  augment_rotation: true

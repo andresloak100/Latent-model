@@ -1,0 +1,1668 @@
+{
+  "n_structures": 186,
+  "mean_global_rmsd": 5.790750735520402,
+  "mean_part_rmsd": 4.540045031896498,
+  "mean_placement_error": 1.250705703623904,
+  "placement_share": 0.21598334322216442,
+  "single_chain_mean_rmsd": 4.2364587622910665,
+  "multi_chain_mean_rmsd": 6.176188797205064,
+  "n_single_chain": 50,
+  "n_multi_chain": 136,
+  "structures": [
+    {
+      "global_rmsd": 2.288628555982906,
+      "part_rmsd": 2.2003058160335063,
+      "placement": 0.08832273994939976,
+      "n_parts": 4,
+      "n_atoms": 408,
+      "n_chains": 4,
+      "pdb_id": "1BYZ_A-B-C-D"
+    },
+    {
+      "global_rmsd": 9.893044198666244,
+      "part_rmsd": 7.046297849460946,
+      "placement": 2.846746349205298,
+      "n_parts": 3,
+      "n_atoms": 2073,
+      "n_chains": 3,
+      "pdb_id": "1C5E_A-B-C"
+    },
+    {
+      "global_rmsd": 2.267211541876353,
+      "part_rmsd": 2.2526427263585265,
+      "placement": 0.014568815517826739,
+      "n_parts": 2,
+      "n_atoms": 915,
+      "n_chains": 2,
+      "pdb_id": "1D4T_A-B"
+    },
+    {
+      "global_rmsd": 2.946474583645509,
+      "part_rmsd": 2.4562505306462135,
+      "placement": 0.4902240529992956,
+      "n_parts": 2,
+      "n_atoms": 1894,
+      "n_chains": 2,
+      "pdb_id": "1DY5_A-B"
+    },
+    {
+      "global_rmsd": 2.2440163115044074,
+      "part_rmsd": 2.1630129299660217,
+      "placement": 0.08100338153838571,
+      "n_parts": 4,
+      "n_atoms": 863,
+      "n_chains": 4,
+      "pdb_id": "1G2Y_A-B-C-D"
+    },
+    {
+      "global_rmsd": 14.61393134762663,
+      "part_rmsd": 8.713820402189636,
+      "placement": 5.900110945436994,
+      "n_parts": 4,
+      "n_atoms": 1997,
+      "n_chains": 4,
+      "pdb_id": "1GU2_A-B"
+    },
+    {
+      "global_rmsd": 11.635866482943772,
+      "part_rmsd": 8.513630115807743,
+      "placement": 3.122236367136029,
+      "n_parts": 2,
+      "n_atoms": 2388,
+      "n_chains": 1,
+      "pdb_id": "1GVU_A"
+    },
+    {
+      "global_rmsd": 11.41240966381188,
+      "part_rmsd": 8.320174765860795,
+      "placement": 3.0922348979510854,
+      "n_parts": 2,
+      "n_atoms": 2388,
+      "n_chains": 1,
+      "pdb_id": "1GVX_A"
+    },
+    {
+      "global_rmsd": 6.584777715936409,
+      "part_rmsd": 5.224418133166071,
+      "placement": 1.3603595827703376,
+      "n_parts": 2,
+      "n_atoms": 1768,
+      "n_chains": 2,
+      "pdb_id": "1H4X_A-B"
+    },
+    {
+      "global_rmsd": 2.191401737859135,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1636,
+      "pdb_id": "1HJ9_A"
+    },
+    {
+      "global_rmsd": 4.105906832948461,
+      "part_rmsd": 2.868389232050107,
+      "placement": 1.2375176008983542,
+      "n_parts": 2,
+      "n_atoms": 1490,
+      "n_chains": 2,
+      "pdb_id": "1I8V_A-B"
+    },
+    {
+      "global_rmsd": 12.551445288947187,
+      "part_rmsd": 8.869739700542487,
+      "placement": 3.6817055884047,
+      "n_parts": 4,
+      "n_atoms": 2278,
+      "n_chains": 4,
+      "pdb_id": "1IRD_A-B"
+    },
+    {
+      "global_rmsd": 2.8011302370503044,
+      "part_rmsd": 2.6228053252934216,
+      "placement": 0.1783249117568828,
+      "n_parts": 5,
+      "n_atoms": 974,
+      "n_chains": 5,
+      "pdb_id": "1J0P_A"
+    },
+    {
+      "global_rmsd": 5.662642170086746,
+      "part_rmsd": 3.304050636565186,
+      "placement": 2.3585915335215604,
+      "n_parts": 2,
+      "n_atoms": 1492,
+      "n_chains": 2,
+      "pdb_id": "1LNI_A-B"
+    },
+    {
+      "global_rmsd": 2.4473590361403494,
+      "part_rmsd": 2.3398835574753707,
+      "placement": 0.10747547866497875,
+      "n_parts": 2,
+      "n_atoms": 1574,
+      "n_chains": 2,
+      "pdb_id": "1M2D_A-B"
+    },
+    {
+      "global_rmsd": 2.3156315975950688,
+      "part_rmsd": 2.1998261429478556,
+      "placement": 0.11580545464721315,
+      "n_parts": 4,
+      "n_atoms": 806,
+      "n_chains": 4,
+      "pdb_id": "1M5A_A-B-C-D"
+    },
+    {
+      "global_rmsd": 2.3862236036395084,
+      "part_rmsd": 2.37706209725553,
+      "placement": 0.009161506383978502,
+      "n_parts": 2,
+      "n_atoms": 975,
+      "n_chains": 1,
+      "pdb_id": "1MC2_A"
+    },
+    {
+      "global_rmsd": 2.531716920667974,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1909,
+      "pdb_id": "1N55_A"
+    },
+    {
+      "global_rmsd": 2.2940975658678195,
+      "part_rmsd": 2.272317790430879,
+      "placement": 0.02177977543694043,
+      "n_parts": 2,
+      "n_atoms": 1510,
+      "n_chains": 2,
+      "pdb_id": "1NH0_A-B"
+    },
+    {
+      "global_rmsd": 2.186252922486906,
+      "part_rmsd": 2.1822312318501584,
+      "placement": 0.004021690636747621,
+      "n_parts": 2,
+      "n_atoms": 558,
+      "n_chains": 1,
+      "pdb_id": "1OK0_A"
+    },
+    {
+      "global_rmsd": 9.783890783535856,
+      "part_rmsd": 5.368565217736212,
+      "placement": 4.415325565799644,
+      "n_parts": 2,
+      "n_atoms": 1684,
+      "n_chains": 6,
+      "pdb_id": "1OTD_A-B"
+    },
+    {
+      "global_rmsd": 6.734046573234962,
+      "part_rmsd": 3.7121346449862247,
+      "placement": 3.0219119282487372,
+      "n_parts": 2,
+      "n_atoms": 1516,
+      "n_chains": 3,
+      "pdb_id": "1RGE_A-B"
+    },
+    {
+      "global_rmsd": 7.144116285875773,
+      "part_rmsd": 3.870190628142786,
+      "placement": 3.2739256577329874,
+      "n_parts": 2,
+      "n_atoms": 1492,
+      "n_chains": 2,
+      "pdb_id": "1RGH_A-B"
+    },
+    {
+      "global_rmsd": 12.966824684226651,
+      "part_rmsd": 8.752243001399442,
+      "placement": 4.214581682827209,
+      "n_parts": 2,
+      "n_atoms": 1409,
+      "n_chains": 2,
+      "pdb_id": "1U07_A-B"
+    },
+    {
+      "global_rmsd": 2.457741504900572,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1013,
+      "pdb_id": "1UNQ_A"
+    },
+    {
+      "global_rmsd": 14.255267796783167,
+      "part_rmsd": 9.107638900408789,
+      "placement": 5.147628896374378,
+      "n_parts": 2,
+      "n_atoms": 2002,
+      "n_chains": 2,
+      "pdb_id": "1V7T_A-B"
+    },
+    {
+      "global_rmsd": 1.7063524353973307,
+      "part_rmsd": 1.613806024378443,
+      "placement": 0.09254641101888783,
+      "n_parts": 6,
+      "n_atoms": 992,
+      "n_chains": 6,
+      "pdb_id": "1X1K_A-B-C-D-E-F"
+    },
+    {
+      "global_rmsd": 3.049487093188712,
+      "part_rmsd": 2.8620287654988985,
+      "placement": 0.1874583276898134,
+      "n_parts": 2,
+      "n_atoms": 1896,
+      "n_chains": 2,
+      "pdb_id": "1Y53_X-Y"
+    },
+    {
+      "global_rmsd": 15.835516222538715,
+      "part_rmsd": 6.537772012122024,
+      "placement": 9.297744210416692,
+      "n_parts": 4,
+      "n_atoms": 936,
+      "n_chains": 4,
+      "pdb_id": "1ZMI_A-B-C-D"
+    },
+    {
+      "global_rmsd": 2.3433057259694343,
+      "part_rmsd": 2.3221707269205867,
+      "placement": 0.021134999048847636,
+      "n_parts": 2,
+      "n_atoms": 1622,
+      "n_chains": 1,
+      "pdb_id": "2AGE_X"
+    },
+    {
+      "global_rmsd": 2.3369008580500363,
+      "part_rmsd": 2.315913739078205,
+      "placement": 0.020987118971831364,
+      "n_parts": 2,
+      "n_atoms": 1624,
+      "n_chains": 1,
+      "pdb_id": "2AGI_X"
+    },
+    {
+      "global_rmsd": 14.038762013713793,
+      "part_rmsd": 11.47710874351308,
+      "placement": 2.561653270200713,
+      "n_parts": 2,
+      "n_atoms": 2268,
+      "n_chains": 2,
+      "pdb_id": "2ANV_A-B"
+    },
+    {
+      "global_rmsd": 5.463369774331952,
+      "part_rmsd": 4.928534561552459,
+      "placement": 0.5348352127794929,
+      "n_parts": 3,
+      "n_atoms": 1566,
+      "n_chains": 3,
+      "pdb_id": "2AVM_A-B"
+    },
+    {
+      "global_rmsd": 10.800072741184447,
+      "part_rmsd": 9.697999970026101,
+      "placement": 1.1020727711583458,
+      "n_parts": 2,
+      "n_atoms": 1996,
+      "n_chains": 2,
+      "pdb_id": "2DKO_A-B"
+    },
+    {
+      "global_rmsd": 12.550029307914672,
+      "part_rmsd": 8.868563312932691,
+      "placement": 3.6814659949819806,
+      "n_parts": 4,
+      "n_atoms": 2278,
+      "n_chains": 4,
+      "pdb_id": "2DN3_A-B"
+    },
+    {
+      "global_rmsd": 2.4153267598472388,
+      "part_rmsd": 2.3347451673579926,
+      "placement": 0.08058159248924612,
+      "n_parts": 2,
+      "n_atoms": 796,
+      "n_chains": 2,
+      "pdb_id": "2HBA_A-B"
+    },
+    {
+      "global_rmsd": 6.829070557011983,
+      "part_rmsd": 4.869919313678028,
+      "placement": 1.959151243333955,
+      "n_parts": 7,
+      "n_atoms": 1657,
+      "n_chains": 15,
+      "pdb_id": "2HY6_A-B-C-D-E-F-G"
+    },
+    {
+      "global_rmsd": 20.82329573600963,
+      "part_rmsd": 9.490816644281786,
+      "placement": 11.332479091727844,
+      "n_parts": 3,
+      "n_atoms": 2467,
+      "n_chains": 3,
+      "pdb_id": "2IFQ_A-B-C"
+    },
+    {
+      "global_rmsd": 2.2001325464189954,
+      "part_rmsd": 2.1865196678635965,
+      "placement": 0.013612878555398833,
+      "n_parts": 2,
+      "n_atoms": 544,
+      "n_chains": 1,
+      "pdb_id": "2O9S_A"
+    },
+    {
+      "global_rmsd": 2.433914945736082,
+      "part_rmsd": 2.3874789429994383,
+      "placement": 0.04643600273664372,
+      "n_parts": 2,
+      "n_atoms": 2026,
+      "n_chains": 2,
+      "pdb_id": "2UUY_A-B"
+    },
+    {
+      "global_rmsd": 2.271894396799149,
+      "part_rmsd": 2.2590493002358065,
+      "placement": 0.01284509656334265,
+      "n_parts": 2,
+      "n_atoms": 940,
+      "n_chains": 2,
+      "pdb_id": "2V1Q_A-B"
+    },
+    {
+      "global_rmsd": 5.614835843232281,
+      "part_rmsd": 4.826537768802531,
+      "placement": 0.7882980744297496,
+      "n_parts": 4,
+      "n_atoms": 1373,
+      "n_chains": 4,
+      "pdb_id": "2V89_A-B-D-E"
+    },
+    {
+      "global_rmsd": 15.114257351763651,
+      "part_rmsd": 9.6160509793414,
+      "placement": 5.498206372422251,
+      "n_parts": 3,
+      "n_atoms": 2198,
+      "n_chains": 3,
+      "pdb_id": "2V8F_A-B-C"
+    },
+    {
+      "global_rmsd": 2.3490590849276303,
+      "part_rmsd": 2.2372745577165483,
+      "placement": 0.11178452721108201,
+      "n_parts": 2,
+      "n_atoms": 1551,
+      "n_chains": 1,
+      "pdb_id": "2VU6_A"
+    },
+    {
+      "global_rmsd": 7.15163657180811,
+      "part_rmsd": 4.974206897484469,
+      "placement": 2.1774296743236414,
+      "n_parts": 2,
+      "n_atoms": 1190,
+      "n_chains": 2,
+      "pdb_id": "3A4R_A-B"
+    },
+    {
+      "global_rmsd": 5.402193421847246,
+      "part_rmsd": 4.874841454888059,
+      "placement": 0.5273519669591868,
+      "n_parts": 3,
+      "n_atoms": 1566,
+      "n_chains": 3,
+      "pdb_id": "3BVA_A-B"
+    },
+    {
+      "global_rmsd": 6.076619506885468,
+      "part_rmsd": 3.7451412143885148,
+      "placement": 2.331478292496953,
+      "n_parts": 3,
+      "n_atoms": 1281,
+      "n_chains": 3,
+      "pdb_id": "3DS4_A-B-T"
+    },
+    {
+      "global_rmsd": 3.9728436051116294,
+      "part_rmsd": 3.590803534879457,
+      "placement": 0.38204007023217246,
+      "n_parts": 2,
+      "n_atoms": 1763,
+      "n_chains": 1,
+      "pdb_id": "3EA6_A"
+    },
+    {
+      "global_rmsd": 2.144675180989284,
+      "part_rmsd": 2.134643954931607,
+      "placement": 0.010031226057676701,
+      "n_parts": 2,
+      "n_atoms": 907,
+      "n_chains": 1,
+      "pdb_id": "3FSA_A"
+    },
+    {
+      "global_rmsd": 11.963235633866741,
+      "part_rmsd": 9.494426369763287,
+      "placement": 2.468809264103454,
+      "n_parts": 4,
+      "n_atoms": 2332,
+      "n_chains": 4,
+      "pdb_id": "3G46_A-B"
+    },
+    {
+      "global_rmsd": 10.705169569924662,
+      "part_rmsd": 6.91601579195274,
+      "placement": 3.789153777971922,
+      "n_parts": 2,
+      "n_atoms": 1642,
+      "n_chains": 2,
+      "pdb_id": "3M9J_A-B"
+    },
+    {
+      "global_rmsd": 10.707830763922363,
+      "part_rmsd": 10.569241332312876,
+      "placement": 0.13858943160948733,
+      "n_parts": 2,
+      "n_atoms": 1926,
+      "n_chains": 2,
+      "pdb_id": "3MHR_A-P"
+    },
+    {
+      "global_rmsd": 6.158035528870175,
+      "part_rmsd": 5.3624329336729275,
+      "placement": 0.7956025951972476,
+      "n_parts": 3,
+      "n_atoms": 1547,
+      "n_chains": 3,
+      "pdb_id": "3NU6_A-B"
+    },
+    {
+      "global_rmsd": 2.2325925952808277,
+      "part_rmsd": 2.239040794736076,
+      "placement": -0.006448199455248549,
+      "n_parts": 2,
+      "n_atoms": 580,
+      "n_chains": 4,
+      "pdb_id": "3ODV_A-B"
+    },
+    {
+      "global_rmsd": 2.389775144269134,
+      "part_rmsd": 2.2791810440918607,
+      "placement": 0.11059410017727345,
+      "n_parts": 2,
+      "n_atoms": 1825,
+      "n_chains": 4,
+      "pdb_id": "3P3R_A-B"
+    },
+    {
+      "global_rmsd": 2.41291779022345,
+      "part_rmsd": 2.335643544866714,
+      "placement": 0.07727424535673588,
+      "n_parts": 2,
+      "n_atoms": 1846,
+      "n_chains": 4,
+      "pdb_id": "3RY2_A-B"
+    },
+    {
+      "global_rmsd": 3.892338225511015,
+      "part_rmsd": 3.7097409400385004,
+      "placement": 0.18259728547251441,
+      "n_parts": 2,
+      "n_atoms": 1698,
+      "n_chains": 2,
+      "pdb_id": "3SOJ_A-B"
+    },
+    {
+      "global_rmsd": 2.195438746004863,
+      "part_rmsd": 2.142531117044171,
+      "placement": 0.05290762896069179,
+      "n_parts": 2,
+      "n_atoms": 647,
+      "n_chains": 2,
+      "pdb_id": "3UE7_A-B"
+    },
+    {
+      "global_rmsd": 2.2497235279108416,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 786,
+      "pdb_id": "3UI6_A"
+    },
+    {
+      "global_rmsd": 10.281995960925254,
+      "part_rmsd": 7.5441666127905105,
+      "placement": 2.7378293481347438,
+      "n_parts": 2,
+      "n_atoms": 2000,
+      "n_chains": 2,
+      "pdb_id": "3WL2_A-B"
+    },
+    {
+      "global_rmsd": 2.50484963883366,
+      "part_rmsd": 2.3752678630768096,
+      "placement": 0.12958177575685026,
+      "n_parts": 2,
+      "n_atoms": 2226,
+      "n_chains": 2,
+      "pdb_id": "4B9G_A-B"
+    },
+    {
+      "global_rmsd": 2.3632483886461153,
+      "part_rmsd": 2.2785881261225835,
+      "placement": 0.08466026252353176,
+      "n_parts": 3,
+      "n_atoms": 1828,
+      "n_chains": 3,
+      "pdb_id": "4CPF_A-B"
+    },
+    {
+      "global_rmsd": 2.2748600698313943,
+      "part_rmsd": 2.241105764347927,
+      "placement": 0.03375430548346747,
+      "n_parts": 4,
+      "n_atoms": 986,
+      "n_chains": 4,
+      "pdb_id": "4CZ5_A-B-C-D"
+    },
+    {
+      "global_rmsd": 7.488442298568839,
+      "part_rmsd": 4.9165118463080955,
+      "placement": 2.5719304522607436,
+      "n_parts": 4,
+      "n_atoms": 1850,
+      "n_chains": 4,
+      "pdb_id": "4EET_B-D"
+    },
+    {
+      "global_rmsd": 2.3746429574645505,
+      "part_rmsd": 2.3332977453509,
+      "placement": 0.04134521211365039,
+      "n_parts": 2,
+      "n_atoms": 1526,
+      "n_chains": 3,
+      "pdb_id": "4EJD_A-B"
+    },
+    {
+      "global_rmsd": 2.452261582073467,
+      "part_rmsd": 2.2771578332185114,
+      "placement": 0.1751037488549554,
+      "n_parts": 2,
+      "n_atoms": 1831,
+      "n_chains": 4,
+      "pdb_id": "4HJS_A-B"
+    },
+    {
+      "global_rmsd": 11.644221380668519,
+      "part_rmsd": 9.125962106508371,
+      "placement": 2.5182592741601475,
+      "n_parts": 2,
+      "n_atoms": 2278,
+      "n_chains": 4,
+      "pdb_id": "4HQZ_A-B"
+    },
+    {
+      "global_rmsd": 2.4410219597945315,
+      "part_rmsd": 2.340626688638829,
+      "placement": 0.10039527115570257,
+      "n_parts": 2,
+      "n_atoms": 630,
+      "n_chains": 1,
+      "pdb_id": "4HS1_A"
+    },
+    {
+      "global_rmsd": 2.2866719272253375,
+      "part_rmsd": 2.2745202496866104,
+      "placement": 0.012151677538727146,
+      "n_parts": 2,
+      "n_atoms": 544,
+      "n_chains": 2,
+      "pdb_id": "4HVU_A-B"
+    },
+    {
+      "global_rmsd": 2.2480721008124473,
+      "part_rmsd": 2.2384639862779756,
+      "placement": 0.009608114534471746,
+      "n_parts": 2,
+      "n_atoms": 536,
+      "n_chains": 2,
+      "pdb_id": "4HVV_A-B"
+    },
+    {
+      "global_rmsd": 2.225241895371658,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1638,
+      "pdb_id": "4I8H_A"
+    },
+    {
+      "global_rmsd": 2.2199717113356336,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1638,
+      "pdb_id": "4I8J_A"
+    },
+    {
+      "global_rmsd": 2.3139349433047944,
+      "part_rmsd": 2.3105359607490112,
+      "placement": 0.003398982555783192,
+      "n_parts": 2,
+      "n_atoms": 1314,
+      "n_chains": 2,
+      "pdb_id": "4JOF_A-B"
+    },
+    {
+      "global_rmsd": 2.443829367592863,
+      "part_rmsd": 2.3435943965685726,
+      "placement": 0.10023497102429024,
+      "n_parts": 2,
+      "n_atoms": 630,
+      "n_chains": 1,
+      "pdb_id": "4K8M_A"
+    },
+    {
+      "global_rmsd": 2.3010461764839287,
+      "part_rmsd": 2.291040904765111,
+      "placement": 0.01000527171881771,
+      "n_parts": 2,
+      "n_atoms": 1233,
+      "n_chains": 2,
+      "pdb_id": "4L9D_A-B"
+    },
+    {
+      "global_rmsd": 2.3599041694269283,
+      "part_rmsd": 2.34560095326733,
+      "placement": 0.014303216159598175,
+      "n_parts": 2,
+      "n_atoms": 1264,
+      "n_chains": 1,
+      "pdb_id": "4M91_A"
+    },
+    {
+      "global_rmsd": 2.376222182393181,
+      "part_rmsd": 2.2973615185802405,
+      "placement": 0.07886066381294032,
+      "n_parts": 2,
+      "n_atoms": 1359,
+      "n_chains": 2,
+      "pdb_id": "4O6U_A"
+    },
+    {
+      "global_rmsd": 2.7446605584400605,
+      "part_rmsd": 2.6279589606489506,
+      "placement": 0.11670159779110989,
+      "n_parts": 2,
+      "n_atoms": 1020,
+      "n_chains": 2,
+      "pdb_id": "4R5R_A-B"
+    },
+    {
+      "global_rmsd": 2.418578784509869,
+      "part_rmsd": 2.3867168962019147,
+      "placement": 0.031861888307954445,
+      "n_parts": 3,
+      "n_atoms": 2342,
+      "n_chains": 5,
+      "pdb_id": "4UEH_H-I-L"
+    },
+    {
+      "global_rmsd": 9.037939058313974,
+      "part_rmsd": 5.801655896916369,
+      "placement": 3.236283161397605,
+      "n_parts": 2,
+      "n_atoms": 1622,
+      "n_chains": 2,
+      "pdb_id": "4UHT_A-B"
+    },
+    {
+      "global_rmsd": 6.121634783525492,
+      "part_rmsd": 5.386277359986477,
+      "placement": 0.735357423539015,
+      "n_parts": 3,
+      "n_atoms": 1559,
+      "n_chains": 3,
+      "pdb_id": "5AGZ_A-B"
+    },
+    {
+      "global_rmsd": 7.154169955613552,
+      "part_rmsd": 5.571913511048326,
+      "placement": 1.5822564445652265,
+      "n_parts": 2,
+      "n_atoms": 1224,
+      "n_chains": 2,
+      "pdb_id": "5AQ0_A-B"
+    },
+    {
+      "global_rmsd": 10.770058551959213,
+      "part_rmsd": 7.752322843786556,
+      "placement": 3.0177357081726575,
+      "n_parts": 4,
+      "n_atoms": 1592,
+      "n_chains": 4,
+      "pdb_id": "5C5A_A-B"
+    },
+    {
+      "global_rmsd": 2.3990418678666305,
+      "part_rmsd": 2.300651119096919,
+      "placement": 0.09839074876971132,
+      "n_parts": 2,
+      "n_atoms": 1794,
+      "n_chains": 2,
+      "pdb_id": "5CLY_A-B"
+    },
+    {
+      "global_rmsd": 9.855707118249159,
+      "part_rmsd": 9.795403803530851,
+      "placement": 0.06030331471830763,
+      "n_parts": 2,
+      "n_atoms": 786,
+      "n_chains": 2,
+      "pdb_id": "5D5Y_B-A"
+    },
+    {
+      "global_rmsd": 7.926017724192555,
+      "part_rmsd": 5.310745115156474,
+      "placement": 2.6152726090360803,
+      "n_parts": 2,
+      "n_atoms": 1410,
+      "n_chains": 2,
+      "pdb_id": "5ELQ_A-B"
+    },
+    {
+      "global_rmsd": 2.405736816349607,
+      "part_rmsd": 2.305347613514967,
+      "placement": 0.10038920283464003,
+      "n_parts": 2,
+      "n_atoms": 1827,
+      "n_chains": 4,
+      "pdb_id": "5EN3_A-B"
+    },
+    {
+      "global_rmsd": 2.4500784792842265,
+      "part_rmsd": 2.340340361166496,
+      "placement": 0.10973811811773038,
+      "n_parts": 2,
+      "n_atoms": 564,
+      "n_chains": 3,
+      "pdb_id": "5I5A_A-B"
+    },
+    {
+      "global_rmsd": 2.3631911518910487,
+      "part_rmsd": 2.346496342999713,
+      "placement": 0.016694808891335455,
+      "n_parts": 2,
+      "n_atoms": 916,
+      "n_chains": 1,
+      "pdb_id": "5IBN_A"
+    },
+    {
+      "global_rmsd": 2.271504028673623,
+      "part_rmsd": 2.2488052820575426,
+      "placement": 0.022698746616080623,
+      "n_parts": 2,
+      "n_atoms": 1123,
+      "n_chains": 2,
+      "pdb_id": "5K6D_A-B"
+    },
+    {
+      "global_rmsd": 2.3651622748484673,
+      "part_rmsd": 2.3145027124219433,
+      "placement": 0.05065956242652403,
+      "n_parts": 2,
+      "n_atoms": 1783,
+      "n_chains": 3,
+      "pdb_id": "5KM2_A-B"
+    },
+    {
+      "global_rmsd": 2.3607215324299426,
+      "part_rmsd": 2.312277704940048,
+      "placement": 0.04844382748989462,
+      "n_parts": 2,
+      "n_atoms": 1783,
+      "n_chains": 3,
+      "pdb_id": "5KM3_A-B"
+    },
+    {
+      "global_rmsd": 2.8520268003497367,
+      "part_rmsd": 2.5433647590541777,
+      "placement": 0.30866204129555896,
+      "n_parts": 4,
+      "n_atoms": 2266,
+      "n_chains": 6,
+      "pdb_id": "5LK9_A-B"
+    },
+    {
+      "global_rmsd": 2.2211800277792597,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1630,
+      "pdb_id": "5MN1_A"
+    },
+    {
+      "global_rmsd": 2.2231433145916557,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1632,
+      "pdb_id": "5MNG_A"
+    },
+    {
+      "global_rmsd": 2.2212981046187266,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1632,
+      "pdb_id": "5MNK_A"
+    },
+    {
+      "global_rmsd": 2.245698162316315,
+      "part_rmsd": 2.224778705394038,
+      "placement": 0.020919456922277035,
+      "n_parts": 4,
+      "n_atoms": 1986,
+      "n_chains": 4,
+      "pdb_id": "5N8W_A-B-C-D"
+    },
+    {
+      "global_rmsd": 11.99498099491483,
+      "part_rmsd": 8.58398288389589,
+      "placement": 3.410998111018939,
+      "n_parts": 2,
+      "n_atoms": 1756,
+      "n_chains": 2,
+      "pdb_id": "5N9C_A-B"
+    },
+    {
+      "global_rmsd": 2.391409502756456,
+      "part_rmsd": 2.382781947033395,
+      "placement": 0.008627555723061064,
+      "n_parts": 2,
+      "n_atoms": 1116,
+      "n_chains": 2,
+      "pdb_id": "5NNE_A-C"
+    },
+    {
+      "global_rmsd": 2.2881172287314113,
+      "part_rmsd": 2.277583365078286,
+      "placement": 0.010533863653125142,
+      "n_parts": 2,
+      "n_atoms": 1155,
+      "n_chains": 2,
+      "pdb_id": "5O45_A-B"
+    },
+    {
+      "global_rmsd": 2.27288958357718,
+      "part_rmsd": 2.2323717117167474,
+      "placement": 0.04051787186043265,
+      "n_parts": 3,
+      "n_atoms": 1737,
+      "n_chains": 3,
+      "pdb_id": "5R46_A-B-C"
+    },
+    {
+      "global_rmsd": 2.2757023792781235,
+      "part_rmsd": 2.2347174177587084,
+      "placement": 0.04098496151941511,
+      "n_parts": 3,
+      "n_atoms": 1737,
+      "n_chains": 3,
+      "pdb_id": "5R48_A-B-C"
+    },
+    {
+      "global_rmsd": 2.2817158355601532,
+      "part_rmsd": 2.2407345270391934,
+      "placement": 0.040981308520959825,
+      "n_parts": 3,
+      "n_atoms": 1737,
+      "n_chains": 3,
+      "pdb_id": "5R4C_A-B-C"
+    },
+    {
+      "global_rmsd": 15.469627956674112,
+      "part_rmsd": 10.30347513545813,
+      "placement": 5.166152821215981,
+      "n_parts": 2,
+      "n_atoms": 2529,
+      "n_chains": 3,
+      "pdb_id": "5S3D_A-B"
+    },
+    {
+      "global_rmsd": 2.2946494729846165,
+      "part_rmsd": 2.2422666259793473,
+      "placement": 0.052382847005269184,
+      "n_parts": 2,
+      "n_atoms": 1551,
+      "n_chains": 1,
+      "pdb_id": "5X9M_A"
+    },
+    {
+      "global_rmsd": 10.413753504787008,
+      "part_rmsd": 7.653310701566733,
+      "placement": 2.7604428032202755,
+      "n_parts": 2,
+      "n_atoms": 1826,
+      "n_chains": 2,
+      "pdb_id": "6AKN_A-B"
+    },
+    {
+      "global_rmsd": 2.399171599787218,
+      "part_rmsd": 2.36703396162602,
+      "placement": 0.03213763816119819,
+      "n_parts": 2,
+      "n_atoms": 870,
+      "n_chains": 2,
+      "pdb_id": "6C9O_A-B"
+    },
+    {
+      "global_rmsd": 9.098830484437917,
+      "part_rmsd": 8.89401877021355,
+      "placement": 0.20481171422436617,
+      "n_parts": 2,
+      "n_atoms": 1514,
+      "n_chains": 1,
+      "pdb_id": "6D2Z_A"
+    },
+    {
+      "global_rmsd": 9.769152700147531,
+      "part_rmsd": 9.528446104764017,
+      "placement": 0.24070659538351435,
+      "n_parts": 2,
+      "n_atoms": 1525,
+      "n_chains": 1,
+      "pdb_id": "6D30_A"
+    },
+    {
+      "global_rmsd": 2.2024494839421394,
+      "part_rmsd": 2.1927219841564027,
+      "placement": 0.009727499785736615,
+      "n_parts": 2,
+      "n_atoms": 1686,
+      "n_chains": 2,
+      "pdb_id": "6EAU_A-I"
+    },
+    {
+      "global_rmsd": 2.2038727253832824,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1639,
+      "pdb_id": "6EAX_A"
+    },
+    {
+      "global_rmsd": 2.687736291942902,
+      "part_rmsd": 2.612547791298354,
+      "placement": 0.07518850064454785,
+      "n_parts": 2,
+      "n_atoms": 1719,
+      "n_chains": 4,
+      "pdb_id": "6ENI_A-B"
+    },
+    {
+      "global_rmsd": 2.3177554524441755,
+      "part_rmsd": 2.2973896227544226,
+      "placement": 0.020365829689752868,
+      "n_parts": 2,
+      "n_atoms": 951,
+      "n_chains": 1,
+      "pdb_id": "6ETL_A"
+    },
+    {
+      "global_rmsd": 2.3201454444471366,
+      "part_rmsd": 2.2999262640514684,
+      "placement": 0.020219180395668168,
+      "n_parts": 2,
+      "n_atoms": 951,
+      "n_chains": 1,
+      "pdb_id": "6ETN_A"
+    },
+    {
+      "global_rmsd": 3.079542516790139,
+      "part_rmsd": 2.9465187005612568,
+      "placement": 0.13302381622888237,
+      "n_parts": 2,
+      "n_atoms": 1924,
+      "n_chains": 2,
+      "pdb_id": "6F54_A-B"
+    },
+    {
+      "global_rmsd": 16.396922729674852,
+      "part_rmsd": 16.337686630084743,
+      "placement": 0.05923609959010889,
+      "n_parts": 3,
+      "n_atoms": 735,
+      "n_chains": 3,
+      "pdb_id": "6HG7_A-B-C"
+    },
+    {
+      "global_rmsd": 2.3990654167938326,
+      "part_rmsd": 2.329416623924114,
+      "placement": 0.0696487928697187,
+      "n_parts": 2,
+      "n_atoms": 1140,
+      "n_chains": 2,
+      "pdb_id": "6I74_A"
+    },
+    {
+      "global_rmsd": 2.3067248309731885,
+      "part_rmsd": 2.296186646065598,
+      "placement": 0.010538184907590509,
+      "n_parts": 2,
+      "n_atoms": 1022,
+      "n_chains": 2,
+      "pdb_id": "6L8G_A-B"
+    },
+    {
+      "global_rmsd": 16.511177090651938,
+      "part_rmsd": 11.994815013956996,
+      "placement": 4.516362076694941,
+      "n_parts": 2,
+      "n_atoms": 2316,
+      "n_chains": 2,
+      "pdb_id": "6MOG_A-B"
+    },
+    {
+      "global_rmsd": 7.167959498721543,
+      "part_rmsd": 5.296407760635582,
+      "placement": 1.8715517380859605,
+      "n_parts": 2,
+      "n_atoms": 1421,
+      "n_chains": 2,
+      "pdb_id": "6Q0M_A-B"
+    },
+    {
+      "global_rmsd": 2.3529015698541094,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1070,
+      "pdb_id": "6S2M_A"
+    },
+    {
+      "global_rmsd": 2.420242008184698,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 2091,
+      "pdb_id": "6SAY_A"
+    },
+    {
+      "global_rmsd": 2.456646623188624,
+      "part_rmsd": 2.348390305688805,
+      "placement": 0.10825631749981879,
+      "n_parts": 2,
+      "n_atoms": 1826,
+      "n_chains": 4,
+      "pdb_id": "6TXW_A-B"
+    },
+    {
+      "global_rmsd": 2.2667681806833517,
+      "part_rmsd": 2.2253602657042943,
+      "placement": 0.04140791497905738,
+      "n_parts": 2,
+      "n_atoms": 1841,
+      "n_chains": 1,
+      "pdb_id": "6UAI_S"
+    },
+    {
+      "global_rmsd": 15.011607618725293,
+      "part_rmsd": 10.06134645430269,
+      "placement": 4.950261164422603,
+      "n_parts": 2,
+      "n_atoms": 2043,
+      "n_chains": 2,
+      "pdb_id": "6XYM_A-B"
+    },
+    {
+      "global_rmsd": 10.336665384952694,
+      "part_rmsd": 7.719592956697334,
+      "placement": 2.6170724282553595,
+      "n_parts": 2,
+      "n_atoms": 1838,
+      "n_chains": 1,
+      "pdb_id": "6Y1J_A"
+    },
+    {
+      "global_rmsd": 2.3070446377739624,
+      "part_rmsd": 2.300591057419089,
+      "placement": 0.006453580354873534,
+      "n_parts": 2,
+      "n_atoms": 1071,
+      "n_chains": 2,
+      "pdb_id": "6YOO_A-B"
+    },
+    {
+      "global_rmsd": 2.4215175780362252,
+      "part_rmsd": 2.383948230588444,
+      "placement": 0.037569347447781176,
+      "n_parts": 2,
+      "n_atoms": 627,
+      "n_chains": 2,
+      "pdb_id": "6YTU_A-B"
+    },
+    {
+      "global_rmsd": 9.470228689419805,
+      "part_rmsd": 7.601826810658377,
+      "placement": 1.8684018787614285,
+      "n_parts": 4,
+      "n_atoms": 1676,
+      "n_chains": 4,
+      "pdb_id": "6YWH_A-B"
+    },
+    {
+      "global_rmsd": 2.395296651789748,
+      "part_rmsd": 2.32848343509161,
+      "placement": 0.06681321669813789,
+      "n_parts": 2,
+      "n_atoms": 924,
+      "n_chains": 2,
+      "pdb_id": "7A31_A-B"
+    },
+    {
+      "global_rmsd": 2.346601272936167,
+      "part_rmsd": 2.2597311468947234,
+      "placement": 0.08687012604144373,
+      "n_parts": 2,
+      "n_atoms": 923,
+      "n_chains": 2,
+      "pdb_id": "7A33_A-B"
+    },
+    {
+      "global_rmsd": 10.683807392691229,
+      "part_rmsd": 8.183792039625478,
+      "placement": 2.5000153530657503,
+      "n_parts": 2,
+      "n_atoms": 1850,
+      "n_chains": 1,
+      "pdb_id": "7AEW_AAA"
+    },
+    {
+      "global_rmsd": 11.747392915710511,
+      "part_rmsd": 8.919848539849271,
+      "placement": 2.8275443758612404,
+      "n_parts": 2,
+      "n_atoms": 2026,
+      "n_chains": 4,
+      "pdb_id": "7APS_A-B"
+    },
+    {
+      "global_rmsd": 2.4080643524041685,
+      "part_rmsd": 2.331446339854308,
+      "placement": 0.07661801254986056,
+      "n_parts": 4,
+      "n_atoms": 1117,
+      "n_chains": 5,
+      "pdb_id": "7ARR_A-B-C-D"
+    },
+    {
+      "global_rmsd": 2.385563193070269,
+      "part_rmsd": 2.28236508361258,
+      "placement": 0.10319810945768904,
+      "n_parts": 2,
+      "n_atoms": 1283,
+      "n_chains": 2,
+      "pdb_id": "7AVK_A-B"
+    },
+    {
+      "global_rmsd": 2.487008391547507,
+      "part_rmsd": 2.338789159561804,
+      "placement": 0.1482192319857032,
+      "n_parts": 3,
+      "n_atoms": 1285,
+      "n_chains": 3,
+      "pdb_id": "7B5U_A-B"
+    },
+    {
+      "global_rmsd": 10.625933966728935,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1872,
+      "pdb_id": "7BA8_A"
+    },
+    {
+      "global_rmsd": 7.056045831580159,
+      "part_rmsd": 6.864261046808375,
+      "placement": 0.19178478477178373,
+      "n_parts": 2,
+      "n_atoms": 1943,
+      "n_chains": 1,
+      "pdb_id": "7BDS_A"
+    },
+    {
+      "global_rmsd": 10.005388665726416,
+      "part_rmsd": 9.252524231620011,
+      "placement": 0.7528644341064048,
+      "n_parts": 2,
+      "n_atoms": 2004,
+      "n_chains": 2,
+      "pdb_id": "7CN7_A-C"
+    },
+    {
+      "global_rmsd": 2.3913908940271975,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1857,
+      "pdb_id": "7D8D_A"
+    },
+    {
+      "global_rmsd": 4.0623985005782135,
+      "part_rmsd": 3.884513829097363,
+      "placement": 0.17788467148085063,
+      "n_parts": 2,
+      "n_atoms": 1992,
+      "n_chains": 2,
+      "pdb_id": "7DDM_A-E"
+    },
+    {
+      "global_rmsd": 13.88071025833322,
+      "part_rmsd": 9.08379233937924,
+      "placement": 4.79691791895398,
+      "n_parts": 4,
+      "n_atoms": 2248,
+      "n_chains": 4,
+      "pdb_id": "7MNH_A-B"
+    },
+    {
+      "global_rmsd": 2.362549767808823,
+      "part_rmsd": 2.2794132311815276,
+      "placement": 0.08313653662729559,
+      "n_parts": 4,
+      "n_atoms": 980,
+      "n_chains": 4,
+      "pdb_id": "7MNK_A-B-C-D"
+    },
+    {
+      "global_rmsd": 2.342007830245715,
+      "part_rmsd": 2.1673559676661682,
+      "placement": 0.1746518625795468,
+      "n_parts": 6,
+      "n_atoms": 1349,
+      "n_chains": 6,
+      "pdb_id": "7NFG_A-B-C-D-E-F"
+    },
+    {
+      "global_rmsd": 15.027242632011582,
+      "part_rmsd": 11.836618396768054,
+      "placement": 3.1906242352435275,
+      "n_parts": 2,
+      "n_atoms": 2239,
+      "n_chains": 4,
+      "pdb_id": "7NZA_A-B"
+    },
+    {
+      "global_rmsd": 2.4306592027002263,
+      "part_rmsd": 2.401995304789701,
+      "placement": 0.02866389791052537,
+      "n_parts": 2,
+      "n_atoms": 1952,
+      "n_chains": 1,
+      "pdb_id": "7P0W_A"
+    },
+    {
+      "global_rmsd": 2.4324290015033787,
+      "part_rmsd": 2.416542618192744,
+      "placement": 0.015886383310634855,
+      "n_parts": 2,
+      "n_atoms": 1877,
+      "n_chains": 3,
+      "pdb_id": "7Q5X_A-B"
+    },
+    {
+      "global_rmsd": 11.817235590129954,
+      "part_rmsd": 8.286629408407212,
+      "placement": 3.5306061817227423,
+      "n_parts": 2,
+      "n_atoms": 2000,
+      "n_chains": 2,
+      "pdb_id": "7RYD_AAA-BBB"
+    },
+    {
+      "global_rmsd": 2.2288943965031613,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 981,
+      "pdb_id": "7SPX_A"
+    },
+    {
+      "global_rmsd": 6.592570534713537,
+      "part_rmsd": 6.2237734645491685,
+      "placement": 0.36879707016436836,
+      "n_parts": 2,
+      "n_atoms": 1649,
+      "n_chains": 3,
+      "pdb_id": "7Z8O_A-B"
+    },
+    {
+      "global_rmsd": 2.256616199271663,
+      "part_rmsd": 2.2510327276333415,
+      "placement": 0.005583471638321402,
+      "n_parts": 2,
+      "n_atoms": 1120,
+      "n_chains": 2,
+      "pdb_id": "8B2F_A-B"
+    },
+    {
+      "global_rmsd": 2.312980445135806,
+      "part_rmsd": 2.2949152062659977,
+      "placement": 0.018065238869808375,
+      "n_parts": 2,
+      "n_atoms": 1282,
+      "n_chains": 2,
+      "pdb_id": "8B2R_A-B"
+    },
+    {
+      "global_rmsd": 10.547515143469369,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1877,
+      "pdb_id": "8BX3_A"
+    },
+    {
+      "global_rmsd": 10.524299390679843,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1876,
+      "pdb_id": "8BXI_A"
+    },
+    {
+      "global_rmsd": 10.512708170480245,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1878,
+      "pdb_id": "8BYO_A"
+    },
+    {
+      "global_rmsd": 10.380064692188466,
+      "part_rmsd": NaN,
+      "placement": NaN,
+      "n_parts": 1,
+      "n_atoms": 1885,
+      "pdb_id": "8BZW_A"
+    },
+    {
+      "global_rmsd": 9.21863387181664,
+      "part_rmsd": 6.278995544504175,
+      "placement": 2.9396383273124655,
+      "n_parts": 2,
+      "n_atoms": 1957,
+      "n_chains": 2,
+      "pdb_id": "8E2N_B-A"
+    },
+    {
+      "global_rmsd": 2.291865595724253,
+      "part_rmsd": 2.2641688141079688,
+      "placement": 0.027696781616284305,
+      "n_parts": 2,
+      "n_atoms": 769,
+      "n_chains": 1,
+      "pdb_id": "8EO4_F"
+    },
+    {
+      "global_rmsd": 2.339695945996286,
+      "part_rmsd": 2.3092869293941565,
+      "placement": 0.03040901660212958,
+      "n_parts": 2,
+      "n_atoms": 1847,
+      "n_chains": 1,
+      "pdb_id": "8G1W_A"
+    },
+    {
+      "global_rmsd": 6.533966238074929,
+      "part_rmsd": 4.696703242934877,
+      "placement": 1.837262995140052,
+      "n_parts": 8,
+      "n_atoms": 1312,
+      "n_chains": 8,
+      "pdb_id": "8GOH_A-B-C-D-E-F-G-H"
+    },
+    {
+      "global_rmsd": 7.689477228878736,
+      "part_rmsd": 7.161555974918072,
+      "placement": 0.5279212539606633,
+      "n_parts": 2,
+      "n_atoms": 1821,
+      "n_chains": 2,
+      "pdb_id": "8HJY_A-B"
+    },
+    {
+      "global_rmsd": 2.2167631665327483,
+      "part_rmsd": 2.1931804276998537,
+      "placement": 0.023582738832894634,
+      "n_parts": 2,
+      "n_atoms": 632,
+      "n_chains": 2,
+      "pdb_id": "8HLO_A-C"
+    },
+    {
+      "global_rmsd": 2.2034476785057393,
+      "part_rmsd": 2.1912681693907157,
+      "placement": 0.012179509115023635,
+      "n_parts": 2,
+      "n_atoms": 554,
+      "n_chains": 2,
+      "pdb_id": "8KDX_A-B"
+    },
+    {
+      "global_rmsd": 12.95906319951428,
+      "part_rmsd": 7.631155816266929,
+      "placement": 5.32790738324735,
+      "n_parts": 2,
+      "n_atoms": 2280,
+      "n_chains": 3,
+      "pdb_id": "8OGZ_A-B"
+    },
+    {
+      "global_rmsd": 12.994248073369043,
+      "part_rmsd": 7.677398532764359,
+      "placement": 5.316849540604684,
+      "n_parts": 2,
+      "n_atoms": 2277,
+      "n_chains": 3,
+      "pdb_id": "8OHC_A-B"
+    },
+    {
+      "global_rmsd": 10.822751926484438,
+      "part_rmsd": 8.596255758024965,
+      "placement": 2.226496168459473,
+      "n_parts": 2,
+      "n_atoms": 1600,
+      "n_chains": 2,
+      "pdb_id": "8PHY_A-B"
+    },
+    {
+      "global_rmsd": 2.485720033231802,
+      "part_rmsd": 2.463476685257691,
+      "placement": 0.022243347974110872,
+      "n_parts": 2,
+      "n_atoms": 563,
+      "n_chains": 1,
+      "pdb_id": "8PMF_A"
+    },
+    {
+      "global_rmsd": 2.503139550369271,
+      "part_rmsd": 2.409137324215865,
+      "placement": 0.09400222615340592,
+      "n_parts": 2,
+      "n_atoms": 1561,
+      "n_chains": 2,
+      "pdb_id": "8SVI_B-A"
+    },
+    {
+      "global_rmsd": 2.3292932674427087,
+      "part_rmsd": 2.2888212599660576,
+      "placement": 0.04047200747665114,
+      "n_parts": 3,
+      "n_atoms": 666,
+      "n_chains": 3,
+      "pdb_id": "8UDN_A-B-C"
+    },
+    {
+      "global_rmsd": 2.2633394985868516,
+      "part_rmsd": 2.226938415310404,
+      "placement": 0.03640108327644764,
+      "n_parts": 4,
+      "n_atoms": 472,
+      "n_chains": 4,
+      "pdb_id": "9C5S_A-B-C-D"
+    },
+    {
+      "global_rmsd": 6.862140336663007,
+      "part_rmsd": 5.030500974452716,
+      "placement": 1.831639362210291,
+      "n_parts": 2,
+      "n_atoms": 2022,
+      "n_chains": 4,
+      "pdb_id": "9DA2_A-B"
+    },
+    {
+      "global_rmsd": 2.285741791170849,
+      "part_rmsd": 2.2798641268794864,
+      "placement": 0.005877664291362716,
+      "n_parts": 2,
+      "n_atoms": 540,
+      "n_chains": 1,
+      "pdb_id": "9DNR_A"
+    },
+    {
+      "global_rmsd": 11.49270484197379,
+      "part_rmsd": 8.879900640492645,
+      "placement": 2.6128042014811452,
+      "n_parts": 2,
+      "n_atoms": 1930,
+      "n_chains": 2,
+      "pdb_id": "9EZU_A-B"
+    },
+    {
+      "global_rmsd": 2.165371848063153,
+      "part_rmsd": 2.156885891026247,
+      "placement": 0.008485957036906022,
+      "n_parts": 2,
+      "n_atoms": 611,
+      "n_chains": 1,
+      "pdb_id": "9F6S_A"
+    },
+    {
+      "global_rmsd": 18.063374201589568,
+      "part_rmsd": 11.470143180731277,
+      "placement": 6.5932310208582905,
+      "n_parts": 2,
+      "n_atoms": 2483,
+      "n_chains": 5,
+      "pdb_id": "9H2Y_A-B"
+    },
+    {
+      "global_rmsd": 12.759760676907682,
+      "part_rmsd": 7.135032064009542,
+      "placement": 5.6247286128981395,
+      "n_parts": 6,
+      "n_atoms": 1710,
+      "n_chains": 10,
+      "pdb_id": "9HBD_A-B"
+    },
+    {
+      "global_rmsd": 11.691105273644022,
+      "part_rmsd": 6.772987803563203,
+      "placement": 4.918117470080818,
+      "n_parts": 6,
+      "n_atoms": 1710,
+      "n_chains": 10,
+      "pdb_id": "9HBE_A-B"
+    },
+    {
+      "global_rmsd": 2.3281751897908167,
+      "part_rmsd": 2.27726045190228,
+      "placement": 0.05091473788853662,
+      "n_parts": 2,
+      "n_atoms": 853,
+      "n_chains": 2,
+      "pdb_id": "9I2I_A-B"
+    },
+    {
+      "global_rmsd": 9.204695554238585,
+      "part_rmsd": 7.897865409814283,
+      "placement": 1.3068301444243016,
+      "n_parts": 4,
+      "n_atoms": 2240,
+      "n_chains": 4,
+      "pdb_id": "9I57_A-B"
+    },
+    {
+      "global_rmsd": 2.346593578655836,
+      "part_rmsd": 2.344753588434022,
+      "placement": 0.0018399902218142472,
+      "n_parts": 2,
+      "n_atoms": 1271,
+      "n_chains": 2,
+      "pdb_id": "9MXD_A-B"
+    },
+    {
+      "global_rmsd": 6.227038396104232,
+      "part_rmsd": 4.003065761533174,
+      "placement": 2.2239726345710586,
+      "n_parts": 2,
+      "n_atoms": 1115,
+      "n_chains": 2,
+      "pdb_id": "9PG9_A-B"
+    },
+    {
+      "global_rmsd": 2.4880827370343783,
+      "part_rmsd": 2.376817916065738,
+      "placement": 0.11126482096864043,
+      "n_parts": 2,
+      "n_atoms": 1149,
+      "n_chains": 2,
+      "pdb_id": "9RR6_A"
+    },
+    {
+      "global_rmsd": 6.852609515040783,
+      "part_rmsd": 5.317557519463228,
+      "placement": 1.5350519955775548,
+      "n_parts": 2,
+      "n_atoms": 1398,
+      "n_chains": 2,
+      "pdb_id": "9RXO_A-B"
+    },
+    {
+      "global_rmsd": 2.419606734284555,
+      "part_rmsd": 2.4007756867614165,
+      "placement": 0.018831047523138356,
+      "n_parts": 2,
+      "n_atoms": 1281,
+      "n_chains": 2,
+      "pdb_id": "9THJ_A"
+    },
+    {
+      "global_rmsd": 2.1765000385272906,
+      "part_rmsd": 2.155725782201985,
+      "placement": 0.020774256325305718,
+      "n_parts": 2,
+      "n_atoms": 757,
+      "n_chains": 1,
+      "pdb_id": "9TXE_A"
+    },
+    {
+      "global_rmsd": 2.1987052891814467,
+      "part_rmsd": 2.1856468029972738,
+      "placement": 0.013058486184172935,
+      "n_parts": 2,
+      "n_atoms": 414,
+      "n_chains": 1,
+      "pdb_id": "9ZDO_A"
+    }
+  ]
+}

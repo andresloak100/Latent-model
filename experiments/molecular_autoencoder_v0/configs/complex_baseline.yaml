@@ -1,0 +1,88 @@
+# A/B arm: rigid per-residue frames instead of 14 absolute coordinates.
+#
+# Identical to complex_d8 except `model.dec_frames` (+ local_scale).
+#
+# What it fixes. The plain head maps one residue token, through a single
+# linear layer at a single output scale, to 14x3 ABSOLUTE coordinates. That
+# layer has to express a ~50A placement and a 1.5A bond length in the same
+# units, and it re-emits the placement independently for each of the 14 atoms
+# -- so placement error is injected once per atom and deforms the internal
+# geometry it shares an output with. Frames send placement through 3 numbers
+# and a rotation, moving the residue rigidly, and put local atom offsets on
+# their own scale.
+#
+# Why this outranks chain-awareness. Residue-granularity decomposition of
+# complex_d8 val:
+#     global 5.884A = 1.829A residue-internal + the rest placement
+#     placement share 69% linear, ~90% of the SQUARED error
+#     single-chain val 4.126A, multi-chain 6.236A
+# The single-chain members have NO chain boundary, yet imply ~3.7A of
+# placement error. Chain-awareness can only address the 2.11A multi-minus-
+# single differential; frames reach the 3.7A that exists without any boundary
+# at all. Run both -- they are orthogonal -- but this is the larger term.
+#
+# Pre-registered predictions, so this cannot be rationalised after the fact:
+#   * residue-internal part_rmsd should FALL below 1.829 (placement no longer
+#     deforms the residue). Re-run error_decomposition --granularity residue
+#     on the result; that is the mechanism check, not just the RMSD.
+#   * bond and clash loss should improve more than coordinate loss does.
+#   * unlike chain-awareness, single-chain val should improve TOO.
+# If single-chain val does not move, the frame story is wrong.
+name: complex_baseline
+data:
+  processed_dir: data/processed_complex
+  splits_file: data/splits_complex.json
+  min_residues: 20
+  max_residues: 400
+  max_atoms: 3000
+model:
+  d_model: 128
+  n_heads: 4
+  n_latent_tokens: 16
+  latent_dim: 8
+  enc_self_layers: 2
+  dec_self_layers: 2
+  ff_mult: 4
+  dropout: 0.0
+  max_res_pos: 1024
+  coord_scale: 10.0
+  # Assemblies: enables the chain embedding. 16 is well above anything in the
+  # matched band and costs one small table.
+  max_chains: 16
+  # Required whenever ligands are present.
+  use_slot_emb: true
+  dec_frames: false
+  local_scale: 5.0
+  encoder_type: direct
+  k_neighbors: 8
+  rope_freqs: 128
+  rope_spherical: false
+  objective: reconstruct
+  flow_steps: 50
+loss:
+  coord: 1.0
+  distance: 1.0
+  bond: 1.0
+  clash: 0.5
+  chirality: 0.2
+train:
+  seed: 0
+  epochs: 900
+  batch_size: 8            # halved: structures are ~4x larger than the 800-atom band
+  # 3e-4, not the 1e-3 the small-band runs used. 1e-3 was already the setting
+  # that destabilised the deeper models, and this run is both larger and on a
+  # freshly extended vocabulary.
+  lr: 0.0003
+  weight_decay: 0.0
+  grad_clip: 1.0
+  log_every: 25
+  eval_every: 25           # independent of log_every now; both schedules fire
+  ckpt_every: 50
+  clash_dist: 1.5
+  loss_max_atoms: 3000
+  out_dir: outputs/complex_frames
+  overfit: false
+  augment_rotation: true
+  # On, so the headline number is a mean, not a draw. The A/B partner
+  # (complex_d8) must be rerun with the SAME setting to compare.
+  ema_decay: 0.9998

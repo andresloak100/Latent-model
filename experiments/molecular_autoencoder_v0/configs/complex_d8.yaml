@@ -1,25 +1,3 @@
-# Protein COMPLEX + LIGAND codec -- the first run on the representation that
-# has to carry assemblies and compounds, not single protein chains.
-#
-# Three things differ from every codec run so far, and each is the point:
-#   * multi-chain: res_pos is GLOBAL across chains, so the decoder's slot bank
-#     cannot alias chain B's residue 0 onto chain A's. max_chains > 1 also
-#     switches on the chain embedding, without which a chain break and a
-#     peptide bond are indistinguishable to the model.
-#   * ligands: non-polymer groups are addressed by ordinal slot, so their atoms
-#     need the slot embedding -- they all carry atom_name_idx = UNK and are
-#     otherwise identical to the featuriser.
-#   * scale: complexes are several times larger than the 800-atom band every
-#     previous number was measured on.
-#
-# Build the dataset with:
-#   python scripts/prepare_dataset.py --config configs/complex_d8.yaml \
-#       --multi-chain --keep-ligands --min-ligand-atoms 6 --pdb-list <ids>
-#
-# Reference to beat (single-chain, protein-only, <=800 atoms):
-#   0.79 A all-atom / 0.51 A backbone / chirality 0.0002 / contact F1 0.963
-# Expect some degradation from size alone; the question is how much, and
-# whether ligand atoms reconstruct as well as protein atoms do.
 name: complex_d8
 data:
   processed_dir: data/processed_complex
@@ -38,10 +16,7 @@ model:
   dropout: 0.0
   max_res_pos: 1024
   coord_scale: 10.0
-  # Assemblies: enables the chain embedding. 16 is well above anything in the
-  # matched band and costs one small table.
   max_chains: 16
-  # Required whenever ligands are present.
   use_slot_emb: true
   encoder_type: direct
   k_neighbors: 8
@@ -49,6 +24,9 @@ model:
   rope_spherical: false
   objective: reconstruct
   flow_steps: 50
+  group_self_layers: 0
+  atom_self_layers: 0
+  dec_cross_layers: 1
 loss:
   coord: 1.0
   distance: 1.0
@@ -57,19 +35,18 @@ loss:
   chirality: 0.2
 train:
   seed: 0
-  epochs: 900
-  batch_size: 8            # halved: structures are ~4x larger than the 800-atom band
-  # 3e-4, not the 1e-3 the small-band runs used. 1e-3 was already the setting
-  # that destabilised the deeper models, and this run is both larger and on a
-  # freshly extended vocabulary.
+  epochs: 3457
+  batch_size: 8
   lr: 0.0003
   weight_decay: 0.0
   grad_clip: 1.0
   log_every: 25
-  eval_every: 25           # independent of log_every now; both schedules fire
+  eval_every: 25
   ckpt_every: 50
   clash_dist: 1.5
   loss_max_atoms: 3000
   out_dir: outputs/complex_d8
   overfit: false
   augment_rotation: true
+  corrupt_frac: 0.0
+  corrupt_mode: zero
