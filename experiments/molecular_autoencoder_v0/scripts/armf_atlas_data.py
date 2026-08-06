@@ -18,6 +18,7 @@ forms any 3N-sized array: G = Xtr Xtr^T (2000x2000), eigh, then ho @ V_k = (ho X
 MEASURED at the ATLAS worst case: 8.5 s, largest array 32 MB, agreeing with economy SVD to 2.6e-18
 -- 6.2x faster. Always use this route."""
 import os, glob, json, numpy as np
+from armf_anm import modes as anm_modes
 
 
 class AtlasStore:
@@ -79,4 +80,101 @@ def pca_ceiling_framespace(X, h, ks):
         proj = (C @ U[:, :kk]) / s
         out[k] = float((proj ** 2).sum() / (sst + 1e-12))
         out[f"valid{k}"] = bool(k <= 0.30 * (h - 1))         # G7 per system, h varies
+    return out
+
+
+# ---- shared per-system access, lifted here so the curve script and any analysis import ONE
+# definition. Duplicating them across scripts is how a comparator ends up computed differently
+# from the model it is compared against (FAMILY F).
+def sysdata(store, i):
+    """REPLICAS 0+1 = TRAIN (5,002 frames), REPLICA 2 = HELD-OUT (2,501 frames).
+
+    Two gains, both free -- the cache already held all three replicas and only replica 0 was being
+    read. (1) FRAMES PER INTRINSIC DIMENSION triples: at N=33,377 with rank90 ~400 that is 12.5x
+    instead of 5.0x, which is the actual mechanism behind the ceiling degrading with N (it was never
+    '80 frames', it was frames vs rank90, and rank90 GROWS with N at b>=+0.10). (2) The held-out set
+    becomes an INDEPENDENT TRAJECTORY rather than the temporally-adjacent tail of the training one --
+    a strictly stronger generalisation test.
+    Nothing large is materialised: coordinates stay memmapped and the Gram is chunked over columns."""
+    m = store.meta[i]
+    try:
+        a = np.load(m["path"], mmap_mode="r")          # (R, F, N, 3)
+        R, F, N = a.shape[0], a.shape[1], a.shape[2]
+        if R < 3: return None
+        ref = np.asarray(a[0, 0]).astype(np.float64)
+        # per-system mean over TRAIN replicas only, streamed
+        mu = np.zeros(3*N)
+        for r in (0, 1): mu += np.asarray(a[r]).reshape(F, -1).astype(np.float64).sum(0)
+        mu /= (2*F)
+        sst = 0.0                                       # STREAMED: (F,3N) is 1.0 GB at N=33,377,
+        for c0 in range(0, 3*N, 20000):                 # and 125 of those would OOM -- killing the
+            c1 = min(c0 + 20000, 3*N)                   # LARGEST systems first, i.e. an N-correlated
+            sst += float(((np.asarray(a[2]).reshape(F, -1)[:, c0:c1].astype(np.float64)
+                           - mu[c0:c1]) ** 2).sum())    # failure truncating the axis under test.
+        s0 = np.asarray(a[0]).reshape(F, -1).astype(np.float64) - mu
+        scale = float(np.sqrt((s0 ** 2).reshape(F, N, 3).sum(-1).mean()) + 1e-6)
+        el = np.array(m["elem"][:N])
+        ELEMS = [1, 6, 7, 8, 16, 15, 9, 17]
+        oh = np.zeros((N, len(ELEMS) + 1), np.float32)
+        for k, e in enumerate(el): oh[k, ELEMS.index(int(e)) if int(e) in ELEMS else -1] = 1.0
+        rp = ((ref - ref.mean(0)) / (ref.std() + 1e-6)).astype(np.float32)
+        store.loaded.add(m["pdb"])
+        return dict(pdb=m["pdb"], N=N, F=F, ref=ref, scale=scale, mu=mu, path=m["path"],
+                    stat=np.concatenate([oh, rp], 1).astype(np.float32),
+                    sst=sst)
+    except Exception as e:
+        store.failed[m["pdb"]] = {"atoms": m["atoms"], "err": f"{type(e).__name__}: {e}"}
+        return None
+
+
+def ho_frames(d, s, e):
+    """Held-out frames (replica 2), memmapped and centred. Nothing large retained."""
+    a = np.load(d["path"], mmap_mode="r")
+    return np.asarray(a[2, s:e]).astype(np.float64) - d["mu"].reshape(d["N"], 3)
+
+
+def ho_cols(d, c0, c1):
+    """Held-out COLUMN slice, for chunked products."""
+    a = np.load(d["path"], mmap_mode="r")
+    return np.asarray(a[2]).reshape(d["F"], -1)[:, c0:c1].astype(np.float64) - d["mu"][c0:c1]
+
+
+def anm_fve_streamed(d, V, chunk=20000):
+    """||ho V||^2 / sst accumulated over column chunks -- ho is never materialised."""
+    acc = np.zeros((d["F"], V.shape[1]))
+    for c0 in range(0, 3 * d["N"], chunk):
+        c1 = min(c0 + chunk, 3 * d["N"])
+        acc += ho_cols(d, c0, c1) @ V[c0:c1]
+    return float((acc ** 2).sum() / (d["sst"] + 1e-12))
+
+
+def train_frames(d, idx):
+    """Read specific TRAIN frames (replicas 0+1) via memmap; nothing else materialised."""
+    a = np.load(d["path"], mmap_mode="r"); F = d["F"]
+    out = np.empty((len(idx), d["N"], 3), np.float32)
+    for k, t in enumerate(idx):
+        out[k] = np.asarray(a[t // F, t % F])
+    return out.reshape(len(idx), -1) - d["mu"].astype(np.float32)
+
+
+def ceiling_chunked(d, ks, chunk=20000):
+    """PCA ceiling with the train Gram accumulated over COLUMN CHUNKS, so a 5,002 x 100,131 matrix
+    is never held. G = sum_c Xc Xc^T and C = sum_c Ho_c Xc^T are both exact under chunking."""
+    a = np.load(d["path"], mmap_mode="r"); F = d["F"]; D = 3 * d["N"]; H = 2 * F
+    G = np.zeros((H, H)); C = np.zeros((F, H))
+    for c0 in range(0, D, chunk):
+        c1 = min(c0 + chunk, D)
+        Xc = np.concatenate([np.asarray(a[r]).reshape(F, -1)[:, c0:c1] for r in (0, 1)], 0).astype(np.float64)
+        Xc -= d["mu"][c0:c1]
+        G += Xc @ Xc.T
+        C += ho_cols(d, c0, c1) @ Xc.T
+        del Xc
+    w, U = np.linalg.eigh(G); o = np.argsort(w)[::-1]; w = np.clip(w[o], 0, None); U = U[:, o]
+    out = {}
+    for k in ks:
+        kk = min(k, int((w > w[0] * 1e-12).sum()))
+        proj = (C @ U[:, :kk]) / np.sqrt(np.clip(w[:kk], 1e-12, None))
+        out[k] = float((proj ** 2).sum() / (d["sst"] + 1e-12))
+        out[f"valid{k}"] = bool(k <= 0.30 * (H - 1))
+        out[f"cond{k}"] = float(np.sqrt(w[min(kk, len(w)) - 1] / max(w[0], 1e-12)))
     return out

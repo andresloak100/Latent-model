@@ -1,32 +1,20 @@
-"""DIMENSIONALITY MEASUREMENT -- the replica-join sweep is REQUIRED here, unlike the capacity axis.
-Between-replica structural offsets add apparent variance directions and inflate rank90, so joins must
-be swept. The capacity axis (armf_phase1_dm.py) correctly uses CONCATENATED frames instead: a
-per-frame autoencoder has no time dependence, so multi-replica frames are broader sampling of the
-same ensemble, not discontinuities. Do not propagate the join sweep there.
+"""SUPERSEDED -- the b experiment moved to ATLAS. DO NOT RUN AGAINST mdCATH.
 
-Resolve b (the atom-count exponent of intrinsic dimensionality) at an UNCENSORED frame budget.
+ATLAS is strictly better on every axis that matters for b, and costs nothing extra because the
+cache is already built for the learning curve:
+    N range        56x           vs mdCATH 11x
+    systems        825 cached (1,938 available)  vs 28
+    frames         7,503         vs 2,000
+    rank position  ~500/5,002 = 10% (clean)  vs ~500/1,600 = 31% (EDGE)
+b decides whether "one global latent, width independent of atom count" holds at 1e6 atoms;
+measuring it on the corpus with 5x the N range and 30x the systems is not a close call.
+The mdCATH stream (700 domains, 0.34 TB download) is CANCELLED -- it was staged, never submitted.
+The join-sweep and threshold-sweep machinery below carries over unchanged, with ATLAS REPLICAS
+as the join unit instead of mdCATH replicas. See armf_atlas_b.py.
+"""
 
-b governs whether latent width must scale with system size, and the width chain turns on it:
-b=0.10 -> ~489 dims for a 1e6-atom bound complex, b=0.14 -> ~622, b=0.20 -> ~914, b=0.30 -> ~1720,
-where the single-global-latent claim needs qualification rather than a wider DM. Currently b is known
-only as a CENSORED LOWER BOUND (+0.101 +/- 0.021, MISATO, 79 frames) because MISATO has only 100
-frames, and mdCATH's 28 local domains cannot measure it (CI spans zero at every budget).
+# --- original mdCATH implementation retained below for the swept machinery ---
 
-The blocker is n=28, not mdCATH: the repo holds 5,398 domains. sqrt(700/28) ~ 5x CI shrink; the ~12x
-N range costs ~1.5x against MISATO's 37x, netting ~3.3x, so a +/-0.25 half-width becomes ~+/-0.075 --
-enough to separate b=0.14 from b=0.30 at ~2 sigma. And measured at 2,400 frames it is the UNCENSORED
-b, not another bound.
-
-STREAM, DO NOT STORE. 3.61 TB total, mean 670 MB/domain -- far too much for a borrowed account's
-scratch. Per domain: download -> compute the rank90/RMSF ladder -> write only the spectra -> DELETE
-the h5 immediately. Peak disk is (workers x ~2 GB); retained output is a few MB.
-
-STRATIFIED across projected atom count (bytes->atoms calibration measured on the 28 local files:
-atoms = 3.0387e-06*bytes + 36.3, R^2 = 0.9944, median error 2.7%). An unstratified draw concentrates
-at the median and starves the ends, which is exactly where a slope needs its leverage.
-
-Measured bandwidth 25.0 MB/s single-stream, so bandwidth is not binding; compute (~25 s/domain) is
-comparable, hence concurrent workers to overlap the two."""
 import json, os, sys, time, subprocess, numpy as np, warnings
 warnings.filterwarnings("ignore")
 SC = os.environ.get("BSC", "/network/scratch/j/jacob-junqi.tian/latent-model-workspace")

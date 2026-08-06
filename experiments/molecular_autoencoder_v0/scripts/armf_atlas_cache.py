@@ -42,29 +42,25 @@ import os, sys, csv, json, time, subprocess, shutil, numpy as np, warnings
 warnings.filterwarnings("ignore")
 WR = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace"
 LIB = f"{WR}/pylibs"; sys.path.insert(0, LIB)
-OUT = f"{WR}/atlas_cache"; INFO = f"{WR}/atlas_info.tsv"
+OUT = f"{WR}/atlas_cache"; INFO = f"{WR}/atlas_info.tsv"; SC_MAN = f"{WR}/atlas_manifest.json"
 URL = "https://www.dsimb.inserm.fr/ATLAS/database/ATLAS/{p}/{p}_protein.zip"
 STRIDE = 4    # 10,001 -> 2,501 frames/replica -> ~2,000 train after an 80/20 split.
 # WHY NOT 1,000: a valid PCA-512 ceiling needs >=1,707 usable frames under the 30% rank rule.
 # 2,000 train puts DM=512 at 512/1999 = 25.6% -- edge-but-valid. At 1,000 frames (800 train) the
 # DM=512 ceiling would be VOID BY CONSTRUCTION and the capacity null would repeat with better data.
-NSEL = int(os.environ.get("ATLAS_N", "40"))
+NSEL = int(os.environ.get("ATLAS_N", "825"))
 np.random.seed(0)
 
 
 def select(n):
-    """Stratified across chain length (the only size proxy available before download).
-    Length -> atoms measured on 24 real topologies: atoms = 15.77*L - 8, R^2 0.9894."""
-    rows = list(csv.DictReader(open(INFO), delimiter="\t"))
-    rows = [r for r in rows if r["length"] not in ("", "NA")]
-    rows.sort(key=lambda r: float(r["length"]))
-    L = np.array([float(r["length"]) for r in rows])
-    # LOG-UNIFORM, not rank-uniform: rank-uniform follows the length distribution and clusters near
-    # the median (measured quartiles 108/176/300), starving both ends -- and the guard is a SLOPE,
-    # so it lives on the extremes. Log-uniform deliberately over-weights them.
-    tgt = np.logspace(np.log10(L.min()), np.log10(L.max()), n)
-    idx = sorted({int(np.argmin(np.abs(L - t))) for t in tgt})
-    return [rows[i] for i in idx]
+    """Read the MANIFEST -- one source of truth shared with the training script, so the cache and the
+    trainer cannot disagree about the held-out split. (A cache/trainer disagreement about which rows
+    a number came from is exactly how FAMILY F happened.) Held-out first so the fixed evaluation set
+    exists before any training-pool size is complete."""
+    man = json.load(open(f"{SC_MAN}"))
+    rows = {r["PDB"]: r for r in csv.DictReader(open(INFO), delimiter="\t")}
+    want = man["heldout"] + man["train_ordered"]
+    return [rows[p] for p in want if p in rows]
 
 
 def main():
