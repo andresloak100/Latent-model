@@ -1538,3 +1538,33 @@ Two checks now permanent in the output:
 Top per-replica budget is 400 frames (replicas are ~430-500). Guard retained: if b(79) sits near
 zero the analysis reports an ADDITIVE shift, never a multiplicative factor -- the failure that
 produced -4.33x and b=-0.438 cannot recur.
+
+### PRIMARY LADDER FLIPPED: concatenated-at-2,000, not per-replica-at-400
+
+**Rank usage decides it, and the two errors are not comparable in size:**
+| ladder | usable rank | rank90 position | status |
+|---|---|---|---|
+| per-replica 400 | ~399 | tail near ~50% of rank | **past the 30% void line** |
+| concatenated 2,000 | ~1,999 | ~10% median, ~19-24% tail | clean / edge |
+
+**Censoring is the error that DEMONSTRABLY flips b's sign** (-0.057 at 79 frames -> +0.246 at 2,400).
+**Concatenation is a measured ~3-5% median inflation.** Trading a quantified small bias for an
+artifact known to invert the answer is the wrong trade. Concatenated-at-2,000 is PRIMARY; the
+per-replica ladder is retained and reported as the ARTIFACT CHECK.
+
+**The deciding test -- inflation factor vs N -- run on the 28 local domains:**
+| budget | median inflation | slope vs log10(N) | r | p |
+|---|---|---|---|---|
+| 200 frames (n=17) | x1.029 | -0.016 +/- 0.281 | -0.031 | 0.905 |
+| 400 frames (n=17) | x1.000 | +0.178 +/- 0.276 | +0.334 | 0.190 |
+
+Point estimates say **INTERCEPT-ONLY** (concatenation shifts the level, not the slope, so b is
+unaffected). **But this is UNDERPOWERED at n=17 and must not be banked**: the 400-frame CI upper
+bound (+0.454) would move the inflation factor by ~0.47 across the N range, biasing b by roughly
+**+0.077 -- comparable to b itself**. So the test is run again inside the n=700 job, where it is
+reported with its CI and the implied bias on b at both the point estimate and the CI upper bound.
+The primary/secondary choice above rests on the censoring argument, which is quantified; the
+intercept-vs-slope question is settled at n=700, not asserted now.
+
+Width-chain anchor: apply the measured median inflation (~1.03) to the 168 asymptote if the n=700
+test confirms intercept-only.

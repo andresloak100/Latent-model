@@ -11,8 +11,13 @@ import json, glob, os, numpy as np, warnings
 warnings.filterwarnings("ignore")
 from scipy import stats
 SC = os.environ.get("BSC", "/network/scratch/j/jacob-junqi.tian/latent-model-workspace")
-BUDGETS = [79, 200, 400]          # per-replica (PRIMARY)
-CAT_BUDGETS = [79, 200, 400, 800, 1600, 2000]   # concatenated (inflation check only)
+# PRIMARY = CONCATENATED at 2,000. Censoring is the error that DEMONSTRABLY flips b's sign
+# (-0.057 -> +0.246 across the ladder); concatenation is a measured ~3-5% median inflation that
+# tests as INTERCEPT-ONLY. Trading a quantified small bias for a sign-inverting artifact would be
+# the wrong trade. Rank usage: per-replica 400 puts the rank90 tail near ~50% of available rank
+# (past the 30% void line); concatenated 2,000 sits at ~10% median, ~19-24% at the tail.
+CAT_BUDGETS = [79, 200, 400, 800, 1600, 2000]   # PRIMARY ladder
+BUDGETS = [79, 200, 400]                        # per-replica: ARTIFACT CHECK
 MIS_B, MIS_HW = 0.101, 0.021          # MISATO n=276 at 79 frames (censored)
 ASYMPTOTE, FLOPPY_TO_BOUND, ANCHOR_N = 168.0, 0.65, 1804.0
 
@@ -40,37 +45,37 @@ def fit(nf, subset=None, pre=""):
 
 
 # paired subset: domains with BOTH 79 and 2400
-paired = {k for k, r in rows.items() if "r79" in r and "r400" in r}
-print(f"\n=== b ACROSS THE FRAME-BUDGET LADDER (paired subset n={len(paired)}) ===")
+paired = {k for k, r in rows.items() if "cat_r79" in r and "cat_r2000" in r}
+print(f"\n=== PRIMARY: b ACROSS THE CONCATENATED LADDER (paired subset n={len(paired)}) ===")
 print(f"  {'frames':>7}{'n':>5}{'b(N)':>20}{'c(RMSF)':>20}{'R^2':>7}{'maxRank90':>11}{'%cap':>7}")
 F = {}
-for nf in BUDGETS:
-    f_ = fit(nf, paired)
+for nf in CAT_BUDGETS:
+    f_ = fit(nf, paired, "cat_")
     if not f_: continue
     F[nf] = f_
     print(f"  {nf:>7}{f_['n']:>5}{f'{f_[chr(98)]:+.3f}+/-{f_[chr(98)+chr(104)+chr(119)]:.3f}':>20}"
           f"{f'{f_[chr(99)]:+.3f}+/-{f_[chr(99)+chr(104)+chr(119)]:.3f}':>20}{f_['r2']:>7.3f}"
           f"{int(f_['maxr']):>11}{f_['cap']*100:>6.0f}%")
 
-TOP = 400
+TOP = 2000
 if TOP in F:
     b24, hw24 = F[TOP]["b"], F[TOP]["bhw"]
-    print(f"\n=== 1. b at the top PER-REPLICA budget (400 frames) = {b24:+.4f} +/- {hw24:.4f}   [n={F[TOP]['n']}] ===")
+    print(f"\n=== 1. UNCENSORED b (concatenated, 2,000 frames) = {b24:+.4f} +/- {hw24:.4f}   [n={F[TOP]['n']}] ===")
     for tgt, nm in [(0.14, "b=0.14 (c-proxy corrected)"), (0.30, "b=0.30 (claim needs qualification)")]:
         z = abs(b24 - tgt) / (hw24 / 1.96 + 1e-9)
         print(f"    distinguishes from {nm:38s}: {z:.1f} sigma")
     if 79 in F:
         b79 = F[79]["b"]
         print(f"\n=== 2. DIRECT ATTENUATION FACTOR FOR b (paired, same domains) ===")
-        print(f"    b(79) {b79:+.4f} +/- {F[79]['bhw']:.4f}   ->   b(400) {b24:+.4f} +/- {hw24:.4f}")
+        print(f"    b(79) {b79:+.4f} +/- {F[79]['bhw']:.4f}   ->   b(2000) {b24:+.4f} +/- {hw24:.4f}")
         if abs(b79) > 1e-3 and np.sign(b79) == np.sign(b24):
             print(f"    factor = {b24/b79:.2f}x   (the c-derived proxy was 1.38x)")
             print(f"    applied to MISATO n=276: b = {MIS_B:+.3f} -> {MIS_B*b24/b79:+.3f} +/- {MIS_HW*abs(b24/b79):.3f}")
         else:
             print(f"    MULTIPLICATIVE FACTOR UNDEFINED (b(79) crosses/near zero) -- report the ADDITIVE shift instead:")
             print(f"    shift = {b24-b79:+.4f}; applied additively to MISATO: b = {MIS_B:+.3f} -> {MIS_B+(b24-b79):+.3f}")
-    print(f"\n=== 3. HAS THE PER-REPLICA LADDER FLATTENED BY 400? ===")
-    seq = [(nf, F[nf]['b']) for nf in BUDGETS if nf in F]
+    print(f"\n=== 3. HAS THE LADDER FLATTENED BY 2,000? ===")
+    seq = [(nf, F[nf]['b']) for nf in CAT_BUDGETS if nf in F]
     print("    " + "  ".join(f"{nf}:{b:+.3f}" for nf, b in seq))
     if len(seq) >= 3:
         tail = seq[-3:]
@@ -78,7 +83,7 @@ if TOP in F:
         thw = stats.t.ppf(0.975, 1) * lr.stderr if lr.stderr > 0 else np.inf
         flat = abs(lr.slope) < thw
         print(f"    tail slope over the last 3 budgets: {lr.slope:+.4f} (hw {thw:.4f}) -> "
-              f"{'FLATTENED -- 400 is the VALUE' if flat else 'STILL CLIMBING -- 400 is another BOUND'}")
+              f"{'FLATTENED -- 2,000 is the VALUE' if flat else 'STILL CLIMBING -- 2,000 is another BOUND'}")
     print(f"\n=== 4. WIDTH CHAIN AT THE MEASURED b ===")
     print(f"    {'b':>10}{'N^b to 1e6':>13}{'dims @1e6 bound':>18}")
     for nm, bv in [("lower CI", b24 - hw24), ("MEASURED", b24), ("upper CI", b24 + hw24)]:
@@ -115,3 +120,31 @@ print("\n  b on CONCATENATED series (for comparison only, artifact-bearing):")
 for nf in CAT_BUDGETS:
     f_ = c_fits.get(nf)
     if f_: print(f"    {nf:>5}: b {f_['b']:+.3f}+/-{f_['bhw']:.3f}  c {f_['c']:+.3f}+/-{f_['chw']:.3f}  n={f_['n']}")
+
+
+# ---------------- DOES CONCATENATION BIAS THE SLOPE OR ONLY THE INTERCEPT? (at full n) ----------
+print("\n=== DECIDING TEST: per-domain inflation factor vs N ===")
+print("  uncorrelated -> intercept-only shift, b unaffected, concatenated ladder is correct as primary")
+print("  correlated   -> it biases the slope; report b BOTH ways and state the divergence")
+for nf in BUDGETS:
+    P = [(r["N"], r[f"mix_r{nf}"] / max(r[f"r{nf}"], 1e-9)) for r in rows.values()
+         if f"r{nf}" in r and f"mix_r{nf}" in r]
+    if len(P) < 20: continue
+    A = np.array(P, float)
+    lr = stats.linregress(np.log10(A[:, 0]), A[:, 1]); ci = stats.t.ppf(0.975, len(A) - 2) * lr.stderr
+    pr = stats.pearsonr(np.log10(A[:, 0]), A[:, 1])
+    biased = (lr.slope - ci > 0) or (lr.slope + ci < 0)
+    # what would this slope do to b, over the actual N range?
+    rng = np.log10(A[:, 0].max()) - np.log10(A[:, 0].min())
+    med = np.median(A[:, 1])
+    db_pt = np.log10((med + lr.slope * rng) / max(med, 1e-9)) / max(rng, 1e-9)
+    db_hi = np.log10((med + (lr.slope + ci) * rng) / max(med, 1e-9)) / max(rng, 1e-9)
+    print(f"  {nf:>4} frames (n={len(A)}): median inflation x{med:.3f}   "
+          f"slope {lr.slope:+.4f} +/- {ci:.4f}   r={pr[0]:+.3f} p={pr[1]:.3f}")
+    print(f"       -> {'CORRELATED: biases the slope' if biased else 'UNCORRELATED: intercept-only'};"
+          f"  implied bias on b: point {db_pt:+.4f}, at CI upper {db_hi:+.4f}")
+print("\n  ARTIFACT-CHECK ladder (per-replica, censored at the top -- reported, not primary):")
+for nf in BUDGETS:
+    f_ = fit(nf, None, "")
+    if f_: print(f"    {nf:>4}: b {f_['b']:+.3f}+/-{f_['bhw']:.3f}  c {f_['c']:+.3f}+/-{f_['chw']:.3f}  "
+                 f"n={f_['n']}  maxRank90 {int(f_['maxr'])} = {f_['cap']*100:.0f}% of rank")
