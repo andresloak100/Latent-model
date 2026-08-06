@@ -2124,3 +2124,40 @@ so the N-range extrapolation was sound). Shift-invert factorises (H - sigma*I) a
 linear scaling suggests. **Testing on the real structure at all three cutoffs before committing the
 pipeline** -- if it exceeds node memory we need to know now, not when a cache job dies two-thirds
 through. Fetching only the reference .pdb (2.6 MB) rather than the 4.8 GB trajectory bundle.
+
+## FAMILY E -- a comparator handicapped by an unswept hyperparameter
+**Instances:** ANM-10 on all-atom proteins (ANM-5 beats it by **+0.135 FVE**, on every protein tested);
+ANM-8 on 8-90-atom ligands (tested: the cutoff turned out to matter only 0.005-0.008 A there, so this
+instance was a FALSE POSITIVE -- recorded because the hypothesis was reasonable and the test was cheap).
+**Signature:** a win reported against a baseline whose settings were never optimised. The comparison
+cannot fail, so it proves nothing.
+**CHECK:** before reporting any comparison, sweep EVERY baseline hyperparameter on TRAINING data,
+report the curve, use the best. **A baseline you didn't try to make strong is not a baseline.**
+
+## FAMILY F -- a comparator computed on DIFFERENT DATA from the model
+**Instance:** the graph-codec ligand win. `armf_graph_codec.py:239` printed `cANM 0.77/0.74/0.73` as a
+HARDCODED STRING; ANM was never computed on that script's 190-ligand set. The numbers came from
+`armf_intcoord_oracle.py`, which sampled **12 ligands**. A model evaluated on 48 held-out molecules
+was compared against a baseline measured on a different 12-molecule sample. Recomputed correctly,
+ANM-8 is **0.599/0.579/0.549**, not 0.77/0.74/0.73 -- the baseline was ~0.16 A stronger at L=8 than
+reported, and the win reverses at L=4 and L=8.
+**Signature:** a baseline number that is a literal in the reporting code rather than an array computed
+from the same rows as the model.
+**CHECK:** every comparator must be COMPUTED IN THE SAME SCRIPT, over the SAME held-out rows, in the
+same run. No baseline number may be a hardcoded constant. If a number is quoted from another run,
+label it with its own n and never place it in the same table as a differently-sampled result.
+
+## GRAPH-CODEC WIN: WITHDRAWN (was PROVISIONAL pending this re-run)
+Held-out, same 48 ligands, baselines swept on training molecules only:
+codec **0.800/0.640/0.440** vs swept ANM **0.594/0.571/0.549** at L=4/8/16.
+**The codec LOSES at L=4 and L=8 and wins only at L=16** -- which is also where Family B is worst
+(9/48 molecules past 30% of 3N-6, one at 76%). Full writeup: outputs/cluster/armf_ligand_peer_rerun.md.
+**It must not be cited as evidence that a learned codec beats classical zero-shot decomposition.**
+
+### WHAT IS *NOT* AT RISK (checked, and one conclusion STRENGTHENS)
+- **The codec-arc closure stands and gets STRONGER.** It rested on ANM at 1.37 A beating oracle-B at
+  1.45 A on proteins, i.e. the B-factor track was already dead. A STRONGER ANM (swept cutoff) makes
+  the B-factor track **deader, not less dead**. That conclusion strengthens.
+- **The propagator results are unaffected** -- they never referenced an ANM baseline for a win claim.
+- **The intrinsic-dimensionality / mobility-law results are unaffected** -- no comparator involved.
+- **AT RISK and now withdrawn:** only the ligand graph-codec peer win.
