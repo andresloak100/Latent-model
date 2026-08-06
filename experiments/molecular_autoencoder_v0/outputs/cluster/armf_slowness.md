@@ -38,23 +38,34 @@ Paired slope vs log10(effective time), Ea=10 kcal/mol:
 The pre-registered fork was "both flat -> ms concern reduced" vs "both rise -> rare-state effect".
 The measurement splits them, which is more informative than either:
 
-**The number of SLOW COLLECTIVE DIRECTIONS does not grow with effective time (TICA flat, tightly).
-The number of DISTINCT STATES visited does (2-17x at 1 ms effective).** More points, same manifold
-dimension: the extra states occupy the SAME low-dimensional slow subspace.
+**The number of SLOW COLLECTIVE DIRECTIONS does not grow with effective time (TICA flat, tightly).**
+That is the result that stands.
+
+**CORRECTION (censoring check, run after the first draft of this file): the state-count rise is NOT
+usable.** State count as a FRACTION of frames rises 0.254 (320K) -> 0.482 (348K) -> 0.678 (379K) ->
+**0.946 (413K)**: the metric becomes progressively censored by the frame ceiling exactly where the
+largest effective times are, so the "2-17x more states" slope is measuring the ceiling, not
+exploration. At 320K the fraction is a flat ~0.21-0.25 across windows 200-2400, i.e. the count is
+essentially 0.22 x frames -- the trajectory never begins revisiting at this cutoff, so the metric
+cannot distinguish unbounded exploration from a cutoff too tight to detect recurrence. The tighter
+0.5R cutoff is censored outright (fraction 0.94-0.98). **The coverage question is therefore
+UNRESOLVED, not answered.** Any claim that ms coverage grows 2-17x should not be quoted.
 
 Consequence, and it separates two components that were being conflated:
 - **CODEC capacity (latent width DM) is sized by DIMENSIONALITY -> flat -> the ms regime does NOT
   demand a wider latent.** This is what licenses sizing DM from rank90/TICA, and it survives the
   slowness test that rank90 alone could not pass.
-- **PROPAGATOR coverage is sized by STATE COUNT -> grows -> the ms concern is real and lives HERE.**
-  A generative model at ms timescales must cover 2-17x more distinct states, not encode wider ones.
+- **PROPAGATOR coverage is sized by STATE COUNT -> UNRESOLVED (censored metric).** The concern is
+  neither confirmed nor dismissed. Settling it needs a recurrence-sensitive statistic that does not
+  saturate at the frame count (e.g. a cutoff rescaled per temperature, which then breaks
+  cross-temperature comparability, or an MSM/committor-based state definition).
 
-Objective 3 goes back on the shelf with the question closed in the form that matters: it is a
-sampling/coverage problem for the propagator, not a capacity problem for the codec.
+Objective 3 goes back on the shelf with ONE half closed: latent WIDTH does not need to grow with
+simulated time (TICA flat, uncensored, tight CI). Coverage remains open and is the honest residual.
 
 ## Limits
-- State count at high temperature approaches the frame-count ceiling (95-100% of frames at 413-450K
-  in raw rows), so the +0.303 slope is if anything an UNDERESTIMATE -- censored from above.
+- **State count is censored** -- see the CORRECTION above. Fraction-of-frames is the diagnostic that
+  exposes it, and it should be reported alongside any clustering count in future.
 - Two metric-design errors were caught and fixed before these numbers: an absolute 2A cutoff
   censored the state count at 2399/2400 (every frame its own state), and a temperature-varying TICA
   basis made the TICA dimension track the basis (near-constant 0.42-0.45 ratio) rather than
