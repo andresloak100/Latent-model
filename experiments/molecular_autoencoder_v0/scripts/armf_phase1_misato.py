@@ -45,7 +45,8 @@ LS = [1, 12, 24]; DM = 64; ANM_MAXN = 2500   # L=1 is a MECHANISM probe: with on
 # -> the problem is specifically slot assignment. NOTE: L=1 at DM=64 is a 64-DIMENSIONAL code,
 # not one number. Judge L=1 on flatness of the deficit ratio in N, not on its absolute FVE.
 FRAMES_PER_STEP = 8                     # CONSTANT across N (was memory-budgeted -> N-correlated undertraining)
-MAXSTEPS = 30000; EVAL_EVERY = 1000; PATIENCE = 6; PLATEAU_TOL = 0.01
+MAXSTEPS = 50000; EVAL_EVERY = 1000; PATIENCE = 6; PLATEAU_TOL = 0.01   # raised: at L=24, 3/6 buckets
+# hit the 30000 cap and were VOIDed by G8 rather than reaching plateau. Early stopping still decides.
 np.random.seed(0); torch.manual_seed(0)
 dev = "cuda" if torch.cuda.is_available() else "cpu"
 ELEMS = [1, 6, 7, 8, 16, 15, 9, 17]

@@ -1262,3 +1262,42 @@ serious problem than slot assignment.
 3. **rank90 was measured over ns-to-us windows.** The ms regime remains open, and specifically open
    for rare states that variance-weighted PCA cannot see. Sizing DM from rank90 sizes it for the
    SAMPLED regime, not for multi-millisecond dynamics.
+
+### PRE-REGISTERED (before results): what the n=276 scale-up CAN and CANNOT decide
+
+Held-out n goes 25 -> ~69, so the slope CI half-width goes 0.125 -> **0.075**. Mapping the
+pre-registered SPAN thresholds onto the regression slope (baseline ratio 0.27, N range 1.54 decades):
+
+| threshold | implied slope | resolvable at n=69 held-out? |
+|---|---|---|
+| 2.0x = "INDEX-ADDRESSING" | +0.175 | **YES** -- excluded even if the point estimate stays at +0.099 (CI upper 0.174) |
+| 1.3x = "ARBITRARY-L SURVIVES" | +0.053 | **NO** -- the half-width alone (0.075) exceeds it, so it is unconfirmable at ANY point estimate |
+
+**The run is therefore ASYMMETRIC by construction: it can falsify the failure mode but cannot
+certify the success mode.** That is a real result and must be written as such, NOT as another
+no-verdict. Confirming "arbitrary-L survives" needs half-width < 0.053, i.e. **~141 held-out
+(~565 sampled systems)** -- recorded as the cost of that answer.
+
+### DENSITY-MATCHED PAIRS -- the sharpest diagnostic, and it runs against the density hypothesis
+
+Two pairs hold corpus availability roughly fixed while varying N by ~8-16x. From the n=98 run:
+
+| pair | availability | medN | ratio |
+|---|---|---|---|
+| A | 410 vs 416 | 1,444 vs 22,443 | 0.27 vs **0.52** |
+| B | 1,970 vs 1,717 | 2,934 vs 9,639 | 0.18 vs **0.30** |
+
+Both show the higher-N member worse at matched density, which argues the density hypothesis does
+NOT explain the effect and an N effect survives density control. This does not depend on the
+regression, so it is the cleanest positive evidence available. **Revision to the earlier "U-shape"
+reading:** the left arm (N=959, ratio 0.50) sits in the ONLY genuinely density-starved bucket
+(18 available, 12 sampled), so the U is plausibly a density artifact on the left glued to a real
+N effect on the right (0.18 -> 0.52 across density-matched buckets). At n=276 these buckets carry
+~11-12 held-out each; both pairs are to be reported with CIs.
+
+### G8 WATCH AT DM=512
+MAXSTEPS was raised 30k -> 50k because 3/6 buckets voided on the cap at L=24. DM=512 at L=1 is a
+larger latent than anything trained so far: **if it voids on the cap, raise and rerun that arm
+rather than reading a capped bucket.** Report steps-to-plateau vs DM alongside steps-to-plateau vs
+N. If convergence cost scales with DM but not with N, that is a SECOND objective-4 number and it
+prices the width choice directly.
