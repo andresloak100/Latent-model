@@ -1,9 +1,14 @@
 """ATLAS cache builder: download -> SUBSAMPLE -> store compact -> DELETE the archive.
 
+ATLAS HOSTS BOTH AXES. The MISATO(N-axis)/mdCATH(capacity-axis) split is RETIRED -- it was a
+workaround for a bind ATLAS dissolves. MISATO had a 37.5x N range but 80 frames and a broken ceiling;
+mdCATH had a valid ceiling but only 21 training domains. ATLAS has a 56.7x range, 10,001
+frames/replica AND 1,938 proteins. Two of the last three nulls came from a corpus that could satisfy
+only one constraint at a time.
+
 WHY SUBSAMPLE RATHER THAN STREAM. MISATO's PCA baseline overfits because 80 frames sit BELOW the
-median rank90 (~168); the fix is frames comfortably ABOVE rank90, not all 10,001. ~1,000 frames per
-replica gives ~800 train frames, ~5x the median rank90, which is well-conditioned. Frames beyond that
-buy almost nothing for a PCA ceiling at k<=24.
+median rank90 (~168); the fix is frames comfortably ABOVE rank90. 2,501 frames/replica -> ~2,000
+train, which also keeps the DM=512 ceiling rank-valid (see STRIDE).
 
 WHY STORE RATHER THAN STREAM. Streaming was right for the b-exponent (spectra out, data discarded).
 It is WRONG here: TRAINING reads frames many times over, so the subsampled set must be reusable
@@ -11,39 +16,51 @@ rather than re-downloaded per run. The archive is deleted immediately; only the 
 
 MEASURED (not assumed):
   - 10,001 frames/replica at 10 ps, confirmed against the production .mdp (nsteps 50e6 x dt 2 fs)
-  - 14.7 atoms/residue all-atom (2,701 atoms for a 184-residue chain) -- NOT ~9.5
-  - 1,001 frames x 3 replicas = 97 MB/protein stored float32 -> ~65 GB for 700, ~179 GB for 1,938
+  - atoms = 15.77*L - 8, R^2 0.9894 over 24 REAL topologies; atoms/residue median 15.89
+    (range 13.11-16.66). NOT ~9.5 and not the 14.7 taken from a single protein.
+  - => ATLAS N range ~591 - 33,541 atoms (56.7x). The TOP EXCEEDS MISATO's 26,861, so ATLAS extends
+    BOTH ENDS of the N axis and gives a slightly LONGER lever for the 1e6 extrapolation, not the same
+    one. CAVEAT: the fit is anchored on L=38-212, so L=2,128 is a 10x extrapolation -- confirm by
+    caching the largest entries directly before treating the top as established.
+  - 2,501 frames x 3 replicas -> ~108 GB for 700 proteins (compressed npz); storable and reusable
   - ATLAS bandwidth 4.9 MB/s (NOT HuggingFace's 25): 700 proteins ~ 0.34 TB ~ 19 h serial, ~5 h on 4
   - mdtraj 1.10.3 loaded from a wheel unzipped onto PYTHONPATH (the venv has no SSL, so pip is dead;
     the shared venv is never modified)
 
-SCOPE NOTE (uniform subsampling): taking every 10th frame across the full 100 ns preserves the SLOW
+SCOPE NOTE (uniform subsampling): taking every 4th frame across the full 100 ns preserves the SLOW
 COLLECTIVE MODES that dominate variance at low k. What is lost is fast local motion, which is not
 what a k<=24 ceiling measures. State this wherever the ATLAS ceiling is used.
 
 SCOPE NOTE (corpus): ATLAS is SINGLE CHAINS; MISATO is COMPLEXES. Different chemistry and mobility
 regimes -- do not pool without checking, and expect ATLAS to sit on the floppier side (mdCATH single
-domains measured 1.65x the RMSF of MISATO complexes). ATLAS's top is ~20,216 atoms vs MISATO's
-26,861, so it extends the BOTTOM of the N axis, not the top: it buys a valid ceiling and large n,
-NOT a longer lever for the 1e6-atom extrapolation."""
+domains measured 1.65x the RMSF of MISATO complexes). ATLAS extends BOTH ends of the N axis
+(measured ~591-33,541 vs MISATO's 717-26,861)."""
 import os, sys, csv, json, time, subprocess, shutil, numpy as np, warnings
 warnings.filterwarnings("ignore")
 WR = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace"
 LIB = f"{WR}/pylibs"; sys.path.insert(0, LIB)
 OUT = f"{WR}/atlas_cache"; INFO = f"{WR}/atlas_info.tsv"
 URL = "https://www.dsimb.inserm.fr/ATLAS/database/ATLAS/{p}/{p}_protein.zip"
-STRIDE = 10                       # 10,001 -> 1,001 frames per replica (~800 train after an 80/20 split)
+STRIDE = 4    # 10,001 -> 2,501 frames/replica -> ~2,000 train after an 80/20 split.
+# WHY NOT 1,000: a valid PCA-512 ceiling needs >=1,707 usable frames under the 30% rank rule.
+# 2,000 train puts DM=512 at 512/1999 = 25.6% -- edge-but-valid. At 1,000 frames (800 train) the
+# DM=512 ceiling would be VOID BY CONSTRUCTION and the capacity null would repeat with better data.
 NSEL = int(os.environ.get("ATLAS_N", "40"))
 np.random.seed(0)
 
 
 def select(n):
     """Stratified across chain length (the only size proxy available before download).
-    Length correlates with atoms at 14.7 atoms/residue, measured."""
+    Length -> atoms measured on 24 real topologies: atoms = 15.77*L - 8, R^2 0.9894."""
     rows = list(csv.DictReader(open(INFO), delimiter="\t"))
     rows = [r for r in rows if r["length"] not in ("", "NA")]
     rows.sort(key=lambda r: float(r["length"]))
-    idx = np.linspace(0, len(rows) - 1, n).astype(int)          # even spread over the WHOLE range
+    L = np.array([float(r["length"]) for r in rows])
+    # LOG-UNIFORM, not rank-uniform: rank-uniform follows the length distribution and clusters near
+    # the median (measured quartiles 108/176/300), starving both ends -- and the guard is a SLOPE,
+    # so it lives on the extremes. Log-uniform deliberately over-weights them.
+    tgt = np.logspace(np.log10(L.min()), np.log10(L.max()), n)
+    idx = sorted({int(np.argmin(np.abs(L - t))) for t in tgt})
     return [rows[i] for i in idx]
 
 
