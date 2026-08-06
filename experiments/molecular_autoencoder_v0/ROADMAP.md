@@ -2391,3 +2391,51 @@ would need. But it is an *empirical* answer on a *measured* N range, not a physi
   alongside FVE: `PR = (sum lambda_i)^2 / sum lambda_i^2` on the latent covariance across held-out
   frames and systems. **PR ~ DM => genuine saturation. PR << DM => capacity that failed to train,
   which is a DIFFERENT finding and must not be reported as the first.**
+
+## ANM IS A DIAGNOSTIC, NOT THE BAR -- AND THE FLAT-CURVE PRE-COMMITMENT IS DELETED (INBOX 004)
+
+### 004a -- the pre-committed (b)-branch is REMOVED from live code
+`armf_atlas_curve.py` printed, as its own verdict output, the ANM-basis-decoder design ("predict the
+ANM basis from structure, use it as the DECODER'S BASIS, latent supplies coefficients plus a learned
+residual") as the recorded next step whenever the curve came back flat. **Deleted from both the
+verdict block and the module docstring** before the curve produced any results. It named ONE cause
+for a result nobody had seen, and the cure it named risked pulling the project into an open-ended ANM
+optimisation loop. A flat curve now prints **"FLAT -- run the diagnosis fan-out"** and enumerates the
+six mechanisms, never a design.
+
+### 004b -- "beats ANM" is RETIRED as the success criterion
+ANM is a fixed-topology structural prior **with no generator**. It cannot produce a programmable
+latent dynamics system, which is the entire point of the project. **A one-token codec that loses to
+ANM on per-frame reconstruction is NOT thereby dead.** ANM stays as the honest zero-shot comparator
+answering exactly one question -- does the learned map carry information a physics prior does not --
+and is reported as a **diagnostic**, never as a gate.
+
+**THE ACTUAL SUCCESS CRITERIA, in reporting order:**
+1. **RETAINS DYNAMICAL INFORMATION** -- not just per-frame FVE. Decoded trajectories must preserve the
+   DYNAMICS: per-mode marginal std ratio, integrated autocorrelation time, cross-mode coupling, 2D
+   free-energy projection -- the ensemble acceptance test **already built** for the propagator.
+   **A codec with mediocre FVE that preserves autocorrelation structure is worth more than one with
+   better FVE that flattens it.**
+2. **GENERALISES TO UNSEEN SYSTEMS** -- held-out systems, not held-out frames. Already the protocol.
+3. **SCALES WITH N** -- the codec-vs-N trend at L=1 from 600 to 33,500 atoms.
+4. **SUPPORTS THE DOWNSTREAM GENERATOR** -- measurable NOW, not later: the latent time-series'
+   autocorrelation time, its frame-to-frame smoothness, and whether an AR(1)/OU fit in latent space
+   yields stable rollouts. **A latent that reconstructs well but jumps discontinuously between frames
+   is useless to stage 2**, and that is far better found now than after the propagator exists.
+
+### 004c -- FLAT-CURVE DIAGNOSIS FAN-OUT (run it; do not infer a cause from flatness)
+| hypothesis | distinguishing test |
+|---|---|
+| decoder capacity | raise decoder depth/width at fixed L=1, DM. FVE rises => decoder-limited |
+| one-token information limit | the DM sweep itself. FVE still rising at DM=512 => information-limited, not architectural |
+| conditioning insufficient | enrich static features (local frames, neighbour geometry) at fixed L=1, DM. FVE rises => conditioning-limited |
+| objective mismatch | geometry-aware loss (pairwise-distance or per-mode weighted). Dynamical fidelity improves while MSE does not => the LOSS was wrong, not the architecture |
+| representation | local-frame / internal-coordinate target instead of Cartesian displacement (already a recorded hyperparameter) |
+| encoder pooling | G6 permutation + effective rank of the latent across systems. Realised rank << DM => the encoder is not filling the token |
+
+Report which hypothesis the evidence supports. **Only then** propose a design.
+
+### 004d -- NO CALENDAR ESTIMATES ON OBJECTIVES 2 AND 3
+Bond-changing chemistry and genuine millisecond state generation are **research problems with real
+risk of not working**. They are milestones with uncertainty, **not dates**. Levels 1 and 2 (one-token
+codec, then end-to-end latent dynamics) may carry estimates; those two may not.

@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 003
+last_acted: 004
 ```
 
 | item | restatement | status | commit |
@@ -11,6 +11,30 @@ last_acted: 003
 | 001 | The COMMS channel replaces manual relay: after every push I read `INBOX.md`, ACK every item numbered above `last_acted` with a restatement in my own words, act, and push `ACK.md` with the next commit; disagreement goes in as `QUESTIONED` with a reason and silence is not a valid response. Reports stay in commit messages. | ACCEPTED | (this commit) |
 | 002 | Stop treating `PCA-256 = 0.958` as evidence that 256 dims capture the displacement variance — at k=256 n_eff is 94–165, so the fit has more dimensions than effective samples. Mark the whole width chain (`168 / 0.65 × 1.83 ≈ 490`) as a FLOOR, because rank90 is measured in-sample (understates dimensionality) and is censored at large N (understates its own growth). This is corpus-independent — no dataset supplies the trajectory length that would fix it. Therefore size DM from the codec's own held-out FVE-vs-DM curve, whose effective sample size is the corpus rather than one trajectory, and report where that curve saturates. | ACCEPTED | (this commit) |
 | 003 | L=1 is the architecture, not a swept variable: one latent token per frame whatever the atom count, so DM is the only capacity knob and everything once framed as "how many tokens" becomes "how wide is the one token." L=12/24 are demoted to addressing diagnostics — they localise any N-degradation to slot assignment (present at L=12/24, absent at L=1) versus the pooling/broadcast pathway (present at L=1 too) — and must never be reported as "the best L" or averaged across. Lead with the L=1 row, and lead the ATLAS curve with the headline: does codec-vs-ANM hold flat from ~600 to ~33,500 atoms. State the compression claim explicitly. | ACCEPTED | (this commit) |
+
+| 004 | Delete the pre-committed ANM-basis-decoder branch from `armf_atlas_curve.py`'s verdict logic before the curve runs — a flat curve must print "run the diagnosis fan-out," never a design, because naming one cause for an unseen result risks an open-ended ANM optimisation loop. ANM is a diagnostic, not the bar: it has no generator and cannot be the product architecture, so losing to it on per-frame FVE does not kill the codec. Report against four real criteria in order — dynamical fidelity via the existing ensemble acceptance test, generalisation to unseen systems, N-scaling at L=1, and whether the latent is something a propagator can actually model. If the curve is flat, run the six-hypothesis fan-out and report which one the evidence supports before proposing any design. Stop putting calendar estimates on objectives 2 and 3. | ACCEPTED | (this commit) |
+
+## Notes on 004
+
+**4a done, and it was live in two places, not one.** The pre-commitment was in the verdict block
+*and* restated in the module docstring. Docstrings in this project carry load-bearing scientific
+claims — the graph-codec retraction and the Family-F hardcoded baseline both started as a claim
+someone only ever read in a header — so a deletion that left the docstring standing would have left
+the pre-commitment fully intact for the next reader. Both are gone; the verdict now enumerates the
+six 4c hypotheses and prints no design. Verified no surviving reference (the remaining "ANM basis"
+hits are `armf_ou_baseline.py` / `armf_propagator.py`, which are the OU propagator baseline — a
+different object, correctly named).
+
+**On 4b, one thing I want on the record because it cuts against my own recent work.** Criterion 1
+(dynamical fidelity over per-frame FVE) means the DM sweep I am about to run optimises and reports
+the *wrong* primary quantity: it selects arms by held-out FVE, which is exactly the metric 4b demotes.
+The saturation read is still valid for the width question, but "best DM by FVE" is not automatically
+"best DM for the propagator" — a wider code could reconstruct better while producing a jumpier latent
+trajectory. I am adding the latent-smoothness and latent-IAT measurements (criterion 4) to the DM
+sweep's per-arm output so the two rankings can be compared directly rather than assumed to agree. If
+they disagree, that disagreement is itself the finding.
+
+**4d noted.** No calendar estimates will appear against objectives 2 or 3.
 
 ## Notes on 003
 

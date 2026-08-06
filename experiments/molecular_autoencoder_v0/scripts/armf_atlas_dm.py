@@ -123,27 +123,106 @@ def fve_model(mdl, d, chunk=8):
     return 1 - sse / (d["sst"] + 1e-12)
 
 
-@torch.no_grad()
-def participation_ratio(mdl, HO, dm, nf=64):
-    """CONTROL 1. How many of the DM channels does the learned code actually use?
+IAT_STRIDE = 600        # ~ median tau_int (655 frames); frames closer than this are not independent
 
-    Second-moment matrix of the DM-dimensional latent channel vectors, pooled over latent slots,
-    held-out frames and held-out SYSTEMS. PR = (sum lam)^2 / sum lam^2 in [1, DM]. Mean-centred, so a
-    code that is constant across frames (the mdCATH collapse mode) scores ~1 rather than ~DM."""
-    C = np.zeros((dm, dm)); tot = 0; acc = np.zeros(dm)
-    for d in HO:
+
+@torch.no_grad()
+def _latents(mdl, systems, dm, stride=IAT_STRIDE):
+    """Per-system latents, WITHIN-SYSTEM CENTRED, sampled at a stride above the autocorrelation time.
+
+    Two things this must not do:
+      - Pool RAW latents across systems. Between-system variance is SYSTEM IDENTITY, not conformation.
+        A code that merely says 'which protein this is' would score a high participation ratio while
+        carrying no dynamics at all. Centring per system removes it, so PR counts only the dimensions
+        that carry CONFORMATIONAL variance -- which is the quantity the width question is about.
+      - Treat consecutive frames as independent. tau_int is ~655 frames (median, leading modes), so
+        frames sampled densely are the same conformation counted many times, and the resulting
+        covariance would be rank-starved for reasons that have nothing to do with the model.
+    Returns the pooled centred rows and the between/within variance split."""
+    rows, btw, wth = [], [], []
+    for d in systems:
         st = torch.tensor(d["stat"], device=dev)
-        idx = np.linspace(0, d["F"] - 1, min(nf, d["F"])).astype(int)
-        t = np.concatenate([ho_frames(d, i, i + 1) for i in idx], 0).reshape(len(idx), d["N"], 3)
+        idx = np.arange(0, d["F"], stride)
+        if len(idx) < 2: idx = np.array([0, d["F"] - 1])
+        # ALL THREE REPLICAS. For a HELD-OUT SYSTEM the model never saw any of them, so restricting to
+        # replica 2 would discard two thirds of the independent observations and censor the PR of the
+        # widest arm -- precisely the arm the width answer depends on.
+        a = np.load(d["path"], mmap_mode="r"); mu3 = d["mu"].reshape(d["N"], 3)
+        Zs = []
+        for r in range(a.shape[0]):
+            t = np.asarray(a[r, idx]).astype(np.float64) - mu3
+            dw = torch.tensor((t / d["scale"]).astype(np.float32), device=dev)
+            Zs.append(mdl.encode(st.unsqueeze(0).expand(len(idx), -1, -1), dw).double().cpu().numpy())
+        Z = np.concatenate(Zs, 0)                                       # (nrep*nf, L, dm)
+        m = Z.mean(0, keepdims=True)                                    # per (slot, channel) mean
+        btw.append(float((m ** 2).sum())); wth.append(float(((Z - m) ** 2).mean(0).sum()))
+        rows.append((Z - m).reshape(-1, dm))
+    R = np.concatenate(rows, 0) if rows else np.zeros((0, dm))
+    return R, float(np.mean(btw)), float(np.mean(wth))
+
+
+@torch.no_grad()
+def participation_ratio(mdl, TRsub, HO, dm):
+    """CONTROL 1, CROSS-FIT. How many DM channels does the code use for CONFORMATION?
+
+    `PR = (sum lam)^2 / sum lam^2` in [1, DM]. PR ~ DM => the arm used its width, so a flat FVE curve
+    IS saturation. PR << DM => capacity that never trained (the mdCATH collapse mode), a DIFFERENT
+    finding that must not be reported as saturation.
+
+    CROSS-FIT, because an in-sample PR would repeat the exact error just retracted for rank90: an
+    eigenbasis fitted and evaluated on the same samples explains their variance optimally by
+    construction, so the spectrum is flattered and PR is biased. The basis U is fitted on TRAIN-system
+    latents; the eigenvalues are the variance of HELD-OUT-system latents projected onto that fixed U.
+    This mirrors the codec's own logic -- shared basis, unseen systems.
+
+    ALSO REPORTS ITS OWN CEILING (Family B). PR cannot exceed the number of independent observations.
+    With frames strided above tau_int, n_obs is small, so `censored` is True when n_obs < 2*DM and the
+    arm's PR is then a LOWER BOUND rather than a measurement -- reported, never silently averaged."""
+    A, _, _ = _latents(mdl, TRsub, dm)
+    B, btw, wth = _latents(mdl, HO, dm)
+    if len(A) < 2 or len(B) < 2:
+        return dict(pr=float("nan"), pr_frac=float("nan"), n_obs=len(B), censored=True,
+                    ident_frac=float("nan"))
+    _, U = np.linalg.eigh(A.T @ A / len(A))                     # basis from TRAIN systems
+    lam = ((B @ U) ** 2).mean(0)                                # variance of HELD-OUT on that basis
+    lam = np.clip(lam, 0, None); s1, s2 = lam.sum(), (lam ** 2).sum()
+    pr = float(s1 * s1 / (s2 + 1e-30))
+    return dict(pr=pr, pr_frac=pr / dm, n_obs=int(len(B)), censored=bool(len(B) < 2 * dm),
+                ident_frac=float(btw / (btw + wth + 1e-30)))    # share of latent variance that is
+                                                                # system IDENTITY, not conformation
+
+
+@torch.no_grad()
+def latent_dynamics(mdl, systems, dm, nf=400):
+    """CRITERION 4 (INBOX 004b). Is this latent something a PROPAGATOR can model?
+
+    Per-frame reconstruction quality says nothing about this, and 004b demotes FVE precisely because
+    a code can reconstruct well while jumping discontinuously between consecutive frames -- which
+    would make it useless to stage 2. Measured on CONSECUTIVE held-out frames (not the strided sample
+    the participation ratio uses, which deliberately destroys the time axis):
+
+      tau_lat   integrated autocorrelation time of the latent channels. A latent with tau ~ 1 has
+                thrown away the slow structure the propagator exists to model.
+      step      median ||z_{t+1} - z_t|| / std(z). Small => smooth; ~sqrt(2) => successive frames are
+                as far apart as random draws, i.e. white noise with no trajectory to learn.
+      phi       median AR(1) coefficient per channel. |phi| < 1 is the stability condition for an
+                OU/AR(1) rollout; phi near 0 means there is nothing to propagate."""
+    from armf_atlas_neff import acf_batch, taus_from_acf
+    taus, steps, phis = [], [], []
+    for d in systems:
+        st = torch.tensor(d["stat"], device=dev)
+        k = min(nf, d["F"]); t = ho_frames(d, 0, k).reshape(k, d["N"], 3)
         dw = torch.tensor((t / d["scale"]).astype(np.float32), device=dev)
-        z = mdl.encode(st.unsqueeze(0).expand(len(idx), -1, -1), dw)   # (F, L, dm)
-        Z = z.reshape(-1, dm).double().cpu().numpy()
-        C += Z.T @ Z; acc += Z.sum(0); tot += len(Z)
-    mu = acc / max(tot, 1)
-    C = C / max(tot, 1) - np.outer(mu, mu)                              # centred second moment
-    lam = np.clip(np.linalg.eigvalsh(C), 0, None)
-    s1, s2 = lam.sum(), (lam ** 2).sum()
-    return float(s1 * s1 / (s2 + 1e-30)), float(lam.max() / (s1 + 1e-30))
+        Z = mdl.encode(st.unsqueeze(0).expand(k, -1, -1), dw).double().cpu().numpy()
+        Z = Z.reshape(k, -1)                                   # (frames, L*dm)
+        Z = Z - Z.mean(0); sd = Z.std(0) + 1e-12
+        taus.append(float(np.median(taus_from_acf(acf_batch(Z), k // 2)[0])))
+        steps.append(float(np.median(np.linalg.norm(np.diff(Z, axis=0), axis=1) /
+                                     (np.linalg.norm(Z, axis=1).mean() + 1e-12))))
+        Zn = Z / sd
+        phis.append(float(np.median((Zn[:-1] * Zn[1:]).mean(0))))
+    return dict(tau_lat=float(np.median(taus)), step=float(np.median(steps)),
+                phi=float(np.median(phis)))
 
 
 def train(tr, HOt, dm, lr, tag, L):
@@ -186,33 +265,43 @@ if __name__ == "__main__":
 
     HO = [x for x in (sysdata(store, have[p]) for p in ho_ids) if x is not None]
     store.conservation_report(expected=man["heldout"])
-    HOt = HO[::max(1, len(HO) // NHO_TRACK)][:NHO_TRACK]
+    # N-STRATIFIED plateau signal. Taking the track in manifest order would let the early-stopping
+    # decision be made on whichever systems happen to come first; if those skew small, every arm stops
+    # on evidence from the easy end of the very axis under test.
+    _ord = sorted(range(len(HO)), key=lambda i: HO[i]["N"])
+    HOt = [HO[_ord[i]] for i in np.linspace(0, len(HO) - 1, min(NHO_TRACK, len(HO))).astype(int)]
     Ns = [x["N"] for x in HO]
     print(f"  held-out N {min(Ns)}-{max(Ns)}, {np.log10(max(Ns)/min(Ns)):.2f} decades; "
           f"plateau signal on {len(HOt)} systems, final eval on all {len(HO)}", flush=True)
 
     rows = json.load(open(RES)) if os.path.exists(RES) else []
-    done = {(r["L"], r["n_train"], r["dm"], r["lr"]) for r in rows}
+    done = {(r["L"], r["n_train"], r["dm"], r["lr"], r.get("seed", 0)) for r in rows}
 
-    def run(TR, n, dm, lr, Lv):
-        if (Lv, n, dm, lr) in done: return None
-        tag = f"L{Lv} n{n} DM{dm} lr{lr:g}"
+    def run(TR, n, dm, lr, Lv, seed=0):
+        if (Lv, n, dm, lr, seed) in done: return None
+        tag = f"L{Lv} n{n} DM{dm} lr{lr:g} s{seed}"
         try:
+            torch.manual_seed(seed); np.random.seed(seed + 1)
             mdl, hist, used, stopped, improving = train(TR, HOt, dm, lr, tag, Lv)
             mdl.eval()
             per = [fve_model(mdl, x) for x in HO]             # per-system, for the N-slope
             fve = float(np.mean(per))
-            pr, top1 = participation_ratio(mdl, HOt, dm)
+            p = participation_ratio(mdl, TR[:min(len(TR), len(HO))], HO, dm)
+            p.update(latent_dynamics(mdl, HOt[:8], dm))       # CRITERION 4
             lr_ = stats.linregress(np.log10([x["N"] for x in HO]), per)
             hw = stats.t.ppf(0.975, len(per) - 2) * lr_.stderr
-            rec = dict(L=Lv, n_train=n, dm=dm, lr=lr, fve=fve, med=float(np.median(per)),
-                       pr=pr, pr_frac=pr / dm, top1_var=top1, steps=used, stopped=stopped,
-                       improving=improving, best_track=max(h[1] for h in hist), nho=len(HO),
+            # snapshot noise: a single final eval is one draw. Report the tail mean alongside it.
+            tail = float(np.mean([h[1] for h in hist[-5:]])) if hist else float("nan")
+            rec = dict(L=Lv, n_train=n, dm=dm, lr=lr, seed=seed, fve=fve, med=float(np.median(per)),
+                       tail_track=tail, steps=used, stopped=stopped, improving=improving,
+                       best_track=max(h[1] for h in hist), nho=len(HO),
                        nslope=float(lr_.slope), nslope_ci=float(hw),
-                       per=[float(v) for v in per], Ns=[int(x["N"]) for x in HO])
-            rows.append(rec); json.dump(rows, open(RES, "w")); done.add((Lv, n, dm, lr))
-            print(f"    {tag}: FVE {fve:+.4f}  PR {pr:.1f}/{dm} ({100*pr/dm:.0f}%)  "
-                  f"N-slope {lr_.slope:+.4f}+/-{hw:.4f}  steps {used} ({stopped})"
+                       per=[float(v) for v in per], Ns=[int(x["N"]) for x in HO], **p)
+            rows.append(rec); json.dump(rows, open(RES, "w")); done.add((Lv, n, dm, lr, seed))
+            print(f"    {tag}: FVE {fve:+.4f}  PR {p['pr']:.1f}/{dm} ({100*p['pr_frac']:.0f}%"
+                  f"{', CENSORED n_obs=' + str(p['n_obs']) if p['censored'] else ''})  "
+                  f"identity {100*p['ident_frac']:.0f}%  N-slope {lr_.slope:+.4f}+/-{hw:.4f}  "
+                  f"steps {used} ({stopped})"
                   f"{'  *** STILL IMPROVING -> VOID ***' if improving else ''}", flush=True)
             return rec
         except Exception as e:
@@ -225,6 +314,14 @@ if __name__ == "__main__":
         for dm in DMS:
             for lr in LRS:                                   # CONTROL 2: no arm loses on the LR
                 run(TR, n, dm, lr, L_PRIMARY)
+            # CONTROL 5 (seeds). The wide arms are the ones that collapsed on mdCATH, and a one-seed
+            # collapse is not evidence ABOUT DM -- it is one draw. Repeat the winning LR at extra
+            # seeds so what gets reported is a COLLAPSE RATE, not an anecdote.
+            if dm >= 256:
+                c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == dm]
+                if c:
+                    bl = max(c, key=lambda r: r["fve"])["lr"]
+                    for s in (1, 2): run(TR, n, dm, bl, L_PRIMARY, seed=s)
         # ADDRESSING DIAGNOSTIC ONLY -- NOT candidate designs.
         # Run TWO WAYS, because total latent capacity is L x DM: at the same DM, L=12 carries 12x the
         # capacity of L=1, so a slope difference there could be CAPACITY rather than ADDRESSING.
@@ -259,18 +356,57 @@ if __name__ == "__main__":
     print(f"  ONE latent token per frame, any N. DM is the only capacity knob.", flush=True)
     for n in sorted({r["n_train"] for r in rows if r["L"] == L_PRIMARY}):
         print(f"  n_train={n}")
-        print(f"    {'DM':>5}{'FVE':>9}{'median':>9}{'bestLR':>9}{'PR':>8}{'PR/DM':>7}"
-              f"{'N-slope':>18}{'steps':>7}{'flag':>9}")
+        print(f"    {'DM':>5}{'FVE':>9}{'seedspread':>12}{'bestLR':>9}{'PR':>8}{'PR/DM':>7}"
+              f"{'ident':>7}{'N-slope':>18}{'steps':>7}{'flag':>16}")
         for dm in DMS:
             c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == dm]
             if not c: continue
             b = max(c, key=lambda r: r["fve"])
-            flag = "VOID" if b["improving"] else ("low-PR" if b["pr_frac"] < 0.5 else "")
-            print(f"    {dm:>5}{b['fve']:>9.4f}{b['med']:>9.4f}{b['lr']:>9.0e}{b['pr']:>8.1f}"
-                  f"{100*b['pr_frac']:>6.0f}%{b['nslope']:>+11.4f}+/-{b['nslope_ci']:.4f}"
-                  f"{b['steps']:>7}{flag:>9}", flush=True)
+            sds = [r["fve"] for r in c if r["lr"] == b["lr"]]
+            spread = (max(sds) - min(sds)) if len(sds) > 1 else float("nan")
+            fl = []
+            if b["improving"]: fl.append("VOID")
+            if b.get("censored"): fl.append("PR-cens")
+            if b["pr_frac"] < 0.5: fl.append("low-PR")
+            print(f"    {dm:>5}{b['fve']:>9.4f}{spread:>12.4f}{b['lr']:>9.0e}{b['pr']:>8.1f}"
+                  f"{100*b['pr_frac']:>6.0f}%{100*b['ident_frac']:>6.0f}%"
+                  f"{b['nslope']:>+11.4f}+/-{b['nslope_ci']:.4f}{b['steps']:>7}"
+                  f"{'/'.join(fl):>16}", flush=True)
         s = saturating_dm(n, L_PRIMARY)
         print(f"    -> saturates at DM={s}" if s else "    -> NO saturation within the swept range")
+        # PRE-REGISTERED EXTENSION RULE (recorded before results): if the TOP arm still shows high
+        # width usage, the sweep is censored at its own top and the "saturating DM" is another FLOOR
+        # -- exactly the failure being retired for rank90. Do not report a width answer; extend first.
+        top = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == max(DMS)]
+        if top:
+            t = max(top, key=lambda r: r["fve"])
+            if t["pr_frac"] >= 0.5 and not t.get("censored"):
+                print(f"    *** SWEEP CENSORED AT THE TOP: DM={max(DMS)} still uses "
+                      f"{100*t['pr_frac']:.0f}% of its width. The saturating DM is a FLOOR. "
+                      f"EXTEND TO DM=1024 BEFORE REPORTING A WIDTH ANSWER. ***", flush=True)
+
+    print(f"\n=== CRITERION 4: is the latent something a PROPAGATOR can model? ===", flush=True)
+    print(f"  004b demotes per-frame FVE. A code that reconstructs well but jumps between consecutive")
+    print(f"  frames is useless to stage 2. If the FVE ranking and this ranking DISAGREE, that")
+    print(f"  disagreement is the finding -- do not silently follow the FVE one.", flush=True)
+    print(f"    {'DM':>5}{'FVE':>9}{'tau_lat':>10}{'step':>8}{'AR(1) phi':>11}{'verdict':>26}")
+    for n in sorted({r["n_train"] for r in rows if r["L"] == L_PRIMARY}):
+        for dm in DMS:
+            c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == dm]
+            if not c: continue
+            b = max(c, key=lambda r: r["fve"])
+            if "tau_lat" not in b: continue
+            v = ("white noise -- nothing to propagate" if b["phi"] < 0.1 else
+                 "smooth, propagatable" if b["phi"] > 0.5 else "weakly correlated")
+            print(f"    {dm:>5}{b['fve']:>9.4f}{b['tau_lat']:>10.1f}{b['step']:>8.3f}"
+                  f"{b['phi']:>11.3f}{v:>26}", flush=True)
+        byfve = sorted([r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n],
+                       key=lambda r: -r["fve"])
+        byphi = sorted([r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and "phi" in r],
+                       key=lambda r: -r.get("phi", 0))
+        if byfve and byphi and byfve[0]["dm"] != byphi[0]["dm"]:
+            print(f"    *** RANKINGS DISAGREE at n_train={n}: best FVE is DM={byfve[0]['dm']}, best "
+                  f"latent dynamics is DM={byphi[0]['dm']}. Report BOTH. ***", flush=True)
 
     print(f"\n=== THE HEADLINE QUESTION: at L=1, does codec-vs-N hold FLAT from ~600 to ~33,500 atoms? ===",
           flush=True)
@@ -313,6 +449,13 @@ if __name__ == "__main__":
     print("\n  SCOPE: ATLAS single chains, N 598-33,377, 100 ns, apo. Licenses a width statement for")
     print("  THAT regime only. The 1e6-atom extrapolation the width chain used to provide is DROPPED,")
     print("  not transferred -- see ROADMAP 'WIDTH CHAIN IS A FLOOR'.", flush=True)
+    print("  KNOWN CONFOUND, stated rather than hidden: DM is the WHOLE-NETWORK width, so sweeping it")
+    print("  changes encoder, decoder, FiLM and head geometry together. A saturation in DM is")
+    print("  therefore 'this architecture stops improving past width X', NOT 'the latent code needs X")
+    print("  dimensions'. Separating them needs a fixed-width bottleneck arm (hold DM constant, insert")
+    print("  lat -> Linear(DM,r) -> Linear(r,DM) and sweep r); that is the pre-registered follow-up.")
+    print("  DM* is also a FLOOR in the TIMESCALE axis for the same reason rank90 was one in the")
+    print("  sampling axis: 100 ns cannot reveal width that slower motions would demand.", flush=True)
 
     best = max([r for r in rows if r["L"] == L_PRIMARY], key=lambda r: r["fve"], default=None)
     if best:

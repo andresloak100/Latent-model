@@ -4,14 +4,32 @@ Every peer/oracle comparison this project has run was at n_train of 21-207 syste
 lost. Two hypotheses:
   (a) DATA-LIMITED  -- a shared codec needs many systems to learn a structure->dynamics map, and
                        21-207 is far too few.
-  (b) FUNDAMENTAL   -- a learned model cannot beat a physics prior at this task, and more data will
-                       not change it.
+  (b) NOT DATA-LIMITED -- more systems will not move it, and the cause must then be DIAGNOSED.
 A SINGLE run at n=700 cannot distinguish them. A CURVE can.
 
   climbing and crossing ANM      -> (a), and the curve says what n is needed
   climbing but flattening below  -> (a) partially, with a ceiling; extrapolate the crossing and
                                     decide whether that n is reachable
-  FLAT across a 14x range in n   -> (b), and the architecture needs rethinking, not more data
+  FLAT across a 14x range in n   -> (b): RUN THE DIAGNOSIS FAN-OUT. Do not infer a cause from
+                                    flatness alone -- at least six mechanisms produce it.
+
+ANM IS A DIAGNOSTIC, NOT THE BAR (INBOX 004b). It is the honest zero-shot comparator and it answers
+one question: does the learned map carry information a physics prior does not? It is NOT the success
+criterion. ANM is a fixed-topology structural prior with no generator; it cannot produce a
+programmable latent dynamics system, which is the entire point of the project. A one-token codec that
+loses to ANM on per-frame reconstruction is NOT thereby dead.
+THE ACTUAL SUCCESS CRITERIA, in reporting order:
+  1. RETAINS DYNAMICAL INFORMATION -- not just per-frame FVE. Decoded trajectories must preserve the
+     DYNAMICS: per-mode marginal std ratio, integrated autocorrelation time, cross-mode coupling and
+     the 2D free-energy projection, via the ensemble acceptance test already built for the
+     propagator. A codec with mediocre FVE that PRESERVES autocorrelation structure is worth more
+     than one with better FVE that flattens it.
+  2. GENERALISES TO UNSEEN SYSTEMS -- held-out systems, not held-out frames. Already the protocol.
+  3. SCALES WITH N -- the codec-vs-N trend at L=1 from 600 to 33,500 atoms.
+  4. SUPPORTS THE DOWNSTREAM GENERATOR -- measurable NOW: the latent time-series' autocorrelation
+     time, its frame-to-frame smoothness, and whether an AR(1)/OU fit in latent space gives stable
+     rollouts. A latent that reconstructs well but JUMPS between frames is useless to stage 2, and
+     that is far better discovered now than after the propagator is built.
 
 DESIGN
 - n_train in {50, 100, 200, 400, 700}; the SAME held-out set throughout; same architecture, same L.
@@ -28,10 +46,12 @@ DESIGN
   everything downstream is trustworthy. Sloping -> subsample deeper and re-check before reading.
 - CONSERVATION OF n on the data pipeline; realised vs selected atom range printed.
 
-IF THE CURVE IS FLAT (outcome b), the architectural response on record is NOT more data: predict the
-ANM basis from structure (cheap, zero-parameter), use it as the DECODER'S BASIS, and let the latent
-supply coefficients plus a learned residual -- 'learned ANM' made literal. Do not build it until the
-curve says so."""
+IF THE CURVE IS FLAT: run the DIAGNOSIS FAN-OUT, do not propose a design (INBOX 004a/004c). The
+previous version of this file pre-committed to one diagnosis -- an ANM-basis decoder with a learned
+residual -- and printed it as the recorded next step. That has been DELETED. It named a cause for a
+result nobody had seen, and the cure it named risked an open-ended ANM optimisation loop. Six
+mechanisms produce a flat curve, each with a distinguishing test; the verdict block enumerates them
+and the run reports which one the evidence supports BEFORE any redesign is proposed."""
 import os, sys, json, time, math, numpy as np, torch, torch.nn as nn, warnings
 warnings.filterwarnings("ignore")
 from scipy import stats
@@ -200,13 +220,28 @@ if len(ns) >= 3:
     climbing = lr2.slope - h2 > 0
     crossed = any(d > 0 for d in df)
     if climbing and crossed: v = "(a) DATA-LIMITED -- climbing AND crossing ANM"
-    elif climbing: v = "(a) PARTIAL -- climbing but still below ANM; extrapolate the crossing n"
-    else: v = "(b) FUNDAMENTAL -- FLAT across the n range; rethink the architecture, not the data"
+    elif climbing: v = "(a) PARTIAL -- still climbing; ANM crossing is a diagnostic, not a gate"
+    else: v = "(b) FLAT across the n range -- RUN THE DIAGNOSIS FAN-OUT (below). Do NOT infer a cause."
     print(f"  VERDICT: {v}")
     if not climbing:
-        print("  -> ON RECORD: the response is NOT more data. Predict the ANM basis from structure and")
-        print("     use it as the DECODER'S BASIS, latent supplying coefficients plus a learned residual")
-        print("     ('learned ANM' made literal). Build only if the curve says so.")
+        # INBOX 004a. This branch used to print the ANM-basis-decoder design as the recorded next
+        # step. DELETED. It pre-committed to ONE diagnosis of a result nobody had seen yet, and the
+        # diagnosis it named would have pulled the project into an open-ended ANM optimisation loop.
+        # A flat curve licenses a fan-out, not a design.
+        print("  -> A FLAT CURVE HAS AT LEAST SIX CAUSES. Each has a distinguishing test; run them")
+        print("     BEFORE proposing any redesign, and report which hypothesis the evidence supports:")
+        for h, t in (
+            ("decoder capacity",       "raise decoder depth/width at fixed L=1, DM. FVE rises => decoder-limited"),
+            ("one-token info limit",   "the DM sweep itself. FVE still rising at DM=512 => information-limited"),
+            ("conditioning",           "enrich static features (local frames, neighbour geometry). FVE rises => conditioning-limited"),
+            ("objective mismatch",     "geometry-aware loss (pairwise-distance / per-mode weighted). Dynamical fidelity improves while MSE does not => the LOSS was wrong"),
+            ("representation",         "local-frame / internal-coordinate target instead of Cartesian displacement"),
+            ("encoder pooling",        "G6 permutation + effective rank of the latent across systems. Realised rank << DM => the encoder is not filling the token"),
+        ):
+            print(f"       - {h:<22} {t}")
+        print("     ANM is a DIAGNOSTIC, not the bar: it says whether the learned map carries")
+        print("     information a physics prior does not. It cannot produce a programmable latent")
+        print("     dynamics system, so failing to beat it is NOT a death certificate for the codec.")
     elif not crossed:
         tgt = np.interp(0, df, np.log10(ns)) if min(df) < 0 < max(df) else None
         print(f"  -> extrapolated crossing at n_train ~ {10**np.interp(0,[df[0],df[-1]],[np.log10(ns[0]),np.log10(ns[-1])]):.0f}"
