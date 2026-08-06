@@ -2070,3 +2070,57 @@ an N-scaling comparison. Retracted and staying retracted.
 Note the consequence for the top of the N axis: the primary comparison is unavailable above ~6,000
 atoms, so the N-trend for the PEER comparison rests on 591-8,731 (~15x span, still ample), while the
 ORACLE-fraction trend spans the full 591-33,551. Report both spans explicitly.
+
+## SPARSE ANM: validated, and the CUTOFF turns out to be a first-order choice
+
+### Validation (your protocol, passed)
+Sparse eigsh on the SAME Hessian vs dense, on the N<=6,000 overlap:
+| protein | N | dense | sparse | max rel eig err | subspace overlap |
+|---|---|---|---|---|---|
+| 1fd3_A | 610 | 0.6 s | 0.7 s | 5.0e-09 | 1.000000 |
+| 1fm4_A | 2,449 | 35.2 s | **15.4 s** | **4.7e-10** | **1.000000** |
+| 1fs1_C | 853 | 1.5 s | 1.1 s | 1.8e-10 | 1.000000 |
+**Same eigenproblem, not a new baseline** -- so extending to the full N range carries NO caveat,
+unlike CG-ANM (which was an approximation with an N-DEPENDENT bias, slope +0.110 +/- 0.039).
+At scale: N=9,195-10,254 takes 45-205 s (nnz 24-28M, RSS 3.5-3.7 GB) where **dense at the ATLAS top
+would be ~25 HOURS**. Sparse is the only route above ~6,000 atoms.
+
+### THE CUTOFF IS A FIRST-ORDER CHOICE -- ANM-10 IS A WEAK BASELINE (measured)
+10 A on all-atom gives ~142 pairs/atom and over-connects; the all-atom literature sits at 5-7 A
+(~22 pairs/atom at 5 A, also 6.5x cheaper). Measured at k=64 on cached ATLAS proteins:
+| protein | N | ANM-5 | ANM-7 | ANM-10 |
+|---|---|---|---|---|
+| 1fd3_A | 610 | **0.4273** | 0.3584 | 0.2991 |
+| 1fm4_A | 2,449 | **0.4294** | 0.4027 | 0.3539 |
+| 1fs1_C | 853 | **0.6816** | 0.6273 | 0.5739 |
+| 1j8e_A | 598 | **0.6101** | 0.5344 | 0.3808 |
+| **mean** | | **0.5371** | 0.4807 | **0.4019** |
+**ANM-5 beats ANM-10 by +0.135 FVE on EVERY protein.** A codec beating ANM-10 would be a hollow win
+on the comparison that carries the thesis.
+
+**SELECTION PROTOCOL (keeps it a baseline, not an oracle):** sweep {5, 7, 10} A on TRAINING systems
+only, pick the single best cutoff by mean TRAINING FVE, apply that one cutoff unchanged to held-out
+systems. All three training curves reported so the choice is visible. **ANM-10 is retained as the
+labelled CONTINUITY baseline** for comparison against earlier results, and the two are NEVER pooled.
+
+### RETROACTIVE CAVEAT ON THE PROJECT'S ONE PRIOR PEER WIN
+The ligand result -- "the learned graph codec beats Cartesian ANM" (0.64 vs 0.74 at L=8) -- used an
+**8 A cutoff on ligand HEAVY ATOMS** (8-90 atoms, molecular diameter ~10 A), which connects nearly
+the whole molecule. **That win may rest on the same weak-baseline problem** and must be re-checked
+against a swept cutoff before being cited as evidence for the thesis. It is currently the only
+peer-comparison victory on record.
+
+### RETRY-WITH-ESCALATION (Family A, in the solver)
+Convergence time varies 45 s vs 205 s at matched N -- that is shift-invert convergence, which is
+TUNABLE. A timeout that preferentially kills slow-converging systems is an **N-CORRELATED EXCLUSION**
+if convergence difficulty tracks size, which would void the comparison it feeds. Policy: attempt 1 at
+default, attempt 2 with adjusted sigma/maxiter, attempt 3 with a larger Krylov subspace, and ONLY
+then record a Family A exclusion. Retrying costs minutes against a bias that would void the result.
+
+### MEMORY AT THE TOP -- test submitted before wiring in (job 10301505)
+Largest ATLAS entry is **6sup_A, 33,377 real atoms** (the 15.77*L-8 fit predicted 33,541: 0.5% error,
+so the N-range extrapolation was sound). Shift-invert factorises (H - sigma*I) and fill-in on a
+100k-DOF 3D connectivity problem grows superlinearly, so peak RSS could land far above the ~12 GB a
+linear scaling suggests. **Testing on the real structure at all three cutoffs before committing the
+pipeline** -- if it exceeds node memory we need to know now, not when a cache job dies two-thirds
+through. Fetching only the reference .pdb (2.6 MB) rather than the 4.8 GB trajectory bundle.
