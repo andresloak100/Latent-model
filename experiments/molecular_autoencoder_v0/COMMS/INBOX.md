@@ -171,3 +171,50 @@ chemistry and genuine millisecond state generation are research problems
 with real risk of not working. They are milestones with uncertainty, not
 dates. Levels 1 and 2 (one-token codec, then end-to-end latent dynamics)
 can carry estimates; those two cannot.
+
+---
+
+## 005 — The fixed-width bottleneck arm is required, not a follow-up
+
+You flagged that DM is the whole-network width, so a saturation means "this
+architecture stops improving past width X," not "the latent needs X
+dimensions," and recorded the separating experiment as a pre-registered
+follow-up. Promote it to a required arm, running alongside — not after.
+
+**Why it cannot wait:** the whole point of the one-token design is that the
+generator operates on the latent. Network width sets encode/decode cost;
+**latent width sets the generator's cost**, and that is what objective 4
+turns on. If the two are conflated, we cannot size the quantity the
+single-GPU claim depends on. "One token of width DM per frame" is a claim
+about the latent, not about d_model — and right now the sweep measures
+d_model.
+
+**Design.** Hold `d_model` fixed across encoder and decoder (use the largest
+value you can train reliably — 512 if it trains, else 256). Vary only the
+token's bottleneck: linear projection down to `DM_latent`, and back up
+before the decoder. Sweep `DM_latent` in {16, 64, 128, 256, 512}, capped at
+`d_model`.
+
+**Report both curves on the same axes:**
+- network-width sweep (current): FVE vs DM with d_model = DM
+- bottleneck sweep (new): FVE vs DM_latent at fixed d_model
+
+Where they diverge is the answer.
+
+**Pre-registered read, before results:**
+- Bottleneck curve saturates well below `d_model` → the latent needs less
+  width than the network does. Objective 4 gets materially cheaper, and the
+  headline number is the bottleneck saturation point, not the network one.
+- The two curves track each other → network capacity is the binding
+  constraint, DM was never measuring "latent width," and the current
+  saturation figure must not be quoted as one.
+- Bottleneck curve still climbing at `DM_latent = d_model` → we have not
+  bracketed the latent requirement and need a wider `d_model` before any
+  width claim.
+
+Apply the same criterion-4 measurements you added under 4b (latent IAT,
+frame-to-frame step ratio, AR(1) φ) to the bottleneck arms, and the
+cross-fit participation ratio. A bottleneck that reconstructs well but
+produces a jumpy latent is worse for stage 2 than a slightly worse one that
+does not — and at the bottleneck the latent IS the object the generator will
+model, so this is where criterion 4 matters most.
