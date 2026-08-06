@@ -155,6 +155,27 @@ def ceilings(d, DMS):                                           # PCA-DM (rank-l
     return out
 
 
+def conserve(stage, rows_in, rows_out, regressors=("N", "rmsf")):
+    """CONSERVATION OF n (Family A, generalised). Every silent failure is a FILTER -- OOMs, NaNs,
+    timeouts, unreadable files, missing ceilings. None announce themselves. Any stage that passes
+    fewer rows than it received must characterise the shortfall against EVERY regressor before its
+    output is used downstream."""
+    ni, no = len(rows_in), len(rows_out)
+    if ni == no:
+        print(f"  [n] {stage}: {ni} -> {no}  conserved"); return True
+    kept_ids = {id(r) for r in rows_out}
+    dropped = [r for r in rows_in if id(r) not in kept_ids]
+    msg = []
+    for g in regressors:
+        k = [r[g] for r in rows_out if g in r]; d = [r[g] for r in dropped if g in r]
+        if k and d:
+            rel = abs(np.median(d) - np.median(k)) / max(abs(np.median(k)), 1e-9)
+            msg.append(f"{g}: kept {np.median(k):.3g} vs dropped {np.median(d):.3g}"
+                       + (" *SKEWED*" if rel > 0.25 else ""))
+    print(f"  [n] {stage}: {ni} -> {no}  DROPPED {ni-no}  |  " + "; ".join(msg))
+    return False
+
+
 class Perceiver(nn.Module):
     def __init__(self, Fs, L, dm=64, heads=4):
         super().__init__()
@@ -302,8 +323,9 @@ for DM_ in DMS:
         v = fve(m, d, d["h"], d["T"]); ce = d["ceil"]
         rows.append(dict(dom=d["dom"], bucket=list(d["bucket"]), N=d["N"], rmsf=d["rmsf"], model=v,
                          pca=ce["pca"][DM_], pca_valid=ce["pca_valid"][DM_], anm=ce["anm"][DM_],
-                         gap_anm=(ce["anm"][DM_]-v) if np.isfinite(ce["anm"][DM_]) else float('nan'),
-                         ratio_anm=((ce["anm"][DM_]-v)/ce["anm"][DM_]) if (np.isfinite(ce["anm"][DM_]) and ce["anm"][DM_] > 1e-6) else float('nan'),
+                         gap_anm=(ce["pca"][DM_]-v) if np.isfinite(ce["pca"][DM_]) else float('nan'),
+                         ratio_anm=((ce["pca"][DM_]-v)/ce["pca"][DM_]) if (np.isfinite(ce["pca"][DM_]) and ce["pca"][DM_] > 1e-6) else float('nan'),
+                         gap_anmref=(ce["anm"][DM_]-v) if np.isfinite(ce["anm"][DM_]) else float('nan'),
                          void=not G[d["bucket"]]["plateau"]))
     allres[DM_] = dict(rows=rows, g8={str(k): v for k, v in G.items()}, steps=sd,
                        takeoff={str(k): v for k, v in tko.items()})
@@ -343,6 +365,7 @@ for L in DMS:
         br = [r for r in rows if tuple(r["bucket"]) == b]
         if not br: continue
         rr_ = [r["ratio_anm"] for r in br if np.isfinite(r["ratio_anm"])]; gg_ = [r["gap_anm"] for r in br if np.isfinite(r["gap_anm"])]
+        conserve(f"deficit-ratio bucket {b}", br, [r for r in br if np.isfinite(r["ratio_anm"])])
         if not rr_: continue
         rs.append(np.median(rr_)); gs_.append(np.median(gg_)); ns.append(b)
     if len(rs) < 2: print(f"  DM={L}: fewer than 2 valid buckets -> NO VERDICT (G8 voided the rest)", flush=True); continue

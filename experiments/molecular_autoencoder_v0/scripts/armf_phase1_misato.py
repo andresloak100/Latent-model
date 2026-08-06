@@ -116,6 +116,27 @@ def ceilings(d, LS):                                            # PCA + ANM once
     return out
 
 
+def conserve(stage, rows_in, rows_out, regressors=("N", "rmsf")):
+    """CONSERVATION OF n (Family A, generalised). Every silent failure is a FILTER -- OOMs, NaNs,
+    timeouts, unreadable files, missing ceilings. None announce themselves. Any stage that passes
+    fewer rows than it received must characterise the shortfall against EVERY regressor before its
+    output is used downstream."""
+    ni, no = len(rows_in), len(rows_out)
+    if ni == no:
+        print(f"  [n] {stage}: {ni} -> {no}  conserved"); return True
+    kept_ids = {id(r) for r in rows_out}
+    dropped = [r for r in rows_in if id(r) not in kept_ids]
+    msg = []
+    for g in regressors:
+        k = [r[g] for r in rows_out if g in r]; d = [r[g] for r in dropped if g in r]
+        if k and d:
+            rel = abs(np.median(d) - np.median(k)) / max(abs(np.median(k)), 1e-9)
+            msg.append(f"{g}: kept {np.median(k):.3g} vs dropped {np.median(d):.3g}"
+                       + (" *SKEWED*" if rel > 0.25 else ""))
+    print(f"  [n] {stage}: {ni} -> {no}  DROPPED {ni-no}  |  " + "; ".join(msg))
+    return False
+
+
 class Perceiver(nn.Module):
     def __init__(self, Fs, L, dm=DM, heads=4):
         super().__init__()

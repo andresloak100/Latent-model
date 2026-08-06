@@ -1685,3 +1685,43 @@ absent. If those two answers coincide, the arm is void before it runs.**
   resulting width-chain factor.
 - **D:** the rank-usage threshold sweep can collapse the retained N range, making b unidentifiable
   while returning noise that mimics drift; it now flags when the retained log10(N) range < 0.5.
+
+### FAMILY A, GENERALISED: CONSERVATION OF n -- every silent failure is a filter
+
+The curl timeout was not a filter anyone wrote; it was one the ENVIRONMENT imposed. The same holds
+for OOMs, NaNs, h5py read errors, eigensolver non-convergence, missing ceilings, and any system
+skipped for any reason. **None of them announce themselves.**
+
+**RULE: every pipeline stage prints n_in -> n_out. Any stage where they differ must characterise the
+shortfall against EVERY regressor (N, mobility) before its output is used downstream. No stage
+silently passes fewer rows than it received.** Implemented as `conserve(stage, rows_in, rows_out)`,
+which prints the kept-vs-dropped median of each regressor and marks *SKEWED* past 25% relative
+difference.
+
+**AUDIT HIT -- and it was live in a RUNNING job.** The ANM ceiling returns NaN above ANM_MAXN, a
+known N-correlated missing-data pattern. `armf_phase1_dm.py` filtered `if np.isfinite(ratio_anm)`
+before the deficit regression, so on mdCATH (top bucket 3,500-8,000 atoms, ANM_MAXN=4,000) **the top
+bucket's ratio was computed only from its sub-4,000 half** -- the regression's own N axis truncated
+inside its widest bucket. Family A operating through MISSINGNESS rather than through a written
+filter, exactly as predicted.
+
+**FIX:** the capacity axis now uses **PCA-DM** as its ceiling. That is why the axis was moved to
+mdCATH in the first place -- PCA-k is rank-valid there to k~600, at every DM and **every N, with no
+missing-data pattern**. Using ANM there reintroduced a gap PCA does not have. ANM is retained as a
+secondary reference where it exists. The running job saves both `pca` and `anm` per row, so the
+PCA-based ratio is recomputable offline -- no rerun needed.
+
+### PRE-REGISTERED: THE WEAK-ARM CASE FOR THE A/B/C READ
+
+L=1's G4 base is **+0.072**, barely above the 0.05 competence gate. A model that weak may yield a
+deficit-ratio CI too wide to separate flat from sloped -- in which case **A-vs-B discrimination is
+underpowered even though the arm is VALID on guards.**
+
+**If that happens, report exactly: "L=1 arm valid but UNDERPOWERED for A/B discrimination", with the
+CI and the slope range it still permits.** Do NOT resolve it by defaulting to whichever of A or B the
+L=12/24 arms suggest. That would be **Family C on the headline question itself**, and the L=1 arm
+exists precisely because the L=12/24 arms CANNOT separate routing from pooling -- borrowing their
+answer would assume what the arm was built to test.
+
+**The remedy in that case is a STRONGER L=1 arm** -- more steps, or DM raised so one token carries
+more capacity -- **not a softer verdict.**
