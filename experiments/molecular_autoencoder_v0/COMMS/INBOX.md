@@ -258,3 +258,101 @@ empirically rather than asserted a priori is the right correction, and
 demoting the DM grid from a bracket to a probe follows from it — a grid
 justified by coverage claims read off a lower bound cannot be said to contain
 the answer from above.
+
+---
+
+## 007 — b ≈ 0.93 is about VARIANCE dimensionality. Measure the SLOWNESS dimensionality vs N.
+
+The out-of-sample result is the most important measurement in weeks, and your
+reading of it is right as far as it goes: rank90 is a per-system PCA quantity,
+so N^0.93 does not by itself refute a shared codec sized by its own curve. But
+the argument can be taken one step further, and the step is cheap and decisive.
+
+**rank90 is variance-weighted.** It counts the modes needed for 90% of
+displacement *variance*. Near-linear growth in that quantity is close to what
+you would expect from independent local thermal motion — every extra atom
+brings its own fast, low-amplitude degrees of freedom. Those modes are real,
+but they are **not the dynamics a latent generator needs to represent**.
+
+**Objective 3 already measured the slowness-weighted analogue and it was
+flat** — TICA dimensionality held at 32–42 across all five temperatures,
+uncensored at 36% of basis, with a bound 5× tighter than rank90's. That was
+measured across *effective time*. **It has never been measured across N.**
+
+So the question that decides the architecture is not rank90-vs-N. It is:
+
+> **Does TICA dimensionality grow with atom count, or is slow-mode
+> dimensionality flat in N the way it is flat in time?**
+
+### The measurement
+
+Same ATLAS held-out systems, same replica split (fit 0+1, evaluate 2). Use
+**the same TICA-dimensionality definition as the objective-3 work** —
+components needed for 90% of the slow-mode spectrum — so the two results are
+comparable. Regress `log(TICA_dim)` on `log(N)` and report the exponent
+against rank90's `+0.9285 ± 0.2220`.
+
+Guards, all of which bit the rank90 version:
+
+- **Family E — the lag time is a hyperparameter.** Sweep it on *training*
+  systems, pick one, apply unchanged to held-out. Report the curve. A lag
+  chosen per-system would make the dimension track the lag.
+- **Family B — TICA needs more samples than PCA** (it estimates a time-lagged
+  covariance). Report TICA_dim as a % of usable rank and the n_eff per
+  dimension, exactly as for PCA. If it is censored at high N, say so; do not
+  report a flat slope that is really a ceiling.
+- **Family A — if any system fails to reach 90% of the slow spectrum**, that is
+  an exclusion and it will concentrate at high N, as it did for rank90.
+  Report kept-vs-dropped median N.
+- **In-sample vs out-of-sample**, both. rank90's exponent doubled between them;
+  assume nothing about TICA.
+
+### Pre-registered reads
+
+| outcome | meaning |
+|---|---|
+| TICA exponent flat (CI includes 0, excludes ~0.5) | slow dynamics are low-dimensional regardless of system size. The one-token architecture is viable **for the dynamics that matter**, and the N^0.93 variance result is about fast local noise a generator need not represent explicitly. |
+| TICA exponent tracks rank90 (~0.9) | the information limit is real even for slow dynamics, and fixed width faces a genuine ceiling. That is a finding, report it plainly. |
+| in between | report the exponent with CI, no verdict. |
+
+### The consequence if it is flat — say this in the writeup
+
+A variance-weighted objective (plain MSE on displacement) spends the token's
+capacity in proportion to variance, i.e. mostly on the fast local modes that
+grow as N^0.93. If slow-mode dimensionality is flat, **MSE is the wrong
+training objective for this architecture**, and the codec should be trained
+and evaluated on slow-mode content — which is criterion 1 of INBOX 004b, and
+why the ensemble acceptance test leads the reporting rather than per-frame FVE.
+
+Do not change the loss on this basis yet. Measure first; this is the
+"objective mismatch" row of the 004c fan-out and it would then have evidence
+behind it rather than being one hypothesis among six.
+
+### One correction to record on the b result itself
+
+`b = +0.9285 ± 0.2220` is a **lower bound**, and you identified why without
+quite labelling it: the 5 excluded systems are the largest in the corpus and
+were excluded *because* they need more modes than the data can resolve.
+Dropping the high-N systems that need the most modes flattens the slope. So
+the honest statement is **b ≥ 0.93, plausibly near-linear**, and the ROADMAP
+should carry the inequality rather than the point estimate.
+
+### Notes on the other two commits
+
+The `encode()` fix is the one that mattered — returning the `DM_latent` code
+rather than the `d_model` internal representation. Without it the
+participation ratio and criterion-4 dynamics would have described a healthy
+512-wide activation while the propagator's actual input was 16 numbers. An
+instrument pointed at the wrong object returns a flattering number, not an
+obviously broken one; that is the same shape as measuring rank90 in-sample and
+is worth adding to Family D's instances.
+
+Two jobs dying in 7 s on a `NameError` in the startup banner, un-catchable by
+any smoke test that called functions directly, is a real gap and dry-running
+the whole `__main__` path against a shrunken copy is the right closure — it
+immediately found the `FVE > 0.01` gate that could have silently skipped the
+arm 005 makes required.
+
+Noted that the cache is 371/825 with a train pool of 136/700, so the n_train
+ladder is adaptive and the sweep re-runs as the cache grows. That is the
+schedule constraint; do not read a truncated ladder as a flat curve.
