@@ -2198,12 +2198,16 @@ the §7 additivity measurement -- none of these involve a comparator with an uns
 
 ## THREE CORRECTIONS BEFORE THE ATLAS CURVE
 
-### 1. THE GUARD NUMBER WAS STALE -- re-measurement submitted (job 10304109)
-The -0.1096 +/- 0.1311 was measured with held-out frames from the SAME trajectory. Under the new
-split PCA is fitted on replicas 0+1 and evaluated on replica 2 -- a different and harder test, so the
-ceiling should DROP and the N-slope may move in either direction. **Neither old number may be quoted.**
-Re-measured on 114+ held-out systems at k in {24, 256}, reporting slope, Family C bound, rank
-validity per system, s_k/s_1 conditioning, and realised log-N span.
+### 1. THE GUARD NUMBER WAS STALE -- RE-MEASURED, AND IT NOW FAILS (job 10304109, n=115)
+The -0.1096 +/- 0.1311 was measured with held-out frames from the SAME trajectory, and was **not
+significant**. Under the new split (fit replicas 0+1, evaluate replica 2) the slope is larger and
+**significant at both k**. The old number is RETIRED and may not be quoted.
+| k | median FVE | slope vs log10(N) | p | bootstrap 95% | drop-most-influential | adversarial +2 |
+|---|---|---|---|---|---|---|
+| 24 | 0.5742 | **-0.1430 +/- 0.0818** | 0.001 | [-0.2271, -0.0624] | -0.1606 | -0.0960 |
+| 256 | 0.8614 | **-0.1880 +/- 0.0439** | 0.000 | [-0.2381, -0.1387] | -0.1754 | -0.1541 |
+Negative under all four tests at both k. Span 1.75 decades, rank-void 0/115, s_k/s_1 medians 1.31e-01
+and 2.87e-02. **THE CEILING DEGRADES WITH N.** See the n_eff section below for the mechanism.
 
 ### 2. ATLAS REPLICAS ARE ONLY WEAKLY INDEPENDENT -- the claim is WALKED BACK
 Replicas share a start structure and differ only by velocity seed. Measured across 10 proteins
@@ -2239,3 +2243,65 @@ leverage lives), threshold sweep as DIAGNOSTIC subsetting that never excludes fr
 mandatory mobility control (the naive N-exponent is a mediated confound: bigger proteins are more
 rigid at corr -0.31, and rigidity raises rank90 at c ~ -0.9 to -1.35), Family D flagging when a
 subset's N range collapses, and conservation of n with every failure logged against its N.
+
+## EFFECTIVE SAMPLE SIZE: THE CEILING IS IRREDUCIBLY N-BIASED ON ATLAS
+
+Frames are not samples. `n_eff = F / tau_int`, `tau_int = 1 + 2*sum rho(k)` truncated at rho<0.05 --
+the acceptance-test convention -- measured on PCA-mode coefficient series (the Gram's eigenvectors ARE
+those series, so this costs nothing extra). Full writeup: `outputs/cluster/armf_neff.md`.
+
+### Four artifact checks before the number was trusted
+| check | result |
+|---|---|
+| **A. rigid-body motion** (would manufacture BOTH large tau and a fake IAT-vs-N slope) | **RULED OUT.** Kabsch removes 1.5/0.8/0.3/0.1/**0.0**% of variance, *decreasing* with N; COM drift <=0.55 A; net rotation <=2.4 deg; tau raw vs aligned agree <1%. ATLAS ships superposed. |
+| **B. lag-cap censoring** | **FOUND AND FIXED.** maxlag=500 truncated 4/5 systems (needed 625-841). That censors LARGE tau preferentially -- i.e. the variable under test -- biasing the slope DOWNWARD. **Family B, and it was live in a submitted job**, which was cancelled and its partial output deleted. maxlag is now F//2 with a per-system convergence flag. |
+| **C. mode-index dependence** | **REFRAMES IT.** tau is not a per-system scalar: ~700-1060 (mode 0), ~17 (mode 49), ~3 (mode 199), ~1-2 (mode 499). Leading modes starved, bulk of rank90 effectively independent. All comparisons are now mode-resolved with tau averaged over EXACTLY the modes being counted. |
+| **D. selection effect** | **REAL, QUANTIFIED, NOT CORRECTED OUT.** PCA picks the slowest direction by construction, so tau(PC1) is an extreme order statistic: 3.1-9.5x a random-projection null. PC1 OVERSTATES the problem; the mode-averaged quantity carries the result. |
+
+### IAT-vs-N is CONFIRMED but is the MINORITY mechanism (21%)
+Interim n=20 spanning N=598-33,377, slopes per decade of N:
+| quantity | slope | R^2 | |
+|---|---|---|---|
+| tau, PC1 alone | +0.1405 +/- 0.1696 | 0.14 | n.s. -- noisy order statistic |
+| tau, random projection | +0.1082 +/- 0.2287 | 0.05 | n.s. -- unselected reference |
+| **tau, mean over 24 modes** | **+0.1713 +/- 0.0554** | 0.70 | **significant** |
+| **tau, mean over 256 modes** | **+0.1745 +/- 0.0416** | 0.81 | **significant** |
+| n_eff / rank90 | -0.8239 +/- 0.4569 | 0.44 | the conditioning quantity |
+| rank90 | +0.6494 +/- 0.4712 | 0.32 | for attribution |
+
+tau roughly **doubles** across the 1.75-decade span (2.02x), so n_eff falls ~165 -> ~94 at k=256. But
+the conditioning slope decomposes exactly: `-0.1745 (IAT) + -0.6494 (rank90) = -0.8239` measured.
+**Slower modes in bigger proteins explain ~21%; the dominant 79% is simply that large proteins need
+more modes.** The hypothesis is confirmed, and is not the whole story.
+
+The starkest number is not a slope: **n_eff is 14-24 at k=24 and 94-165 at k=256, against 2,501
+frames** (~1-7% efficiency). At k=256 the ceiling fits a 256-dim subspace from **fewer than 256
+effective samples in every system**.
+
+### Neither more frames nor more replicas fixes it
+- **Denser subsampling adds nothing**: n_eff is set by tau_int, not stride -- halving the stride
+  doubles frames AND doubles tau in frame units. It also does not reduce rank90.
+- **More replicas add far less than 2x**: measured between/within RMSD ratio **1.18**. The raw
+  1->2 replica doubling in the old frames-per-rank90 table is an UPPER BOUND.
+- Only **longer trajectories** would, and ATLAS does not have them.
+
+### THE STANDING DECISION THIS FORECLOSES
+**Do NOT spend another corpus move chasing a sound ceiling. No available dataset supplies the
+trajectory length that would fix it.** Consequently:
+- **PRIMARY = codec vs ANM**, both zero-shot, same held-out replica-2 frames. **No ceiling, no
+  denominator, no per-system oracle.** Nothing measured here touches it. This is the **MAIN LINE**,
+  not a fallback.
+- **SECONDARY = the oracle-fraction**, now **PERMANENTLY CAVEATED**. Every future report of it must
+  carry the slope (-0.1880 +/- 0.0439 at k=256) and the bias direction: **a ceiling that degrades
+  with N makes the high-N oracle-fraction an UPPER BOUND -- it FLATTERS the codec at large N.**
+  Reported with that attached, or not at all.
+
+### Open
+- rank90 hits 807 of 2,501 usable rank (**32%**) at the top of the N axis, past the 30% edge where
+  rank90 presses against its own measurement ceiling (Family B). If it bites, +0.6494 is an
+  UNDERestimate.
+- A false "RUN IS VOID" banner fired on the guard: `conservation_report` used the whole store as the
+  denominator rather than the held-out list the guard deliberately processes. Fixed by making the
+  intended population explicit and by distinguishing **never attempted** (coverage shortfall, cache
+  still building) from **failed** (size-correlated dropout). **A warning that cries wolf trains the
+  reader to ignore the one warning that must never be ignored.**

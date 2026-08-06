@@ -42,7 +42,7 @@ for k, p in enumerate(ho):
     if (k + 1) % 10 == 0:
         print(f"    {k+1}/{len(ho)}  last N={d['N']}", flush=True)
 
-store.conservation_report()
+store.conservation_report(expected=man["heldout"])   # denominator is the HELD-OUT list, not the store
 A = np.array([[r["N"]] + [r[str(k)] for k in KS] for r in rows])
 x = np.log10(A[:, 0]); span = x.max() - x.min()
 print(f"\n=== GUARD, NEW PROTOCOL (fit replicas 0+1 -> evaluate replica 2), n={len(A)} ===", flush=True)

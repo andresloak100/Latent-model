@@ -48,14 +48,31 @@ class AtlasStore:
             self.failed[m["pdb"]] = {"atoms": m["atoms"], "err": f"{type(e).__name__}: {e}"}
             return None
 
-    def conservation_report(self):
-        """n_in -> n_out for the DATA PIPELINE, with the realised vs selected atom range."""
+    def conservation_report(self, expected=None):
+        """n_in -> n_out for the DATA PIPELINE, with the realised vs selected atom range.
+
+        `expected`: the population this run INTENDED to process (e.g. the held-out list), and the
+        pdb set it was drawn from. Without it the denominator is the whole store, so any script that
+        deliberately works on a subset trips the N-correlated-loss banner by design -- a false alarm
+        that trains the reader to ignore the one warning that must never be ignored."""
         sel = [m["atoms"] for m in self.meta]
         got = [m["atoms"] for m in self.meta if m["pdb"] in self.loaded]
-        print(f"  [n] data pipeline: {self.selected} selected -> {len(self.loaded)} actually trained")
+        if expected is not None:
+            exp = set(expected)
+            sel = [m["atoms"] for m in self.meta if m["pdb"] in exp] or sel
+            print(f"  [n] data pipeline: {len(exp)} INTENDED -> {len(self.loaded)} actually trained "
+                  f"({len(exp - set(self.loaded))} not reached)")
+        else:
+            print(f"  [n] data pipeline: {self.selected} selected -> {len(self.loaded)} actually trained")
         if not got: print("    NOTHING TRAINED -- run is VOID"); return False
         print(f"    atom range SELECTED {min(sel)}-{max(sel)}  vs  REALISED {min(got)}-{max(got)}")
-        ok = (len(self.loaded) == self.selected)
+        # Only ACTUAL failures are a loss. Never-attempted items (cache still building) are a
+        # coverage shortfall: reported, but not the same defect as a size-correlated dropout.
+        ok = (len(self.failed) == 0) if expected is not None else (len(self.loaded) == self.selected)
+        if expected is not None and not set(expected) <= set(self.loaded) | set(self.failed):
+            miss = len(set(expected) - set(self.loaded) - set(self.failed))
+            print(f"    NOT YET ATTEMPTED {miss} (cache incomplete) -- coverage shortfall, not a "
+                  f"size-correlated dropout; N-correlation UNRESOLVED until the cache completes")
         if not ok:
             f = self.failed
             print(f"    FAILED {len(f)}: atoms " +
