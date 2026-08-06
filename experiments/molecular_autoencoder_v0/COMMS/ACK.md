@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 005
+last_acted: 006
 ```
 
 | item | restatement | status | commit |
@@ -15,6 +15,35 @@ last_acted: 005
 | 004 | Delete the pre-committed ANM-basis-decoder branch from `armf_atlas_curve.py`'s verdict logic before the curve runs — a flat curve must print "run the diagnosis fan-out," never a design, because naming one cause for an unseen result risks an open-ended ANM optimisation loop. ANM is a diagnostic, not the bar: it has no generator and cannot be the product architecture, so losing to it on per-frame FVE does not kill the codec. Report against four real criteria in order — dynamical fidelity via the existing ensemble acceptance test, generalisation to unseen systems, N-scaling at L=1, and whether the latent is something a propagator can actually model. If the curve is flat, run the six-hypothesis fan-out and report which one the evidence supports before proposing any design. Stop putting calendar estimates on objectives 2 and 3. | ACCEPTED | (this commit) |
 
 | 005 | The bottleneck arm is required and runs alongside, not after: because network width sets encode/decode cost while LATENT width sets the generator's cost, and objective 4 turns on the latter, a sweep of d_model cannot answer "how wide does the one token need to be." Hold d_model fixed at the widest value that trains reliably, vary only a linear down/up projection on the token, sweep DM_latent in {16,64,128,256,512} capped at d_model, and plot both curves on the same axes — where they diverge is the answer. Apply the cross-fit participation ratio and the criterion-4 dynamics measurements to the bottleneck arms, because there the latent IS the object the generator will model. | ACCEPTED | (this commit) |
+
+| 006 | `SESSION_HANDOFF.md` exists so a fresh session can restart cheaply once `.claude/settings.json` takes effect; verify and correct it against reality rather than my reports, add a LIVE JOBS section with job IDs, what each tests, expected completion and where output lands, and keep it current on every push where the answer would change — moving retracted results into section 6 in the same commit that retracts them. Restart at a natural pause, with every running job listed so nothing is orphaned. | ACCEPTED | (this commit) |
+
+## Notes on 006
+
+Verified against `squeue`/`sacct` rather than against my own reports, and several things were wrong
+or missing. Added the LIVE JOBS section with both running jobs, what each tests, where output lands,
+and time remaining. Recorded which cancellations were **deliberate** and why (censored `maxlag`;
+pre-005 architecture) so a fresh session does not read six cancelled `atlas_dm` jobs as a failing
+experiment. Noted that both jobs are SLURM jobs rather than session children, so restarting the
+client orphans nothing.
+
+**Correcting my own count while doing this:** the handoff's corpus table said ATLAS is the current
+corpus for "both axes" without recording how much of it actually exists yet. The cache is **371 of
+825 systems**, and the train pool is only **136 of 700** — which is why the `n_train` ladder is
+adaptive and the DM sweep must be **re-run as the cache grows**. A fresh session that missed that
+would conclude the higher `n_train` arms had been tested and come back empty.
+
+**I have not restarted yet, deliberately.** The pause 006 describes is "after the curve results
+land," and the DM sweep had not produced a single arm — it had *died in 7 seconds*, twice, on a
+`NameError` in the startup banner (`L` removed when `L_PRIMARY` was introduced under 003). My smoke
+tests called the module's functions directly and never executed `__main__`, so they could not catch
+it. Fixed, and the gap closed properly: the whole `__main__` path now gets dry-run on a shrunken
+copy of the real script, which exercises every reporting block. That dry run immediately found a
+second defect — the bottleneck arm's health gate required `FVE > 0.01`, conflating "d_model trained"
+with "d_model performed", which at L=1 could have silently skipped the arm 005 makes required. The
+gate is now PR-based (the mdCATH collapse signature is a *constant* latent, PR ≈ 1), and if nothing
+passes it the sweep runs against the least-collapsed arm with a loud PROVISIONAL banner rather than
+skipping.
 
 ## Notes on 005
 

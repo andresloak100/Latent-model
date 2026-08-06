@@ -86,7 +86,7 @@ Corrected from the cluster, not from reports. Workspace `$WR` =
 
 | job | what it tests | where output lands | state |
 |---|---|---|---|
-| **10305936** `atlas_dm` | The **DM sweep + bottleneck arm** at L=1. Network sweep DM {16,64,256,512} × LR {3e-4,1e-3,3e-3} × n_train ladder {50,130,300,600}; then the 005 bottleneck (d_model fixed, DM_latent {16,64,128,256,512}); then L=12/24 addressing diagnostics same-DM and capacity-matched. | `$WR/atlas_dm.json` (accumulates; re-runnable, completed arms skipped), log `$WR/logs/atlasdm_10305936.log` | RUNNING, 20 h limit, `long` partition + `--requeue` (preemptible) |
+| **10305995** `atlas_dm` | The **DM sweep + bottleneck arm** at L=1. Network sweep DM {16,64,256,512} × LR {3e-4,1e-3,3e-3} × n_train ladder {50,130,300,600}; then the 005 bottleneck (d_model fixed, DM_latent {16,64,128,256,512}); then L=12/24 addressing diagnostics same-DM and capacity-matched. | `$WR/atlas_dm.json` (accumulates; re-runnable, completed arms skipped), log `$WR/logs/atlasdm_10305995.log` | QUEUED, 20 h limit, `long` partition + `--requeue` (preemptible) |
 | **10301859** `atlas_cache` | Builds the ATLAS cache: download → stride-4 subsample (2,501 frames/replica) → uncompressed `.npy` + JSON sidecar → **delete archive**. | `$WR/atlas_cache/` | RUNNING ~3.4 h, **371 of 825 systems, 126 GB**. Train pool 136/700 cached, held-out 123/125 |
 
 **The cache gates everything.** `armf_atlas_dm.py` filters its `n_train` ladder to
@@ -95,7 +95,7 @@ in the higher `n_train` arms — that ladder *is* the data-limitation control.
 
 Completed this session: `10305556` atlas_neff, `10305712` r90_insample,
 `10304109` atlas_guard. Cancelled deliberately: `10305469`/`10305543` (censored
-`maxlag`), `10305827`/`10305840` (pre-005 architecture), `10305911` (superseded).
+`maxlag`), `10305827`/`10305840` (pre-005 architecture). Died on a startup `NameError` and were resubmitted, not abandoned: `10305911`, `10305936`.
 
 **Restart guidance (INBOX 006):** a natural pause is after the DM sweep's first
 `n_train` arm prints, not mid-cache-build. Both jobs above survive a client restart —

@@ -270,7 +270,8 @@ def train(tr, HOt, dm, lr, tag, L, dlat=None):
 
 
 if __name__ == "__main__":
-    print(f"[atlas-dm] device={dev}  L={L}  DM sweep {DMS}  LR sweep {LRS}  n_train {NTRAIN}", flush=True)
+    print(f"[atlas-dm] device={dev}  L={L_PRIMARY} (design point; {L_DIAG} are diagnostics only)  "
+          f"DM sweep {DMS}  LR sweep {LRS}  n_train ladder {NTRAIN}", flush=True)
     man = json.load(open(MAN)); store = AtlasStore(f"{WR}/atlas_cache")
     have = {m["pdb"]: i for i, m in enumerate(store.meta)}
     ho_ids = [p for p in man["heldout"] if p in have]
@@ -353,24 +354,41 @@ if __name__ == "__main__":
         # encode/decode cost, latent width sets the GENERATOR's cost. Hold d_model fixed at the widest
         # value that actually TRAINS (512 if healthy, else 256 -- decided from the measured arm, not
         # assumed) and vary only the token's bottleneck.
+        # "Trains reliably" is a question about whether the arm COLLAPSED, not about whether it scored
+        # well. The mdCATH failure signature is a CONSTANT latent (G1 cos = 1.0000, G4 base -0.000),
+        # which the participation ratio detects directly as PR ~ 1. Gating on FVE instead would
+        # conflate "d_model trained" with "d_model performed", and at L=1 the FVE may be legitimately
+        # modest -- which would skip the very arm 005 requires. So: gate on PR and on convergence.
+        def healthy(r): return (not r["improving"]) and r["pr"] > 2.0
         hb = None
         for cand in (512, 256):
             c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == cand
-                 and r["dlat"] == cand]
+                 and r["dlat"] == cand and r["arch"] == "network"]
             if c:
-                b512 = max(c, key=lambda r: r["fve"])
-                if not b512["improving"] and b512["pr_frac"] > 0.1 and b512["fve"] > 0.01:
-                    hb = b512; break
+                bc = max(c, key=lambda r: r["pr"])
+                if healthy(bc): hb = bc; break
+        prov = ""
+        if hb is None:
+            # 005 makes this arm REQUIRED, so fall back to the widest arm that is merely least
+            # collapsed rather than skipping -- and say so, loudly, in the result.
+            allc = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n
+                    and r["arch"] == "network" and not r["improving"]]
+            if allc:
+                hb = max(allc, key=lambda r: (r["pr"], r["dm"]))
+                prov = ("  *** PROVISIONAL: no d_model met the health gate (PR>2.0, converged); "
+                        f"using the least-collapsed arm (PR {hb['pr']:.1f}). The bottleneck curve "
+                        "is measured against a d_model that may not have trained -- read the two "
+                        "curves' DIVERGENCE, not their absolute level. ***")
         if hb:
             DMOD, blr = hb["dm"], hb["lr"]
-            print(f"  --- BOTTLENECK SWEEP (005): d_model FIXED at {DMOD} (trains healthily: "
-                  f"FVE {hb['fve']:+.4f}, PR/DM {100*hb['pr_frac']:.0f}%), varying DM_latent ---",
-                  flush=True)
+            print(f"  --- BOTTLENECK SWEEP (005): d_model FIXED at {DMOD} "
+                  f"(FVE {hb['fve']:+.4f}, PR {hb['pr']:.1f}/{DMOD}), varying DM_latent ---", flush=True)
+            if prov: print(prov, flush=True)
             for dl in [x for x in (16, 64, 128, 256, 512) if x <= DMOD]:
                 run(TR, n, DMOD, blr, L_PRIMARY, dlat=dl)
         else:
-            print(f"  --- BOTTLENECK SWEEP SKIPPED at n_train={n}: neither DM=512 nor DM=256 trained "
-                  f"healthily, so there is no sound fixed d_model to hold. Not a null result. ---",
+            print(f"  --- BOTTLENECK SWEEP SKIPPED at n_train={n}: every network arm is still "
+                  f"improving, so no d_model has converged to hold fixed. NOT a null result. ---",
                   flush=True)
 
         # ADDRESSING DIAGNOSTIC ONLY -- NOT candidate designs.
