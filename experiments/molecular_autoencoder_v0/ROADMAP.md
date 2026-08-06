@@ -1504,3 +1504,37 @@ censoring could plausibly move it, and b is currently known only as a lower boun
 variance-weighted so rare states are excluded (the coverage question is open, not answered); floppy
 -> bound factor 0.65 derived from a 1.65x RMSF ratio via c ~ -0.9; and **b itself is a censored
 lower bound.**
+
+### b-EXPONENT MEASUREMENT: design, staged (2026-08-05)
+
+Blocker was n=28, not mdCATH -- the repo holds **5,398 domains, 3.61 TB**. Streaming 700 stratified
+domains: download -> compute ladder -> write spectra -> DELETE h5. Peak disk ~2 GB/worker; retained
+output a few MB. **Measured bandwidth 25.0 MB/s** and **42 s/domain end-to-end** in pilot, so ~2-3 h
+on 4 workers; bandwidth is NOT the binding constraint and n=700 stands (no cut to 300 needed).
+
+**bytes->atoms calibration MEASURED** on the 28 local files: atoms = 3.039e-06*bytes + 36.3,
+**R^2 = 0.9944**, 321 KB/atom, median error 2.7%. Stratified selection: 700 domains, N 710-7,678
+(10.8x), bins 140/140/140/140/90/50 -- the entire sparse >6000 bin taken, since that is where a
+slope gets its leverage.
+
+**320K ONLY.** 28/28 domains are denatured at 450K and 20/28 at 413K, and denatured systems have LOW
+rank90 (unfolding collapses variance into one dominant mode). Pooling temperatures would corrupt b
+through the atom-count term AND c through the mobility term it conditions on.
+**SCOPE LIMIT: b is measured for FOLDED NATIVE-STATE dynamics.**
+
+**PER-REPLICA, NOT CONCATENATED.** rank90 is computed per replica and averaged within a domain, with
+the between-replica spread kept as a per-domain error bar -- concatenation would let replica count
+and length (which VARY: pilot saw replen 430-500, F 2190-2500) drive the number.
+Two checks now permanent in the output:
+- **Budget-matched replica-offset inflation is SMALL: x0.96-1.21, median ~1.05.** Spreading the same
+  budget across replicas raises rank90 ~5%. So the earlier concatenated mdCATH numbers (asymptote
+  168, window and temperature sweeps) are higher chiefly because they used MORE FRAMES -- a window
+  effect, not an offset artifact. The anchor does not need a large correction.
+  (The naive test -- cat[:nf] vs per-replica -- tests nothing, since cat[:nf] IS replica 0 for
+  nf <= replica length. The valid test holds the budget fixed and spreads frames across replicas.)
+- **Between-replica spread**: within-domain CV 10-17% vs a ~6x between-domain range, so between-domain
+  variation dominates and the CIs are not concealing replica noise.
+
+Top per-replica budget is 400 frames (replicas are ~430-500). Guard retained: if b(79) sits near
+zero the analysis reports an ADDITIVE shift, never a multiplicative factor -- the failure that
+produced -4.33x and b=-0.438 cannot recur.
