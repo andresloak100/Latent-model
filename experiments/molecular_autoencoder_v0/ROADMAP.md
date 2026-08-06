@@ -1223,3 +1223,42 @@ against a TRAIN-MEAN-CENTERED denominator, so it had to additionally learn each 
 work the PCA ceiling gets for free (its reconstruction is mu + projection). Predicting ~0 against a
 centered denominator yields FVE ~ -1, which is exactly what the first run produced. Input, target
 and metric are now all centered, making the model's task identical to PCA's.
+
+### DESIGN TARGET (2026-08-05): L=1, DM as the capacity axis -- "one global latent per frame,
+### width independent of atom count"
+
+**An objective-3 measurement has directly specified an objective-1 design parameter.** This is the
+first time that has happened in the project, and it is worth naming: the rank90 saturating asymptote
+(median **168**, range **13-500**) does NOT track atom count -- the mobility-controlled N-exponent CI
+spans zero -- it tracks MOBILITY. That measurement sizes this architecture. DM=256 covers the median
+system; DM=512 covers the observed tail. Hence the sweep DM in {16, 64, 256, 512} at L=1.
+
+**Statement of the objective-4 argument in one line:** L=1 x DM=256 is 256 floats per frame for a
+system of ANY size; for a 1M-atom system that is 3e6 coordinates -> 256 numbers (a ~11,700:1
+compression). Always report DM alongside L -- "one latent token" is otherwise read as "one number",
+and L=1 x DM=64 is a 64-DIMENSIONAL code.
+
+**Ceilings (three, because PCA-1 is the wrong one):** PCA-DM (unconstrained, per system) --
+**but RANK-VOID above DM=23 on MISATO's 79 train frames**, the same G7 failure that killed L=64, so
+only DM=16 has a valid PCA ceiling there; **ANM-DM** (zero-parameter, structure-predicted, and
+crucially FRAME-INDEPENDENT so valid at every DM) is the PRIMARY and honest comparator, since the
+decoder receives static geometry and can learn a basis from it -- L=1 x DM=64 is functionally
+"learned ANM with 64 coefficients"; and the graph codec at matched capacity. NOTE on the third: the
+graph codec is a LIGAND torsional codec (8-90 heavy atoms) and is not defined on 700-32,000-atom
+protein complexes, so it is reported as context on its own domain rather than as a matched ceiling
+here -- stating that rather than manufacturing a comparison.
+
+**G6 (permutation) carries the most weight at L=1:** with a single slot there is no routing to
+learn, so a permutation failure would mean the ENCODER index-addresses -- a different and more
+serious problem than slot assignment.
+
+**THREE LIMITS, on the record BEFORE results:**
+1. **256 floats cannot reconstruct 3M coordinates.** It reconstructs the part PREDICTABLE FROM
+   STATIC STRUCTURE. The target is achievable exactly to the extent dynamics are low-dimensional
+   given structure -- which is what rank90 measured, and why the number is 168 and not 3N.
+2. **The 26x dimensionality spread across systems at fixed N** means a fixed DM is over-provisioned
+   for floppy systems and under-provisioned for rigid ones simultaneously -- the argument for the
+   ordered/nested latent code already recorded (one trained model, truncatable at inference).
+3. **rank90 was measured over ns-to-us windows.** The ms regime remains open, and specifically open
+   for rare states that variance-weighted PCA cannot see. Sizing DM from rank90 sizes it for the
+   SAMPLED regime, not for multi-millisecond dynamics.
