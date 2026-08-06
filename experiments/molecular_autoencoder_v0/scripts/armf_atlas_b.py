@@ -38,6 +38,13 @@ OUT = f"{WR}/atlas_b.json"
 JOINS = [1, 2, 3]
 MATCHNF = 2000                 # fixed budget for the inflation axis, so joins are comparable
 THRESHOLDS = [0.40, 0.30, 0.20, 0.15, 0.10]
+# WIDTH-CHAIN CONSTANTS -- EVERY NUMBER DERIVED FROM THESE IS A FLOOR (INBOX 002).
+# ASYMPTOTE=168 is an IN-SAMPLE rank90: PCA scored on the very frames it was fitted to, which it
+# explains optimally by construction. Measured out of sample on ATLAS, in-sample rank90 modes cover a
+# median of 74.7% of held-out variance rather than 90%, and the shortfall GROWS with N (2.26x -> 7.70x,
+# undefined at N=33,377). FLOPPY_TO_BOUND=0.65 is derived through c on the same under-sampled spectra.
+# b is separately censored-low. So the chain floors the requirement; it does not estimate it, and it
+# must never be printed as though it did.
 ANCHOR_N, ASYMPTOTE, FLOPPY_TO_BOUND = 1804.0, 168.0, 0.65
 
 
@@ -135,12 +142,18 @@ if __name__ == "__main__":
         bb, hw = JF[pick]["b"], JF[pick]["bhw"]
         print(f"    b = {bb:+.4f} +/- {hw:.4f}   c = {JF[pick]['c']:+.4f} +/- {JF[pick]['chw']:.4f}   "
               f"R^2 {JF[pick]['r2']:.3f}   n={JF[pick]['n']}   N range {JF[pick]['nrange']:.2f} decades", flush=True)
-        print(f"\n  === WIDTH CHAIN AT THE MEASURED b ===", flush=True)
+        print(f"\n  === WIDTH CHAIN AT THE MEASURED b -- ALL VALUES ARE FLOORS ===", flush=True)
         for nm, v in (("lower CI", bb - hw), ("MEASURED", bb), ("upper CI", bb + hw)):
             sc = (1e6 / ANCHOR_N) ** v
             print(f"    {nm:>9}  b={v:+.4f}  N^b to 1e6 = {sc:>7.2f}  -> "
-                  f"{ASYMPTOTE/FLOPPY_TO_BOUND*sc:>7.0f} dims for a 1e6-atom bound complex", flush=True)
+                  f">= {ASYMPTOTE/FLOPPY_TO_BOUND*sc:>7.0f} dims for a 1e6-atom bound complex "
+                  f"(LOWER BOUND)", flush=True)
         print("    caveats: ns-us regime; variance-weighted (rare states excluded); floppy->bound 0.65", flush=True)
+        print("    AND: the 168 anchor is an IN-SAMPLE rank90 (its modes cover a median 74.7% of", flush=True)
+        print("    held-out variance, not 90%, with the shortfall GROWING with N), while b is", flush=True)
+        print("    censored-low. Two biases, same direction => these are FLOORS, not estimates.", flush=True)
+        print("    DO NOT SIZE DM FROM THEM -- size it from the codec's own held-out FVE-vs-DM", flush=True)
+        print("    saturation curve (armf_atlas_dm.py). See ROADMAP 'WIDTH CHAIN IS A FLOOR'.", flush=True)
         bs = [JF[J]["b"] for J in sorted(JF)]
         if len(bs) >= 2:
             spread = max(bs) - min(bs); typ = float(np.mean([JF[J]["bhw"] for J in JF]))

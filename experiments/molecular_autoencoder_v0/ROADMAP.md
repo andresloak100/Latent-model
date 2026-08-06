@@ -1233,6 +1233,16 @@ first time that has happened in the project, and it is worth naming: the rank90 
 spans zero -- it tracks MOBILITY. That measurement sizes this architecture. DM=256 covers the median
 system; DM=512 covers the observed tail. Hence the sweep DM in {16, 64, 256, 512} at L=1.
 
+> ***AMENDED (INBOX 002): rank90 NO LONGER SIZES THIS ARCHITECTURE.*** 168 is an IN-SAMPLE rank90 and
+> therefore a FLOOR on the median system's true dimensionality; "DM=256 covers the median, DM=512
+> covers the tail" are both **coverage claims read off a lower bound**, so neither is established.
+> The "N-exponent CI spans zero" clause is separately SUPERSEDED (line 1439: b = +0.101 +/- 0.021).
+> The DM grid {16, 64, 256, 512} is KEPT -- but it is now a **probe, not a bracket**: it is no longer
+> claimed to contain the answer from above. `armf_atlas_dm.py` carries the pre-registered extension
+> rule for exactly this: if DM=512 still uses >=50% of its width, the sweep is CENSORED AT ITS OWN
+> TOP, the saturating DM is another floor, and the grid must be extended to 1024 before any width
+> answer is reported.
+
 **Statement of the objective-4 argument in one line:** L=1 x DM=256 is 256 floats per frame for a
 system of ANY size; for a 1M-atom system that is 3e6 coordinates -> 256 numbers (a ~11,700:1
 compression). Always report DM alongside L -- "one latent token" is otherwise read as "one number",
@@ -1310,10 +1320,23 @@ hand -- rank90's mobility-controlled N-exponent CI spans zero, and TICA dimensio
 uncensored. **The physics says intrinsic dimensionality does not grow with atom count, so a
 fixed-width code suffices.** Capacity is therefore already excluded as an explanation.
 
+> ***RETRACTED (INBOX 002). CAPACITY IS NOT EXCLUDED.*** This paragraph is the single most
+> load-bearing inference the width chain ever carried, and both of its premises have failed.
+> (1) "The N-exponent CI spans zero" was **superseded** at line 1439: b = +0.101 +/- 0.021 is
+> clearly positive, and is itself a censored lower bound. (2) The whole argument rests on rank90 as
+> an ESTIMATE of intrinsic dimensionality, and rank90 is a **FLOOR** -- measured in-sample (its own
+> modes explain a median of 74.7% of held-out variance, not 90%, with the shortfall GROWING with N)
+> and censored at large N (32.3% of usable rank at the top).
+> **Consequence: "not capacity" may no longer be asserted a priori for outcome B below.** Capacity
+> returns as a live hypothesis, and it is now tested EMPIRICALLY rather than excluded by argument --
+> it is the "one-token information limit" row of the 004c fan-out, whose distinguishing test is the
+> DM sweep itself (`armf_atlas_dm.py`): if FVE is still rising at DM=512, the limit is information,
+> not addressing. The outcome table below is amended accordingly.
+
 | outcome | observation | localisation | fix |
 |---|---|---|---|
 | **A** | N effect at L=12/24 but NOT at L=1 | slot assignment / routing | addressing mechanism |
-| **B** | N effect at L=1 as well (rank90/TICA flat in N) | **POOLING / BROADCAST PATHWAY** -- encoder aggregating N tokens into a fixed code, or decoder broadcasting one code back to N atoms. **NOT capacity.** | aggregation architecture: hierarchical pooling, deeper cross-attention, relative-position conditioning |
+| **B** | N effect at L=1 as well | **POOLING / BROADCAST PATHWAY** -- encoder aggregating N tokens into a fixed code, or decoder broadcasting one code back to N atoms. ~~NOT capacity.~~ **AMENDED (INBOX 002): capacity is NOT excluded** -- the "rank90/TICA flat in N" premise is retracted above, so B must be SEPARATED from a one-token information limit by the DM sweep (FVE still rising at DM=512 => information-limited, not pooling) before any aggregation redesign is proposed. | first distinguish capacity via the DM sweep; only then aggregation architecture: hierarchical pooling, deeper cross-attention, relative-position conditioning |
 | **C** | no N effect anywhere | arbitrary-L holds, subject to the stated power limit | -- |
 
 The outcome must be labelled A/B/C explicitly in the report. **If B, do not write "capacity limit"**
@@ -2439,3 +2462,36 @@ Report which hypothesis the evidence supports. **Only then** propose a design.
 Bond-changing chemistry and genuine millisecond state generation are **research problems with real
 risk of not working**. They are milestones with uncertainty, **not dates**. Levels 1 and 2 (one-token
 codec, then end-to-end latent dynamics) may carry estimates; those two may not.
+
+### AUDIT SWEEP: 175 rank90-derived claims found; 101 load-bearing (91 after dedup)
+An adversarial audit swept ROADMAP.md, every `outputs/cluster/*.md` writeup, and every
+`scripts/armf_*.py` for claims that size the latent, the model width, or an architectural decision
+from rank90 or from b. Result: **175 claims, 101 load-bearing**, spread across 18 files. The
+inference chain is far wider than the width-chain table.
+
+**The single most consequential one was not a number, it was an exclusion** (ROADMAP ~1310):
+> "The physics says intrinsic dimensionality does not grow with atom count, so a fixed-width code
+> suffices. **Capacity is therefore already excluded as an explanation.**"
+
+Both premises have failed -- the "N-exponent CI spans zero" clause was already superseded by
+b = +0.101 +/- 0.021, and the argument treats rank90 as an ESTIMATE when it is a FLOOR.
+**Capacity is no longer excluded.** It returns as a live hypothesis and is now settled empirically
+(the "one-token information limit" row of the 004c fan-out, whose test is the DM sweep: FVE still
+rising at DM=512 => information-limited). The outcome-B row of the localisation table is amended so
+"NOT capacity" can no longer be asserted a priori.
+
+**Also marked, in live code rather than prose** -- `armf_atlas_b.py` and `armf_b_analyze.py` both
+hold `ASYMPTOTE, FLOPPY_TO_BOUND = 168.0, 0.65` and PRINT "dims for a 1e6-atom bound complex" when
+they run. Those outputs now print `>=` and carry the floor reasoning inline, so a future reader of
+the log cannot mistake a lower bound for an estimate the way the DM=512 sufficiency claim was.
+
+**And the DM grid's own justification** (ROADMAP ~1233, "DM=256 covers the median system; DM=512
+covers the observed tail. Hence the sweep DM in {16,64,256,512}"): both coverage claims are read off
+a lower bound. The grid is KEPT but is now a **probe, not a bracket** -- it is no longer claimed to
+contain the answer from above, which is precisely why `armf_atlas_dm.py` carries the pre-registered
+extension rule to DM=1024.
+
+Remaining load-bearing claims are concentrated in the objective-3 writeups (`armf_intrinsic_dim.md`,
+`armf_window_scaling.md`, `armf_slowness.md`) and the phase-1 scripts, all of which assert some form
+of "dimensionality does not grow with atom count, so a fixed budget covers it." Every one of those
+inherits the same floor and is to be read as a lower bound until re-derived from the codec curve.

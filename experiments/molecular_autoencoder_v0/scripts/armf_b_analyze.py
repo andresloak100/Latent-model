@@ -20,6 +20,9 @@ CAT_BUDGETS = [79, 200, 400, 800, 1600, 2000]   # PRIMARY ladder
 JOINS = [1, 2, 3, 5]; MATCHNF = 400
 BUDGETS = [79, 200, 400]                        # per-replica: ARTIFACT CHECK
 MIS_B, MIS_HW = 0.101, 0.021          # MISATO n=276 at 79 frames (censored)
+# WIDTH-CHAIN CONSTANTS -- EVERYTHING DERIVED FROM THESE IS A FLOOR (INBOX 002). ASYMPTOTE=168 is an
+# IN-SAMPLE rank90; measured out of sample on ATLAS such modes cover a median 74.7% of held-out
+# variance, not 90%, and the shortfall grows with N. b is separately censored-low. Same direction.
 ASYMPTOTE, FLOPPY_TO_BOUND, ANCHOR_N = 168.0, 0.65, 1804.0
 
 rows = {}
@@ -219,7 +222,9 @@ if len(JF) >= 3:
               f"lowest inflation x{JF[pick]['infl']:.3f} among uncensored joins)")
         print(f"    b = {JF[pick]['b']:+.4f} +/- {JF[pick]['hw']:.4f}   [n={JF[pick]['n']}]")
         sc = (1e6 / ANCHOR_N) ** JF[pick]["b"]
-        print(f"    width chain at this b: {ASYMPTOTE/FLOPPY_TO_BOUND*sc:.0f} dims @1e6-atom bound complex")
+        print(f"    width chain at this b: >= {ASYMPTOTE/FLOPPY_TO_BOUND*sc:.0f} dims @1e6-atom bound "
+              f"complex -- A FLOOR (in-sample anchor + censored b). Do not size DM from it; use the\n"
+              f"    codec saturation curve (armf_atlas_dm.py). See ROADMAP 'WIDTH CHAIN IS A FLOOR'.")
     else:
         print("\n  NO JOIN COUNT CLEARS THE 30% RANK LINE -- every option is censored; report as such.")
 
