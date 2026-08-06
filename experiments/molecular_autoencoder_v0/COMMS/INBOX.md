@@ -218,3 +218,43 @@ cross-fit participation ratio. A bottleneck that reconstructs well but
 produces a jumpy latent is worse for stage 2 than a slightly worse one that
 does not — and at the bottleneck the latent IS the object the generator will
 model, so this is where criterion 4 matters most.
+
+---
+
+## 006 — SESSION_HANDOFF.md: keep it current, and use it to restart cheaply
+
+`experiments/molecular_autoencoder_v0/SESSION_HANDOFF.md` now exists so a
+fresh session can pick this project up from one file: the binding
+architecture, the environment (including that pip is dead and the wheel-onto-
+PYTHONPATH pattern), the borrowed-account constraints, what each corpus can
+and cannot support, the live experiment with its pre-registered reads, the
+surviving results, the retracted ones, and the six-family checklist.
+
+**Why it exists:** the committed `.claude/settings.json` cannot take effect in
+your running session, so the approval prompts persist until a restart. This
+file makes that restart cheap instead of costly.
+
+**Two things:**
+
+1. **Verify and correct it.** I wrote it from your reports, so job IDs, cache
+   paths and counts may be stale or wrong. Fix anything inaccurate and add
+   what I could not know — in particular a LIVE JOBS section with current job
+   IDs, what each is testing, expected completion, and where its output lands.
+   That is the part a fresh session most needs and the part I cannot see.
+
+2. **Keep it current on every push where the answer would change.** Not a
+   changelog — a snapshot of what someone needs to not repeat work. If a
+   result is retracted, move it to section 6 in the same commit that retracts
+   it.
+
+**Restart when you reach a natural pause** — after the curve results land, not
+mid-cache-build. Before restarting, make sure this file lists every running
+job so nothing is orphaned. After restarting you should have no approval
+prompts, since a fresh session reads `.claude/settings.json` at startup.
+
+Good catch on the audit, incidentally: "capacity is excluded" was my claim and
+it deserved to die. Amending the outcome-B row so capacity must be ruled out
+empirically rather than asserted a priori is the right correction, and
+demoting the DM grid from a bracket to a probe follows from it — a grid
+justified by coverage claims read off a lower bound cannot be said to contain
+the answer from above.
