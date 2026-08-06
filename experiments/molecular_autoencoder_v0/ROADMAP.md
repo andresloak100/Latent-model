@@ -1977,3 +1977,49 @@ It is a GUARD, not a result. Then: direct instruments (realised effective rank, 
 alongside as an independent ceiling-free read, with signed gap and fraction-positive supporting.
 **What it answers:** whether the model's own -0.143 degradation with N is real or shares the
 baseline's cause -- the objective-1 question, unanswerable on MISATO by construction.
+
+## ATLAS HOSTS BOTH AXES -- the MISATO/mdCATH corpus split is RETIRED
+
+It was a workaround for a bind ATLAS dissolves, and **two of the last three nulls were caused by a
+corpus that could satisfy only one constraint at a time**:
+| | N range | frames | training systems | ceiling |
+|---|---|---|---|---|
+| MISATO (was N-axis) | 37.5x | 80 | 207 | **BROKEN** (baseline degrades with N, CIs exclude 0) |
+| mdCATH (was capacity) | 10.6x | 2,000 | **21** | valid |
+| **ATLAS** | **56.7x** | **10,001** | **1,938** | valid |
+
+### 1. SUBSAMPLE 2,500 FRAMES, NOT 1,000 (stride 4)
+A valid PCA-512 ceiling needs **>=1,707 usable frames** under the 30% rank rule. 2,501 subsampled ->
+~2,000 train -> **DM=512 sits at 512/1999 = 25.6%, edge-but-valid**. At 1,000 frames (800 train) the
+DM=512 ceiling would be **VOID BY CONSTRUCTION** and the capacity null would repeat with better data.
+Storage ~43 -> **~108 GB for 700 proteins**; still storable, still reusable.
+
+### 2. PRE-REGISTERED COLLAPSE TEST -- data-limited or architectural?
+DM=256 and DM=512 collapsed to a constant (G1 cos 1.0000, G4 -0.000) at n=21 training domains.
+**Run DM=256 at n=21 (REPRODUCE the collapse) and at n=700.**
+- **trains at 700, collapses at 21 -> purely DATA-LIMITED**, and the capacity axis is answerable by
+  scaling the corpus.
+- **collapses at BOTH -> ARCHITECTURAL.** A 256/512-wide FiLM code collapsing to a constant is a
+  known failure shape and the fixes differ: latent normalisation, a variance floor on the code, or
+  removing the pooled-FiLM bottleneck.
+**Do NOT skip the n=21 reproduction** -- without it, "we fixed it" cannot be distinguished from "we
+changed two things at once".
+
+### 3. THE PCA-vs-N GUARD IS THE ENTRY CONDITION FOR EVERY ATLAS RUN
+Run it BEFORE reading anything else. Flat -> ceiling sound. Still sloping -> subsample deeper and
+re-check. Report the realised log-N span beside the slope and CI; **under ~1.2 decades the guard has
+not been tested regardless of what it says**, and Family C applies -- a flat slope with wide CIs is
+an UNTESTED ceiling, not a clean one, so state the slope the CI still permits and what that does to
+the downstream N-reading.
+Selection is now **LOG-UNIFORM** across length, deliberately over-weighting both extremes:
+rank-uniform followed the length distribution and clustered at quartiles 108/176/300, starving
+exactly the ends where a slope gets its leverage.
+
+### 4. THE FAIR TEST OF THE THESIS (stated so it cannot drift)
+**Does a shared codec trained on ~700 systems beat per-system PCA fitted on 2,000 WELL-CONDITIONED
+frames?**
+- On MISATO the BASELINE was broken (80 frames, overfits, degrades with N).
+- On mdCATH the MODEL was starved (21 training domains).
+- **ATLAS is the first setting where both sides are sound.**
+**Report fraction-positive and signed gap there as the HEADLINE.** That number is the project's
+central claim and **it has never actually been measured.**
