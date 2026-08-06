@@ -1,4 +1,10 @@
-"""Resolve b (the atom-count exponent of intrinsic dimensionality) at an UNCENSORED frame budget.
+"""DIMENSIONALITY MEASUREMENT -- the replica-join sweep is REQUIRED here, unlike the capacity axis.
+Between-replica structural offsets add apparent variance directions and inflate rank90, so joins must
+be swept. The capacity axis (armf_phase1_dm.py) correctly uses CONCATENATED frames instead: a
+per-frame autoencoder has no time dependence, so multi-replica frames are broader sampling of the
+same ensemble, not discontinuities. Do not propagate the join sweep there.
+
+Resolve b (the atom-count exponent of intrinsic dimensionality) at an UNCENSORED frame budget.
 
 b governs whether latent width must scale with system size, and the width chain turns on it:
 b=0.10 -> ~489 dims for a 1e6-atom bound complex, b=0.14 -> ~622, b=0.20 -> ~914, b=0.30 -> ~1720,

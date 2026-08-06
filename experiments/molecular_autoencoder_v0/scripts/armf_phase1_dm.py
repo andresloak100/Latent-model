@@ -1,4 +1,13 @@
-"""Phase 1: atom-native Perceiver AE, deficit-ratio-vs-N scaling on MISATO. L in {12, 24}.
+"""CAPACITY AXIS -- CONCATENATED FRAMES ARE CORRECT HERE. DO NOT "FIX" THIS TO PER-REPLICA.
+
+Concatenation is an artifact for DIMENSIONALITY measurement: between-replica structural offsets add
+apparent variance directions and inflate rank90, which is why the b experiment (armf_b_exponent.py)
+needs a replica-join sweep. It is NOT an artifact for PER-FRAME AUTOENCODING. This AE encodes single
+frames with no time dependence, so frames drawn from five replicas are simply BROADER SAMPLING of the
+same equilibrium ensemble -- strictly better training data, not discontinuities. Different use,
+different concern: concatenated frames here, join sweep for b.
+
+Phase 1: atom-native Perceiver AE, deficit-ratio-vs-N scaling on MISATO. L in {12, 24}.
 N atom tokens -> L learned latent slots -> N atom outputs, L independent of N.
 
 TASK: displacement from the Kabsch-aligned reference, CENTERED on the per-complex TRAIN-frame mean.
@@ -128,7 +137,9 @@ def ceilings(d, DMS):                                           # PCA-DM (rank-l
     _, _, Vt = np.linalg.svd(tr, full_matrices=False)
     out = {"pca": {}, "anm": {}, "pca_valid": {}}
     for L in DMS:
-        out["pca_valid"][L] = bool(L <= RANKVOID)               # G7: DM must stay under 30% of usable rank
+        out["pca_valid"][L] = bool(L <= 0.30 * (h - 1))         # G7 PER DOMAIN: h varies 1408-2000,
+        out["pca_rankuse"] = out.get("pca_rankuse", {}); out["pca_rankuse"][L] = float(L / max(h - 1, 1))
+        # so a GLOBAL threshold would pass DM=512 everywhere while 10/28 domains exceed 30% of their own rank
         if L <= min(len(Vt), h - 1):
             V = Vt[:L]; out["pca"][L] = 1 - float(((ho - ho @ V.T @ V) ** 2).sum()) / (sst + 1e-12)
         else: out["pca"][L] = float('nan')
@@ -326,6 +337,7 @@ for DM_ in DMS:
                          gap_anm=(ce["pca"][DM_]-v) if np.isfinite(ce["pca"][DM_]) else float('nan'),
                          ratio_anm=((ce["pca"][DM_]-v)/ce["pca"][DM_]) if (np.isfinite(ce["pca"][DM_]) and ce["pca"][DM_] > 1e-6) else float('nan'),
                          gap_anmref=(ce["anm"][DM_]-v) if np.isfinite(ce["anm"][DM_]) else float('nan'),
+                         pca_rankuse=ce["pca_rankuse"][DM_],
                          void=not G[d["bucket"]]["plateau"]))
     allres[DM_] = dict(rows=rows, g8={str(k): v for k, v in G.items()}, steps=sd,
                        takeoff={str(k): v for k, v in tko.items()})

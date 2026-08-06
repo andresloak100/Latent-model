@@ -1725,3 +1725,38 @@ answer would assume what the arm was built to test.
 
 **The remedy in that case is a STRONGER L=1 arm** -- more steps, or DM raised so one token carries
 more capacity -- **not a softer verdict.**
+
+### FAMILY B RUN ON THE NEW PCA-DM CEILING -- DM=512 is edge-to-void, per domain
+
+Measured on the 28 mdCATH domains actually cached (full replica set, T 1,760-2,500, h 1,408-2,000):
+
+| DM | rank usage (median) | worst | domains VOID (>30%) |
+|---|---|---|---|
+| 16 | 1% | 1% | 0/28 |
+| 64 | 3% | 5% | 0/28 |
+| 256 | 13% | 18% | 0/28 |
+| **512** | **26%** | **36%** | **10/28** |
+
+The full replica set does put DM=512 at **26% median -- edge but valid** as expected. But **h varies
+per domain (1,408-2,000)** because replica lengths vary, so **10 of 28 domains exceed 30% of their
+OWN usable rank**. The script's `RANKVOID` was a FIXED `0.30*1999 = 600`, which would have passed
+DM=512 for every domain and hidden all ten. **Rank validity is now computed PER DOMAIN**
+(`DM <= 0.30*(h-1)`), with per-domain rank usage stored and the median/worst/void-count printed for
+every DM arm. DM=256 at 13% is fine either way, as expected.
+
+**Reported BOTH ways, never dropped.** For any DM where some domains are void, the output prints the
+ratio over ALL domains and over the rank-valid subset side by side. Dropping the void set would be
+**Family A** -- void here means short replicas, which means unfolding, which means floppy, so the
+exclusion would correlate with mobility.
+
+### PER-REPLICA DOES NOT APPLY TO THE CAPACITY AXIS -- recorded in BOTH script headers
+
+Concatenation is an artifact **for DIMENSIONALITY measurement**: between-replica structural offsets
+add apparent variance directions and inflate rank90. That is why `armf_b_exponent.py` needs the
+replica-join sweep.
+
+It is **NOT** an artifact **for PER-FRAME AUTOENCODING**. The AE encodes single frames with no time
+dependence, so frames drawn from five replicas are simply BROADER SAMPLING of the same equilibrium
+ensemble -- **strictly better training data, not discontinuities**. `armf_phase1_dm.py` therefore
+keeps concatenated frames, and both headers now carry the cross-reference so neither gets "fixed"
+into the other's convention later. **Different use, different concern.**
