@@ -84,10 +84,16 @@ else:
         print("  OUTCOME A: N effect at L=12/24 but NOT at L=1 -> SLOT ASSIGNMENT / ROUTING.")
         print("    Fix: addressing mechanism. NEXT RUN IS MECHANISTIC, not more systems.")
     elif e1:
-        print("  OUTCOME B: N effect at L=1 as well. rank90 (N-exponent CI spans 0) and TICA (flat, uncensored)")
-        print("    already EXCLUDE capacity -- the physics says a fixed-width code suffices. This localises to the")
-        print("    POOLING/BROADCAST PATHWAY: encoder aggregating N tokens into a fixed code, or decoder")
-        print("    broadcasting one code to N atoms. DO NOT call this a capacity limit.")
+        # INBOX 002: the "NOT capacity" inference below is RETIRED. rank90's CI-spans-0 is SUPERSEDED
+        # (b = +0.101 +/- 0.021, and b >= 0.93 out of sample) and rank90 is an IN-SAMPLE FLOOR, so
+        # capacity must be ruled out EMPIRICALLY by the DM sweep before any pooling/broadcast
+        # redesign is proposed. The old text asserted the opposite and is kept only as a record.
+        print("  OUTCOME B: N effect at L=1 as well.")
+        print("    *** The rank90/TICA basis for EXCLUDING CAPACITY is RETIRED (INBOX 002). Capacity is")
+        print("    a LIVE hypothesis: rule it out with the DM sweep (FVE still rising at DM=512 =>")
+        print("    information-limited) BEFORE localising to the pooling/broadcast pathway. ***")
+        print("    If capacity IS ruled out, this localises to the POOLING/BROADCAST PATHWAY: encoder")
+        print("    aggregating N tokens into a fixed code, or decoder broadcasting one code to N atoms.")
         print("    Fix: aggregation architecture (hierarchical pooling / deeper cross-attention / relative-position")
         print("    conditioning). NEXT RUN IS MECHANISTIC, not more systems.")
     else:

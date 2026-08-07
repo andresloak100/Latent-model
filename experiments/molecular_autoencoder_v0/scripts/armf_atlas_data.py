@@ -108,6 +108,8 @@ def sysdata(store, i):
 
     Two gains, both free -- the cache already held all three replicas and only replica 0 was being
     read. (1) FRAMES PER INTRINSIC DIMENSION triples: at N=33,377 with rank90 ~400 that is 12.5x
+    [INBOX 002: rank90 ~400 is an IN-SAMPLE floor -- out of sample that system needs >2,400 modes or
+     never reaches 90% at all, so this frames-per-dimension figure is an OVERSTATEMENT.]
     instead of 5.0x, which is the actual mechanism behind the ceiling degrading with N (it was never
     '80 frames', it was frames vs rank90, and rank90 GROWS with N at b>=+0.10). (2) The held-out set
     becomes an INDEPENDENT TRAJECTORY rather than the temporally-adjacent tail of the training one --

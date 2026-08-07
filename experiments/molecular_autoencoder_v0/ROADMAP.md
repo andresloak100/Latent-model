@@ -2655,3 +2655,22 @@ Across N = 598-33,377 (1.75 decades), evaluated on 123 UNSEEN systems, the valid
 **SCOPE: n_train=50 only, and absolute FVE is ~0.15 -- low. A flat slope on a weak model is a much
 weaker claim than a flat slope on a strong one, and the ladder must land before this is read as
 "the codec holds flat with N".**
+
+### Q4 DONE: the audit is now marked IN THE FILES, not only here
+A claim corrected centrally but left standing locally is how the Family-F hardcoded baseline
+survived, so the remaining load-bearing rank90 claims are marked where a reader will actually meet
+them. Five writeups carry a **LOWER BOUND banner directly under the title**
+(`armf_intrinsic_dim.md`, `armf_window_scaling.md`, `armf_slowness.md`, `armf_temp_exploration.md`,
+`armf_phase1_abc.md`) giving the out-of-sample numbers, and the individual load-bearing sentences are
+struck through in place. Live code marked at the point of use: `armf_atlas_b.py`,
+`armf_b_analyze.py`, `armf_intrinsic_dim.py`, `armf_phase1_dm.py`, `armf_phase1_analyze.py`,
+`armf_atlas_data.py`.
+
+**Two that mattered more than the rest:**
+- `armf_phase1_analyze.py` PRINTED, at runtime, that rank90 and TICA "already EXCLUDE capacity -- the
+  physics says a fixed-width code suffices. DO NOT call this a capacity limit." That is the retracted
+  inference, in an executable telling a future reader not to consider the hypothesis that is now
+  live. Replaced with an instruction to rule capacity out via the DM sweep FIRST.
+- `armf_slowness.md` claimed the TICA result "licenses sizing DM from rank90/TICA". **The SIZING half
+  is retired; the TIME half stands.** Flat-in-time was never flat-in-N, and TICA-dim vs atom count
+  was never measured until job 10306540 -- the distinction the writeup silently elided.

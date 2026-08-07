@@ -1,5 +1,19 @@
 # Intrinsic dimensionality of MD displacement vs system size -- the N^0.21 reading does NOT survive
 
+> **LOWER BOUND (INBOX 002/011).** Every rank90 on this page is measured IN-SAMPLE, where PCA
+> explains variance optimally by construction. Measured out of sample on ATLAS (fit replicas 0+1,
+> evaluate replica 2, n=123): the in-sample rank90 modes cover a median **77.1%** of held-out
+> variance, not 90% — below 90% in **123/123** systems — and `rank90_out > rank90_in` in **118/118**
+> that reach 90% at all, ratio median **3.49×**. Five never reach 90% at any k and they are the
+> **largest** in the corpus, so there rank90 is *undefined* out of sample. The N-exponent roughly
+> **doubles** out of sample (`+0.4657 ± 0.2158` → `+0.9285 ± 0.2220`, itself biased low by that
+> exclusion, so **b ≥ 0.93**). Read every dimensionality figure below as a **floor**, and every
+> "does not grow with atom count" as **not shown to grow, on an in-sample measure that would hide it**.
+> `n_eff` is 1–7% of frames corpus-wide, so this is not fixable with more data from any available
+> corpus — latent width is now sized from the codec's own held-out saturation curve
+> (`scripts/armf_atlas_dm.py`), not from rank90. See ROADMAP "WIDTH CHAIN IS A FLOOR".
+
+
 ## What prompted this
 The Phase-1 ceiling table showed rank90 (PCA components for 90% of displacement variance) rising
 29 -> 57 while N rose 959 -> 23,895 on MISATO: apparently ~N^0.21, "2x dimensionality for 25x
@@ -47,7 +61,9 @@ LOWER than 3a9lA00 (N=3,173, RMSF 1.35) at 387 -- the larger system is the lower
 
 ## What this does and does not license for objective 1
 **Favourable in MECHANISM, unsupported as a NUMBER.**
-- Favourable: dimensionality does not grow detectably with atom count at fixed dynamical character.
+- ~~Favourable~~ **NOT SHOWN (INBOX 002): 'does not grow detectably' is a null on an IN-SAMPLE
+  measure that would hide the growth. Out of sample the exponent is `b >= 0.93` -- near-linear.**
+  Original text: dimensionality does not grow detectably with atom count at fixed dynamical character.
   A 1e6-atom assembly as rigid as these proteins would not need a latent budget scaled to its atom
   count. This is a better argument for objective 1 than N^0.21 was, because it is causal rather
   than correlational.

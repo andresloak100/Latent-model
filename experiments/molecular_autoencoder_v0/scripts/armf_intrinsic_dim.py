@@ -2,7 +2,10 @@
 
 rank90 (PCA components for 90% of train-frame displacement variance) rose 29 -> 57 as N rose
 959 -> 23,895 on MISATO: sublinear growth, ~N^0.21, i.e. 2x dimensionality for 25x atoms.
-Extrapolated to 1e6 atoms that is rank90 ~125 -- a latent budget in the low hundreds covering a
+SUPERSEDED (INBOX 002/011): this extrapolation uses an IN-SAMPLE rank90, which is a FLOOR -- out of
+sample the exponent is b >= 0.93 (near-linear), so 'a latent budget in the low hundreds' is not
+established. DM is no longer sized from rank90; see scripts/armf_atlas_dm.py.
+Original text: extrapolated to 1e6 atoms that is rank90 ~125 -- a latent budget in the low hundreds covering a
 million atoms. But rank90=57 against a ~79-frame cap is 72% of available rank, so the MISATO
 exponent is CENSORED and is a LOWER BOUND.
 

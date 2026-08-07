@@ -51,7 +51,10 @@ PERB = {b: 99 for b in BUCKETS}      # take every available mdCATH domain (28 lo
 LS = [1]; DMS = [16, 64, 256, 512]; ANM_MAXN = 4000   # L=1 fixed; DM is the CAPACITY AXIS.
 # "One global latent per frame, width independent of atom count." L=1 x DM is a DM-DIMENSIONAL
 # code -- NOT one number. For a 1M-atom system that is 3e6 coordinates -> DM floats per frame.
-# DM range sized by the rank90 asymptote (median 168, range 13-500, mobility-driven not N-driven).
+# DM range WAS sized by the rank90 asymptote (median 168, range 13-500). RETIRED (INBOX 002): that
+# asymptote is an IN-SAMPLE rank90 and therefore a FLOOR, and 'not N-driven' is a null on a measure
+# that would hide the growth -- out of sample b >= 0.93. DM is now sized from the codec's own
+# held-out saturation curve (armf_atlas_dm.py), not from rank90.
 # CEILINGS: ANM-DM is PRIMARY -- structure-predicted, zero-parameter, FRAME-INDEPENDENT so valid at
 # any DM (dense eigh gives all modes at once; affordable to N~6000). PCA-DM is only valid where
 # DM < 30% of usable rank (79 train frames) => DM=16 ONLY; higher DM is marked RANK-VOID, the same
@@ -60,7 +63,9 @@ LS = [1]; DMS = [16, 64, 256, 512]; ANM_MAXN = 4000   # L=1 fixed; DM is the CAP
 # serious problem than slot assignment. Old L=1 comment follows:
 # L=1 is a MECHANISM probe: with one slot there is no
 # slot assignment to learn, so routing is impossible by construction. An N effect at L=1 is NOT a
-# capacity limit -- rank90 (N-exponent CI spans zero) and TICA (flat, uncensored) both say intrinsic
+# capacity limit -- RETIRED (INBOX 002): 'capacity is excluded' rested on rank90's N-exponent CI
+# spanning zero, which is SUPERSEDED (b = +0.101 +/- 0.021, itself censored low; out of sample
+# b >= 0.93). Capacity is a LIVE hypothesis, tested by the DM sweep. Former text: rank90 and TICA say intrinsic
 # dimensionality does not grow with atom count, so the physics says a fixed-width code suffices.
 # It would instead localise to the POOLING/BROADCAST pathway (encoder aggregating N tokens into a
 # fixed code, or decoder broadcasting one code back to N atoms) -- an architectural bottleneck with

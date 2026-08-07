@@ -1,5 +1,19 @@
 # Does intrinsic dimensionality saturate with observation window? (objective 3, measured)
 
+> **LOWER BOUND (INBOX 002/011).** Every rank90 on this page is measured IN-SAMPLE, where PCA
+> explains variance optimally by construction. Measured out of sample on ATLAS (fit replicas 0+1,
+> evaluate replica 2, n=123): the in-sample rank90 modes cover a median **77.1%** of held-out
+> variance, not 90% — below 90% in **123/123** systems — and `rank90_out > rank90_in` in **118/118**
+> that reach 90% at all, ratio median **3.49×**. Five never reach 90% at any k and they are the
+> **largest** in the corpus, so there rank90 is *undefined* out of sample. The N-exponent roughly
+> **doubles** out of sample (`+0.4657 ± 0.2158` → `+0.9285 ± 0.2220`, itself biased low by that
+> exclusion, so **b ≥ 0.93**). Read every dimensionality figure below as a **floor**, and every
+> "does not grow with atom count" as **not shown to grow, on an in-sample measure that would hide it**.
+> `n_eff` is 1–7% of frames corpus-wide, so this is not fixable with more data from any available
+> corpus — latent width is now sized from the codec's own held-out saturation curve
+> (`scripts/armf_atlas_dm.py`), not from rank90. See ROADMAP "WIDTH CHAIN IS A FLOOR".
+
+
 mdCATH, 28 domains, ALL-ATOM, 320K, 5 replicas concatenated (2,500 frames). rank90(T) on a dense
 T grid (50...2400), PCA only, no training. Three models fitted in LINEAR space, selected by AIC:
 saturating A*T/(K+T) | power a*T^c | logarithmic a + b*ln(T).

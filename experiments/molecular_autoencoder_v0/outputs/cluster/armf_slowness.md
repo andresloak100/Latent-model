@@ -1,4 +1,18 @@
 # Slowness-sensitive dimensionality: the ms concern is REAL but it lives in STATE COUNT, not in
+
+> **LOWER BOUND (INBOX 002/011).** Every rank90 on this page is measured IN-SAMPLE, where PCA
+> explains variance optimally by construction. Measured out of sample on ATLAS (fit replicas 0+1,
+> evaluate replica 2, n=123): the in-sample rank90 modes cover a median **77.1%** of held-out
+> variance, not 90% — below 90% in **123/123** systems — and `rank90_out > rank90_in` in **118/118**
+> that reach 90% at all, ratio median **3.49×**. Five never reach 90% at any k and they are the
+> **largest** in the corpus, so there rank90 is *undefined* out of sample. The N-exponent roughly
+> **doubles** out of sample (`+0.4657 ± 0.2158` → `+0.9285 ± 0.2220`, itself biased low by that
+> exclusion, so **b ≥ 0.93**). Read every dimensionality figure below as a **floor**, and every
+> "does not grow with atom count" as **not shown to grow, on an in-sample measure that would hide it**.
+> `n_eff` is 1–7% of frames corpus-wide, so this is not fixable with more data from any available
+> corpus — latent width is now sized from the codec's own held-out saturation curve
+> (`scripts/armf_atlas_dm.py`), not from rank90. See ROADMAP "WIDTH CHAIN IS A FLOOR".
+
 # latent WIDTH (objective 3, closed)
 
 rank90 counts directions carrying >=10% of VARIANCE, so it is blind to rare brief excursions -- the
@@ -52,8 +66,14 @@ cannot distinguish unbounded exploration from a cutoff too tight to detect recur
 UNRESOLVED, not answered.** Any claim that ms coverage grows 2-17x should not be quoted.
 
 Consequence, and it separates two components that were being conflated:
-- **CODEC capacity (latent width DM) is sized by DIMENSIONALITY -> flat -> the ms regime does NOT
-  demand a wider latent.** This is what licenses sizing DM from rank90/TICA, and it survives the
+- ~~**CODEC capacity (latent width DM) is sized by DIMENSIONALITY**~~ **-- THE SIZING HALF IS
+  RETIRED (INBOX 002).** DM is no longer sized from rank90 or TICA-dim at all: rank90 is measured
+  in-sample and is a FLOOR whose N-exponent roughly doubles out of sample (`b >= 0.93`), and no
+  corpus supplies the `n_eff` to fix it. Latent width now comes from the codec's own held-out
+  saturation curve (`scripts/armf_atlas_dm.py`). **The TIME half still stands** -- the ms regime does
+  not demand a wider latent, on the TICA-vs-effective-time measurement below. But *"flat in time"*
+  was never *"flat in N"*: TICA-dim vs ATOM COUNT was not measured until job 10306540 (INBOX 007).
+  Original text: this is what licenses sizing DM from rank90/TICA, and it survives the
   slowness test that rank90 alone could not pass.
 - **PROPAGATOR coverage is sized by STATE COUNT -> UNRESOLVED (censored metric).** The concern is
   neither confirmed nor dismissed. Settling it needs a recurrence-sensitive statistic that does not
