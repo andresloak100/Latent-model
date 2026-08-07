@@ -3079,6 +3079,54 @@ because it is a strong, unexplained, systematic N-dependence sitting inside the 
 unexplained. 26a was built to be decisive from one arm and it was — it just decided against the
 hypothesis it was built to test.
 
+### ⬛⬛⬛ 28b/29b/30: NO PEER WIN AT ANY N — and the tied N-collapse is a SCALE defect, removable zero-shot
+**Reported first, per 30c.** Tied vs zero-shot ANM-256, matched capacity, one pass, same frames,
+123 held-out systems:
+
+| band | n | tied median | **ANM median** | gap | tied > ANM |
+|---|---|---|---|---|---|
+| Q1 | 31 | +0.2956 | **+0.6912** | −0.3702 | **0%** |
+| Q2 | 30 | +0.2622 | **+0.7148** | −0.3657 | **0%** |
+| Q3 | 31 | +0.2030 | **+0.6042** | −0.3518 | **0%** |
+| Q4 | 31 | −0.2791 | **+0.6790** | −0.9424 | **0%** |
+
+**No peer win, at any quartile, on any system.** The tied arm's 2.5–2.7× advantage over the control
+is a ranking *among architectures that all lose to a zero-cost physics baseline*. That is the wording
+the result licenses.
+
+**29b/30b — the tied collapse is MAGNITUDE, not direction, and the joint reading is 30b's first row:**
+
+| | Q1 | Q2 | Q3 | Q4 | `a*` slope vs N |
+|---|---|---|---|---|---|
+| tied `cos²` | +0.3319 | +0.3228 | +0.2270 | **+0.3326** | **−0.4431 ± 0.0587** (CI contains −0.5) |
+| tied raw FVE | +0.2956 | +0.2622 | +0.2030 | **−0.2791** | |
+| control `a*` slope | | | | | −0.0670 ± 0.0632 |
+| untied `a*` slope | | | | | −0.0309 ± 0.0678 |
+
+`cos²` is **flat** (Q1 +0.3319 → Q4 +0.3326) while raw FVE collapses — **+0.6117 of the Q4 loss is
+scale alone.** With `a*` at −0.4431 (CI containing −0.5) and **specific to tied**, this is 30b's row
+one: **pure over-scale, √N, mechanism confirmed.** The `‖B‖_F ~ √N` synthesis hypothesis survives its
+own test — after the analysis-side version of the same story was refuted by 26a.
+
+**30a — the ZERO-SHOT correction, and the oracle bound it is measured against.** `c(N) = √(N_ref/N)`
+with `N_ref = 2460` frozen from the 50 training systems; it uses **nothing from the target**:
+
+| tied | raw FVE | **N-only (REPORTABLE)** | oracle (UPPER BOUND, unachievable) | N-only recovers |
+|---|---|---|---|---|
+| Q1 | +0.2956 | **+0.2965** | +0.3319 | 3% |
+| Q3 | +0.2030 | **+0.2202** | +0.2270 | 72% |
+| **Q4** | **−0.2791** | **+0.2784** | +0.3326 | **91%** |
+
+**The Q4 collapse is removed by a fixed function of N** — −0.2791 → +0.2784 — and tied becomes
+**flat in N at ~+0.22 to +0.30**. The same correction makes control and untied *worse*, which is the
+specificity check: a correction derived from a tied-specific mechanism helps only tied.
+
+**BUT IT DOES NOT CLOSE THE PEER GAP.** Corrected tied is ~+0.25–0.30 against ANM-256 at **+0.60–0.71**.
+Fixing the N-collapse leaves the architecture still losing to a zero-cost baseline at every N.
+
+*(`fve_oracle_rescaled` is named that way at the point of computation, per 30a: `a*` is fitted against
+the held-out target, no model achieves it, and it appears only to bound the reportable column.)*
+
 ### ⬛ CORRECTED (INBOX 28a): the claimed win compared tied's Q1 against the control's ALL-N median
 My sentence *"the tied arm is the first architecture measured that beats the control anywhere"* set
 tied's **Q1** median (+0.2956, 31 smallest) against the control's **overall** median (+0.1009, all

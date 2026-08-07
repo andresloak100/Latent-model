@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 029
+last_acted: 030
 ```
 
 | item | restatement | status | commit |
@@ -50,6 +50,33 @@ last_acted: 029
 | 027 | **27a:** the `FVE⊥` N-slope is the WEAKEST measurement carrying the sharpest sentence — −0.1844 ± 0.1154 at n=24, |effect|/half-width 1.60 against 14.5 for the encoder decay, one arm one seed, and it is being used to OVERTURN a flat aggregate; re-measure at n=123 before it becomes a conclusion (the median/IQR/fraction were never the problem — the slope is). **27b:** `‖z‖/‖disp‖ ~ N^−0.52` and `FVE⊥` falling with N may be ONE finding — my reason for downgrading the encoder decay ("it does not show up in aggregate FVE") runs through the metric 25a just discredited, which is Family D sitting inside the downgrade; test it by regressing `FVE⊥` on `log ‖z‖/‖disp‖` with `log N` controlled, at n=123. **27c:** state the negative result in its strongest honest form — ANM is computable from static structure with no learning, so a codec adding nothing outside its span supplies what a zero-cost function already does — and state in the same breath that this does NOT refute section 7's architecture (global latent + sparse event channel; the measured locality is why the sparse channel exists) nor the premise check (~54 modes, flat across 13× N, a property of the data). **27d:** confirm 14a and 25a are the same arm or caveat the convergence. | ACCEPTED | (this commit) |
 | 028 | **28a:** the first claimed win compared tied's Q1 median against the control's ALL-N median — two sides on different systems, Family F, on the one claim that cannot afford it; report Q1–Q4 for control and untied on the same systems, boundaries and frames, then restate the win as Q1 vs Q1. **28b:** even matched, that is a win over the internal CONTROL, not the peer — tied vs zero-shot ANM is unmeasured at every N; compute both sides in ONE PASS on the SAME FRAMES rather than joining across jobs, and if tied clears ANM on Q1 that is the project's first peer win, otherwise tied is the best of several architectures that all lose to a zero-cost baseline and must be worded as one. **28c:** two learning rates at one seed share an initialisation and are not independent draws — the threshold-free monotone pattern carries the evidence, not the arm count. **28d:** the 24-vs-123 gap means every quantity measured on the 24-system subset carries a representativeness caveat until recomputed, and say which ones. **28e:** "strongest arm" needs the tail in the same sentence — report median, mean and failure fraction together, and record the median choice as pre-registered from here rather than as a discovery. | ACCEPTED | (this commit) |
 | 029 | **29a:** the collapse's arithmetic already names a mechanism — under a pure over-scale by `k`, `FVE = 1 − (k−1)²`, so tied's Q4 median −0.2791 implies k ≈ 2.13 and its worst system −8.045 implies k ≈ 4.01, against `√(N_max/N_Q1) = 4.82` predicted by the `‖B‖_F ~ √N` synthesis hypothesis. **29b:** one closed form separates "wrong magnitude" from "wrong direction" with no retraining — `a* = <r,d>/<r,r>` and **FVE at `a*` is exactly `cos²(r,d)`**, so `cos²` is FVE with all scale error removed and `cos² − FVE` is the scale-attributable portion; report `cos²` by quartile for tied and control on existing checkpoints, state which branch fires, and do NOT propose a fix (26a is the precedent). **29c:** say plainly what changed — "performance collapses as N increases" is a property of the tied pair only; control and untied are flat, so the third clause is SATISFIED for them and their problem is absolute weakness against a zero-shot baseline. **29d:** 28b remains the question that decides the project's state. | ACCEPTED | (this commit) |
+| 030 | **30a:** `cos²` and `a*` are ORACLE quantities — `a*` is fitted against the held-out target, so "FVE after optimal rescaling" must never be reported as performance; label it at the point of computation (`fve_oracle_rescaled`, not `fve_corrected`) and compute the legitimate counterpart in the same pass — **N is an input**, so `c(N) = √(N_ref/N)` with `N_ref` frozen from the training distribution is available ZERO-SHOT, and the three numbers per system are raw FVE, N-only corrected (**reportable**), oracle rescaled (**upper bound**). **30b:** the `a* ~ N^−0.5` exponent is not decisive alone, because `a* = α/(α² + ‖e‖²/‖d‖²)` moves with directional error too — a −0.5 slope is consistent with over-scale OR with direction degrading in N, so read `cos²` and the exponent JOINTLY against the four-cell table, guarding especially against row three where the predicted exponent appears and means something else. **30c:** nothing outranks 10309145; if the two finish close together, report the peer result first. | ACCEPTED | (this commit) |
+
+## Notes on 030
+
+**Read in full BEFORE looking at any number from 10309733**, which had already completed when this
+arrived. 030 says both guardrails are needed before the numbers exist; they existed. Reading the
+results first would have let the guardrails be chosen after seeing what they govern, so the order
+mattered and is recorded.
+
+**30a was a real hole and the counterpart is better than a caveat.** The N-only correction needed no
+re-run: with `u = <r,d>/<d,d>` and `v = <r,r>/<d,d>`, `FVE(c) = 2cu − c²v`, and the stored fields give
+`u = cos²/a*`, `v = cos²/a*²`. Verified against the stored values — `FVE(1)` reproduces raw FVE to
+**2.8e-16** and `FVE(a*)` reproduces `cos²` to **5.6e-17** — so the whole 30a table came out of
+existing artefacts.
+
+**30b's row three did not fire, and it is worth saying why that is informative rather than lucky.**
+`cos²` is flat (Q1 +0.3319 → Q4 +0.3326), so `a*`'s −0.4431 cannot be inheriting a directional decay
+— row one, not row three. Had `cos²` fallen, the same exponent would have meant something else, which
+is 26a's lesson one level up and exactly what 30b was written to catch.
+
+**One thing the four-cell table does not cover, reported as measured:** `a*` at Q1 is **1.489**, i.e.
+the tied arm is *under*-scaled on small systems and over-scaled on large ones, crossing 1.0 around Q2
+(1.056). The mechanism predicts the slope, not the crossing point, and the crossing is why the N-only
+correction recovers only 3% at Q1 while recovering 91% at Q4.
+
+**30c honoured: the peer result leads.** No peer win at any quartile, on 0% of systems — so the
+correction fixes the N-collapse and leaves the architecture still losing to a zero-cost baseline.
 
 ## Notes on 029
 
