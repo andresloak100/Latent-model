@@ -95,9 +95,32 @@ performance collapsing as N increases?*
 | **25a** is it more than collective modes | **NO.** `FVE⊥` median **−0.026**, above zero on **33%** of systems; per-atom median **1.001** where predict-zero is exactly 1.000 |
 | **25a** the N clause | `FVE⊥` vs log10(N) **−0.1844 ± 0.1154, CI excludes zero** — the discriminating metric **degrades with N while aggregate FVE is flat** |
 
-**The honest headline: the codec is a weak collective-mode model that a zero-shot physics baseline
-outperforms, and the aggregate FVE metric has been flattering it throughout.** Per 025 that is
-publishable as such, but it is *not* an answer to the central question.
+**The honest headline, in its strongest form (INBOX 27c): ANM is computable from static structure
+alone — no learning, no training data.** A codec whose output adds nothing outside ANM's span is
+producing something a **zero-cost function of the input structure already supplies**. On this measure
+the latent is not carrying *weak* dynamic information; it is carrying approximately **none**, and the
++0.1553 aggregate is the collective subspace being re-derived.
+
+**Two caveats that belong in the same breath, because a reader who takes the headline as the whole
+finding will draw a conclusion the measurements do not support:**
+
+- **This does not refute section 7's architecture.** 25a tested *the current codec* — attention
+  encoder, L=1, n50 rung. Section 7 is a global latent **plus a sparse event channel plus static
+  conditioning**, and the measured locality (top-1% atom variance 0.61 in 1PU7) is *why* the sparse
+  channel exists. A result showing the global-latent-alone path reproduces only the collective
+  subspace is **consistent with that design's premise**, not a refutation of it. It does raise the
+  bar: the sparse channel now has to carry more than it was scoped for.
+- **This does not touch the premise check.** Deviation dimensionality is ~54 modes and flat across a
+  13× range of N — a property of *the data*, measured independently of any model, and nothing tonight
+  touched it. **The target is still a fixed-size object; what failed is this encoder's ability to
+  reach it.**
+
+**And one caveat on the sharpest sentence itself (27a):** the claim that the discriminating metric
+*degrades with N* rests on `FVE⊥` vs log N = −0.1844 ± 0.1154 at **n=24, one arm, one seed** —
+|effect|/half-width **1.60**, against 14.5 for the encoder-decay slope. The median, IQR and
+33%-above-zero are fine at n=24; **the slope is the underpowered part and it is the part doing the
+work.** Being re-measured at n=123 (job 10308336). Until then it is suggestive, not a conclusion —
+the same discipline 24c imposed on me, applied to a number I find convincing.
 
 **Retracted or refuted tonight:** `b ≥ 0.93` → **`b ∈ [+0.68, +0.83]`**, both cells excluding 0.93
 (841 systems, complete, mobility-controlled); the **√N tied mechanism** (predicted +0.5, measured

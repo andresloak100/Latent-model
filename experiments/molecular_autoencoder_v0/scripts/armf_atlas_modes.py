@@ -48,7 +48,9 @@ WR = D.WR
 RES = f"{WR}/atlas_modes.json"
 NMODE = 30           # modes resolved per system
 NFRAME = 2000        # CONSECUTIVE held-out frames -- IAT is meaningless on a strided sample
-NSYS = 24            # N-stratified held-out systems
+NSYS = 999           # INBOX 27a: ALL held-out systems. The median/IQR/fraction were fine
+                     # at n=24 (a distribution is what 26d asked for); it is the SLOPE that
+                     # was underpowered, and the slope is the part doing the work.
 ANM_K = [6, 16]      # INBOX 25a: matched to the codec's realised rank, and to the ladder
 ANM_CUTOFF = 5.0     # the cutoff selected on TRAINING systems by armf_atlas_peer.py
 dev = D.dev
@@ -122,12 +124,28 @@ def mode_table(mdl, d, k=NMODE, nf=NFRAME, chunk=8):
     # INBOX 25a-2: THE PER-ATOM ERROR DISTRIBUTION, NOT ITS MEAN. A summary model is right on the
     # mobile core and wrong in the tail, and a mean hides exactly that. Each atom's error is
     # normalised by ITS OWN motion amplitude, so a quiet atom is not credited for being quiet.
+    # INBOX 27b: ||z||/||disp|| computed HERE, in the same pass, on the same arm and the same frames.
+    # Joining it from another job would be a different checkpoint (the mediator's control is seed 0
+    # from the modal job; this arm is seed 1 from the sweep) -- Family F, and 27d asked precisely
+    # this question about 14a vs 25a.
+    with torch.no_grad():
+        st2 = torch.tensor(d["stat"], device=dev)
+        zr = []
+        for s0 in range(0, F, chunk):
+            e0 = min(s0 + chunk, F)
+            dw = torch.tensor((ref[s0:e0] / d["scale"]).astype(np.float32), device=dev)
+            zz = mdl.code(st2.unsqueeze(0).expand(e0 - s0, -1, -1), dw)
+            zr.append((zz.reshape(e0 - s0, -1).norm(dim=1)
+                       / (dw.reshape(e0 - s0, -1).norm(dim=1) + 1e-12)).cpu().numpy())
+        z_ratio = float(np.median(np.concatenate(zr)))
+
     ea = np.sqrt(((ref - dec) ** 2).sum(-1).mean(0))         # per-atom RMS error, (N,)
     aa = np.sqrt((ref ** 2).sum(-1).mean(0)) + 1e-12         # per-atom RMS amplitude, (N,)
     rat = ea / aa
     return dict(pdb=d["pdb"], N=d["N"], F=F,
                 rank90_out=rank_at(Y, 0.90), rank99_out=rank_at(Y, 0.99),
                 rank90_data=rank_at(X, 0.90),
+                z_ratio=z_ratio,
                 peratom_med=float(np.median(rat)), peratom_p90=float(np.percentile(rat, 90)),
                 peratom_p99=float(np.percentile(rat, 99)),
                 **orth,
@@ -231,7 +249,9 @@ if __name__ == "__main__":
     # re-run recomputed everything to print different summary statistics. Resume on the 18a stamp so
     # a reporting change costs nothing -- the same reason the coverage analysis was kept
     # reporting-only in 23a.
-    ST = STAMP.stamp(dict(nmode=NMODE, nframe=NFRAME, nsys=NSYS, anm_k=str(ANM_K),
+    # NSYS is deliberately NOT in the stamp: it selects WHICH systems are scored, not how
+    # any system's value is computed, so widening the sample must not discard work already done.
+    ST = STAMP.stamp(dict(nmode=NMODE, nframe=NFRAME, anm_k=str(ANM_K),
                           anm_cutoff=ANM_CUTOFF, arm=f"{b['n_train']}_{b['dm']}_{b['lr']:g}_{b['seed']}"),
                      mode_table, D.Codec)
     prev = []
@@ -354,6 +374,54 @@ if __name__ == "__main__":
         print(f"      ABOVE ZERO on {100*np.mean(v > 0):.0f}% of {len(v)} systems"
               f"   (n>0 = {int((v > 0).sum())})")
         print(f"      vs log10(N): {sl:+.4f} +/- {h:.4f}", flush=True)
+
+    # ---------------- INBOX 27a/27b ----------------
+    print(f"\n=== 27a: POWER OF THE FVE_perp N-SLOPE (it is carrying the sharpest sentence) ===",
+          flush=True)
+    for kk_ in ANM_K:
+        v = np.array([r[f"fve_perp_anm{kk_}"] for r in out if f"fve_perp_anm{kk_}" in r
+                      and np.isfinite(r[f"fve_perp_anm{kk_}"])], float)
+        Nv = np.log10(np.array([r["N"] for r in out if f"fve_perp_anm{kk_}" in r
+                                and np.isfinite(r[f"fve_perp_anm{kk_}"])], float))
+        if len(v) < 6: continue
+        sl, h = regress(Nv, v)
+        print(f"    ANM-{kk_}: slope {sl:+.4f} +/- {h:.4f}  n={len(v)}  "
+              f"|effect|/half-width = {abs(sl)/max(h,1e-9):.2f}  "
+              f"{'EXCLUDES zero' if abs(sl) > h else 'spans zero'}", flush=True)
+    print(f"    (at n=24 this was -0.1844 +/- 0.1154, ratio 1.60 -- one arm, one seed, and it was")
+    print(f"     being used to OVERTURN a flat aggregate. 27a is right that the slope was the")
+    print(f"     underpowered part; the median/IQR/fraction were never the problem.)", flush=True)
+
+    print(f"\n=== 27b: ARE THE ENCODER DECAY AND THE FVE_perp DEGRADATION ONE FINDING? ===", flush=True)
+    print(f"  I recorded ||z||/||disp|| ~ N^-0.52 as 'a measured property, not a diagnosis', because")
+    print(f"  it does not appear in aggregate FVE. But 25a showed aggregate FVE is the FLATTERING")
+    print(f"  metric -- so 'it does not appear in FVE' is exactly what a real effect would look like")
+    print(f"  if FVE could not express it. That is Family D sitting inside my reason for downgrading")
+    print(f"  it. Tested here directly, on the SAME arm and the SAME frames.", flush=True)
+    zr = np.array([r.get("z_ratio", np.nan) for r in out], float)
+    for kk_ in ANM_K:
+        v = np.array([r.get(f"fve_perp_anm{kk_}", np.nan) for r in out], float)
+        Nv = np.log10(np.array([r["N"] for r in out], float))
+        g = np.isfinite(v) & np.isfinite(zr) & (zr > 0)
+        if g.sum() < 12: continue
+        lz = np.log10(zr[g])
+        a1, h1 = regress(lz, v[g])
+        pa, pah, pb, pbh = partial(lz, Nv[g], v[g])
+        print(f"    ANM-{kk_}, n={int(g.sum())}:")
+        print(f"      FVE_perp ~ log(z_ratio)                 {a1:+.4f} +/- {h1:.4f}")
+        print(f"      FVE_perp ~ log(z_ratio) + log(N):  PARTIAL log(z_ratio) {pa:+.4f} +/- {pah:.4f}"
+              f"   partial log(N) {pb:+.4f} +/- {pbh:.4f}", flush=True)
+        if abs(pa) > pah and abs(pb) <= pbh:
+            print(f"      => THE ENCODER DECAY EXPLAINS FVE_perp BEYOND N. They are ONE finding, and")
+            print(f"         the 'unexplained encoder property' becomes a candidate MECHANISM for the")
+            print(f"         central negative result.", flush=True)
+        elif abs(pb) > pbh and abs(pa) <= pah:
+            print(f"      => N explains FVE_perp and the code decay adds nothing once N is held.")
+            print(f"         They are SEPARATE, on evidence rather than on a flat aggregate.",
+                  flush=True)
+        else:
+            print(f"      => neither dominates at this n; report both coefficients, force no reading.",
+                  flush=True)
 
     print(f"\n=== 25a-2: PER-ATOM ERROR, NORMALISED BY EACH ATOM'S OWN AMPLITUDE ===", flush=True)
     pm = np.array([r["peratom_med"] for r in out], float)

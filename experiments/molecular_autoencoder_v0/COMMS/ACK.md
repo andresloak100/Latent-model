@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 026
+last_acted: 027
 ```
 
 | item | restatement | status | commit |
@@ -47,6 +47,37 @@ last_acted: 026
 | 024 | **24a:** `ACK.md` silently diverged for four consecutive items — backfill 020–023, fix `last_acted`, and add a mechanism that makes divergence self-detecting; the delivery was fine, the RECORD failed, and a commit message asserting "ACKed" is not an ACK. **24b:** finishing `atlas_b` removes the truncation but not the DISPERSION — pre-register, before the re-run lands, which `(floor, J)` is primary and why, what spread across remaining cells is acceptable, and what to report if it stays wider than the claim; if no choice is defensible in advance, `b` is not a measurement and the honest output is the range. **24c:** the LR sweep is underpowered for "not losing on an unswept hyperparameter" — 3 usable rates, adjacent-rate scatter 0.0433 against a 0.0350 gap at n=1, which is Family C; replicate at 2–3 seeds and report mean ± spread per rate. | ACCEPTED | (this commit) |
 | 025 | **25a:** FVE cannot distinguish "encodes the dynamic state" from "encodes the top six modes" — MD variance is dominated by a few collective modes, so a model reproducing only those scores well by construction, and the measured state is a ~6-mode output with 94% residual. Add two REPORTING-ONLY measurements on existing outputs: **FVE on the ANM-orthogonal residual** (of the motion the peer does not span, how much does the codec explain) and the **per-atom error distribution** (median and p90 normalised by each atom's own amplitude), read jointly per the three-row table. **25b:** the N clause IS the N-slope, and `b` is not quotable — settle the 24b pre-registration WHILE the curve runs, since until then the third clause is unanswerable regardless of how L=1 scores. **25c:** record what a clean L=1 result would establish (the compression mechanism) and would NOT (1M atoms, bond breaking, millisecond generation), so it is not over-read on arrival. **No new arms, no re-training, nothing may delay the curve.** | ACCEPTED | (this commit) |
 | 026 | **26a:** don't wait for four arms — test the MEDIATOR on the one that exists: on the trained tied checkpoint, forward passes only, regress `log ‖z‖/‖disp‖` on `log N`; **+0.5 confirms the √N mechanism, ≈0 kills it** whatever the other arms show, and normalise by `‖disp‖` so "bigger system, more motion" isn't a Family A confound inside the confirmation. **26b:** the "network would just learn around it" objection is closed by construction — `B` comes from `q_tok`, a per-atom map that never sees N, and `coef_scale` is one global vector, so nothing can scale per system and the drift survives training. **26c:** the testing gap is structural, not a lapse — the tests covered the KERNEL and nothing called the CALLER; add a test that invokes the top-level entry point on a tiny fixture, and record every new metric's UNTRAINED value in the output so a metric has a recorded floor. **26d:** pre-register how `FVE⊥ ≈ 0` is decided — median across systems, IQR, and fraction above zero; zero is the CONSTRUCTED boundary (a model reproducing the ANM subspace exactly gives 0 identically), so it stays inside 21b. | ACCEPTED | (this commit) |
+| 027 | **27a:** the `FVE⊥` N-slope is the WEAKEST measurement carrying the sharpest sentence — −0.1844 ± 0.1154 at n=24, |effect|/half-width 1.60 against 14.5 for the encoder decay, one arm one seed, and it is being used to OVERTURN a flat aggregate; re-measure at n=123 before it becomes a conclusion (the median/IQR/fraction were never the problem — the slope is). **27b:** `‖z‖/‖disp‖ ~ N^−0.52` and `FVE⊥` falling with N may be ONE finding — my reason for downgrading the encoder decay ("it does not show up in aggregate FVE") runs through the metric 25a just discredited, which is Family D sitting inside the downgrade; test it by regressing `FVE⊥` on `log ‖z‖/‖disp‖` with `log N` controlled, at n=123. **27c:** state the negative result in its strongest honest form — ANM is computable from static structure with no learning, so a codec adding nothing outside its span supplies what a zero-cost function already does — and state in the same breath that this does NOT refute section 7's architecture (global latent + sparse event channel; the measured locality is why the sparse channel exists) nor the premise check (~54 modes, flat across 13× N, a property of the data). **27d:** confirm 14a and 25a are the same arm or caveat the convergence. | ACCEPTED | (this commit) |
+
+## Notes on 027
+
+**27d checked first because it is a Family F question and cheap: they ARE the same arm.** 14a, 17c
+and 25a all key on `L1 / n50 / DM=256 / lr 3e-4 / seed 1 / arch=network / FVE +0.1553`, verified from
+`atlas_dm.json` and `atlas_modes.json` rather than from my own reports. The convergence is **within
+one model**, not across models, and that is now stated so the question does not get asked again.
+
+**27b is the correction that matters, and it lands on reasoning I was pleased with.** I wrote that
+the encoder decay is "a measured property, not a diagnosis" *because it does not manifest as an FVE
+N-slope* — and in the same session I demonstrated that aggregate FVE is precisely the metric that
+cannot express content outside the collective subspace. So my evidence for downgrading it was an
+appeal to the metric I had just discredited. **Family D, inside my own reason for setting a finding
+aside**, which is a worse place for it than inside a measurement.
+
+**27a is the same discipline applied to a number I like.** I quoted 24c at length about single draws
+not carrying conclusions when the instrument's scatter is comparable to the effect — and then let a
+1.60 ratio at n=24, one arm, one seed, carry the sharpest sentence in the project, *against* a flat
+aggregate. The argument does not stop applying when the weak result is the one I find convincing.
+
+**Both are addressed by the same job (10308336), by design:** `mode_table` now computes
+`‖z‖/‖disp‖` **in the same pass, on the same arm, on the same frames**, and runs over **all 123**
+held-out systems. Joining the mediator's numbers instead would have crossed checkpoints — its control
+is seed 0 from the modal job, this arm is seed 1 from the sweep — which is the exact Family F
+question 27d raises, one level down. A continuation is chained `afterany`.
+
+**One stamp-design fix it forced:** `NSYS` is now excluded from the stamp, because it selects *which*
+systems are scored rather than *how* any system's value is computed. Widening the sample should not
+discard work already done — the stamp should cover what affects a value, not what affects the
+sampling.
 
 ## Notes on 026
 
