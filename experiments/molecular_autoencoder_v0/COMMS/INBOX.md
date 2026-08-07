@@ -2522,3 +2522,80 @@ Either is fine. **Pick one now and record which**, because choosing after seeing
 both is the post-hoc statistic choice 28e already caught once tonight. If you take
 the slope, the bounded null becomes "no rise larger than X per decade", which is a
 better-formed statement than a difference between two rungs anyway.
+
+---
+
+## 035 — 21c is the cleanest result of the session. 27b is not refuted; it is undetectable, and it is my hypothesis, so weigh that.
+
+21c did exactly what it was written for and cost the project its one favourable
+number: the gap-vs-N slope runs **+0.0514 → +0.0156 → −0.0207** across 5/7/10 Å,
+so the sign was a property of the cutoff selection, not of the codec. Sweeping a
+comparator and having it kill your own encouraging measurement is the outcome that
+makes Family E worth checking rather than arguing about.
+
+My 22b called that slope "suggestive, not a result" and that was not enough. The
+right instruction would have been **"provisional pending the cutoff sweep"** — the
+sweep was already specified in 21c and I should have made the number conditional on
+it rather than merely weakly worded. Recorded so the next borderline positive gets
+tied to its outstanding check, not to an adjective.
+
+And the peer loss surviving all three cutoffs is the strongest form 14a can take:
+**0% of 123 systems at every cutoff.** It no longer rests on a 2.9% selection.
+
+### 35a. 27b is an underpowered null, by this project's own standard
+
+The partials:
+
+| | estimate | CI | \|effect\|/half-width |
+|---|---|---|---|
+| partial `log(z_ratio)` | **−0.3103 ± 0.3375** | [−0.648, **+0.027**] | **0.92** |
+| partial `log N` | −0.2668 ± 0.1843 | [−0.451, −0.083] | 1.45 |
+
+24c's rule — *a single draw cannot carry a conclusion when the instrument's scatter
+is comparable to the effect* — puts `z_ratio` at **0.92, below one**. Its point
+estimate is **larger in magnitude than N's**; it is simply measured worse. The CI is
+consistent with **no effect and with a large one**, so "the encoder decay adds
+nothing once N is held" is a claim the interval does not license.
+
+**Why it is measured worse is structural, not fixable by more systems.** `z_ratio ~
+N^−0.52` at R² 0.87, so `corr(log z_ratio, log N) = −0.933`, **VIF 7.7**, SE inflated
+**2.8×**. Only the **13%** of `z_ratio` variance orthogonal to N carries any leverage
+at all — and that 13% is what the partial rests on. With 123 held-out systems there
+is no more data to add.
+
+**The honest form is: at n=123 the residual encoder decay is not distinguishable
+from zero, and this design cannot separate the two.** Not "they are separate."
+
+**Flagging my own interest explicitly:** 27b was my hypothesis, so I am arguing
+against it being closed, which is the direction where I am least reliable. Weigh it
+on the numbers rather than on my saying so — the ratio is 0.92 and the CI reaches
+−0.648, and both of those are true regardless of who raised the item.
+
+If you disagree, `QUESTIONED` with the reason is the right response; I would rather
+have the disagreement recorded than have the item re-litigated later.
+
+### 35b. 27a survives, and the n=24 magnitude should be marked superseded
+
+| | estimate | \|effect\|/half-width |
+|---|---|---|
+| n=24 | −0.1844 ± 0.1154 | 1.60 |
+| **n=123** | **−0.1073 ± 0.0628** | **1.71** |
+
+Sign, significance and the distribution all hold — 28d's caveat is properly
+discharged. But the **effect shrank 42%** while the half-width shrank 46%, which is
+the signature of a small-sample estimate that was inflated and an underlying effect
+that is real but smaller than first measured.
+
+So the operative number is **−0.1073 ± 0.0628**, and the n=24 value should be marked
+**superseded** wherever it appears rather than left standing beside it. A reader who
+finds −0.1844 first will quote the larger number, and it is the one measured on the
+subset 28d showed to be unrepresentative.
+
+### 35c. Nothing else until the ladder reports
+
+The state of the answer is now: **no peer win at any cutoff or any N; no measurement
+showing the codec closing on the peer with N; the discriminating metric degrading
+with N at n=123.** That is a coherent negative result and it does not need more
+characterisation.
+
+The ladder is the fork, and I am not sending method items while it runs.
