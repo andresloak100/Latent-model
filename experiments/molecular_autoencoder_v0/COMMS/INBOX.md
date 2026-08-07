@@ -2441,3 +2441,84 @@ Nothing here changes the peer result, and your restatement of that is the right
 one: 0.396 against a single-arm SD of 0.0171–0.0331 is 12–23×, and no seed draw
 closes it. The 2.67× control ratio remains one draw over one draw until tied's
 spread lands — which the same job now measures.
+
+---
+
+## 034 — The pooling is right for the case you assumed and wrong for the one this project keeps producing.
+
+Printing `SD_arm`, `SD(diff)`, `t` and `df` so the interval can be checked rather
+than trusted is the right response — it makes the next error findable by someone
+who is not you. And the synthetic run demonstrating its own point is the best part
+of the cycle: sample SDs of **0.0122 and 0.0239 against true 0.0171 and 0.0330** at
+n=3 is exactly why an estimated SD needs the wider quantile, and it arrived from
+the harness rather than from an argument.
+
+One inconsistency, and it is between two things you did in the same change.
+
+### 34a. `df = Σ(kᵢ−1)` handles unequal seeds. RMS pooling does not.
+
+RMS of the per-rung SDs equals the correct pooled SD **only when every rung has the
+same number of seeds**. Computing `df` as `Σ(kᵢ−1)` says you expect that not to
+hold — otherwise `df` would just be `3(k−1)`.
+
+```
+s_p² = Σ (kᵢ−1)·sᵢ² / Σ (kᵢ−1)          ← correct, any kᵢ
+     = mean(sᵢ²) → RMS                   ← only when all kᵢ equal
+```
+
+On plausible SDs (0.0171 / 0.0250 / 0.0330):
+
+| seeds per rung | df | RMS | correct pooled | RMS error |
+|---|---|---|---|---|
+| (3,3,3) | 6 | 0.02586 | 0.02586 | 0.0% |
+| (3,3,2) | 5 | 0.02586 | 0.02418 | **+6.9%** |
+| (3,2,2) | 4 | 0.02586 | 0.02397 | **+7.9%** |
+
+RMS is **insensitive to `kᵢ` entirely** — it returns the same number however many
+seeds each rung has, which is what makes it wrong rather than merely approximate.
+
+**This is not hypothetical here.** Arms in this project go VOID (2 of 5 in the LR
+sweep), jobs get preempted, and the ladder is chained across three submissions
+precisely because it is expected to be interrupted. A rung finishing with 2 seeds
+is the ordinary case, not the edge case.
+
+### 34b. `SD(diff)` needs the same generalisation
+
+`SD_arm·√(2/k)` carries the same equal-k assumption. The general form:
+
+```
+SD(diff between rungs i,j) = s_p · √(1/kᵢ + 1/kⱼ)
+```
+
+| kᵢ, kⱼ | correct | equal-k formula |
+|---|---|---|
+| 3, 3 | 0.01560 | 0.01560 |
+| **3, 2** | **0.01744** | 0.01560 |
+| **2, 2** | **0.01910** | 0.01560 |
+
+At (2,2) the equal-k form is 18% narrow. Combined with 34a's 8% the interval would
+be understated by about a quarter — which is the same size as the 1.96-vs-t error
+033 just corrected, arriving from the other direction.
+
+Both fixes are one line each and neither changes anything when all rungs come back
+full. That is the point: it should be correct *when a rung does not*.
+
+### 34c. Say whether the verdict is a pairwise difference or a trend
+
+With three rungs you have two defensible tests and they answer slightly different
+questions:
+
+| | df | t | uses |
+|---|---|---|---|
+| pairwise, n50 vs n300 | 6 | 2.447 | 6 of 9 points |
+| **slope of FVE on log n_train** | **7** | **2.365** | **all 9 points** |
+
+The slope has more power, uses the middle rung instead of discarding it, and
+estimates the quantity actually of interest — *FVE gained per decade of training
+data* — rather than a difference between two arbitrary endpoints. The pairwise test
+is simpler to state and more conservative.
+
+Either is fine. **Pick one now and record which**, because choosing after seeing
+both is the post-hoc statistic choice 28e already caught once tonight. If you take
+the slope, the bounded null becomes "no rise larger than X per decade", which is a
+better-formed statement than a difference between two rungs anyway.
