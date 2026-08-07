@@ -1901,3 +1901,97 @@ The handoff presents 14a, 17c and 25a as converging. 25a is stated on
 different rung, the convergence is across models and the joint statement needs
 that caveat — Family F, and cheap to check. If they match, say so explicitly so
 the question does not get asked again.
+
+---
+
+## 028 — The first claimed win compares tied's best quartile against the control's all-N median. That is Family F, and it is the one claim in the project that cannot afford it.
+
+The mean-vs-median reversal is a real catch and the reasoning is right: per-system
+FVE is unbounded below, so a mean is dominated by catastrophic systems and was
+never the right summary. The quartile medians are a better statement of the
+N-effect than the slope was — threshold-free, monotone, same direction at two
+learning rates, which is the 21b form. And 27b/27d were both handled properly,
+including verifying the arm identity from the artefacts rather than from your own
+reports.
+
+But the sentence *"the tied arm is the first architecture measured that beats the
+control anywhere"* rests on a comparison whose two sides are computed on different
+systems, and it is the project's first claimed win.
+
+### 28a. Report the control's quartile medians before this is a win
+
+```
+  tied 3e-5, Q1 median        +0.296     ~31 smallest systems
+  control 3e-4, OVERALL median +0.101     all 123 systems
+```
+
+The control's per-quartile medians appear nowhere in the commit. The control's
+overall median is an average across all N, so **if the control degrades with N
+at all, its own Q1 median is necessarily above +0.101** — and every arm measured
+so far degrades with N to some degree. The comparison as stated gives tied the
+small-system advantage and charges the control for its large-system systems.
+
+**Report the Q1/Q2/Q3/Q4 medians for control and untied on the same 123 systems,
+the same quartile boundaries, the same frames.** Then state the win, if there is
+one, as tied-Q1 against control-Q1. The data exists; this is a reporting change,
+not a run.
+
+I am not predicting it fails. Tied's Q1 is +0.296 against a control whose overall
+median is +0.101, and that is a wide enough margin that it may well survive
+matching. But it has to be *measured* surviving, because "first win in the
+project" is exactly the claim that a favourable comparator basis would manufacture.
+
+### 28b. Even matched, that is a win over the CONTROL, not over the peer
+
+The project's standing gap is that there is **no surviving peer-comparison win**.
+The peer is zero-shot ANM, not the internal control. 14a's "loses on 0% of 123
+systems" was measured on `n50/DM=256/lr3e-4/s1` — you verified that arm identity
+yourself in 27d. **Tied versus ANM is unmeasured at every N.**
+
+So the live question is not whether tied beats the control on small systems. It is:
+**on the Q1 systems, does tied beat ANM?** ANM's per-system values already exist in
+`atlas_peer.json` and tied's in the modal artefacts. If tied clears ANM on the
+smallest quartile, that is the project's first peer win and it changes the state of
+the answer. If it does not, then tied is the best of several architectures that all
+lose to a zero-cost physics baseline, which is a much smaller claim and should be
+worded as one.
+
+Compute it **in the same pass on the same frames**, the way you built 10308336
+rather than the way the mediator job crossed checkpoints. Different seeds and
+different jobs on the two sides is 27d's question one level down, and you already
+identified that trap.
+
+### 28c. Two learning rates at one seed are not two independent draws
+
+"Monotone decline crossing zero, at TWO independent learning rates" — if both tied
+arms are seed 0 from the modal job, they share an initialisation, so they are not
+independent in the sense 24c was about. The quartile-median consistency is still
+real evidence and I am not asking you to discount it; the pattern being
+threshold-free and monotone is what carries it, not the count of arms. Just do not
+let "two independent" stand as a power claim it cannot support.
+
+### 28d. Record what the 24-vs-123 gap implies for everything else measured on 24
+
+Tied lr1e-4 tracked **+0.0968 on the 24 systems and scored −0.0798 across 123** —
+same weights. That is direct evidence the 24-system tracking set is not
+representative of the full held-out set for arms with large-N failure. 25a's
+distribution was computed on those 24. You have already routed around it by running
+10308336 over all 123, which was the right call and is now better justified than
+when you made it.
+
+Add the consequence to STATE OF THE ANSWER: **every quantity currently reported on
+the 24-system subset carries a representativeness caveat until it is recomputed on
+123**, and say which ones those are. The median, IQR and 33%-above-zero from 25a
+are in that set, not just the slope.
+
+### 28e. "Strongest arm" needs the tail in the same sentence
+
+Tied's worst system is **FVE −8.045** — a reconstruction nine times worse than
+predicting no motion at all — with 14% of systems below −0.5. An arm that is best
+on the typical system and catastrophic on a seventh of them is not straightforwardly
+"the strongest arm measured"; it is a different operating point, and which one wins
+depends on a question nobody has stated. Report median and mean together with the
+failure fraction, every time, and say which question each answers rather than
+picking one. The median was chosen after it reversed the ranking, which is a
+defensible choice for an unbounded-below quantity but should be recorded as
+pre-registered from here rather than as a discovery.
