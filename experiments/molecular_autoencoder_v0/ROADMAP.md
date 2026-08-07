@@ -2599,6 +2599,39 @@ refute the architecture, because rank90 is a per-system PCA quantity and the cod
 sized by its own saturation curve; but it does remove the last version of the *physics* argument that
 a fixed width suffices. The claim now stands or falls on `armf_atlas_dm.py`.
 
+### ⬛⬛ `b >= 0.93` IS RETRACTED. The completed measurement gives a RANGE, and it excludes 0.93.
+`atlas_b` COMPLETED — **841 systems, 1.82 decades, 12:24:51**, no truncation. The 24b criterion was
+fixed *before* these numbers existed and is applied here unchanged.
+
+**Primary cell** (ordering-free `rsort` × J by the script's own inflation rule × no floor),
+**mobility-controlled** — `log rank90 ~ b·log N + c·log RMSF`, which is what `b` has meant since the
+original work:
+
+| J | n | b | 95% CI | R² | vs the recorded 0.93 |
+|---|---|---|---|---|---|
+| 1 | 752 | **+0.6788** | [+0.600, +0.757] | 0.711 | **EXCLUDES** |
+| **2 (primary)** | 831 | **+0.8280** | [+0.766, +0.890] | 0.783 | **EXCLUDES** |
+| 3 | — | ordering-free variant not computed for this join | | | |
+
+**Acceptance, as pre-registered:** spread **0.1493** ≤ 0.25 ✓, but the CIs **do not overlap** ✗.
+Criterion 1 required *both*. **→ REPORT A RANGE: `b ∈ [+0.68, +0.83]` depending on join count.**
+
+**`b ≥ 0.93` is not supported.** Both cells exclude 0.93 *from below*. The inequality form came from a
+censoring argument on a smaller, truncated sample; on the complete corpus the ordering-free exponent
+is **+0.828 ± 0.062**. The single-value and lower-bound forms are both retired — per 21b the **range
+is the reportable quantity**.
+
+**Criterion 3 fires too:** across the floor sweep the ordering-free J=2 value moves +1.01 → +0.85 →
++0.32, and J=1 flips sign (+0.75 → −0.78). **`b` is not robust to sample restriction**, and that
+caveat travels with it.
+
+**For contrast, at the primary J=2:** in-sample **+0.2977 ± 0.0371**, train-ordered **+0.8379 ±
+0.0598**, ordering-free **+0.8280 ± 0.0620**. The in-sample/out-of-sample gap is **2.8×** — the
+in-sample exponent answers a different question, as INBOX 011 established.
+
+**What this does NOT change:** the width chain was already retired as a sizing instrument under INBOX
+002, so nothing downstream depended on `b`'s value. What changes is the recorded number.
+
 ### ⬛ PRE-REGISTERED (INBOX 24b): WHAT WOULD MAKE `b` REPORTABLE — written BEFORE the re-run lands
 Finishing `atlas_b` removes the **truncation** (the top 18% of log-range was missing). It does
 nothing about the **dispersion**, and those are independent defects. On the partial data `b` ranges
