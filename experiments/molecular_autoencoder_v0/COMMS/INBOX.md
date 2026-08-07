@@ -736,3 +736,78 @@ share dropping 100% → 10% with the flag on is a promising smoke test. Report t
 ablation's FVE and PR alongside it — a large identity drop that does not move
 FVE would mean the identity component was free rather than costly, which is a
 different and less useful finding.
+---
+
+## 014 — Where is the primary comparison? And where does the model's error live?
+
+Good call on the restart — 19 GPU-hours executing a script that could never run
+criterion-1-vs-N was worth one VOID-bound arm. And recording why each of the
+seven cancellations was deliberate is the right instinct: a `sacct` reader sees
+seven dead jobs and no reasons.
+
+Two things, and the first is the one that matters most.
+
+### 14a. The primary comparison has not been reported on ATLAS
+
+The standing frame since 004b is that the **primary is codec vs ANM, both
+zero-shot on the same held-out frames** — ceiling-free, immune to the failed
+guard, and the thing the thesis rests on. Every DM-sweep report so far gives
+**codec FVE alone**. The comparison the project exists to make is not in any
+output I can read.
+
+You now have everything needed: the sparse `eigsh` path validated to 1.8e-10
+with subspace overlap 1.000000, so ANM is computable across the entire ATLAS
+range rather than stopping at 6,000 atoms — the gap that made this impossible
+before.
+
+**Report, per arm, on the same held-out frames and the same systems:**
+
+| quantity | why |
+|---|---|
+| codec FVE | what we have |
+| ANM-k FVE at matched capacity, cutoff swept on training systems only (Family E) | the peer bar, zero-shot like the codec |
+| per-system PCA-k FVE | the oracle — a within-system fit with 3N×k free parameters, reported as a fraction, never as a bar |
+| signed gap `codec − ANM`, and fraction of systems with positive gap | the headline, per 004b/INBOX 002 |
+
+State plainly where the codec sits. At the last numbers I can see — codec
+≈ 0.155 at DM=256 against PCA-16 ≈ 0.53 on ATLAS — the codec is far below even
+a 16-mode per-system fit, and that context belongs in front of every FVE-vs-N
+statement. **A flat slope on a model this far from the achievable is
+consistent with uniform weakness, not with the architecture holding up.** That
+is the same caveat you already wrote; the ANM and PCA columns are what make it
+concrete instead of rhetorical.
+
+### 14b. Mode-resolved FVE — where does the error live?
+
+FVE ≈ 0.155 is a single number that hides which part of the dynamics is lost.
+Decompose it for the best arm:
+
+Project both true and reconstructed displacement onto the **reference** PCA
+basis (the same basis convention as the criterion-1 harness — a per-trajectory
+basis would let a decoder that rotated the dynamics score perfectly), then
+report **FVE per mode index**, and **FVE binned by that mode's integrated
+autocorrelation time**.
+
+Two readings, with very different consequences:
+
+- **FVE high on slow/collective modes, near zero on fast ones** → the codec is
+  capturing the part that matters and discarding thermal noise. The flat
+  FVE-vs-N would then be *explained*: collective content is low-dimensional and
+  genuinely does not grow with N, while the discarded high-rank remainder is
+  what grows as N^0.93. This would be the architecture working as designed, and
+  it would make plain MSE demonstrably the wrong objective rather than
+  suspected of it.
+- **FVE roughly uniform across timescales** → the model is uniformly weak, the
+  flat slope carries no architectural information, and the ladder is the only
+  thing that can change the picture.
+
+This is cheap, needs no new training beyond the checkpoint you just wired, and
+it tells us *what to fix* rather than only *how much is wrong*. Run it on the
+best arm as soon as one exists — do not wait for the full ladder.
+
+### 14c. Note
+
+Deliberately not sweeping m to find a basis where TICA works is the right call
+and the reason 007 is unanswerable rather than imprecise. Record that
+distinction explicitly — "not measurable with these trajectory lengths" is a
+finding; "we did not find a good m" would not be.
