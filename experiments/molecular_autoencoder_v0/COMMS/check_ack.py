@@ -20,7 +20,12 @@ Exit code 1 blocks the push.
 """
 import os, re, sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+# realpath, NOT abspath: as a pre-push hook this file is reached through the symlink
+# .git/hooks/pre-push, and abspath would resolve HERE to .git/hooks -- where INBOX.md and
+# ACK.md do not exist. The first hook invocation failed exactly that way. It failed CLOSED
+# (blocking the push) rather than open, which is the right direction for a guard to break in,
+# but a guard that always fails is a guard that gets removed.
+HERE = os.path.dirname(os.path.realpath(__file__))
 INBOX = os.path.join(HERE, "INBOX.md")
 ACK = os.path.join(HERE, "ACK.md")
 

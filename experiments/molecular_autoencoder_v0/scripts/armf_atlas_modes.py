@@ -49,6 +49,8 @@ RES = f"{WR}/atlas_modes.json"
 NMODE = 30           # modes resolved per system
 NFRAME = 2000        # CONSECUTIVE held-out frames -- IAT is meaningless on a strided sample
 NSYS = 24            # N-stratified held-out systems
+ANM_K = [6, 16]      # INBOX 25a: matched to the codec's realised rank, and to the ladder
+ANM_CUTOFF = 5.0     # the cutoff selected on TRAINING systems by armf_atlas_peer.py
 dev = D.dev
 
 
@@ -91,9 +93,41 @@ def mode_table(mdl, d, k=NMODE, nf=NFRAME, chunk=8):
         if t <= 0: return 0
         return int(np.searchsorted(np.cumsum(w) / t, frac) + 1)
 
+    # INBOX 25a-1: FVE ON THE ANM-ORTHOGONAL RESIDUAL -- the direct test of whether the codec is
+    # more than a collective-mode model. MD displacement variance is dominated by a few slow
+    # collective modes, so aggregate FVE cannot separate "encodes the dynamic state" from "encodes
+    # the top six modes": a model reproducing only those scores well BY CONSTRUCTION. 14b's
+    # mode-resolved FVE says where the captured variance sits; it does not say whether the codec
+    # captures anything THE PEER DOES NOT.
+    #   FVE_perp = 1 - (||E||^2 - ||E V||^2) / (sst - ||ho V||^2),  E = true - decoded
+    # No (F, 3N) residual is ever formed -- only the two projected norms.
+    orth = {}
+    try:
+        from armf_anm import modes as anm_modes
+        E = X - Y
+        e2 = float((E ** 2).sum()); h2 = float((X ** 2).sum())
+        for kk_ in ANM_K:
+            V, _, _ = anm_modes(d["ref"], kk_, ANM_CUTOFF)
+            if V is None: continue
+            num = e2 - float(((E @ V) ** 2).sum())
+            den = h2 - float(((X @ V) ** 2).sum())
+            orth[f"fve_perp_anm{kk_}"] = float(1.0 - num / (den + 1e-12)) if den > 1e-9 else float("nan")
+            orth[f"anm{kk_}_share"] = float(1.0 - den / (h2 + 1e-12))
+    except Exception as e:
+        orth["orth_err"] = f"{type(e).__name__}: {e}"
+
+    # INBOX 25a-2: THE PER-ATOM ERROR DISTRIBUTION, NOT ITS MEAN. A summary model is right on the
+    # mobile core and wrong in the tail, and a mean hides exactly that. Each atom's error is
+    # normalised by ITS OWN motion amplitude, so a quiet atom is not credited for being quiet.
+    ea = np.sqrt(((ref - dec) ** 2).sum(-1).mean(0))         # per-atom RMS error, (N,)
+    aa = np.sqrt((ref ** 2).sum(-1).mean(0)) + 1e-12         # per-atom RMS amplitude, (N,)
+    rat = ea / aa
     return dict(pdb=d["pdb"], N=d["N"], F=F,
                 rank90_out=rank_at(Y, 0.90), rank99_out=rank_at(Y, 0.99),
                 rank90_data=rank_at(X, 0.90),
+                peratom_med=float(np.median(rat)), peratom_p90=float(np.percentile(rat, 90)),
+                peratom_p99=float(np.percentile(rat, 99)),
+                **orth,
                 fve=[float(v) for v in fve],
                 # INBOX 16b: report the residual AGAINST THE PREDICT-ZERO BASELINE explicitly.
                 # Under MSE a capacity-limited model will optimally PUSH error into low-variance
@@ -270,6 +304,54 @@ if __name__ == "__main__":
         print(f"       number; no single hypothesis is selected.", flush=True)
     print(f"    (the DATA needs {np.median(rdat):.0f} directions on these frames, so the reconstruction "
           f"spans {100*np.median(r90)/max(np.median(rdat), 1):.0f}% of what the motion does)", flush=True)
+
+    # ---------------- INBOX 25a REPORT ----------------
+    print(f"\n=== 25a-1: IS THE CODEC MORE THAN A COLLECTIVE-MODE MODEL? ===", flush=True)
+    print(f"  FVE on the ANM-ORTHOGONAL RESIDUAL: of the motion the zero-shot peer does NOT span,")
+    print(f"  how much does the codec explain? Aggregate FVE cannot answer this -- a model that")
+    print(f"  reproduces only the top collective modes scores well on it by construction.", flush=True)
+    for kk_ in ANM_K:
+        v = np.array([r[f"fve_perp_anm{kk_}"] for r in out if f"fve_perp_anm{kk_}" in r
+                      and np.isfinite(r[f"fve_perp_anm{kk_}"])], float)
+        sh = np.array([r[f"anm{kk_}_share"] for r in out if f"anm{kk_}_share" in r], float)
+        if not len(v): 
+            print(f"    ANM-{kk_}: not computed"); continue
+        Nv = np.log10(np.array([r["N"] for r in out if f"fve_perp_anm{kk_}" in r
+                                and np.isfinite(r[f"fve_perp_anm{kk_}"])], float))
+        sl, h = regress(Nv, v)
+        print(f"    ANM-{kk_} spans {100*np.median(sh):.0f}% of the motion; on the REMAINDER the codec")
+        print(f"      FVE_perp median {np.median(v):+.4f}  mean {v.mean():+.4f}  "
+              f"[{v.min():+.3f}, {v.max():+.3f}]  positive on {100*np.mean(v > 0):.0f}% of systems")
+        print(f"      vs log10(N): {sl:+.4f} +/- {h:.4f}", flush=True)
+
+    print(f"\n=== 25a-2: PER-ATOM ERROR, NORMALISED BY EACH ATOM'S OWN AMPLITUDE ===", flush=True)
+    pm = np.array([r["peratom_med"] for r in out], float)
+    p9 = np.array([r["peratom_p90"] for r in out], float)
+    p99 = np.array([r["peratom_p99"] for r in out], float)
+    print(f"  median atom   {np.median(pm):.3f}   p90 atom {np.median(p9):.3f}   "
+          f"p99 atom {np.median(p99):.3f}   (1.0 = error equals the atom's own motion)")
+    print(f"  tail width p90/median: {np.median(p9/pm):.2f}x -- a mean would have hidden this",
+          flush=True)
+
+    print(f"\n=== 25a JOINT READING (pre-registered in INBOX 025) ===", flush=True)
+    k0 = ANM_K[0]
+    vv = np.array([r.get(f"fve_perp_anm{k0}", np.nan) for r in out], float)
+    vv = vv[np.isfinite(vv)]
+    wide = float(np.median(p9 / pm)) > 1.5
+    if len(vv) and abs(np.median(vv)) < 0.05:
+        print(f"  FVE_perp ~ 0 with a {'wide' if wide else 'narrow'} per-atom tail =>")
+        print(f"  COLLECTIVE-MODE MODEL. Real, and publishable as such -- but it is NOT an answer to")
+        print(f"  'can one token encode the dynamic state', and the honest headline changes.",
+              flush=True)
+    elif len(vv) and np.median(vv) > 0:
+        print(f"  FVE_perp > 0 (median {np.median(vv):+.4f}) => the latent carries content the peer")
+        print(f"  does NOT span. Whether it is width-limited is the DM axis: rising with DM and a")
+        print(f"  narrowing tail is the result that would validate the foundation; flat in DM means")
+        print(f"  it captures something beyond ANM but the DM axis is answering the wrong question.",
+              flush=True)
+    else:
+        print(f"  FVE_perp negative (median {np.median(vv) if len(vv) else float('nan'):+.4f}): the")
+        print(f"  codec ADDS error on the ANM-orthogonal part. Report as such.", flush=True)
 
     print(f"\n=== FVE BY MODE INDEX (median across {len(out)} systems) ===", flush=True)
     print(f"  'err vs zero' is per-mode SSE divided by the SSE of PREDICTING ZERO (INBOX 16b): above")

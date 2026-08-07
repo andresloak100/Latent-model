@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 024
+last_acted: 025
 ```
 
 | item | restatement | status | commit |
@@ -45,6 +45,30 @@ last_acted: 024
 | 022 | **22a:** the nonlocality escalation has THREE rungs — rung 1 `ctx_layers ∈ {2,4}` with the receptive field REPORTED in Å rather than assumed; rung 2 (only if rung 1 stalls) Laplacian eigenvector positional encoding, nonlocal by construction, with the GNM overlap stated plainly rather than hidden; rung 3 is to report that a learned structure→basis map does not reach a physics-derived one at matched rank, and NOT to drift into optimising ANM variants. LR swept at every rung, each reported against the same 17c decomposition. **22b:** the positive gap slope is the right ceiling-free metric AND it is weak — CI ≈ [0.005, 0.098]; report it as suggestive with its range, because a barely-significant positive is not more trustworthy than a barely-significant null just because it is the answer we want. **22c:** every FVE-vs-N statement carries 19% of oracle / 0% of systems / 65% basis quality. | ACCEPTED | `0fb6a80b` |
 | 023 | **23a:** absolute reach is the wrong axis — report structure diameter (stating which definition), `reach/diameter`, and basis quality at matched rank, then regress basis quality on `reach/diameter`, NOT on N. **23b:** that converts the ctx sweep from a hyperparameter search into a MECHANISM TEST with three distinct readings. **23c:** expect rung 1 to stall at low coverage — spanning 120 Å at 2.6 Å/hop needs ~46 layers — so a stall there is STRUCTURAL and the informative quantity is the CROSSOVER. **23d:** record the rank/quality decoupling as a finding in its own right. | ACCEPTED | `8e9adb36` |
 | 024 | **24a:** `ACK.md` silently diverged for four consecutive items — backfill 020–023, fix `last_acted`, and add a mechanism that makes divergence self-detecting; the delivery was fine, the RECORD failed, and a commit message asserting "ACKed" is not an ACK. **24b:** finishing `atlas_b` removes the truncation but not the DISPERSION — pre-register, before the re-run lands, which `(floor, J)` is primary and why, what spread across remaining cells is acceptable, and what to report if it stays wider than the claim; if no choice is defensible in advance, `b` is not a measurement and the honest output is the range. **24c:** the LR sweep is underpowered for "not losing on an unswept hyperparameter" — 3 usable rates, adjacent-rate scatter 0.0433 against a 0.0350 gap at n=1, which is Family C; replicate at 2–3 seeds and report mean ± spread per rate. | ACCEPTED | (this commit) |
+| 025 | **25a:** FVE cannot distinguish "encodes the dynamic state" from "encodes the top six modes" — MD variance is dominated by a few collective modes, so a model reproducing only those scores well by construction, and the measured state is a ~6-mode output with 94% residual. Add two REPORTING-ONLY measurements on existing outputs: **FVE on the ANM-orthogonal residual** (of the motion the peer does not span, how much does the codec explain) and the **per-atom error distribution** (median and p90 normalised by each atom's own amplitude), read jointly per the three-row table. **25b:** the N clause IS the N-slope, and `b` is not quotable — settle the 24b pre-registration WHILE the curve runs, since until then the third clause is unanswerable regardless of how L=1 scores. **25c:** record what a clean L=1 result would establish (the compression mechanism) and would NOT (1M atoms, bond breaking, millisecond generation), so it is not over-read on arrival. **No new arms, no re-training, nothing may delay the curve.** | ACCEPTED | (this commit) |
+
+## Notes on 025
+
+**25a is implemented as reporting-only, and the constraint was easy to honour because the algebra
+avoids the expensive path.** `FVE⊥` has a closed form that never materialises a residual:
+`1 − (‖E‖² − ‖EV‖²)/(sst − ‖hoV‖²)` with `E = true − decoded`. Validated against a dense
+projection-matrix computation — agreement to **1.1e-16**, not approximately. So it costs one extra
+ANM solve per system at k ∈ {6,16} and two matmuls, on a job that already decodes those systems.
+
+**On "nothing may delay the curve":** a new submission does not slow jobs that are already RUNNING —
+SLURM allocates it separately — so the four in flight are untouched. I gave it a **1-hour** limit
+anyway so it backfills into a gap rather than competing for a full allocation.
+
+**25b was already pre-registered under 24b before this arrived**, which I mention only because it
+means the second reason 25b gives lands on a decision that was already fixed rather than one chosen
+after seeing the argument. The primary cell is the ordering-free variant × the script's own
+inflation-based J rule × no floor, with the acceptance criterion written down.
+
+**On 25c I would add one line to the "would not establish" list:** a clean L=1 result also would not
+establish that the latent is **propagatable**. Criterion 4 measures that separately (τ_lat, step size,
+AR(1) φ), and a code can reconstruct well while jumping discontinuously between consecutive frames —
+which is exactly the failure that would make it useless to stage 2 while looking fine on every metric
+in the central question.
 
 ## Notes on 024
 

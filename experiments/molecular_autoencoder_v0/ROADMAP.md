@@ -2913,6 +2913,39 @@ result. The exponent moves **13×** across the *m* values tried; picking the one
 result is picking the result. The two statements license opposite next actions — one closes the
 question, the other reopens it as a search — and the writeups say which one this is.
 
+### ⬛ THE CENTRAL QUESTION, AND WHAT A CLEAN L=1 RESULT WOULD *NOT* ESTABLISH (INBOX 025)
+> **Can one fixed-width global latent token encode the dynamic state of an unseen molecular system
+> well enough to reconstruct its atom-level motion, without performance collapsing as N increases?**
+
+Three clauses. **Unseen systems** is properly instrumented (criterion 2: 123 held-out systems,
+598–33,377 atoms). **Width** is pre-registered with the right guard (PR flat while FVE rises =
+saturation; PR rising with FVE = capability-limited, not a width answer). The other two need care:
+
+**"Encode the dynamic state" cannot be read off FVE.** MD displacement variance is dominated by a few
+slow collective modes, so a model reproducing *only those* scores well on aggregate FVE **by
+construction** — and the measured state is a **~6-mode effective output with 94% residual**. The
+discriminating measurement is **FVE on the ANM-orthogonal residual**: of the motion the zero-shot peer
+does *not* span, how much does the codec explain? Plus the **per-atom error tail** (p90/median,
+normalised per atom), because a summary model is right on the mobile core and wrong in the tail and a
+mean hides that. Both are reporting-only, on outputs that already exist.
+
+**"Without collapsing as N increases" IS the N-slope, and `b` is not currently quotable** — it spans
+−0.83 to +1.05 across analysis choices, with a sign flip driven by the sample floor alone *within a
+single variant*. Until the 24b pre-registration is settled the third clause is unanswerable
+**regardless of how the L=1 arm scores**, which is why it is being settled while the curve runs.
+
+**WHAT A CLEAN L=1 RESULT WOULD ESTABLISH:** the **compression mechanism** — that a fixed-width global
+latent carries transferable dynamic state across unseen systems without an N-collapse.
+
+**WHAT IT WOULD NOT ESTABLISH, recorded now so the result is not over-read on arrival:**
+- **not 1M atoms** — measured to ~33k, and §6.2 names two hard caps above that;
+- **not bond breaking** — topology is an input (§6.4);
+- **not millisecond generation** — no propagator exists; whether the latent is *modellable* is
+  criterion 4 and is a separate measurement.
+
+Those remain downstream. What a clean result would do is make them **worth attempting**, which
+nothing so far has.
+
 > **STANDING CONTEXT (INBOX 22c) — carry all three in front of ANY statement about flatness in N:**
 > **the codec sits at 19% of a per-system oracle, loses to the zero-shot peer on 0% of systems, and
 > 65% of that gap is basis quality.** A flat slope on a model this far from achievable is consistent
