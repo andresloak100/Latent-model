@@ -50,7 +50,7 @@ PRE-REGISTERED READ (recorded before results exist)
 SCOPE LIMIT, stated before the result: this is measured on ATLAS single chains, N 598-33,377, 100 ns,
 apo. It licenses a width statement for THAT regime. It does NOT license the 1e6-atom extrapolation
 the width chain used to provide -- that extrapolation is dropped, not transferred."""
-import sys, os, json, time, numpy as np, torch, torch.nn as nn, warnings
+import sys, os, re, json, time, numpy as np, torch, torch.nn as nn, warnings
 warnings.filterwarnings("ignore")
 from scipy import stats
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -472,6 +472,24 @@ if __name__ == "__main__":
             return None
 
     for n in NT:
+        # INBOX 20a: RE-READ THE LADDER FROM DISK AT THE TOP OF EVERY RUNG.
+        # A watched stop is not a stop. The failure this prevents: a long-running job holds the
+        # NTRAIN captured at import, so editing the file does nothing to the process already running,
+        # and the ladder it was told to stop climbing gets climbed anyway -- unattended, overnight,
+        # on a borrowed account. Reading the source at each rung boundary makes the hold effective on
+        # a RUNNING job, which fixes the class rather than this instance.
+        try:
+            _src = open(os.path.abspath(__file__)).read()
+            _m = re.search(r"^NTRAIN = (\[[0-9, ]*\])", _src, re.M)
+            _live = eval(_m.group(1)) if _m else NTRAIN
+            if n not in _live:
+                print(f"\n  *** LADDER HOLD (INBOX 20a): n_train={n} is no longer in NTRAIN on disk "
+                      f"({_live}). Stopping before this rung rather than continuing on the value "
+                      f"captured at start. ***", flush=True)
+                break
+        except Exception as e:
+            print(f"  (ladder re-read failed: {type(e).__name__}; continuing on the captured "
+                  f"NTRAIN {NTRAIN})", flush=True)
         TR = [x for x in (sysdata(store, have[p]) for p in tr_ids[:n]) if x is not None]
         print(f"\n=== n_train={n} ({len(TR)} loaded) -- L={L_PRIMARY} IS THE DESIGN POINT ===", flush=True)
         for dm in DMS:

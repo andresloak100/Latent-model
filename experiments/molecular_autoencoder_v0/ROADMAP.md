@@ -3005,6 +3005,27 @@ Measured on the best available arm, 24 N-stratified held-out systems, 2,000 cons
 is **2.5× below the latent's own effective rank** (14.9) — the code carries roughly fifteen usable
 dimensions of conformational variance and the decoder converts about six of them into output modes.
 
+> **INBOX 20b — THE LABEL DEPENDS ON A THRESHOLD; THE RATIOS DO NOT. QUOTE THE RATIOS.**
+> Running `verdict_sensitivity()` over this claim (the first time it was pointed at a *surviving*
+> result rather than a suspected one) shows the **"decoder-limited" LABEL flips**: it holds for any
+> threshold above **0.40·PR** and fails below it, because the measured ratio *is* 0.40. So the label
+> is only defined together with its constant and must never be cited without it.
+> **The underlying ratios carry no free constant and are the form to quote:**
+>
+> | ratio | value | |
+> |---|---|---|
+> | realised rank90 / **latent PR** | **0.40** | 6 of 14.9 directions |
+> | realised rank90 / **DATA rank90** | **0.039** | 6 of 152 directions |
+>
+> The data-rank ratio is the stronger of the two **and does not involve PR at all**, so the substance
+> of 16a does not rest on the threshold that flips. *(One qualification in the other direction: the
+> audit also lists `rank99` as flipping, but `0.6·PR` was calibrated for the rank90 convention, so
+> that row is a mis-specified comparison rather than a genuine free choice and is not evidence
+> against the claim.)*
+> **This also corrects my own earlier statement** that 16a "survives its own free choices" — that was
+> true across 0.75×–1.5× on one metric, and is not true across 0.5×–2×. The narrower test was the one
+> I happened to run.
+
 **This selects 016's first reading: the binding constraint is the DECODER'S FUNCTION CLASS — not
 capacity, not data, not DM.** It is not the latent (the latent already holds more than the decoder
 emits) and not the width (DM=256 against six realised directions). Consequences, per 016d: further DM

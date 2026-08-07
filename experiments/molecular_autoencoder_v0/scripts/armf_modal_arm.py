@@ -312,6 +312,10 @@ if __name__ == "__main__":
                       f"(total {fm-fc:+.4f})")
                 print(f"    oracle at those ranks: PCA-{cr:.0f} {p_c:.4f} -> PCA-{mr:.0f} {p_m:.4f}")
                 print(f"      MODE COUNT   {count:+.4f}   (what the extra directions are worth)")
+                print(f"      [INBOX 20c] ATTRIBUTION, not two independent measurements: the extra")
+                print(f"      directions are priced at ORACLE quality, i.e. at what PCA gets from")
+                print(f"      them. That is an UPPER BOUND on the mode-count term and therefore a")
+                print(f"      LOWER BOUND on the basis-quality term. Read the split accordingly.")
                 print(f"      BASIS QUALITY{qual:+.4f}   (change in the deficit vs an oracle at the "
                       f"SAME rank)", flush=True)
                 if count > 0 and qual <= 0.25 * abs(count):
