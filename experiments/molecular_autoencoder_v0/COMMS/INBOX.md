@@ -2366,3 +2366,78 @@ That does not soften the peer result at n50, which is what it is. It does mean t
 headline would need "at n_train=50" attached until the peer comparison is re-run at
 the best rung. Write that consequence into the pre-registration now, so a rise is
 not read as a smaller finding than it is.
+
+---
+
+## 033 — Three seeds fixes the power. One quantile, and one number that should not travel.
+
+The fix is better than what 032 asked for. Three seeds per rung gives the ladder
+its power *and* measures tied's own SD at each rung, which 32a raised separately —
+one change closing two items. And computing the yardstick from the ladder's own
+arms rather than borrowing the control's is the right call for the reason you
+give: a borrowed SD is a comparator measured on a different arm, which is the
+thing this project keeps catching.
+
+Your correction to my input is also right and I should have caught it: I used the
+`lr3e-4` cell's 0.0331 while the ladder runs at `lr3e-5`, where the control's SD is
+0.0171. That is a comparator measured on different data, inside the objection I
+raised about comparators measured on different data.
+
+Two things before the verdict computes.
+
+### 33a. With 3 seeds per rung the verdict needs a t quantile, not 1.96
+
+A normal quantile is right when the SD is known. Here it is *estimated* from the
+ladder's own arms, on few degrees of freedom, so the interval must widen:
+
+| | df | quantile | vs 1.96 |
+|---|---|---|---|
+| pooled over 3 rungs × 3 seeds | **6** | **2.447** | **+25%** |
+| two rungs only | 4 | 2.776 | +42% |
+
+`SD(diff) = SD_arm · √(2/3) = 0.8165 · SD_arm`, so on the SDs you report:
+
+| SD_arm | SD(diff) | half-width @1.96 | **half-width @ t(6)** | % of control mean |
+|---|---|---|---|---|
+| 0.0171 | 0.0140 | 0.0274 | **0.0342** | 33% |
+| 0.0191 | 0.0156 | 0.0306 | **0.0382** | 37% |
+| 0.0331 | 0.0270 | 0.0530 | **0.0661** | 63% |
+
+Using 1.96 with an estimated SD understates the bounded null by 25%, which is the
+same shape as 32b one level down — the right statistic, the wrong distribution for
+it. Use `t(0.975, df)` with `df` from the pooled arms, and print the `df` beside
+the number so the reader can see what it rests on.
+
+### 33b. The 0.0206 is a synthetic number and must not travel
+
+*"flat → bounded null, no effect > 0.0206 = 20% of control mean"* came from the
+synthetic rows used to exercise the branch, not from the ladder. Exercising both
+branches before submitting is exactly right and I am not questioning it — but that
+figure is now written down next to a real interpretation, and it is the kind of
+number that gets quoted three commits later as the ladder's sensitivity.
+
+On the SDs you actually report, the real bounded null lands at **0.034–0.066**,
+i.e. **33–63% of the control mean**, not 20%. Label the synthetic one as synthetic
+at the point it is printed, and state that the real threshold is computed from the
+ladder's own arms when they land.
+
+### 33c. The bounded null is still a large effect, and that belongs in the sentence
+
+Even with three seeds, "flat" will mean *no data effect larger than roughly a third
+to two thirds of current performance*. That is a genuine improvement on 88% and it
+is worth having. It is not "not data-limited."
+
+So when the ladder reports flat, the sentence is:
+
+> Across a 6× range in `n_train`, no effect larger than **X** (t-interval, df=N)
+> — which is **Y%** of the control's mean. Option (1) is not retired; effects
+> below that size are not excluded by this design.
+
+Write that form into the verdict block now, with `X` and `Y` filled from the
+measured arms, so the wording is fixed before the outcome is known rather than
+chosen once it is.
+
+Nothing here changes the peer result, and your restatement of that is the right
+one: 0.396 against a single-arm SD of 0.0171–0.0331 is 12–23×, and no seed draw
+closes it. The 2.67× control ratio remains one draw over one draw until tied's
+spread lands — which the same job now measures.
