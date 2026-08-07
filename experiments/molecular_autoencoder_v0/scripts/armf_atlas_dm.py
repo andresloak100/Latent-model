@@ -86,6 +86,17 @@ L_DIAG = [12, 24]
 # data-limited, not width-limited.
 NTRAIN = [50, 130, 300, 600]
 FRAMES_PER_STEP = 8; MAXSTEPS = 30000; EVAL_EVERY = 2500; PATIENCE = 4; COMPETENCE = 0.05
+# LR WARMUP. Widening the LR floor to 3e-5 to rescue DM=512 immediately created a SECOND defect: at
+# 3e-5 the arms hit MAXSTEPS still improving and are flagged VOID, so the grid extension bought
+# nothing at the width it was meant to rescue -- a Family D hole opened by the Family E repair.
+# The cheap fix is not 4x the step budget (2+ hours per wide arm) but WARMUP, which addresses the
+# actual collapse mechanism: large early updates destabilising a wide FiLM decoder before the latent
+# has any structure. With warmup a wide arm can train at an LR that would otherwise collapse it, so
+# the grid does not have to reach as low.
+WARMUP = 1000
+# Low-LR arms also get a proportionally longer budget, square-root scaled and capped so one arm
+# cannot eat the whole job.
+def maxsteps_for(lr): return int(min(90000, MAXSTEPS * max(1.0, (1e-3 / lr) ** 0.5)))
 NHO_TRACK = 24                      # held-out SYSTEMS used for the plateau signal
 np.random.seed(0); torch.manual_seed(0)
 dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -292,8 +303,10 @@ def identity_offset(mdl, systems, nf=16):
 def train(tr, HOt, dm, lr, tag, L, dlat=None, sub_z0=False):
     mdl = Codec(tr[0]["stat"].shape[1], L, dm, dlat=dlat, sub_z0=sub_z0).to(dev)
     opt = torch.optim.Adam(mdl.parameters(), lr); hist = []; t0 = time.time()
-    used = MAXSTEPS; stopped = "maxsteps"
-    for st in range(1, MAXSTEPS + 1):
+    MS = maxsteps_for(lr)
+    used = MS; stopped = "maxsteps"
+    for st in range(1, MS + 1):
+        for g_ in opt.param_groups: g_["lr"] = lr * min(1.0, st / WARMUP)   # linear warmup
         d = tr[np.random.randint(len(tr))]
         idx = np.random.randint(0, 2 * d["F"], FRAMES_PER_STEP)
         S = torch.tensor(d["stat"], device=dev).unsqueeze(0).expand(FRAMES_PER_STEP, -1, -1)

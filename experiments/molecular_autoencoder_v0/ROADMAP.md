@@ -2756,3 +2756,21 @@ describes something other than what it names, so nothing looks wrong:
   capacity limit" -- so a future reader would have been instructed, by a running program, not to
   consider the hypothesis that is now live. **A claim corrected centrally but left standing locally
   is not corrected.** That is the argument for Q4 marking claims where the reader meets them.
+
+### THE FAMILY-E REPAIR OPENED A FAMILY-D HOLE, AND THE FLAG CAUGHT IT
+Widening the LR floor to 3e-5 to rescue DM=512 was correct in direction and incomplete in execution:
+the very first 3e-5 arm came back **`STILL IMPROVING -> VOID`** at MAXSTEPS=30,000. A grid extension
+whose new arms cannot converge buys nothing **at exactly the width it was meant to rescue** -- so
+DM=512 would still have had no valid arm, and the top of the sweep would still be unmeasured. The
+VOID flag (control 3) is what made this visible rather than silently producing a flat curve.
+
+**Fix is WARMUP, not brute force.** Quadrupling the step budget costs 2+ hours per wide arm.
+1,000-step linear warmup addresses the actual collapse mechanism -- large early updates
+destabilising a wide FiLM decoder before the latent has any structure -- so a wide arm can train at
+an LR that would otherwise collapse it and the grid does not have to reach as low. A square-root,
+capped step-budget scale is applied on top (3e-5 and 1e-4 get 90,000 steps; 3e-4 gets 54,772; 1e-3
+and above keep 30,000), so low-LR arms are not judged on a budget built for high-LR ones.
+
+Not applied to the running job (10306611), which is 40 minutes into the full ladder and producing
+valid arms at the good LRs; it takes effect on the next re-run, and its VOID arms remain correctly
+flagged rather than quietly counted.
