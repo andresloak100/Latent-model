@@ -2977,6 +2977,31 @@ more trustworthy than a barely-significant null because it is the answer we want
 **DM=512 has no matched peer column** (ladder capped at k=256 on ANM cost) and this is printed, not
 silent. It does not hide the winner: DM=512's best is +0.1427, below DM=256's +0.1553.
 
+### ⚠ PROVISIONAL (one arm, one seed): the TIED arm's N-slope is 10× every other arm
+Procedure-matched, same job, same seed, same data:
+
+| variant | lr 3e-5 / 1e-4 / 3e-4 | N-slope |
+|---|---|---|
+| control | +0.1318 / +0.1250 / +0.1346 | −0.0303 / −0.0240 / −0.0383 (± ~0.06) |
+| untied | +0.0996 / +0.0563 / +0.0974 | −0.0070 / +0.0022 / −0.0156 (± ~0.05) |
+| **tied** | **+0.0607** (3e-5 only so far) | **−0.6539 ± 0.2480** |
+
+**A mechanism is visible in the code, and it is specific enough to be checkable.** The tied encoder is
+`z = einsum('bnic,bni->bc', B, disp) · coef_scale / N^0.5`. The `1/√N` normalises a sum with *random*
+signs — but collective modes are **coherent**, so the analysis sum grows like *N*, leaving a residual
+`√N` drift in the code magnitude. Across ATLAS's 56× range that is 7.5×, and the decoder is **linear
+in z**, so it cannot absorb it. This predicts a negative N-slope in the **tied variant only** — and the
+untied variant, which encodes by attention, shows none of it.
+
+**NOT ACTED ON, and 24c is the reason.** One arm, one seed. A single draw cannot carry a conclusion
+when the instrument's own scatter is comparable to the effect — and that applies to a *mechanism
+story* at least as much as to a null, because a good explanation makes a noise result harder to
+discard. If the remaining four tied arms all show a large negative slope it is structural; if only
+this one does, it is noise wearing a plausible explanation.
+
+**Confirmed in a trained model, not merely at init:** tied identity share 13% with `‖z0‖/‖z‖`
+**exactly 0%**. The architectural guarantee that identity cannot occupy the code survives training.
+
 ### ⬛ REALISED RANK AND BASIS QUALITY ARE SEPARABLE (INBOX 23d) — a finding in its own right
 Holding across the **whole LR sweep** of the modal `untied` arms, against a procedure-matched control
 trained in the same job:
