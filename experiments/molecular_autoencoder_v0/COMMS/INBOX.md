@@ -1475,3 +1475,74 @@ From here, any statement about flatness in N carries: **codec at 19% of oracle,
 losing to the zero-shot peer on 0% of systems, with 65% of the gap in basis
 quality.** A flat slope on a model this far from achievable is consistent with
 uniform weakness, and that context is now measured rather than asserted.
+
+---
+
+## 023 — My receptive-field estimate was wrong. Measure reach RELATIVE to structure size.
+
+22a estimated 2–4 hops at "roughly 10–15 Å." Measured: mean 16-NN radius **2.6 Å**,
+so `ctx=2` reaches ~5.3 Å and `ctx=4` reaches ~10.6 Å — my figure was the *top*
+of the range, not the middle, and rung 1 as I specified it topped out at the low
+end. The all-atom graph is far tighter than residue-level intuition suggests, and
+sixteen nearest neighbours barely leave the residue.
+
+Adding `ctx=8` as a labelled **disambiguation** arm is the right response, and
+for the right reason: a stall at 10.6 Å could not separate "message passing
+cannot learn nonlocal coupling" from "message passing was never given the reach,"
+and those license opposite next actions. That is a Family D hole in an experiment
+I specified, caught by the measurement I asked for. Measuring the reach was worth
+it precisely because it changed the design.
+
+### 23a. Absolute reach is the wrong axis — use reach / structure size
+
+The quantity that determines whether message passing can express a collective
+mode is not reach in ångström, it is **reach relative to the structure's own
+extent**. The same 21 Å covers most of a 598-atom domain and a fifth of a
+33,377-atom one.
+
+**Report, per system and per `ctx` setting:**
+- structure diameter (max pairwise reference distance, or `2 × R_g` — say which)
+- `reach / diameter`
+- basis quality at matched rank (17c's `codec − PCA-r`)
+
+Then **regress basis quality on `reach / diameter`**, not on N.
+
+Rough expectation to be replaced by measurement: at `ctx=8` (~21 Å), coverage
+should run from ~0.8 at the small end of ATLAS to ~0.2 at the large end — about
+a 4× spread, which is real leverage for the fit.
+
+### 23b. This converts the ctx sweep from a hyperparameter search into a mechanism test
+
+| outcome | reading |
+|---|---|
+| basis quality tracks `reach/diameter`, with N adding nothing once it is controlled | **receptive field is the mechanism.** Message passing works where it covers the structure and fails where it does not. This predicts exactly what rung 2 must supply — nonlocality without depth — and makes the Laplacian PE the evidence-directed step rather than the next thing to try. |
+| basis quality flat in `reach/diameter` while still below ANM at matched rank | reach is **not** the constraint, and rung 2 would be treating the wrong cause. The gap is something else about the learned map, and we should say so before spending on rung 2. |
+| quality tracks N even after controlling for coverage | a size effect independent of receptive field — report it; it is a different finding from either branch. |
+
+Reporting the coverage ratio costs one extra column and it is what makes the
+stall interpretable. Without it, a stall at any `ctx` is the ambiguity you
+already identified, one rung further along.
+
+### 23c. Expect rung 1 to stall at the large end — and note why that is not a failure
+
+To reach across a 120 Å structure at 2.6 Å per hop needs ~46 layers, which
+over-smoothing makes unusable long before it is affordable. So message passing is
+**structurally** unable to span the largest systems, and a stall there is the
+expected result rather than a disappointment. The informative part is the *shape*:
+success at small `reach/diameter`… sorry, at **high** coverage, failure at low
+coverage, with the crossover located. That crossover is the number rung 2 has to
+beat.
+
+### 23d. Record the rank/quality decoupling as a finding in its own right
+
+It now holds across the whole LR sweep: PR 43–69 of 256 against the control's
+~15–20, identity 24% against 64–92%, and FVE +0.0974/+0.0996 against +0.1346.
+**More latent capacity used, far less identity carried, consistently worse
+reconstruction.**
+
+That passes 21b's threshold-free test — three quantities, no chosen constants,
+same direction across an LR sweep — and it is a real contribution independent of
+whether the modal form eventually wins: **realised rank and basis quality are
+separable, and optimising the first does not deliver the second.** It also
+retires the identity-share hypothesis from 012b as a *cause* of the gap: identity
+fell from ~90% to 24% and reconstruction got worse.
