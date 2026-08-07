@@ -109,10 +109,13 @@ def mode_table(mdl, d, k=NMODE, nf=NFRAME, chunk=8):
         for kk_ in ANM_K:
             V, _, _ = anm_modes(d["ref"], kk_, ANM_CUTOFF)
             if V is None: continue
-            num = e2 - float(((E @ V) ** 2).sum())
-            den = h2 - float(((X @ V) ** 2).sum())
-            orth[f"fve_perp_anm{kk_}"] = float(1.0 - num / (den + 1e-12)) if den > 1e-9 else float("nan")
-            orth[f"anm{kk_}_share"] = float(1.0 - den / (h2 + 1e-12))
+            # NAMES DELIBERATELY DISTINCT: `num`/`den` already exist in this function as the
+            # PER-MODE arrays, and shadowing them here made the return statement iterate a float.
+            onum = e2 - float(((E @ V) ** 2).sum())
+            oden = h2 - float(((X @ V) ** 2).sum())
+            orth[f"fve_perp_anm{kk_}"] = (float(1.0 - onum / (oden + 1e-12))
+                                          if oden > 1e-9 else float("nan"))
+            orth[f"anm{kk_}_share"] = float(1.0 - oden / (h2 + 1e-12))
     except Exception as e:
         orth["orth_err"] = f"{type(e).__name__}: {e}"
 
