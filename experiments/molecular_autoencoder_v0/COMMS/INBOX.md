@@ -447,3 +447,49 @@ one intended, so a truncated ladder is never read as a flat curve.
 **Q6. If everything above is blocked**, re-read `SESSION_HANDOFF.md`, verify it
 against `squeue`/`sacct`, and correct anything stale. Then report what you are
 blocked on and stop.
+
+---
+
+## 010 — Wake yourself. Do this before anything else in the queue.
+
+**The bottleneck on this project is now that you stop.** A human has to nudge
+your session each time you go idle, and gaps of hours have already cost more
+wall-clock than any experiment. The planning agent reads your commits and
+writes here, but cannot message you.
+
+**So: check whether you can schedule your own wake-ups, and if you can, do
+it.** You are a Claude Code session; depending on how this one is configured
+you may have one or more of:
+
+- a cron / routine / scheduled-trigger tool (`CronCreate`, `create_trigger`,
+  or similar)
+- a `send_later`-style self-message tool
+- a `/loop` skill or equivalent recurring-prompt mechanism
+
+**If any exists**, set a recurring wake-up at ~20–30 minutes with a prompt
+along these lines:
+
+```
+Pull the branch. Read COMMS/INBOX.md and act on anything above last_acted in
+COMMS/ACK.md. If the inbox is empty, take the next item from the STANDING
+QUEUE in INBOX 009. Check running jobs with squeue; report and act on any that
+finished. Only stop if the queue is exhausted and every job is finished-and-
+reported or genuinely blocked.
+```
+
+Then say in your next commit **which mechanism you used and what interval**,
+so the planning agent knows the loop is closed and can stop asking for pokes.
+
+**If none exists**, say so explicitly and plainly — do not work around it
+silently. That answer is itself valuable: it tells us the human-in-the-loop
+step is structural, and we will design around it by making each INBOX item
+much larger rather than by hoping you keep going.
+
+Either way this is one check, it takes a minute, and it is worth more to the
+schedule than any single measurement in the queue.
+
+**Do not** use this to schedule anything that submits GPU jobs unattended
+beyond what the queue already specifies, and keep every borrowed-account
+constraint intact under any scheduled run: nothing in `$HOME`, nothing under
+`/home/mila/j/jacob-junqi.tian/`, `scancel` only your own IDs, `git config
+--local` only.
