@@ -2880,6 +2880,62 @@ result. The exponent moves **13×** across the *m* values tried; picking the one
 result is picking the result. The two statements license opposite next actions — one closes the
 question, the other reopens it as a search — and the writeups say which one this is.
 
+### ⬛ 14a RESULT (job 10307401, n=123 held-out): THE CODEC LOSES TO THE ZERO-SHOT PEER, EVERYWHERE
+The comparison the project exists to make, finally in an output. **ANM computable on 123/123 systems
+across all three N terciles — no Family A exclusion.** Cutoff 5 Å, swept on TRAINING systems only.
+
+| n_train | DM=k | codec | ANM-k | codec−ANM | frac codec>ANM | PCA-k oracle | % of oracle |
+|---|---|---|---|---|---|---|---|
+| 50 | 16 | 0.1185 | 0.4032 | **−0.2847** | **0%** | 0.5274 | 22% |
+| 50 | 64 | 0.1068 | 0.5460 | **−0.4393** | **0%** | 0.6929 | 15% |
+| 50 | 256 | **0.1553** | 0.6720 | **−0.5168** | **0%** | 0.8242 | **19%** |
+
+**The codec loses to ANM at every width, on 0% of systems, at matched capacity.** Best arm reaches
+**19%** of a per-system PCA oracle. Per 004b this is *not fatal* — ANM has no generator and cannot be
+the product — but it belongs in front of every FVE-vs-N statement, and **a flat slope on a model this
+far from the achievable is consistent with uniform weakness.**
+
+**ONE THING RUNS THE OTHER WAY, and it is the ceiling-free metric.** The codec−ANM *gap* shares a
+denominator with its comparator, so an N-dependent ceiling cancels. At DM=256 that gap is
+**+0.0514 ± 0.0464 per decade** (5 of 7 arms flagged as moving) — **positive**, meaning the codec
+*closes* on ANM as systems get larger. Small against a −0.52 gap (≈ +0.09 over the 1.75-decade range),
+but it is the opposite sign from what the failed guard implied, and it is the right metric to watch.
+
+**DM=512 has no matched peer column** (ladder capped at k=256 on ANM cost) and this is printed, not
+silent. It does not hide the winner: DM=512's best is +0.1427, below DM=256's +0.1553.
+
+### ⬛ 17c: THE GAP IS 65% BASIS QUALITY, 35% MODE COUNT — SO 015 ADDRESSES THE SMALLER HALF
+At matched rank **r = 6** (the codec's own realised rank, read from `atlas_modes.json`), same systems:
+
+| quantity | FVE |
+|---|---|
+| codec (realises 6) | 0.1553 |
+| **ANM-6** (zero-shot, matched rank) | **0.2888** |
+| PCA-6 (oracle) | 0.3961 |
+| PCA-16 (oracle) | 0.5274 |
+
+- **basis quality**, `codec − PCA-6` = **−0.2409**; like-for-like `codec − ANM-6` = **−0.1336**
+- **mode count**, `PCA-16 − PCA-6` = **+0.1312**
+- Of the 0.3721 gap to PCA-16: **65% basis quality, 35% mode count.**
+
+**ANM-6 beats the codec even at matched rank.** Holding the number of directions *fixed*, a
+physics-derived zero-shot basis is better than the learned one. So the deficit is not mainly that the
+codec realises too few directions — it is that **the directions it realises are worse ones**.
+
+**Consequence for INBOX 015:** the modal decoder widens the realised rank, which attacks the **35%**
+half. That is precisely the risk flagged in the 017 ACK before any of this was measured, and 18c's
+decomposition is what turned the caution into a number. *(Per 20c the split is an ATTRIBUTION: the
+extra directions are priced at oracle quality, an upper bound on the mode-count term and hence a lower
+bound on basis quality — so 65% is if anything conservative.)*
+
+**And the first modal arms are consistent with it.** `untied` reaches PR **69.1/256** and identity
+**24%** (control: PR ~15–20, identity 64–92%) with **56 effective basis modes** — it demonstrably uses
+far more of the latent and carries far less identity — yet scores FVE **+0.0996 / +0.0563** against the
+control's **+0.1346**. More directions, worse ones. Note that **ANM's basis is inherently nonlocal**
+(a Hessian coupling neighbours within 5 Å) while `ModalCodec` at `ctx_layers=0` builds `B_i` from atom
+*i* alone — which is exactly the escalation 015/17b pre-registered, now with evidence behind it rather
+than as a fallback.
+
 ### INBOX 14a: THE PRIMARY COMPARISON WAS MISSING FROM EVERY ATLAS REPORT
 The standing frame since 004b is that the primary result is **codec vs ANM, both zero-shot on the
 same held-out frames** — ceiling-free, immune to the failed guard, and the claim the thesis rests on.
