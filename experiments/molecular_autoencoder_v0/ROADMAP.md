@@ -2565,3 +2565,38 @@ spends the token's capacity in proportion to variance -- i.e. mostly on the fast
 as N^0.93. If slow-mode dimensionality is flat, **MSE is the wrong training objective for this
 architecture.** That is the "objective mismatch" row of the 004c fan-out, and it would then carry
 evidence rather than being one hypothesis among six. **Do not change the loss on this basis yet.**
+
+## Q3 DONE: THE CRITERION-1 HARNESS EXISTS AND IS PROVEN TO DISCRIMINATE (`armf_criterion1.py`)
+INBOX 004b makes "retains dynamical information" the FIRST success criterion, ahead of per-frame FVE.
+**A criterion that cannot be measured is not a criterion**, so the harness was built and validated
+BEFORE the DM sweep produced a live arm.
+
+What changes from the propagator's version: the propagator ROLLS OUT a trajectory, the codec DECODES
+the reference frames. So the question is not "did it invent plausible dynamics" but **"did passing
+the trajectory through the bottleneck destroy the dynamics that were already there"** -- the failure
+that makes a latent useless to stage 2 while looking fine on FVE.
+
+Four discriminators, all in ONE basis fitted on the REFERENCE (a per-trajectory basis would let a
+decoder that rotated the dynamics into other directions still score perfectly -- Family D):
+1. marginal std ratio per mode · 2. **IAT per mode -- the kinetic test** · 3. cross-mode coupling ·
+4. 2D free-energy JS divergence on the top-2 modes.
+
+**VALIDATED AGAINST THREE KNOWN INPUTS (n=800 frames, real ATLAS system):**
+
+| control | 1 std | 2 IAT (kinetic) | 3 coupling | 4 free energy | total |
+|---|---|---|---|---|---|
+| identity (decoded == reference) | PASS 100% | PASS 100% | PASS 100% | PASS 0.0000 | **4/4** |
+| **frames SHUFFLED** | PASS 100% | **FAIL 0%** (30.0 -> 1.0 frames) | PASS 100% | PASS 0.0000 | 3/4 |
+| variance collapse (0.3x) | FAIL 0% | PASS 100% | PASS 100% | FAIL 0.9272 | 2/4 |
+
+**The shuffled control is the one that matters.** Shuffling preserves every marginal, every
+cross-mode coupling and the entire free-energy surface EXACTLY, destroying only time ordering -- so it
+passes 1, 3 and 4 and must fail 2. **A harness that passed shuffled frames would be measuring
+distribution rather than dynamics and would certify a latent the propagator cannot use.** It fails it,
+at 0% of modes retained. The variance-collapse control confirms discriminator 1 catches an
+MSE-minimising decoder that regresses toward the mean -- which is the specific failure INBOX 004b
+warns FVE would reward.
+
+Reporting rule enforced in the code: **FRACTIONS PER DISCRIMINATOR, never a mean across them.** A mean
+would let a catastrophic kinetic failure hide behind three passing distributional checks -- precisely
+the case the harness exists to catch.
