@@ -2184,6 +2184,35 @@ invisible in the analysis code because it lives in the resume path.
 **Same lesson as the Q4 runtime-print finding:** the dangerous instances are the ones *outside* the
 analysis, where nobody is looking.
 
+## FAMILY C, COMPILED: "fails to reject zero" written into a verdict branch as "is zero"
+Family C is an underpowered null believed. The instances that matter here were not in prose — they
+were **compiled into verdict branches**, so they would have printed the same wrong reading on every
+future run, with the authority of an automated conclusion.
+
+**Three sites, all firing on `abs(estimate) <= halfwidth` alone:**
+
+| site | printed | |
+|---|---|---|
+| `armf_atlas_modes` 27b | *"the code decay adds nothing once N is held — they are SEPARATE"* | fired where the non-significant coefficient had the **larger point estimate** (1.16× N's) |
+| `armf_tied_mediator` | *"flat (mechanism absent)"* | "CI includes zero" ≠ "mechanism absent" |
+| `armf_modal_ctx` 23b | *"reach is NOT the constraint"* | would have sent the project to rung 2 on a null it could not support |
+
+**The correct form was already in the project**, in `armf_tica_vs_n`'s pre-registered read: *"exponent
+flat (CI includes 0, **excludes ~0.5**)"*. **Rejecting the alternative is what licenses a null; failing
+to reject zero licenses nothing.**
+
+**CHECK — `armf_stamp.null_verdict(estimate, halfwidth, relevant)`.** Every caller must NAME the
+smallest effect that would change the conclusion, and gets **three** answers rather than two:
+
+- `EXCLUDES_ZERO` — CI excludes 0 → a real effect
+- `EQUIVALENT` — CI excludes ±`relevant` → a genuine null, **bounded by that number**
+- `NOT_RESOLVABLE` — CI contains both 0 and `relevant` → underpowered, **nothing is licensed**
+
+Worked on the 27b partials: `log N` −0.2668 ± 0.1843 → REAL EFFECT; `log z_ratio` −0.3103 ± 0.3375 →
+**NOT RESOLVABLE**, not "separate". And on 26a's mediator, −0.0992 ± 0.0639 against a predicted +0.5 →
+the CI excludes both 0 and +0.5, so that refutation was **sound** — it rejected the alternative rather
+than failing to reject zero.
+
 ## FAMILY G — a VERDICT emitted by a THRESHOLD sitting at rounding distance from the measurement
 **The family's actual statement (INBOX 19a), which is sharper than "pick better thresholds":**
 > *every instance was a verdict AUTOMATED TO GUARD AGAINST BIAS, and the automation moved the bias

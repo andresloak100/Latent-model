@@ -220,3 +220,53 @@ def verdict_sensitivity(decide, metrics, threshold, scales=(0.5, 1.0, 2.0), log=
         log(f"    -> *** THE VERDICT FLIPS across the plausible range ({len(vals)} distinct outcomes). "
             f"IT IS NOT A VERDICT: it is a MEASUREMENT PLUS AN OPINION, and must be read as one. ***")
     return stable, grid
+
+
+# ---------------------------------------------------------------------------
+# FAMILY C, AS A FUNCTION: "fails to reject zero" is not "is zero".
+#
+# Written after the same inference was found compiled into three separate verdict branches:
+#     armf_atlas_modes  27b  "the code decay adds nothing once N is held -- they are SEPARATE"
+#     armf_tied_mediator     "flat (mechanism absent)"
+#     armf_modal_ctx    23b  "reach is NOT the constraint"
+# each firing on `abs(estimate) <= halfwidth` alone. That is believing an underpowered null, and in
+# the 27b case it fired where the non-significant coefficient had the LARGER point estimate.
+#
+# The correct form was already in armf_tica_vs_n's pre-registered read, which required the CI to
+# INCLUDE zero *and* EXCLUDE the effect that would have mattered. Rejecting the alternative is what
+# licenses a null; failing to reject zero licenses nothing. So every caller must now NAME the
+# effect size it would care about, and gets one of three answers rather than two.
+# ---------------------------------------------------------------------------
+
+
+def null_verdict(estimate, halfwidth, relevant, label="effect"):
+    """Three-way read. `relevant` = the smallest effect that would change the conclusion.
+
+    EXCLUDES_ZERO  the CI excludes 0                      -> a real effect
+    EQUIVALENT     the CI excludes +/-`relevant`          -> a genuine null, bounded by `relevant`
+    NOT_RESOLVABLE the CI contains both 0 and `relevant`  -> underpowered; NOTHING is licensed
+    """
+    lo, hi = estimate - halfwidth, estimate + halfwidth
+    ratio = abs(estimate) / max(halfwidth, 1e-30)
+    if lo > 0 or hi < 0:
+        return "EXCLUDES_ZERO", ratio, (lo, hi)
+    if abs(relevant) > 0 and lo > -abs(relevant) and hi < abs(relevant):
+        return "EQUIVALENT", ratio, (lo, hi)
+    return "NOT_RESOLVABLE", ratio, (lo, hi)
+
+
+def null_report(estimate, halfwidth, relevant, label="effect", log=print):
+    """Print the three-way read with the words that match it. Returns the verdict string."""
+    v, ratio, (lo, hi) = null_verdict(estimate, halfwidth, relevant, label)
+    log(f"    {label}: {estimate:+.4f} +/- {halfwidth:.4f}  CI [{lo:+.4f}, {hi:+.4f}]  "
+        f"|effect|/half-width {ratio:.2f}")
+    if v == "EXCLUDES_ZERO":
+        log(f"      -> REAL EFFECT (CI excludes zero).")
+    elif v == "EQUIVALENT":
+        log(f"      -> BOUNDED NULL: the CI also excludes +/-{abs(relevant):.4f}, the smallest effect "
+            f"that would matter, so 'no effect' is licensed AT THAT BOUND.")
+    else:
+        log(f"      -> NOT RESOLVABLE. The CI contains BOTH zero AND {abs(relevant):+.4f}, so it is "
+            f"consistent with no effect AND with one that matters.")
+        log(f"         'No effect' is NOT licensed -- that would be believing an underpowered null.")
+    return v

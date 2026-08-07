@@ -151,8 +151,13 @@ if __name__ == "__main__":
         lo, hi = lr_.slope - h, lr_.slope + h
         has_half = lo <= PREDICTED <= hi
         excl_zero = lo > 0 or hi < 0
+        # FAMILY C FIX: "CI includes zero" is NOT "mechanism absent". The mediator is absent only if
+        # the CI also EXCLUDES the predicted +0.5 -- rejecting the alternative is what licenses a
+        # null. If it contains both 0 and 0.5 the arm is simply underpowered and nothing is licensed.
+        excl_pred = (lo > PREDICTED) or (hi < PREDICTED)
         v = ("CONSISTENT with N^0.5" if has_half and excl_zero else
-             "flat (mechanism absent)" if not excl_zero else
+             "MECHANISM ABSENT (CI excludes +0.5)" if (not excl_zero and excl_pred) else
+             "NOT RESOLVABLE (CI holds 0 AND 0.5)" if not excl_zero else
              f"nonzero but NOT {PREDICTED:.1f}")
         res[kind] = (lr_.slope, h, has_half, excl_zero)
         print(f"    {kind:>9}{int(g.sum()):>5}{lr_.slope:>+10.4f}"
