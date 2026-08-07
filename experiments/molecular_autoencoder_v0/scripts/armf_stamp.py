@@ -148,7 +148,25 @@ def coverage_by(stored_vals, missing_vals, name="N", log=print):
     log(f"  [18d] resume coverage by {name}: stored n={len(s)} median {ms:.0f} "
         f"[{s.min():.0f}-{s.max():.0f}]   missing n={len(m)} median {mm:.0f} "
         f"[{m.min():.0f}-{m.max():.0f}]   relative median gap {rel:.2f}")
-    if rel > 0.25:
+    # TAIL TRUNCATION, added after the median test PASSED on a genuinely truncated sample.
+    # atlas_b at 706/841 had stored median 2,804 against missing median 2,693 -- a 0.04 gap, "not
+    # skewed" -- while the stored MAXIMUM was 15,673 and the missing maximum 33,377. The entire top
+    # of the range was absent and a median comparison cannot see it. For a slope-vs-N fit that is the
+    # WORST case, not a mild one: leverage lives at the extremes, so losing the top shortens the
+    # fitted range and can move the exponent by more than any interior shift.
+    trunc = False
+    if m.max() > s.max():
+        lost = np.log10(m.max() / max(s.max(), 1e-9))
+        span = np.log10(max(allv.max(), 1e-9) / max(allv.min(), 1e-9))
+        log(f"  [18d] TAIL: stored max {s.max():.0f} vs missing max {m.max():.0f} -- the top "
+            f"{lost:.2f} of {span:.2f} decades ({100*lost/max(span,1e-9):.0f}% of the log-range) is "
+            f"NOT in the stored sample")
+        if lost / max(span, 1e-9) > 0.10:
+            log(f"  [18d] *** THE TOP OF THE {name} RANGE IS MISSING. Any slope fitted now is fitted "
+                f"on a TRUNCATED range, and leverage lives at the extremes -- this is the Family A "
+                f"pattern that matters, and a median test cannot see it. ***")
+            trunc = True
+    if trunc or rel > 0.25:
         log(f"  [18d] *** THE STORED SAMPLE IS SKEWED IN {name}. Completing this run fixes it; "
             f"REPORTING BEFORE IT COMPLETES WOULD NOT. Any table produced from a partial run is a "
             f"{name}-correlated exclusion of the axis under test. ***")

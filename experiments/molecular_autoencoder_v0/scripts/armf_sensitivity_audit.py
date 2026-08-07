@@ -59,29 +59,38 @@ if __name__ == "__main__":
     rows = (b if isinstance(b, list) else (b or {}).get("rows", [])) or []
     rows = [r for r in rows if isinstance(r, dict) and r.get("N")]
     if len(rows) >= 10:
-        # THE FREE CHOICE: systems that never reach 90% of held-out variance are EXCLUDED, and they
-        # are the largest -- excluded BECAUSE they need the most modes. The threshold is the 0.90.
-        fld = next((k for k in ("r90_out_sorted", "r90_out", "rank90_out", "r90_in", "rank90_in")
-                    if any(k in r for r in rows)), None)
-        if fld:
-            N = np.array([r["N"] for r in rows if r.get(fld)], float)
-            R = np.array([r[fld] for r in rows if r.get(fld)], float)
-            print(f"  field {fld}, n={len(N)} systems, N {N.min():.0f}-{N.max():.0f}")
-            def dec_b(_v, cut):
-                m = N >= cut
-                if m.sum() < 8: return "n/a"
-                s, h = slope_ci(np.log10(N[m]), np.log10(R[m]))
-                return f"b={s:+.2f}+/-{h:.2f} {'>=0.9' if s - h > 0.9 else ('<0.9' if s + h < 0.9 else 'spans 0.9')}"
-            # sweep the SIZE FLOOR of the fitted sample: does b >= 0.93 depend on which systems enter?
-            st, _ = STAMP.verdict_sensitivity(dec_b, {"N floor (atoms)": float(N.min())},
-                                              max(float(np.percentile(N, 25)), 1.0),
-                                              scales=(0.5, 1.0, 2.0), label="b vs N, sample floor")
-            record("b >= 0.93 (sample floor)", st)
-        else:
-            print("  no rank90 field found in atlas_b.json yet (job still running)")
+        # FIELD NAMES READ FROM THE FILE, NOT GUESSED. atlas_b stores `j{J}_r` (in-sample),
+        # `j{J}_rout` (out-of-sample, TRAIN-ordered) and `j{J}_rsort` (out-of-sample, sorted on
+        # held-out variance) per replica-join count J. My first version looked for `rank90_out` and
+        # friends, none of which exist -- it would have printed "no rank90 field found" forever and
+        # been read as "the job has not landed yet". A guessed schema is the same failure as a
+        # hardcoded comparator, one level up.
+        joins = sorted({int(k[1]) for r in rows for k in r if k.startswith("j") and k[2:] == "_r"})
+        print(f"  replica-join counts present: {joins}")
+        # INBOX 011: the ORDERING-FREE variant is the architecture-relevant one, so it leads; the
+        # other two are reported so the choice of variant is itself visible as a free choice.
+        for J in joins:
+            for fld, lab in ((f"j{J}_rsort", "out-of-sample SORTED (ordering-free)"),
+                             (f"j{J}_rout", "out-of-sample, train-ordered"),
+                             (f"j{J}_r", "in-sample")):
+                use = [r for r in rows if r.get(fld) and r.get("N")]
+                if len(use) < 12: continue
+                N = np.array([r["N"] for r in use], float)
+                R = np.array([r[fld] for r in use], float)
+                def dec_b(_v, cut, N=N, R=R):
+                    m = N >= cut
+                    if m.sum() < 10: return "n/a"
+                    sl, h = slope_ci(np.log10(N[m]), np.log10(R[m]))
+                    tag = ">=0.9" if sl - h > 0.9 else ("<0.9" if sl + h < 0.9 else "spans 0.9")
+                    return f"b={sl:+.2f} {tag}"
+                print(f"\n  --- J={J}, {lab}, n={len(use)}, N {N.min():.0f}-{N.max():.0f} ---")
+                st, _ = STAMP.verdict_sensitivity(
+                    dec_b, {"sample N floor": float(np.percentile(N, 25))},
+                    float(np.percentile(N, 25)), scales=(0.5, 1.0, 2.0),
+                    label=f"b vs N (J={J}, {lab})")
+                record(f"b vs N  J={J} {lab[:26]}", st)
     else:
-        print("  atlas_b.json not populated yet -- the Q2 job is still running. Re-run this audit "
-              "when it lands.", flush=True)
+        print("  atlas_b.json not populated yet -- the Q2 job is still running.", flush=True)
 
     # ---------------------------------------------------------------- 2. the 007 null
     hdr("2. THE 007 NULL -- the n_eff >= 2 viability rule is a free constant")
