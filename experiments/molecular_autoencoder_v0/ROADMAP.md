@@ -2733,3 +2733,26 @@ was a conservative proxy. The real defect is the truncation compressing the slop
 is TICA-vs-PCA *within the same basis*; only if variance dimensionality is materially steeper than
 slowness dimensionality IN THAT BASIS does 007's claim hold. **No 007 verdict may be quoted until
 that lands.**
+
+### RETRACTED (INBOX 012): the mdCATH DM=256/512 COLLAPSE
+`armf_capacity_axis.md` recorded DM=256 and DM=512 collapsing to constant output on mdCATH (G1 cos
+1.0000, G4 base -0.000) and this was cited as evidence that **wide codes cannot train**. **Withdrawn.**
+On ATLAS at DM=256, lr=1e-3 and lr=3e-3 both collapse to a constant code while **lr=3e-4 gives the
+best arm in the sweep (+0.1553)**, and the optimal LR falls monotonically with width. Those arms were
+losing on an **unswept learning rate (FAMILY E)**, not on capacity. The diagnosis on record --
+"21 training domains against a 512-wide decoder" -- was plausible and wrong; corpus size may still
+matter, but it was never shown to, because the hyperparameter was never swept.
+
+### FAMILY D, NEW INSTANCE: an instrument pointed at the wrong object returns a FLATTERING number
+Two cases in one week, and the shape is identical -- the measurement does not break, it quietly
+describes something other than what it names, so nothing looks wrong:
+- **rank90 measured in-sample.** Its own modes cover 77.1% of held-out variance, not 90%.
+- **`encode()` returning the d_model representation instead of the DM_latent code.** Had the 005
+  bottleneck been bolted on without routing every consumer through one `code()` method, the
+  participation ratio and criterion-4 would have described a healthy 512-wide activation while the
+  propagator's actual input was 16 numbers.
+- **And the executable instance (INBOX 012c):** `armf_phase1_analyze.py` PRINTED the retracted
+  capacity exclusion **at runtime** -- "rank90 and TICA already EXCLUDE capacity... DO NOT call this a
+  capacity limit" -- so a future reader would have been instructed, by a running program, not to
+  consider the hypothesis that is now live. **A claim corrected centrally but left standing locally
+  is not corrected.** That is the argument for Q4 marking claims where the reader meets them.

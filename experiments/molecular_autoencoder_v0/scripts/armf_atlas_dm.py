@@ -105,8 +105,9 @@ class Codec(nn.Module):
     object a propagator would model -- so the participation ratio and the criterion-4 dynamics
     measurements apply to it automatically rather than to the d_model-wide internal representation."""
 
-    def __init__(self, Fs, L, dm, heads=4, dlat=None):
+    def __init__(self, Fs, L, dm, heads=4, dlat=None, sub_z0=False):
         super().__init__()
+        self.sub_z0 = sub_z0
         self.dm = dm; self.dlat = dlat if (dlat and dlat < dm) else dm
         self.down = nn.Linear(dm, self.dlat) if self.dlat < dm else None
         self.up = nn.Linear(self.dlat, dm) if self.dlat < dm else None
@@ -136,7 +137,23 @@ class Codec(nn.Module):
         h = self.l4(q + a) * (1 + g) + b
         return self.out(h + self.dff(h))
 
-    def forward(self, stat, disp): return self.decode(stat, self.encode(stat, disp))
+    def z0(self, stat):
+        """The code produced by ZERO displacement. The task is displacement from the aligned
+        reference, so an ideal code would be zero here; whatever it actually is, is the IDENTITY
+        OFFSET -- capacity spent telling the decoder WHICH system this is, which the decoder already
+        knows from its static per-atom features (element, reference position). Computable from the
+        reference structure alone, so subtracting it is available ZERO-SHOT on unseen systems and is
+        not a leak."""
+        return self.encode(stat, torch.zeros(stat.shape[0], stat.shape[1], 3,
+                                             device=stat.device, dtype=stat.dtype))
+
+    def code(self, stat, disp):
+        """THE code, as every consumer must see it -- decoder, participation ratio and criterion-4
+        alike. Routing them all through one method is why the DM/dlat mix-up cannot recur."""
+        z = self.encode(stat, disp)
+        return z - self.z0(stat) if self.sub_z0 else z
+
+    def forward(self, stat, disp): return self.decode(stat, self.code(stat, disp))
 
 
 @torch.no_grad()
@@ -180,7 +197,7 @@ def _latents(mdl, systems, dm, stride=IAT_STRIDE):
         for r in range(a.shape[0]):
             t = np.asarray(a[r, idx]).astype(np.float64) - mu3
             dw = torch.tensor((t / d["scale"]).astype(np.float32), device=dev)
-            Zs.append(mdl.encode(st.unsqueeze(0).expand(len(idx), -1, -1), dw).double().cpu().numpy())
+            Zs.append(mdl.code(st.unsqueeze(0).expand(len(idx), -1, -1), dw).double().cpu().numpy())
         Z = np.concatenate(Zs, 0)                                       # (nrep*nf, L, dm)
         m = Z.mean(0, keepdims=True)                                    # per (slot, channel) mean
         btw.append(float((m ** 2).sum())); wth.append(float(((Z - m) ** 2).mean(0).sum()))
@@ -241,7 +258,7 @@ def latent_dynamics(mdl, systems, dm, nf=400):
         st = torch.tensor(d["stat"], device=dev)
         k = min(nf, d["F"]); t = ho_frames(d, 0, k).reshape(k, d["N"], 3)
         dw = torch.tensor((t / d["scale"]).astype(np.float32), device=dev)
-        Z = mdl.encode(st.unsqueeze(0).expand(k, -1, -1), dw).double().cpu().numpy()
+        Z = mdl.code(st.unsqueeze(0).expand(k, -1, -1), dw).double().cpu().numpy()
         Z = Z.reshape(k, -1)                                   # (frames, L*dm)
         Z = Z - Z.mean(0); sd = Z.std(0) + 1e-12
         taus.append(float(np.median(taus_from_acf(acf_batch(Z), k // 2)[0])))
@@ -253,8 +270,27 @@ def latent_dynamics(mdl, systems, dm, nf=400):
                 phi=float(np.median(phis)))
 
 
-def train(tr, HOt, dm, lr, tag, L, dlat=None):
-    mdl = Codec(tr[0]["stat"].shape[1], L, dm, dlat=dlat).to(dev)
+@torch.no_grad()
+def identity_offset(mdl, systems, nf=16):
+    """INBOX 12b, MEASURED rather than inferred from a variance decomposition.
+
+    ||z0|| / ||z|| per system: the fraction of the code's magnitude that is present even at ZERO
+    displacement, i.e. pure system identity. The decoder already receives element and reference
+    position, so identity in the code is redundant capacity."""
+    rs = []
+    for d in systems:
+        st = torch.tensor(d["stat"], device=dev)
+        idx = np.linspace(0, d["F"] - 1, min(nf, d["F"])).astype(int)
+        t = np.concatenate([ho_frames(d, i, i + 1) for i in idx], 0).reshape(len(idx), d["N"], 3)
+        dw = torch.tensor((t / d["scale"]).astype(np.float32), device=dev)
+        S = st.unsqueeze(0).expand(len(idx), -1, -1)
+        z = mdl.encode(S, dw); z0 = mdl.z0(S[:1])
+        rs.append(float(z0.norm() / (z.norm(dim=(-2, -1)).mean() + 1e-12)))
+    return float(np.median(rs))
+
+
+def train(tr, HOt, dm, lr, tag, L, dlat=None, sub_z0=False):
+    mdl = Codec(tr[0]["stat"].shape[1], L, dm, dlat=dlat, sub_z0=sub_z0).to(dev)
     opt = torch.optim.Adam(mdl.parameters(), lr); hist = []; t0 = time.time()
     used = MAXSTEPS; stopped = "maxsteps"
     for st in range(1, MAXSTEPS + 1):
@@ -304,37 +340,40 @@ if __name__ == "__main__":
           f"plateau signal on {len(HOt)} systems, final eval on all {len(HO)}", flush=True)
 
     rows = json.load(open(RES)) if os.path.exists(RES) else []
-    done = {(r["L"], r["n_train"], r["dm"], r["lr"], r.get("seed", 0), r.get("dlat", r["dm"]))
-            for r in rows}
+    done = {(r["L"], r["n_train"], r["dm"], r["lr"], r.get("seed", 0), r.get("dlat", r["dm"]),
+             bool(r.get("sub_z0", False))) for r in rows}
 
-    def run(TR, n, dm, lr, Lv, seed=0, dlat=None):
+    def run(TR, n, dm, lr, Lv, seed=0, dlat=None, sub_z0=False):
         dl = dlat if (dlat and dlat < dm) else dm
-        arch = "bottleneck" if dl < dm else "network"
-        if (Lv, n, dm, lr, seed, dl) in done: return None
-        tag = f"L{Lv} n{n} dm{dm}/dlat{dl} lr{lr:g} s{seed}"
+        arch = ("bottleneck" if dl < dm else "network") + ("+noid" if sub_z0 else "")
+        if (Lv, n, dm, lr, seed, dl, sub_z0) in done: return None
+        tag = f"L{Lv} n{n} dm{dm}/dlat{dl} lr{lr:g} s{seed}{' NOID' if sub_z0 else ''}"
         try:
             torch.manual_seed(seed); np.random.seed(seed + 1)
-            mdl, hist, used, stopped, improving = train(TR, HOt, dm, lr, tag, Lv, dlat=dlat)
+            mdl, hist, used, stopped, improving = train(TR, HOt, dm, lr, tag, Lv, dlat=dlat,
+                                                          sub_z0=sub_z0)
             mdl.eval()
             per = [fve_model(mdl, x) for x in HO]             # per-system, for the N-slope
             fve = float(np.mean(per))
             # PR and criterion 4 measure the DLAT-dimensional CODE -- the object the generator models.
             p = participation_ratio(mdl, TR[:min(len(TR), len(HO))], HO, dl)
             p.update(latent_dynamics(mdl, HOt[:8], dl))       # CRITERION 4
+            p["z0_frac"] = identity_offset(mdl, HOt[:12])     # INBOX 12b
             lr_ = stats.linregress(np.log10([x["N"] for x in HO]), per)
             hw = stats.t.ppf(0.975, len(per) - 2) * lr_.stderr
             # snapshot noise: a single final eval is one draw. Report the tail mean alongside it.
             tail = float(np.mean([h[1] for h in hist[-5:]])) if hist else float("nan")
             rec = dict(L=Lv, n_train=n, dm=dm, dlat=dl, arch=arch, lr=lr, seed=seed,
+                       sub_z0=bool(sub_z0),
                        fve=fve, med=float(np.median(per)),
                        tail_track=tail, steps=used, stopped=stopped, improving=improving,
                        best_track=max(h[1] for h in hist), nho=len(HO),
                        nslope=float(lr_.slope), nslope_ci=float(hw),
                        per=[float(v) for v in per], Ns=[int(x["N"]) for x in HO], **p)
-            rows.append(rec); json.dump(rows, open(RES, "w")); done.add((Lv, n, dm, lr, seed, dl))
+            rows.append(rec); json.dump(rows, open(RES, "w")); done.add((Lv, n, dm, lr, seed, dl, sub_z0))
             print(f"    {tag}: FVE {fve:+.4f}  PR {p['pr']:.1f}/{dl} ({100*p['pr_frac']:.0f}%"
                   f"{', CENSORED n_obs=' + str(p['n_obs']) if p['censored'] else ''})  "
-                  f"identity {100*p['ident_frac']:.0f}%  N-slope {lr_.slope:+.4f}+/-{hw:.4f}  "
+                  f"identity {100*p['ident_frac']:.0f}% (z0 {100*p['z0_frac']:.0f}%)  N-slope {lr_.slope:+.4f}+/-{hw:.4f}  "
                   f"steps {used} ({stopped})"
                   f"{'  *** STILL IMPROVING -> VOID ***' if improving else ''}", flush=True)
             return rec
@@ -367,6 +406,23 @@ if __name__ == "__main__":
                 if c:
                     bl = max(c, key=lambda r: r["fve"])["lr"]
                     for s in (1, 2): run(TR, n, dm, bl, L_PRIMARY, seed=s)
+        # ===== INBOX 12b: IDENTITY-OFFSET ABLATION =====
+        # 86-91% of latent variance encodes WHICH system rather than how it moves, and the decoder
+        # already has element and reference position. Subtracting z0 = encode(zero displacement)
+        # frees that capacity. z0 needs only the reference structure, so this is available ZERO-SHOT
+        # on unseen systems -- not a leak, and no training frames from the target are required.
+        # CAVEAT, stated not hidden: the encoder is NON-LINEAR, so this removes the offset only to
+        # FIRST ORDER. If it helps, the principled fix is architectural (let static features condition
+        # the encoder via FiLM, as the decoder already does, so identity cannot occupy the code by
+        # construction) -- but test the cheap version first and propose the other only if this moves.
+        cz = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n
+              and r["arch"] == "network" and not r["improving"]]
+        if cz:
+            bz = max(cz, key=lambda r: r["fve"])
+            print(f"  --- 12b IDENTITY ABLATION at DM={bz['dm']} lr={bz['lr']:g} (the L=1 winner) ---",
+                  flush=True)
+            run(TR, n, bz["dm"], bz["lr"], L_PRIMARY, sub_z0=True)
+
         # ===== INBOX 005: BOTTLENECK ARM. REQUIRED, ALONGSIDE -- NOT A FOLLOW-UP. =====
         # The network sweep above varies d_model, so its saturation is a statement about the
         # ARCHITECTURE's width, not the LATENT's. Objective 4 turns on the latent: network width sets
@@ -514,6 +570,62 @@ if __name__ == "__main__":
         elif top and not bs:
             print(f"    => STILL CLIMBING AT DM_latent = d_model = {dmod}. The latent requirement is")
             print(f"       NOT BRACKETED; a wider d_model is needed before ANY width claim.", flush=True)
+
+    print(f"\n=== INBOX 12a: IS PR~15 SATURATION, OR A CAPABILITY LIMIT? ===", flush=True)
+    print(f"  PR ~15 at every width could mean the conformational content genuinely occupies ~15")
+    print(f"  dimensions (SATURATION -- the token is over-provisioned and objective 4 gets much")
+    print(f"  cheaper), or that the model has only learned the easiest ~15 modes (CAPABILITY -- PR is")
+    print(f"  measuring how much it learned, not what the latent can hold, and would rise as it")
+    print(f"  improves). At FVE ~0.15 the second is at least as likely. The ladder decides it.", flush=True)
+    for dm in DMS:
+        rr = [max([r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == dm
+                   and r["arch"] == "network" and not r["improving"]],
+                  key=lambda r: r["fve"], default=None)
+              for n in sorted({r["n_train"] for r in rows})]
+        rr = [r for r in rr if r]
+        if len(rr) < 2: continue
+        print(f"  DM={dm}:  " + "   ".join(f"n{r['n_train']}: FVE {r['fve']:+.4f} PR {r['pr']:.1f}"
+                                           for r in rr), flush=True)
+        f = np.array([r["fve"] for r in rr]); pr = np.array([r["pr"] for r in rr])
+        if len(rr) >= 3 and f.std() > 1e-6:
+            lr_ = stats.linregress(f, pr); hw = stats.t.ppf(0.975, len(rr) - 2) * lr_.stderr
+            rises = lr_.slope - hw > 0
+            fve_moves = (f.max() - f.min()) > 0.02
+            print(f"           PR-vs-FVE slope {lr_.slope:+.1f} +/- {hw:.1f}  -> "
+                  + ("PR RISES WITH FVE => CAPABILITY-LIMITED. PR at small n_train says nothing "
+                     "about the latent's requirement and MUST NOT be quoted as a width answer."
+                     if rises else
+                     ("PR FLAT while FVE rises => GENUINE SATURATION. The latent needs ~%.0f dims and "
+                      "DM=%d is over-provisioned." % (np.median(pr), dm) if fve_moves else
+                      "FVE DOES NOT RISE across the ladder -> NEITHER reading is available. That is "
+                      "the data-limited-vs-fundamental question arriving through another door.")),
+                  flush=True)
+        elif not (f.max() - f.min()) > 0.02:
+            print(f"           FVE spans only {f.max()-f.min():.4f} across the ladder -- neither "
+                  f"reading available yet.", flush=True)
+
+    print(f"\n=== INBOX 12b: HOW MUCH OF THE CODE IS SYSTEM IDENTITY? ===", flush=True)
+    print(f"    {'arch':>14}{'DM':>6}{'n_train':>9}{'FVE':>9}{'PR':>8}{'identity':>10}{'||z0||/||z||':>14}")
+    for r in sorted([r for r in rows if r["L"] == L_PRIMARY], key=lambda r: (r["n_train"], r["dm"])):
+        if "z0_frac" not in r: continue
+        print(f"    {r['arch']:>14}{r['dm']:>6}{r['n_train']:>9}{r['fve']:>9.4f}{r['pr']:>8.1f}"
+              f"{100*r['ident_frac']:>9.0f}%{100*r['z0_frac']:>13.0f}%", flush=True)
+    for n in sorted({r["n_train"] for r in rows}):
+        base = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["arch"] == "network"]
+        abl = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r.get("sub_z0")]
+        if not base or not abl: continue
+        b = max(base, key=lambda r: r["fve"]); a = max(abl, key=lambda r: r["fve"])
+        print(f"  n_train={n} ABLATION at DM={a['dm']}:  FVE {b['fve']:+.4f} -> {a['fve']:+.4f}   "
+              f"PR {b['pr']:.1f} -> {a['pr']:.1f}   identity {100*b['ident_frac']:.0f}% -> "
+              f"{100*a['ident_frac']:.0f}%", flush=True)
+        if a["fve"] > b["fve"] * 1.05 and a["pr"] > b["pr"] * 1.05:
+            print(f"    => FVE AND PR BOTH RISE: a large free win. Make it the default, and consider")
+            print(f"       the architectural version (static features conditioning the ENCODER via")
+            print(f"       FiLM) so identity cannot occupy the code by construction.", flush=True)
+        elif a["fve"] < b["fve"] * 0.95:
+            print(f"    => the subtraction HURTS. The encoder is non-linear, so z0 removes the offset")
+            print(f"       only to first order; identity may also be carrying useful conditioning.",
+                  flush=True)
 
     print(f"\n=== CRITERION 4: is the latent something a PROPAGATOR can model? ===", flush=True)
     print(f"  004b demotes per-frame FVE. A code that reconstructs well but jumps between consecutive")

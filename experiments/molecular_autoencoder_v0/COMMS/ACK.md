@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 011
+last_acted: 012
 ```
 
 | item | restatement | status | commit |
@@ -24,6 +24,39 @@ last_acted: 011
 | 010 | Check whether I can schedule my own wake-ups and, if so, set a 20–30 minute recurring prompt that pulls, works the inbox, falls through to the standing queue, and checks squeue; report the mechanism and interval, or say plainly that I cannot. | ACCEPTED | (this commit) |
 
 | 011 | The two-way TICA reading applies retroactively to b: `rank90_out` was counted in TRAIN ORDER, so `b ≥ 0.93` conflates the train basis ordering worse at large N with held-out content being genuinely higher-dimensional. Re-measure rank90 three ways — in-sample, out-of-sample ordered, out-of-sample sorted by held-out variance — report all three exponents with CIs plus the ordering gap as its own quantity vs N, and cross-fit the sorted variant (order on one half of held-out frames, evaluate on the other) since sorting on the evaluation data is a selection that can only flatter it. The ordering-free number is the architecture-relevant one, because a fixed PCA basis is locked to its order while the codec's learned structure-conditioned decoder is not. | ACCEPTED | (this commit) |
+
+| 012 | Retract the mdCATH DM=256/512 collapse explicitly — those arms lost on an unswept learning rate, not on capacity, and the collapse was cited as evidence wide codes cannot train. Then settle whether PR≈15 is saturation or a capability limit by reporting PR and FVE jointly at every rung of the n_train ladder with the PR-vs-FVE slope and CI. And treat the 86–91% identity share as wasted capacity: measure `||z0||/||z||` directly, then ablate with `z := encode(x) − z0` (zero-shot, since z0 needs only the reference structure), reporting FVE, PR and identity share before and after — noting the encoder is non-linear so this is first-order only, with the architectural fix proposed only if the cheap one moves the number. | ACCEPTED | (this commit) |
+
+## Notes on 012
+
+**Both implemented; neither can report yet, and I am not going to disturb the running sweep to force
+it.** 10306611 is 35 minutes into the full ladder with the widened LR grid. The new arms are keyed
+distinctly (`sub_z0` is part of the dedup key), so the next re-run — which Q5 mandates anyway —
+picks them up without recomputing anything already done.
+
+**12a is wired as you specified**, including the third outcome. The distinguishing test prints one of
+three verdicts: PR rising with FVE ⇒ capability-limited and *the current PR must not be quoted as a
+width answer*; PR flat while FVE rises materially ⇒ genuine saturation; FVE not rising across the
+ladder ⇒ neither reading available, which is the data-limited-vs-fundamental question arriving by
+another door. I agree the second reading is at least as likely at FVE ≈ 0.15 — PR ≈ 15 against a
+model explaining 15% of variance is exactly what "learned the easy modes" looks like.
+
+**12b: one implementation detail worth stating, because it is the same class of error as the DM/dlat
+mix-up.** Every consumer of the code — decoder, participation ratio, criterion-4 dynamics — now
+routes through a single `Codec.code()` method that applies the subtraction. Had I subtracted z0 only
+in the forward pass, PR and the criterion-4 statistics would have kept describing the *un-subtracted*
+code while the decoder saw the subtracted one, and the ablation's headline numbers would have
+measured a different object than the model was trained on. Verified on a smoke run: identity share
+drops **100% → 10%** with the flag on, so the subtraction does what it claims.
+
+Your caveat is in the code, not just the notes: the encoder is non-linear, so this removes the offset
+to first order only, and the architectural version (static features conditioning the *encoder* via
+FiLM, as the decoder already does) is proposed **only if the cheap version moves the number**.
+
+**Loop confirmed for the record (010): `CronCreate`, job `7f6daacb`, cron `7,34 * * * *` — ~27
+minutes, off-minute.** It is SESSION-ONLY: in memory, never written to disk, and it dies when this
+session exits, including the restart 006 asks for. Nothing warns you. `SESSION_HANDOFF.md` tells a
+fresh session to recreate it.
 
 ## Notes on 011 — you are right, and I had the defect in front of me
 
