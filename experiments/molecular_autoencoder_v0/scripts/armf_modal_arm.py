@@ -280,6 +280,56 @@ if __name__ == "__main__":
             print(f"  tied identity share {100*best['tied']['ident_frac']:.0f}% with z0 "
                   f"{100*best['tied']['z0_frac']:.0f}% -- the 012b offset removed EXACTLY rather than "
                   f"to first order.", flush=True)
+        # ---------------- INBOX 18c: DECOMPOSE THE MODAL ARM'S IMPROVEMENT ----------------
+        # An arm that improves FVE purely by REALISING MORE DIRECTIONS is a real result but a BOUNDED
+        # one, and it must be reported as bounded. The identity used:
+        #     FVE_m - FVE_c  =  [PCA(r_m) - PCA(r_c)]        <- MODE COUNT, priced by the oracle
+        #                     + [(FVE_m - PCA(r_m)) - (FVE_c - PCA(r_c))]   <- BASIS QUALITY, i.e.
+        #                                                        the change in the deficit against an
+        #                                                        oracle fitted at the SAME rank
+        # Both terms are computed on the SAME systems with the SAME rank convention as 17c.
+        try:
+            pj = json.load(open(f"{WR}/atlas_peer.json")).get("sys", {})
+            def pca_at(pdb, k):
+                cs = pj.get(pdb, {}).get("pca_out_cs")
+                return float(cs[min(int(k), len(cs)) - 1]) if cs else None
+            cr = best["control"].get("realised_rank")
+            for k in ("untied", "tied"):
+                if k not in best or "realised_rank" not in best[k] or cr is None: continue
+                mr = best[k]["realised_rank"]
+                common = [d["pdb"] for d in HO
+                          if pca_at(d["pdb"], mr) is not None and pca_at(d["pdb"], cr) is not None]
+                if len(common) < 10:
+                    print(f"  18c {k}: only {len(common)} systems have peer curves -- run "
+                          f"armf_atlas_peer.py first. Not a null result.", flush=True); continue
+                p_m = float(np.mean([pca_at(p, mr) for p in common]))
+                p_c = float(np.mean([pca_at(p, cr) for p in common]))
+                fm, fc = best[k]["fve"], best["control"]["fve"]
+                count = p_m - p_c
+                qual = (fm - p_m) - (fc - p_c)
+                print(f"\n  18c DECOMPOSITION, {k} vs control, {len(common)} systems:", flush=True)
+                print(f"    realised rank {cr:.0f} -> {mr:.0f}   FVE {fc:+.4f} -> {fm:+.4f}  "
+                      f"(total {fm-fc:+.4f})")
+                print(f"    oracle at those ranks: PCA-{cr:.0f} {p_c:.4f} -> PCA-{mr:.0f} {p_m:.4f}")
+                print(f"      MODE COUNT   {count:+.4f}   (what the extra directions are worth)")
+                print(f"      BASIS QUALITY{qual:+.4f}   (change in the deficit vs an oracle at the "
+                      f"SAME rank)", flush=True)
+                if count > 0 and qual <= 0.25 * abs(count):
+                    print(f"    => the gain is MODE COUNT. Bilinearity widens the realised rank and")
+                    print(f"       little else -- a REAL but BOUNDED result, sized by 17c's")
+                    print(f"       mode-count half. Report it as bounded.", flush=True)
+                elif qual > 0:
+                    print(f"    => the basis-quality deficit CLOSES as well. The explicit modal form")
+                    print(f"       is the right STRUCTURE, not merely a wider one.", flush=True)
+                else:
+                    print(f"    => the basis got WORSE at matched rank; any FVE gain is bought purely")
+                    print(f"       by extra directions.", flush=True)
+        except FileNotFoundError:
+            print(f"  18c: atlas_peer.json not present yet -- re-run this script after the peer job "
+                  f"to get the decomposition. Sequenced, not skipped.", flush=True)
+        except Exception as e:
+            print(f"  18c decomposition FAILED: {type(e).__name__}: {e}", flush=True)
+
         em = [best[k].get("eff_modes") for k in ("untied", "tied") if k in best]
         em = [e for e in em if e]
         if em:
