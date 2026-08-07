@@ -86,6 +86,19 @@ split, not a categorically different one.
 state of an unseen molecular system well enough to reconstruct its atom-level motion, without
 performance collapsing as N increases?*
 
+**THE HONEST CURRENT FORM (INBOX 29c) — this replaces "performance collapses as N increases", which
+was recorded as answering the third clause and is now known to be a property of ONE architecture:**
+
+> **Fixed-width global latents do NOT inherently collapse with N** — two of three architectures are
+> flat across 1.75 decades (control Q1→Q4 **+0.1108 → +0.1293**, untied **+0.0875 → +0.0854**). The
+> **tied** variant is **~2.5× stronger than the control wherever it works** (Q1 2.67×, Q2 2.53×,
+> Q3 2.56×) and fails at the top quartile for reasons under test. **What no architecture has yet done
+> is beat a zero-shot physics baseline.**
+
+The control's and untied's problem is **not** N-collapse — it is that they are **weak in absolute
+terms** and lose to zero-shot ANM. Those are materially different positions for the thesis, and the
+stronger one is retired.
+
 **Where the evidence now stands — four measurements, all on held-out systems:**
 
 | | result |

@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 028
+last_acted: 029
 ```
 
 | item | restatement | status | commit |
@@ -49,6 +49,38 @@ last_acted: 028
 | 026 | **26a:** don't wait for four arms — test the MEDIATOR on the one that exists: on the trained tied checkpoint, forward passes only, regress `log ‖z‖/‖disp‖` on `log N`; **+0.5 confirms the √N mechanism, ≈0 kills it** whatever the other arms show, and normalise by `‖disp‖` so "bigger system, more motion" isn't a Family A confound inside the confirmation. **26b:** the "network would just learn around it" objection is closed by construction — `B` comes from `q_tok`, a per-atom map that never sees N, and `coef_scale` is one global vector, so nothing can scale per system and the drift survives training. **26c:** the testing gap is structural, not a lapse — the tests covered the KERNEL and nothing called the CALLER; add a test that invokes the top-level entry point on a tiny fixture, and record every new metric's UNTRAINED value in the output so a metric has a recorded floor. **26d:** pre-register how `FVE⊥ ≈ 0` is decided — median across systems, IQR, and fraction above zero; zero is the CONSTRUCTED boundary (a model reproducing the ANM subspace exactly gives 0 identically), so it stays inside 21b. | ACCEPTED | (this commit) |
 | 027 | **27a:** the `FVE⊥` N-slope is the WEAKEST measurement carrying the sharpest sentence — −0.1844 ± 0.1154 at n=24, |effect|/half-width 1.60 against 14.5 for the encoder decay, one arm one seed, and it is being used to OVERTURN a flat aggregate; re-measure at n=123 before it becomes a conclusion (the median/IQR/fraction were never the problem — the slope is). **27b:** `‖z‖/‖disp‖ ~ N^−0.52` and `FVE⊥` falling with N may be ONE finding — my reason for downgrading the encoder decay ("it does not show up in aggregate FVE") runs through the metric 25a just discredited, which is Family D sitting inside the downgrade; test it by regressing `FVE⊥` on `log ‖z‖/‖disp‖` with `log N` controlled, at n=123. **27c:** state the negative result in its strongest honest form — ANM is computable from static structure with no learning, so a codec adding nothing outside its span supplies what a zero-cost function already does — and state in the same breath that this does NOT refute section 7's architecture (global latent + sparse event channel; the measured locality is why the sparse channel exists) nor the premise check (~54 modes, flat across 13× N, a property of the data). **27d:** confirm 14a and 25a are the same arm or caveat the convergence. | ACCEPTED | (this commit) |
 | 028 | **28a:** the first claimed win compared tied's Q1 median against the control's ALL-N median — two sides on different systems, Family F, on the one claim that cannot afford it; report Q1–Q4 for control and untied on the same systems, boundaries and frames, then restate the win as Q1 vs Q1. **28b:** even matched, that is a win over the internal CONTROL, not the peer — tied vs zero-shot ANM is unmeasured at every N; compute both sides in ONE PASS on the SAME FRAMES rather than joining across jobs, and if tied clears ANM on Q1 that is the project's first peer win, otherwise tied is the best of several architectures that all lose to a zero-cost baseline and must be worded as one. **28c:** two learning rates at one seed share an initialisation and are not independent draws — the threshold-free monotone pattern carries the evidence, not the arm count. **28d:** the 24-vs-123 gap means every quantity measured on the 24-system subset carries a representativeness caveat until recomputed, and say which ones. **28e:** "strongest arm" needs the tail in the same sentence — report median, mean and failure fraction together, and record the median choice as pre-registered from here rather than as a discovery. | ACCEPTED | (this commit) |
+| 029 | **29a:** the collapse's arithmetic already names a mechanism — under a pure over-scale by `k`, `FVE = 1 − (k−1)²`, so tied's Q4 median −0.2791 implies k ≈ 2.13 and its worst system −8.045 implies k ≈ 4.01, against `√(N_max/N_Q1) = 4.82` predicted by the `‖B‖_F ~ √N` synthesis hypothesis. **29b:** one closed form separates "wrong magnitude" from "wrong direction" with no retraining — `a* = <r,d>/<r,r>` and **FVE at `a*` is exactly `cos²(r,d)`**, so `cos²` is FVE with all scale error removed and `cos² − FVE` is the scale-attributable portion; report `cos²` by quartile for tied and control on existing checkpoints, state which branch fires, and do NOT propose a fix (26a is the precedent). **29c:** say plainly what changed — "performance collapses as N increases" is a property of the tied pair only; control and untied are flat, so the third clause is SATISFIED for them and their problem is absolute weakness against a zero-shot baseline. **29d:** 28b remains the question that decides the project's state. | ACCEPTED | (this commit) |
+
+## Notes on 029
+
+**029 opens by correcting its own 28a premise, and the correction is right: the data contradicting it
+was already on the branch.** `f1d8ef60` recorded control N-slopes of −0.0303/−0.0240/−0.0383 (±~0.06)
+and untied −0.0070/+0.0022/−0.0156 (±~0.05) — CIs including zero. The matching request was still
+correct and the bias was real; only the stated reason was wrong.
+
+**29a's arithmetic verified before building on it, not after:** `FVE = 1 − (k−1)²` inverts to
+**k = 2.131** at −0.2791 and **k = 4.007** at −8.045, and `√(33377/1434) = 4.824`. All three
+reproduce exactly.
+
+**29b's identity verified too, and it is exact:** FVE at the optimal rescale equals `cos²` to
+**0.00e+00** on a 3× over-scaled vector and **1.1e-16** on a rotated one. Submitted as job 10309733
+with two chained continuations; the job re-derives the identity in its own output so the number
+carries provenance rather than my say-so.
+
+**Two implementation choices worth naming.** (1) The full 2,501-frame window is used rather than a
+subsample, because `scale_stats` computes its own denominator from the frames it processes — at 400
+frames the raw FVE would not line up with the recorded per-system values the quartile medians are
+built from. Verified at the full window: pooled FVE matches `fve_model` to **2.2e-15**. That made
+each arm a multi-hour unit, so checkpointing is **per system**, and since the loop runs ascending in
+N a partial arm is a size-truncated sample — the 18d coverage check now runs per arm before the
+table prints. (2) My first cross-check of `scale_stats` *failed* — and the test was wrong, not the
+code: I truncated to 64 frames while `fve_model` uses `d["sst"]` over all 2,501, mismatching
+numerator and denominator. Exactly the error class this project keeps finding, committed inside the
+check written to prevent it.
+
+**29c applied to STATE OF THE ANSWER.** I put "performance collapses as N increases" into circulation
+as the third clause's answer; the matched table shows it belongs to the tied pair alone. The handoff
+now leads with the weaker, correct form.
 
 ## Notes on 028
 
