@@ -1315,3 +1315,81 @@ modes are worth what PCA gets from them, which is an upper bound on the
 mode-count term and therefore a lower bound on the basis-quality term. State
 that inline so the split is read as an attribution rather than as a measurement
 of two independent quantities.
+
+---
+
+## 021 — I predicted most would survive. Three flipped. Headline claims must be threshold-free.
+
+I wrote in 020b that I "would expect most to survive." **Three of the audited
+claims flip**, including the one this project is currently built on. That was a
+bad prediction and the audit was worth more than I expected it to be.
+
+Correcting my own claim from two pushes ago too: I said the corrected 16a test
+had "earned confidence." It earned it over the range you happened to run. Across
+0.5×–2× the label flips, because the measured ratio *is* 0.40 and the constant
+is 0.6. A claim is only defined together with its threshold — that is the
+lesson, and it applies to my endorsement as much as to your verdict.
+
+### 21a. The substance survives; the label does not. Quote the ratio.
+
+The two threshold-free quantities carry no free constant:
+
+    realised rank90 / latent PR    = 0.40    (6 of 14.9 directions)
+    realised rank90 / DATA rank90  = 0.039   (6 of 152 directions)
+
+**The second is the one to lead with.** It does not involve PR at all, so it is
+untouched by the threshold that flips, and it is the stronger statement by a
+wide margin: *the decoder emits under 4% of the directions the motion uses.*
+
+From here: **"decoder-limited" is retired as a headline phrase.** Quote 6/152.
+The label may appear only as a label, with its range attached. Your read on the
+rank99 row is right — 0.6×PR was calibrated for the rank90 convention, so that
+row is a mis-specified comparison rather than a genuine free choice, and it
+should be marked as such rather than counted as a flip.
+
+### 21b. Policy: headline claims are threshold-free quantities
+
+Generalise what the audit just demonstrated:
+
+> **A headline claim must be a quantity with no free constant** — a ratio, a
+> slope with a CI, a fraction of systems. **A label produced by comparing a
+> quantity to a chosen threshold is not a claim**; it is a reading, and it may
+> only appear alongside the quantity and the range over which it holds.
+
+This is why 6/152 survives and "decoder-limited" does not, and it is the rule
+that would have prevented all three of tonight's Family G instances at the point
+of writing rather than at the point of audit.
+
+### 21c. The ANM cutoff flip is the most consequential thing in the audit
+
+5 Å beats 7 Å by **2.9% of training-mean FVE** — effectively a tie — and ANM is
+the **primary comparator**. So codec-vs-ANM, the comparison carrying the thesis,
+currently inherits a coin-flip.
+
+**Do not resolve it by picking better. Report the primary comparison at every
+cutoff in the sweep, and treat a codec win as real only if it survives all of
+them.**
+
+- codec vs ANM-5, codec vs ANM-7, each with signed gap and fraction-positive
+- the verdict stated only where both agree; where they disagree, the honest
+  output is "the peer comparison is not resolved at this cutoff margin"
+- and the gap-vs-N slope reported per cutoff, since that is the objective-1
+  quantity and it must not depend on a 2.9% selection either
+
+A 2.9% margin cannot be allowed to decide the project's headline result, and
+catching this *before* 14a reports is worth more than the audit cost.
+
+### 21d. Record 007 with its basis dependence, not as a bare null
+
+"Answered at m=100 (n_eff 3.28, viable); not measurable at m=400 (n_eff 0.81)."
+Both halves, always together. A bare "007 is a measured null" is exactly the
+claim-without-its-range this item is about, and it would be cited that way
+within a week.
+
+### 21e. Note
+
+Implementing 20a as the class fix — re-reading NTRAIN from disk at each rung, so
+a hold takes effect on a *running* job — is better than the cancel-and-resubmit
+I asked for, and cancelling 10306831 because it held the old code in memory is
+the correct application of your own objection. Seven redone arms is the right
+price; they were unstamped and the 18a gate would have invalidated them anyway.
