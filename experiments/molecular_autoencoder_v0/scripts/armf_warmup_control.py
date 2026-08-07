@@ -45,6 +45,15 @@ WR = D.WR
 RES = f"{WR}/warmup_control.json"
 DM, LR, NTR = 256, 3e-4, 50
 SEEDS = [1, 3]
+# THE HYBRID, ADDED BEFORE THE VERDICT so the follow-up is not designed after seeing which way it
+# went. If LEGACY beats CURRENT, "revert the warmup" is NOT automatically the right move: warmup was
+# introduced alongside the lr-scaled budget to close a Family D hole (3e-5 arms hitting the step cap
+# STILL IMPROVING, hence VOID), and reverting both would reopen it. The hybrid separates the two
+# edits -- warmup OFF, lr-scaled budget KEPT -- which is the only combination that could fix the void
+# without paying for it at the operating point. Adopting it untested would repeat exactly the error
+# under investigation, so it is measured at the same LR as the others (does it match LEGACY?) and at
+# 3e-5 (does it converge instead of VOIDing?).
+HYBRID_LRS = [3e-4, 3e-5]
 
 
 if __name__ == "__main__":
@@ -74,36 +83,60 @@ if __name__ == "__main__":
 
     out = json.load(open(RES)) if os.path.exists(RES) else {}
     orig_ms = D.maxsteps_for
-    for proc, warm, msf in (("LEGACY ", 1, lambda lr: 30000),
-                            ("CURRENT", 1000, orig_ms)):
-        for sd in SEEDS:
-            key = f"{proc.strip()}_s{sd}"
-            if key in out: continue
-            D.WARMUP = warm; D.maxsteps_for = msf
-            torch.manual_seed(sd); np.random.seed(sd + 1)
-            t0 = time.time()
-            mdl, hist, used, stopped, improving = D.train(TR, HOt, DM, LR, f"{proc} s{sd}", 1)
-            mdl.eval()
-            bt = max(h[1] for h in hist); tt = float(np.mean([h[1] for h in hist[-5:]]))
-            full = float(np.mean([D.fve_model(mdl, x) for x in HO]))
-            out[key] = dict(proc=proc.strip(), warmup=warm, seed=sd, best_track=bt, tail_track=tt,
-                            full_fve=full, steps=used, stopped=stopped, improving=improving,
-                            secs=time.time() - t0)
-            json.dump(out, open(RES, "w"))
-            print(f"  {proc} seed{sd}: best_track {bt:+.4f}  tail {tt:+.4f}  "
-                  f"all-{len(HO)} FVE {full:+.4f}  steps {used} ({stopped})"
-                  f"{'  STILL IMPROVING' if improving else ''}  [{time.time()-t0:.0f}s]", flush=True)
+    # (name, warmup, maxsteps_fn, [lrs]). HYBRID separates the two edits that shipped together.
+    PLANS = [("LEGACY ", 1, lambda lr: 30000, [LR]),
+             ("CURRENT", 1000, orig_ms, [LR]),
+             ("HYBRID ", 1, orig_ms, HYBRID_LRS)]
+    for proc, warm, msf, lrs in PLANS:
+        for lr_ in lrs:
+            for sd in SEEDS:
+                # Key format is BACKWARD COMPATIBLE: arms at the default LR keep the original
+                # `NAME_sSEED` key, so results already written by an in-flight job are recognised
+                # and not silently retrained.
+                key = (f"{proc.strip()}_s{sd}" if lr_ == LR
+                       else f"{proc.strip()}_lr{lr_:g}_s{sd}")
+                if key in out: continue
+                D.WARMUP = warm; D.maxsteps_for = msf
+                torch.manual_seed(sd); np.random.seed(sd + 1)
+                t0 = time.time()
+                mdl, hist, used, stopped, improving = D.train(
+                    TR, HOt, DM, lr_, f"{proc} lr{lr_:g} s{sd}", 1)
+                mdl.eval()
+                bt = max(h[1] for h in hist); tt = float(np.mean([h[1] for h in hist[-5:]]))
+                full = float(np.mean([D.fve_model(mdl, x) for x in HO]))
+                out[key] = dict(proc=proc.strip(), warmup=warm, seed=sd, lr=lr_, best_track=bt,
+                                tail_track=tt, full_fve=full, steps=used, stopped=stopped,
+                                improving=improving, secs=time.time() - t0)
+                json.dump(out, open(RES, "w"))
+                print(f"  {proc} lr{lr_:g} seed{sd}: best_track {bt:+.4f}  tail {tt:+.4f}  "
+                      f"all-{len(HO)} FVE {full:+.4f}  steps {used} ({stopped})"
+                      f"{'  *** STILL IMPROVING -> VOID ***' if improving else ''}  "
+                      f"[{time.time()-t0:.0f}s]", flush=True)
     D.maxsteps_for = orig_ms
 
     print(f"\n=== VERDICT ===", flush=True)
-    L = np.array([v["best_track"] for v in out.values() if v["proc"] == "LEGACY"], float)
-    C = np.array([v["best_track"] for v in out.values() if v["proc"] == "CURRENT"], float)
+    def bt(nm, lr_=LR):
+        return np.array([v["best_track"] for v in out.values()
+                         if v["proc"] == nm and v.get("lr", LR) == lr_], float)
+    L, C, H = bt("LEGACY"), bt("CURRENT"), bt("HYBRID")
     if not len(L) or not len(C):
         print("  incomplete."); raise SystemExit
     print(f"  LEGACY   best_track {L.mean():+.4f}  (n={len(L)}, spread {L.max()-L.min():.4f})")
     print(f"  CURRENT  best_track {C.mean():+.4f}  (n={len(C)}, spread {C.max()-C.min():.4f})")
     print(f"  recorded legacy arms  {legacy_bt.mean():+.4f}  (n={len(legacy_bt)}, spread "
           f"{legacy_bt.max()-legacy_bt.min():.4f})", flush=True)
+    if len(H):
+        print(f"  HYBRID   best_track {H.mean():+.4f}  (n={len(H)}, spread {H.max()-H.min():.4f})"
+              f"   [warmup OFF, lr-scaled budget KEPT]", flush=True)
+        v = [x for x in out.values() if x["proc"] == "HYBRID" and x.get("lr") != LR]
+        for x in sorted(v, key=lambda z: (z["lr"], z["seed"])):
+            print(f"    HYBRID lr{x['lr']:g} s{x['seed']}: best_track {x['best_track']:+.4f}  "
+                  f"steps {x['steps']} ({x['stopped']})"
+                  f"{'  *** VOID: still improving ***' if x['improving'] else '  converged'}",
+                  flush=True)
+        print(f"  The 3e-5 HYBRID rows answer the question reverting warmup would otherwise reopen:")
+        print(f"  does the lr-scaled budget ALONE close the Family D hole warmup was added for?",
+              flush=True)
     gap = L.mean() - C.mean()
     within = max(L.max() - L.min(), C.max() - C.min())
     if gap > within and gap > 0.02:
