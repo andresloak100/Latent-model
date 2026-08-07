@@ -651,3 +651,88 @@ in the ROADMAP as its own instance.
 Confirm which self-scheduling mechanism you used for the autonomous loop and at
 what interval — INBOX 010 asked for it and I want it on record that the loop is
 closed.
+
+---
+
+## 013 — 011 declined on measurement. Cap the TICA line, and measure criterion-1 vs N.
+
+**011 is refuted and I accept it.** The ordering penalty is 1.03× with an
+N-slope spanning zero, and the ordering-free exponent (+0.9429 ± 0.2306) is
+*higher* than train-order, not lower. My proposed rehabilitation of the
+fixed-width argument is dead on measurement rather than on argument, which is
+the right way for it to die. `b ≥ 0.93` holds on both readings. Record it as a
+declined hypothesis with the numbers attached, so nobody re-proposes it.
+
+The Q1 truncation catch is the better piece of work: TICA counted inside an
+m-dimensional basis against an untruncated rank90 is a Family D comparison, and
+the control that establishes it — PCA dimension measured *in the same basis*,
+also flat — is exactly the right control. A naive report would have been a false
+positive in the direction I was hoping for, which is the dangerous direction.
+
+### 13a. Cap the TICA line — decide it, don't chase it
+
+The truncation-matched control (10306738) answers a **ratio** question, and only
+that: *within a fixed m-dimensional basis, does slow-weighted dimensionality
+grow more slowly than variance-weighted dimensionality?* That is well-posed even
+though neither absolute exponent is, because truncation compresses both equally.
+
+Report it that way — as `exponent(TICA | m)` against `exponent(PCA | m)` at
+matched m, with the ratio and its CI — and do **not** quote either absolute
+exponent.
+
+**And pre-register the stopping rule now.** You measured n_eff per TICA
+dimension at 0.81, below 1.0 in 103/123 systems at basis 400. If the
+truncation-matched control also runs at n_eff per dimension below ~2:
+
+> **TICA is not a viable instrument on this corpus. Close 007 as unanswerable,
+> state why in one paragraph, and stop.**
+
+Do not sweep m looking for a basis where it works — the exponent already moves
+13× with m, which means any m chosen after seeing results is a chosen result.
+An honest "not measurable with these trajectory lengths" is worth more than a
+number extracted from a basis picked to produce one, and it costs a paragraph
+instead of a week.
+
+### 13b. The load-bearing answer now comes from the codec — and one measurement is missing
+
+Both external routes to "does the required content grow with N" are now closed
+or capped: rank90 says near-linear on both readings, and TICA cannot be trusted
+to say otherwise. So the question is settled by the codec's own behaviour, which
+is where it should have been.
+
+Two codec measurements matter, and **only one of them is specified**:
+
+1. **FVE vs N at fixed DM**, across the ladder. Specified and running.
+2. **Criterion-1 pass rate vs N at fixed DM. Not specified anywhere. Add it.**
+
+Per 004b, criterion 1 — does the decoded trajectory *retain dynamics* — outranks
+FVE. You built and validated the harness under Q3, including the shuffled-frames
+control that catches a decoder preserving every distribution while destroying
+time ordering. **Nobody has asked what that harness says as a function of atom
+count**, and that is the actual objective-1 question:
+
+> Does passing a trajectory through one fixed-width token destroy dynamics more
+> at 33,377 atoms than at 598?
+
+Report the four discriminators **separately** (never averaged, per your own
+rule) as a function of N, at fixed DM, on the held-out systems. Give each one's
+N-slope with CI.
+
+This can matter even where FVE-vs-N is flat. A decoder can hold reconstruction
+error constant across N while progressively flattening autocorrelation at large
+N — that is precisely the failure the shuffled control was built to detect, it
+would leave FVE untouched, and it would make the latent useless to stage 2 at
+exactly the sizes objective 1 cares about.
+
+If criterion-1 pass rates are flat in N *and* FVE is flat in N, that is a far
+stronger statement than either alone, and it is the first version of the
+headline claim that would survive scrutiny.
+
+### 13c. Note
+
+Routing every consumer through a single `Codec.code()` so PR and criterion-4
+describe the same object the decoder sees is the right fix, and the identity
+share dropping 100% → 10% with the flag on is a promising smoke test. Report the
+ablation's FVE and PR alongside it — a large identity drop that does not move
+FVE would mean the identity component was free rather than costly, which is a
+different and less useful finding.
