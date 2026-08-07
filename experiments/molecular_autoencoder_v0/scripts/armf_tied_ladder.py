@@ -75,7 +75,7 @@ RES = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace/tied_ladder.js
 DM, NTR = 256, 50
 USABLE_LRS = [3e-5]
 LADDER = [50, 130, 300]     # 31d: the ONLY thing that varies
-SEEDS = [0]
+SEEDS = [0, 1, 2]        # INBOX 32b: 3 per rung -- see the verdict block for why
 VARIANTS = ["tied"]
 BETWEEN_RATE_SCATTER = 0.0433        # measured, from the n=1 sweep
 GAP_UNDER_TEST = 0.0350              # control best - untied best, from the n=1 sweep
@@ -104,7 +104,8 @@ if __name__ == "__main__":
     TR = [x for x in (sysdata(store, have[p]) for p in tr_ids[:NTR]) if x is not None]
     print(f"  {len(TR)} train / {len(HOt)} tracked / {len(HO)} held-out", flush=True)
 
-    ST = STAMP.stamp(dict(dm=DM, ntr=NTR, lrs=str(USABLE_LRS), seeds=str(SEEDS),
+    ST = STAMP.stamp(dict(dm=DM, lrs=str(USABLE_LRS),   # NOT seeds/ladder: they select WHICH draws and
+                          # WHICH rungs, not how any arm is computed (27b's NSYS lesson)
                           warmup=D.WARMUP, maxsteps=D.MAXSTEPS), ModalCodec, D.train)
     rows = json.load(open(RES)) if os.path.exists(RES) else []
     STAMP.report(rows, ST, "arms")
@@ -142,42 +143,66 @@ if __name__ == "__main__":
 
     if not rows: raise SystemExit
     # ---------------- REPORT ----------------
-    # ---------------- INBOX 31d LADDER VERDICT ----------------
-    print(f"\n=== 31d: DOES THE TIED ARM'S CEILING MOVE WITH DATA? (discriminates option 1 only) ===",
+    # ---------------- INBOX 31d/32b LADDER VERDICT ----------------
+    # 32b: 31d's yardstick was the RANGE of three draws WITHIN one rung. The quantity this has to
+    # resolve is a DIFFERENCE BETWEEN rungs, which is a different statistic:
+    #     SD(difference of two k-seed rungs) = SD_arm * sqrt(2/k),  95% half-width = 1.96 * that.
+    # At one seed per rung and SD_arm = 0.033 that is 0.092 -- an 88% relative lift against a control
+    # mean of +0.1042 -- so a flat result could not have retired option (1). That is Family C, and it
+    # would retire the hypothesis the ladder exists to test.
+    #
+    # AND THE SD IS TAKEN FROM THIS LADDER'S OWN ARMS, not borrowed. 32a's point is that TIED's seed
+    # spread was never measured; the control's varies 0.0071-0.0330 across rates, so borrowing it
+    # would be a comparator measured on a different arm. Three seeds per rung measures it here.
+    print(f"\n=== 31d/32b: DOES THE TIED ARM'S CEILING MOVE WITH DATA? (discriminates option 1 only) ===",
           flush=True)
-    print(f"    {'n_train':>9}{'n arms':>8}{'mean FVE':>11}{'median FVE':>13}{'steps':>9}", flush=True)
-    pts = []
+    print(f"    {'n_train':>9}{'seeds':>7}{'mean FVE':>11}{'SD':>9}{'median FVE':>13}", flush=True)
+    pts, sds = [], []
     for nt in LADDER:
         v = [r for r in rows if r.get("n_train") == nt and not r["improving"]]
         if not v: continue
-        f = float(np.mean([r["fve"] for r in v])); m = float(np.mean([r.get("med", np.nan) for r in v]))
-        pts.append((nt, f, m))
-        print(f"    {nt:>9}{len(v):>8}{f:>+11.4f}{m:>+13.4f}{int(np.mean([r['steps'] for r in v])):>9}",
-              flush=True)
+        f = np.array([r["fve"] for r in v], float)
+        m = np.array([r.get("med", np.nan) for r in v], float)
+        sd = float(np.std(f, ddof=1)) if len(f) > 1 else float("nan")
+        if np.isfinite(sd): sds.append(sd)
+        pts.append((nt, float(f.mean()), float(np.nanmean(m)), len(f)))
+        print(f"    {nt:>9}{len(f):>7}{f.mean():>+11.4f}{sd:>9.4f}{np.nanmean(m):>+13.4f}", flush=True)
     if len(pts) >= 2:
-        n0, f0, m0 = pts[0]; n1, f1, m1 = pts[-1]
-        d_mean, d_med = f1 - f0, m1 - m0
-        # the yardstick is the SEED spread measured under 24c at this architecture's operating point,
-        # not a threshold invented here: a ladder move smaller than run-to-run noise is not a move.
-        SEED_SPREAD = 0.0656
-        print(f"\n  n_train {n0} -> {n1} ({n1/n0:.1f}x corpus):  mean {f0:+.4f} -> {f1:+.4f} "
-              f"({d_mean:+.4f})   median {m0:+.4f} -> {m1:+.4f} ({d_med:+.4f})", flush=True)
-        print(f"  yardstick: the largest between-SEED spread measured at fixed settings (24c) is "
-              f"{SEED_SPREAD:.4f}.", flush=True)
-        if max(abs(d_mean), abs(d_med)) > SEED_SPREAD:
-            print(f"  => THE CEILING MOVES WITH DATA. The tied arm is DATA-limited over this range, so")
-            print(f"     31d-(1) is NOT the binding constraint and more data is a real lever. (2) and")
-            print(f"     (3) are premature until the curve flattens.", flush=True)
+        n0, f0, m0, k0 = pts[0]; n1, f1, m1, k1 = pts[-1]
+        d_mean = f1 - f0
+        sd_arm = float(np.mean(sds)) if sds else float("nan")
+        k = min(k0, k1)
+        if np.isfinite(sd_arm) and k >= 1:
+            se = sd_arm * np.sqrt(2.0 / k); hw = 1.96 * se
         else:
-            print(f"  => FLAT ACROSS A {n1/n0:.0f}x CORPUS RANGE, within the seed spread. 31d-(1) STANDS")
-            print(f"     AS MEASURED: this encoder family does not reach the target by being given more")
-            print(f"     of the same data. The live options become (2) the objective and (3) the")
-            print(f"     per-system-basis advantage -- which need DIFFERENT experiments, and this one")
-            print(f"     cannot separate them.", flush=True)
-    print(f"\n  SCOPE: holds architecture, objective and comparator FIXED and varies ONLY n_train, so")
-    print(f"  it discriminates (1) alone. The N-only scale correction is deliberately NOT applied --")
-    print(f"  folding it in would confound 'does more data help' with 'does the calibration fix help'.",
-          flush=True)
+            se = hw = float("nan")
+        print(f"\n  n_train {n0} -> {n1} ({n1/n0:.1f}x corpus): mean {f0:+.4f} -> {f1:+.4f} "
+              f"(difference {d_mean:+.4f})", flush=True)
+        print(f"  TIED's own single-arm SD, measured here: {sd_arm:.4f} (pooled over rungs, "
+              f"{k} seeds/rung)", flush=True)
+        print(f"  SD of the DIFFERENCE = SD_arm*sqrt(2/{k}) = {se:.4f}; 95% half-width = {hw:.4f}",
+              flush=True)
+        if np.isfinite(hw) and abs(d_mean) > hw:
+            print(f"  => THE CEILING MOVES WITH DATA ({d_mean:+.4f}, clearing {hw:.4f}). The tied arm")
+            print(f"     is DATA-limited over this range, so 31d-(1) is NOT the binding constraint and")
+            print(f"     (2)/(3) are premature.")
+            print(f"     INBOX 32c CONSEQUENCE, pre-registered: 14a, 17c, 25a and the ENTIRE peer")
+            print(f"     comparison were measured at n50. A rise means every one of them was measured")
+            print(f"     on an UNDER-TRAINED model and is a FLOOR, not an estimate -- including")
+            print(f"     FVE_perp ~ 0 and the 0%-of-systems peer loss. It does not soften the n50 peer")
+            print(f"     result, which is what it is; it does mean the headline carries 'at n_train=50'")
+            print(f"     until the peer comparison is re-run at the best rung.", flush=True)
+        else:
+            print(f"  => BOUNDED NULL, NOT 'NOT DATA-LIMITED' (INBOX 32b). The difference {d_mean:+.4f}")
+            print(f"     does not clear {hw:.4f}, so what is established is: NO DATA EFFECT LARGER THAN")
+            print(f"     {hw:.4f} across {n1/n0:.0f}x corpus. That is {100*hw/0.1042:.0f}% of the control")
+            print(f"     mean (+0.1042), so effects smaller than that are NOT excluded and option (1)")
+            print(f"     IS NOT RETIRED. Reporting this as 'not data-limited' would be Family C --")
+            print(f"     retiring the hypothesis the ladder exists to test.", flush=True)
+    print(f"\n  SCOPE: architecture, objective and comparator held FIXED; only n_train varies, so this")
+    print(f"  discriminates (1) alone and cannot separate (2) from (3). The N-only scale correction is")
+    print(f"  deliberately NOT applied -- folding it in would confound 'does more data help' with")
+    print(f"  'does the calibration fix help'.", flush=True)
 
     print(f"\n=== 24c: MEAN +/- SPREAD PER (VARIANT, RATE) ===", flush=True)
     print(f"    {'variant':>9}{'lr':>9}{'n':>4}{'mean FVE':>11}{'spread':>10}{'sd':>9}", flush=True)

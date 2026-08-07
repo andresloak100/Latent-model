@@ -3079,6 +3079,17 @@ because it is a strong, unexplained, systematic N-dependence sitting inside the 
 unexplained. 26a was built to be decisive from one arm and it was — it just decided against the
 hypothesis it was built to test.
 
+### ⬛ 32a: the seed finding does NOT touch the peer result, and its direction is NOT established
+**Direction, unresolved.** "The control's favourable seed understates tied's advantage" resolves the
+bias from **one side's** variance. **Tied's Q1 +0.2956 is also a single draw**, seed 0, spread
+unmeasured. So the 2.67× ratio is **one draw over one draw**, with the denominator's SD known
+(0.017–0.033 depending on rate) and the numerator's unknown. Tied's spread is now being measured at
+each rung by the 3-seed ladder (10311078).
+
+**What it does not touch, and this is the headline.** Tied Q1 **+0.2956** against ANM **+0.6912** is a
+gap of **0.396 — 12× the measured single-arm SD.** No plausible seed draw closes it.
+**"No architecture beats zero-shot ANM at any N" survives the seed finding intact.**
+
 ### ⚠ IN PROGRESS (24c, job 10307865): the control's "+0.1346" is the TOP of a 3-seed range
 
 | lr | seeds | mean | spread |

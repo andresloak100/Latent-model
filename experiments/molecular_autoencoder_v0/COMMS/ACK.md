@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 031
+last_acted: 032
 ```
 
 | item | restatement | status | commit |
@@ -52,6 +52,39 @@ last_acted: 031
 | 029 | **29a:** the collapse's arithmetic already names a mechanism — under a pure over-scale by `k`, `FVE = 1 − (k−1)²`, so tied's Q4 median −0.2791 implies k ≈ 2.13 and its worst system −8.045 implies k ≈ 4.01, against `√(N_max/N_Q1) = 4.82` predicted by the `‖B‖_F ~ √N` synthesis hypothesis. **29b:** one closed form separates "wrong magnitude" from "wrong direction" with no retraining — `a* = <r,d>/<r,r>` and **FVE at `a*` is exactly `cos²(r,d)`**, so `cos²` is FVE with all scale error removed and `cos² − FVE` is the scale-attributable portion; report `cos²` by quartile for tied and control on existing checkpoints, state which branch fires, and do NOT propose a fix (26a is the precedent). **29c:** say plainly what changed — "performance collapses as N increases" is a property of the tied pair only; control and untied are flat, so the third clause is SATISFIED for them and their problem is absolute weakness against a zero-shot baseline. **29d:** 28b remains the question that decides the project's state. | ACCEPTED | (this commit) |
 | 030 | **30a:** `cos²` and `a*` are ORACLE quantities — `a*` is fitted against the held-out target, so "FVE after optimal rescaling" must never be reported as performance; label it at the point of computation (`fve_oracle_rescaled`, not `fve_corrected`) and compute the legitimate counterpart in the same pass — **N is an input**, so `c(N) = √(N_ref/N)` with `N_ref` frozen from the training distribution is available ZERO-SHOT, and the three numbers per system are raw FVE, N-only corrected (**reportable**), oracle rescaled (**upper bound**). **30b:** the `a* ~ N^−0.5` exponent is not decisive alone, because `a* = α/(α² + ‖e‖²/‖d‖²)` moves with directional error too — a −0.5 slope is consistent with over-scale OR with direction degrading in N, so read `cos²` and the exponent JOINTLY against the four-cell table, guarding especially against row three where the predicted exponent appears and means something else. **30c:** nothing outranks 10309145; if the two finish close together, report the peer result first. | ACCEPTED | (this commit) |
 | 031 | **31a:** an unclaimed corroboration — the over-scale story implies `a*(N_ref) = 1`, and the fitted line's crossing can be compared against `N_ref = 2460`, which was fixed from the TRAINING systems without reference to `a*`. **31b:** the "N-only recovers" column is a ratio of medians and misreports — at Q1 it says 3% where a per-system calculation says most of the gain is recoverable; report the per-system DISTRIBUTION (median and IQR), not a ratio of quartile medians. **31c:** `R² = 0.649` means 35% of per-system `log a*` variance is unexplained by N, so the correction is accurate in aggregate and imprecise per system — the honest form is that it reliably removes the LARGE scale error at high N and is within noise of doing nothing where the error is already small. **31d:** state which of three questions the project is now testing — (1) the encoder cannot reach the ~54-mode target, (2) the objective is wrong, (3) the comparison is unwinnable as posed — and have the next experiment NAME which it discriminates. | ACCEPTED | (this commit) |
+| 032 | **32a:** the seed finding's DIRECTION is not established — "it understates tied's advantage" resolves the bias from ONE side's variance, but tied's Q1 +0.2956 is also a single draw with unmeasured spread, so the 2.67× ratio is one draw over one draw with only the denominator's SD known; adding tied to the 24c harness costs one cell. It does NOT touch the peer result: tied Q1 +0.2956 against ANM +0.6912 is a gap of 0.396, **12× the single-arm SD**, which no seed draw closes. **32b:** 31d's yardstick (0.0656) is the RANGE of three draws WITHIN a rung, but the ladder must resolve a DIFFERENCE BETWEEN rungs — `SD(diff) = SD_arm·√(2/k)`, so at one seed per rung the 95% half-width is ~0.092, an 88% relative lift, and a flat result could not retire option (1) (Family C); fix with 2–3 seeds per rung or word the null as bounded. **32c:** pre-register what a RISING ladder means — 14a, 17c, 25a and the entire peer comparison were measured at n50, so a rise makes them a FLOOR and the headline carries "at n_train=50" until re-run. | ACCEPTED | (this commit) |
+
+## Notes on 032
+
+**32b is right and was caught in time — the job was 20 minutes into its first arm with nothing
+completed, so the fix cost almost nothing.** I confused the *range within* a rung with the *SD of a
+difference between* rungs, which is the same class of error as comparing a 24-system mean against a
+123-system mean (27d) — two statistics sharing a name.
+
+**One correction to 32b's input, which strengthens rather than weakens it.** The SD quoted (0.0331)
+is the **lr3e-4** cell specifically; pooled across the three measured control cells it is **0.0191**,
+and the ladder runs at **lr3e-5** where the control's SD is 0.0171. So the half-width at one seed per
+rung is somewhere in **0.053–0.092** depending on which cell applies — and per 32a the cell that
+*actually* applies is **tied's, which was never measured**. That uncertainty is itself the argument
+for more seeds rather than for picking a number.
+
+**So the fix does both jobs at once:** three seeds per rung gives the ladder its power *and* measures
+tied's own seed SD at each rung, which 32a separately asked for. The verdict now computes the
+yardstick **from the ladder's own arms** rather than borrowing the control's — a borrowed SD would be
+a comparator measured on a different arm, which is the thing this project keeps catching.
+
+**Both verdict branches exercised on synthetic rows before resubmitting** (flat → "BOUNDED NULL, no
+effect > 0.0206 = 20% of control mean"; rising → "MOVES"), because the branch that matters is the one
+a short run never reaches.
+
+**A stamp fix it forced, and it is the 27b lesson again:** `SEEDS` and `LADDER` are now excluded from
+the stamp. They select *which draws* and *which rungs*, not how any single arm is computed, so
+widening either must not discard completed work. That is exactly why `NSYS` came out of the modes
+stamp.
+
+**32a's second half recorded prominently:** the seed finding does **not** touch the peer result. A
+0.396 gap against a 0.033 single-arm SD is **12 SD**. *"No architecture beats zero-shot ANM at any N"*
+survives intact.
 
 ## Notes on 031
 
