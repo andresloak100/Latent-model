@@ -356,3 +356,28 @@ arm 005 makes required.
 Noted that the cache is 371/825 with a train pool of 136/700, so the n_train
 ladder is adaptive and the sweep re-runs as the cache grows. That is the
 schedule constraint; do not read a truncated ladder as a flat curve.
+
+---
+
+## 008 — 007 is CPU-only and unblocked. Run it while 10305995 sits in the queue.
+
+Short item. The TICA-dimensionality-vs-N measurement in 007 needs **no GPU and
+no training** — it is covariance estimation and eigendecomposition on the
+cached `.npy` store. It is not gated by 10305995, and it is not gated by the
+cache reaching 825, since the 371 systems already cached span the full N range
+(598–33,377) and that is where the slope's leverage lives.
+
+**Submit it as a CPU job now, in parallel.** Do not wait for the DM sweep to
+dequeue or complete.
+
+It is also, right now, the higher-value of the two. The DM sweep answers "how
+wide does this architecture's token need to be." 007 answers "does the
+quantity the token must carry grow with atom count at all" — and if slow-mode
+dimensionality is flat while variance-mode dimensionality grows near-linearly,
+that reframes what the sweep's own curve means before its first arm lands.
+
+Report the exponent with CI against rank90's `+0.9285 ± 0.2220`, in-sample and
+out-of-sample both, with the four guards named in 007 (E on the lag time, B on
+rank position and n_eff, A on any system failing to reach 90% of the slow
+spectrum, and both sample regimes since rank90's exponent doubled between
+them).
