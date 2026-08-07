@@ -1630,3 +1630,77 @@ Do not re-open the modal-arm question on the strength of the current numbers in
 either direction. 23d is unaffected: it rests on three quantities moving together
 across the whole sweep, which is exactly the threshold-free form that survives
 this objection.
+
+---
+
+## 025 — Protect the L=1 curve. One reporting-only addition, because FVE cannot answer the question the curve is being asked.
+
+The central question is now stated in one sentence and everything else is
+subordinate to it:
+
+> **Can one fixed-width global latent token encode the dynamic state of an
+> unseen molecular system well enough to reconstruct its atom-level motion,
+> without performance collapsing as N increases?**
+
+Two of the three clauses are already properly instrumented and I am not
+touching them. Held-out **systems** is the protocol (criterion 2, 123 unseen,
+598–33,377 atoms), and the DM-saturation read is pre-registered with the right
+guard — PR flat while FVE rises is saturation, PR rising with FVE is
+capability-limited and not a width answer.
+
+**No new arms. No re-training. Nothing below may delay the curve.** If any of
+it competes with finishing the run, the run wins and this waits.
+
+### 25a. FVE cannot distinguish "the dynamic state" from "the top six modes"
+
+MD displacement variance is dominated by a few slow collective modes — that is
+the premise section 7 rests on. So a model reproducing only those modes scores
+well on aggregate FVE **by construction**, and the current recorded state is a
+**~6-mode effective output with 94% residual**. If the clean L=1 arm returns
+good FVE at the same effective rank, "encodes the dynamic state" and "encodes
+six collective modes" are indistinguishable on the metric.
+
+14b's mode-resolved FVE is close but is measured against a *reference PCA*
+basis. It says where the codec's captured variance sits. It does not say
+whether the codec captures anything **the peer does not**.
+
+**Report, on outputs that already exist, per held-out system:**
+
+1. **FVE on the ANM-orthogonal residual.** Project the true displacement onto
+   the orthogonal complement of the ANM-k subspace, then ask what fraction of
+   *that* the codec explains. This is the direct test of whether the codec is
+   more than a collective-mode model.
+2. **Per-atom error distribution, not its mean.** Median and 90th percentile of
+   per-atom displacement error, normalised by that atom's own motion amplitude.
+   A summary model is right on the mobile core and wrong in the tail; a mean
+   hides exactly that.
+
+Read them together with what is already reported:
+
+| ANM-orthogonal FVE | per-atom tail | reading |
+|---|---|---|
+| ≈ 0 | wide | collective-mode model. Real, publishable as such, but it is **not** an answer to the question above, and the honest headline changes. |
+| > 0 and rising with DM | narrowing | the latent is carrying atom-level state. This is the result that would validate the foundation. |
+| > 0 but flat in DM | wide | it captures something beyond ANM but is not width-limited — a different finding, and the DM axis is answering the wrong question. |
+
+### 25b. The N clause depends on `b`, which is not currently quotable
+
+"Without performance collapsing as N increases" IS the N-slope. `b` currently
+spans −0.83 to +1.05 across analysis choices, including a sign flip driven by
+the sample floor alone within a single variant. 024b asks for the
+pre-registered `(floor, J)` before the re-run lands; that request now has a
+second reason behind it. Until it is settled, the third clause of the central
+question is unanswerable regardless of how the L=1 arm scores — so settle it
+while the curve runs, not after.
+
+### 25c. What a clean L=1 result would and would not establish
+
+State this in the writeup so the result is not over-read on arrival. It would
+establish the **compression mechanism**: that a fixed-width global latent
+carries transferable dynamic state across unseen systems without an N-collapse.
+
+It would **not** establish 1M atoms (measured to ~33k, and 6.2 names two hard
+caps above that), bond breaking (topology is an input; 6.4), or millisecond
+generation (no propagator exists yet; the latent being modellable is criterion
+4 and is separate). Those remain downstream. What it would do is make them
+worth attempting, which nothing so far has.
