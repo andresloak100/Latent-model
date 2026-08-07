@@ -154,3 +154,51 @@ def coverage_by(stored_vals, missing_vals, name="N", log=print):
             f"{name}-correlated exclusion of the axis under test. ***")
         return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# INBOX 19a: VERDICT SENSITIVITY, PRINTED UNCONDITIONALLY.
+#
+# FAMILY G's real statement, in the form the evidence supports:
+#   every instance was a verdict AUTOMATED TO GUARD AGAINST BIAS, and the automation moved the bias
+#   from the conclusion into the THRESHOLD, where it is harder to see.
+# Naming the metric does not close that hole -- the next instance will have a defensible metric and
+# an arbitrary constant. What closes it is showing what the verdict WOULD have been across the
+# plausible range of every free choice the verdict contains, whether or not anything looks wrong.
+#
+# All three instances from 2026-08-06/07 fail this on sight:
+#   16a   threshold 5.96 against a measured 6.0  -> flips at any nearby threshold
+#   007   pooled n_eff 2.045 against 2.0         -> flips when assessed PER BASIS
+#   proc  gap>spread on best_track               -> flips when decided on full_fve
+# ---------------------------------------------------------------------------
+
+
+def verdict_sensitivity(decide, metrics, threshold, scales=(0.5, 1.0, 2.0), log=print,
+                        label="verdict"):
+    """decide(metric_value, threshold_value) -> a short verdict string.
+
+    metrics:   {name: measured_value} -- EVERY metric this verdict could defensibly have used.
+    threshold: the chosen constant.
+    Returns (stable: bool, grid). Prints the full grid and, when the verdict is not stable across
+    the range, says plainly that it is a measurement plus an opinion."""
+    names = list(metrics)
+    grid = {(m, s): str(decide(metrics[m], threshold * s)) for m in names for s in scales}
+    vals = sorted({v for v in grid.values()})
+    stable = len(vals) == 1
+    w = max([len(m) for m in names] + [12])
+    log(f"  [19a sensitivity] {label}: what would have been concluded across every free choice")
+    log(f"    {'metric':<{w}}" + "".join(f"{'x' + format(s, 'g'):>26}" for s in scales))
+    for m in names:
+        log(f"    {m:<{w}}" + "".join(f"{grid[(m, s)]:>26}" for s in scales))
+    for m in names:
+        v = metrics[m]
+        marg = abs(v - threshold) / max(abs(threshold), 1e-12)
+        flag = "  <-- WITHIN 10% OF THE BOUNDARY" if marg < 0.10 else ""
+        log(f"    margin, {m}: measured {v:+.4f} vs boundary {threshold:+.4f} -> {100*marg:.0f}%{flag}")
+    if stable:
+        log(f"    -> STABLE across all {len(grid)} combinations. The verdict survives its own free "
+            f"choices.")
+    else:
+        log(f"    -> *** THE VERDICT FLIPS across the plausible range ({len(vals)} distinct outcomes). "
+            f"IT IS NOT A VERDICT: it is a MEASUREMENT PLUS AN OPINION, and must be read as one. ***")
+    return stable, grid

@@ -88,7 +88,14 @@ L_DIAG = [12, 24]
 # building and the results file ACCUMULATES across re-runs (completed (n,dm,lr) combos are skipped).
 # The ladder is the control: a saturating DM that moves across a 12x range of corpus size is
 # data-limited, not width-limited.
-NTRAIN = [50, 130, 300, 600]
+# INBOX 19c: THE EXPENSIVE RUNGS ARE HELD. Rebuilding the full ladder on the CURRENT decoder spends
+# GPU-days measuring how a FUNCTION-CLASS-LIMITED architecture responds to data -- 16a put realised
+# rank at 6 against a data rank of 152, with the latent already holding ~15. n=50 stays because it is
+# the rung the modal-vs-attention comparison runs at and the two must be comparable; n=130 stays as
+# the one mid rung worth paying for, so that "did more data help the OLD decoder?" has an answer if
+# the modal arm wins. 300 and 600 wait until the comparison settles which decoder is current-best,
+# then the full ladder runs ONCE, on the winner. The asymmetry is large and points one way.
+NTRAIN = [50, 130]
 FRAMES_PER_STEP = 8; MAXSTEPS = 30000; EVAL_EVERY = 2500; PATIENCE = 4; COMPETENCE = 0.05
 # LR WARMUP. Widening the LR floor to 3e-5 to rescue DM=512 immediately created a SECOND defect: at
 # 3e-5 the arms hit MAXSTEPS still improving and are flagged VOID, so the grid extension bought

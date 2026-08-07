@@ -42,6 +42,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from armf_atlas_data import AtlasStore, sysdata, ho_frames
 import armf_atlas_dm as D
 from armf_criterion1 import iat
+import armf_stamp as STAMP
 
 WR = D.WR
 RES = f"{WR}/atlas_modes.json"
@@ -233,6 +234,15 @@ if __name__ == "__main__":
           f"range {rdat.min():.0f}-{rdat.max():.0f}")
     print(f"    for comparison: DM = {dm_arm}, latent PR = {pr_arm:.1f}", flush=True)
     med = float(np.median(r90))
+    # INBOX 19a: print what this verdict would have been across EVERY free choice it contains,
+    # unconditionally and whether or not anything looks wrong. The first version of this branch used
+    # a hand-picked constant that sat 0.7% from the measurement and printed the OPPOSITE conclusion;
+    # sensitivity is what turns "the numbers were right and the reading was wrong" from something
+    # caught by review into something the output cannot hide.
+    STAMP.verdict_sensitivity(
+        lambda v, t: "DECODER-limited" if v < t else "not decoder-limited",
+        {"realised rank90": med, "realised rank99": float(np.median(r99))},
+        0.6 * pr_arm, scales=(0.5, 1.0, 2.0), label="16a realised rank")
     # THRESHOLD CORRECTED AFTER THE FIRST RUN, and the correction is recorded because it changed the
     # printed verdict. The original test was `med <= max(3.0, 2*PR/5)`, an invented constant that
     # evaluated to 5.96 against a measured median of 6.0 -- so it selected "realised rank ~ PR" on a

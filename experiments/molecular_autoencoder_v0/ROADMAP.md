@@ -2185,9 +2185,24 @@ invisible in the analysis code because it lives in the resume path.
 analysis, where nobody is looking.
 
 ## FAMILY G — a VERDICT emitted by a THRESHOLD sitting at rounding distance from the measurement
+**The family's actual statement (INBOX 19a), which is sharper than "pick better thresholds":**
+> *every instance was a verdict AUTOMATED TO GUARD AGAINST BIAS, and the automation moved the bias
+> from the conclusion into the THRESHOLD, where it is harder to see.*
+
 **Signature:** the measured numbers are right and the *automated reading* of them is wrong. The
 decision flips on a hand-picked constant nobody derived, at a margin far below the uncertainty in the
 quantity being tested.
+
+**THE FIX IS SENSITIVITY, PRINTED UNCONDITIONALLY** — naming the metric does not close the hole,
+because the next instance will have a defensible metric *and* an arbitrary constant. Every automated
+verdict must report what it would have concluded across the plausible range of **every free choice it
+contains**: the threshold at 0.5×/1×/2×, every candidate metric it could have decided on, and the
+margin to the decision boundary. **If the verdict flips anywhere in that range it is not a verdict —
+it is a measurement plus an opinion, and it must print as such.** Implemented as
+`armf_stamp.verdict_sensitivity()`; it costs nothing, since the verdict block already holds every
+number. Validated against all three instances — each is flagged — and against the *corrected* 16a
+ratio test, which comes back **STABLE across 0.75×–1.5×**. That stability is itself a result: the
+decoder-limited headline survives its own free choices, where the original threshold did not.
 
 **Two instances within one hour, identical in shape:**
 - **16a's realised-rank branch** tested `med <= max(3.0, 2·PR/5)` → **5.96 against a measured 6.0**, a
@@ -2793,6 +2808,17 @@ was a conservative proxy. The real defect is the truncation compressing the slop
 is TICA-vs-PCA *within the same basis*; only if variance dimensionality is materially steeper than
 slowness dimensionality IN THAT BASIS does 007's claim hold. **No 007 verdict may be quoted until
 that lands.**
+
+### RETIRED (INBOX 19b): THE A/B/C DECISION TREE — data-limited vs fundamental
+The learning curve was built to separate **(a) data-limited** from **(b) fundamental**. **16a returned
+a third answer the ladder cannot produce: ARCHITECTURE-LIMITED, and specifically DECODER-limited** —
+realised rank **6** against a data rank of **152**, with the latent already carrying **~15**.
+
+It was a good tree for the question as posed. The realised-rank measurement **changed the question**,
+and a tree left standing gets applied: applying it now would force a third outcome into two boxes and
+would read "more data does not help" as evidence for *fundamental* when the actual constraint is a
+decoder that converts fewer than half the directions it is handed. **Do not use the A/B/C framing in
+any new report.** The live question is which decoder, not how much data — see INBOX 015/17b.
 
 ### HYPOTHESES MEASURED AND DECLINED — WITH NUMBERS (INBOX 017)
 Kept together deliberately. A file that records only what survived reads as a run of successes and

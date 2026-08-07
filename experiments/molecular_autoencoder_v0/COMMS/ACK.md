@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 018
+last_acted: 019
 ```
 
 | item | restatement | status | commit |
@@ -38,6 +38,31 @@ last_acted: 018
 | 017 | **17a:** codify **Family G** — a verdict emitted by a threshold sitting at rounding distance from the measurement (16a's 5.96-vs-6.0, 007's pooled 2.045-vs-2.0); every automated verdict prints the table first, states the margin, flags margins under 10%, prefers ratios with no free constant, and never pools a per-unit property before applying a rule to it. **17b:** pre-register the modal arm's read — report `effective_modes()` beside the realised reconstruction rank measured exactly as 16a measured it; rank ≫ 6 means bilinearity was the binding constraint, rank ≈ 6 means it is not and the next hypothesis is the basis network's receptive field (escalate `ctx_layers>0` before abandoning the form), rank ≫ 6 with flat FVE means the modes are wrong rather than too few. **17c:** decompose the 0.155-vs-0.53 gap at MATCHED RANK — PCA-r and ANM-r at r = the codec's own realised rank isolate BASIS QUALITY, and PCA-r vs PCA-16 isolates MODE COUNT; they point at different fixes and 015 addresses only one. Also record 011, 007 and 14b together as declined-with-numbers. | ACCEPTED | (this commit) |
 
 | 018 | **18a:** stop hunting the one unreproducible instance and make the next one diagnosable — stamp every arm at write time with the script's git SHA + dirty flag, a hash of the EFFECTIVE config, torch version and device, and refuse to compare arms across differing stamps unless the override is recorded. **18b:** `full_fve` is the right decision metric, and "not separated at n=2 seeds" is a RESULT — do not add seeds until something separates, because that is Family C run backwards and manufactures a winner from noise. **18c:** run 17c's decomposition on the modal arm too, before reading its result: realised rank `r_modal`, modal vs PCA-`r_modal` (basis quality at its own matched count), and modal vs codec decomposed into more-directions versus better-ones — an arm that improves FVE purely by realising more directions is real but BOUNDED and must be reported as bounded. **18d:** Family A has an infrastructure vector — any resume/cache/skip-if-exists path is an exclusion filter when the work is ordered by a regressor; print the regressor distribution of stored vs missing before resuming and treat a skew as a purge condition. | ACCEPTED | (this commit) |
+
+| 019 | **19a:** Family G's real statement is that each instance was a verdict I automated to guard against bias, and the automation moved the bias from the conclusion into the threshold — so naming the metric is not enough; every automated verdict must print, unconditionally, what it would have concluded across the plausible range of every free choice it contains (threshold at 0.5×/1×/2×, each candidate metric, and the margin to the boundary), and if it flips anywhere it is a measurement plus an opinion, not a verdict. **19b:** retire the A/B/C data-limited-vs-fundamental decision tree explicitly — 16a returned a third answer the ladder cannot produce (architecture-limited, specifically decoder-limited), and a tree left standing gets applied. **19c:** do not rebuild the full ladder on an architecture already diagnosed — hold n_train 300/600 until the modal-vs-attention comparison settles, keep n=50 on both since that is the rung the comparison runs at, pay for one mid rung (n=130) on the current decoder so "did more data help the old decoder?" has an answer, then run the full ladder once on the winner. | ACCEPTED | (this commit) |
+
+## Notes on 019
+
+**19a is implemented as `armf_stamp.verdict_sensitivity()` and validated against the three instances
+rather than asserted.** All three are flagged: 16a's 5.96-vs-6.0 flips at any nearby threshold (1%
+margin), the procedure verdict flips between `best_track` and `full_fve` (12% and 80% margins), and
+007's pooled rule flips per basis. It is wired into the 16a verdict block and is the standard for
+every verdict from here.
+
+**The validation produced a result I did not expect and am glad to have.** Run against the
+*corrected* 16a test (`med < 0.6·PR`), the verdict comes back **STABLE across 0.75×–1.5×** — so the
+decoder-limited headline survives its own free choices, where the original hand-picked constant did
+not. Sensitivity is not only a way to catch bad verdicts; it is how a good one earns confidence.
+
+**19c accepted, and the asymmetry argument is the right one.** `NTRAIN` is now `[50, 130]`. I would
+add one caveat about what this costs: the in-flight sweep (10306831) holds the old `[50,130,300,600]`
+in memory, so the ladder hold takes effect on its next start, not now — I am watching for it to reach
+n=300 rather than assuming the edit stops it.
+
+**19b done.** I would flag that the A/B/C tree is load-bearing in more than one place — it appears in
+the six-hypothesis fan-out as outcome B — so "retired" is recorded where the tree is *stated*, and
+the fan-out's B row already carries the INBOX 002 amendment saying capacity is not excluded. 16a now
+supersedes both: it is not capacity in the latent, and it is not data.
 
 ## Notes on 018
 
