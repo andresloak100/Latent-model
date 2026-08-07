@@ -106,7 +106,7 @@ stronger one is retired.
 | **14a** primary comparison | codec **loses to zero-shot ANM at every width, on 0% of 123 systems**; reaches 19% of a per-system PCA oracle |
 | **17c** where the gap lives | **65% basis quality / 35% mode count**; ANM-6 beats the codec at **matched rank six** |
 | **25a** is it more than collective modes | **NO.** `FVE⊥` median **−0.026**, above zero on **33%** of systems; per-atom median **1.001** where predict-zero is exactly 1.000 |
-| **25a** the N clause | `FVE⊥` vs log10(N) **−0.1844 ± 0.1154, CI excludes zero** — the discriminating metric **degrades with N while aggregate FVE is flat** |
+| **25a** the N clause | `FVE⊥` vs log10(N) **−0.1073 ± 0.0628 at n=123** (ratio 1.71, CI excludes zero) — the discriminating metric **degrades with N while aggregate FVE is flat**. The n=24 value −0.1844 ± 0.1154 is **SUPERSEDED** (35b). |
 
 **The honest headline, in its strongest form (INBOX 27c): ANM is computable from static structure
 alone — no learning, no training data.** A codec whose output adds nothing outside ANM's span is
@@ -135,12 +135,18 @@ failure. Affected, until recomputed at n=123: **25a's `FVE⊥` median, IQR and 3
 only its slope), the per-atom median/p90/p99, the realised-rank medians of 16a, and every
 `best_track` used for plateau decisions. Job 10308336 recomputes the 25a family over all 123.
 
-**And one caveat on the sharpest sentence itself (27a):** the claim that the discriminating metric
-*degrades with N* rests on `FVE⊥` vs log N = −0.1844 ± 0.1154 at **n=24, one arm, one seed** —
-|effect|/half-width **1.60**, against 14.5 for the encoder-decay slope. The median, IQR and
-33%-above-zero are fine at n=24; **the slope is the underpowered part and it is the part doing the
-work.** Being re-measured at n=123 (job 10308336). Until then it is suggestive, not a conclusion —
-the same discipline 24c imposed on me, applied to a number I find convincing.
+**27a DISCHARGED (job 10308336).** The claim that the discriminating metric degrades with N rested on
+`FVE⊥` vs log N = −0.1844 ± 0.1154 at **n=24, one arm, one seed**, used to overturn a flat aggregate.
+Recomputed on **all 123**: **−0.1073 ± 0.0628**, ratio **1.71**, CI still excluding zero — same sign,
+smaller magnitude, five times the systems. The distribution holds too (median −0.0266, above zero on
+32% vs 33%). **28d's representativeness caveat is discharged for the 25a family.**
+
+**27b IS NOT REFUTED (35a).** I reported it as separated on evidence; it is an **underpowered null**.
+`log(z_ratio)`'s partial is −0.3103 ± 0.3375 — ratio **0.92, below one** — with a point estimate
+**1.16× larger** than N's and a CI reaching **−0.648**. The imprecision is structural: `corr = −0.9412`,
+**VIF 8.76**, only **11%** of `z_ratio` variance orthogonal to N, and ~145 systems would be needed
+against 123 available. **The encoder decay remains OPEN** — not confirmed as a contributor to `FVE⊥`,
+not excluded.
 
 **Retracted or refuted tonight:** `b ≥ 0.93` → **`b ∈ [+0.68, +0.83]`**, both cells excluding 0.93
 (841 systems, complete, mobility-controlled); the **√N tied mechanism** (predicted +0.5, measured

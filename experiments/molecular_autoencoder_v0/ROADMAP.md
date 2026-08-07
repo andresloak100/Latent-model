@@ -3180,7 +3180,7 @@ discriminating metric does degrade with N while aggregate FVE is flat**, and the
 the project keeps its support. The distribution also holds: `FVE⊥` median **−0.0266**, IQR
 [−0.0779, +0.0148], **above zero on 32% of 123** (n=24 gave −0.026 and 33%).
 
-**27b — REFUTED, on evidence.** The hypothesis was that the encoder decay (`‖z‖/‖disp‖ ~ N^−0.52`) and
+**27b — NOT REFUTED. NOT SEPARABLE BY THIS DESIGN (INBOX 35a).** The hypothesis was that the encoder decay (`‖z‖/‖disp‖ ~ N^−0.52`) and
 the `FVE⊥` degradation are one finding, and that my reason for separating them appealed to the metric
 25a discredited. Tested directly, same arm, same frames, n=123:
 
@@ -3189,8 +3189,22 @@ the `FVE⊥` degradation are one finding, and that my reason for separating them
 | ANM-6 | **−0.3103 ± 0.3375** (spans zero) | **−0.2668 ± 0.1843** (excludes zero) |
 | ANM-16 | −0.2169 ± 0.3410 (spans zero) | −0.2116 ± 0.1862 (excludes zero) |
 
-**N explains `FVE⊥`; the code decay adds nothing once N is held.** They are **separate** — and now
-separated on evidence rather than on the flat aggregate that made 27b a fair objection.
+**I read this as a refutation and it is not one — it is an underpowered null, which is Family C in a
+verdict branch I wrote myself.** `|effect|/half-width` for `log(z_ratio)` is **0.92 — below one**, its
+point estimate is **1.16× larger in magnitude than N's**, and its CI **[−0.6478, +0.0272]** is
+consistent with no effect *and* with a large one. "Adds nothing once N is held" is not licensed by
+that interval; my branch treated *does not exclude zero* as *is zero*.
+
+**And the imprecision is structural, so no further systems fix it.** `z_ratio ~ N^−0.52` at R² 0.87
+leaves `corr(log z_ratio, log N) = −0.9412`, **VIF 8.76** (SEs inflated ~3×), and only **11%** of
+`z_ratio` variance orthogonal to N — that 11% is all the partial has to work with. Reaching a ratio
+of 1.0 at this effect size needs **~145 systems; 123 exist.** *(Measured here slightly worse than
+035's stated −0.933 / 7.7 / 13%.)*
+
+**The honest form: at n=123 the residual encoder decay is not distinguishable from zero, and this
+design cannot separate the two.** The encoder decay therefore remains **open** — neither confirmed as
+a contributor to `FVE⊥` nor excluded. The verdict branch in `armf_atlas_modes.py` now prints that,
+with the collinearity diagnostics beside it, so the reading cannot recur.
 
 ### ⬛⬛⬛ 28b/29b/30: NO PEER WIN AT ANY N — and the tied N-collapse is a SCALE defect, removable zero-shot
 **Reported first, per 30c.** Tied vs zero-shot ANM-256, matched capacity, one pass, same frames,

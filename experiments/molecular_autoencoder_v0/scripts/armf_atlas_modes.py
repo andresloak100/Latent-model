@@ -416,9 +416,28 @@ if __name__ == "__main__":
             print(f"         the 'unexplained encoder property' becomes a candidate MECHANISM for the")
             print(f"         central negative result.", flush=True)
         elif abs(pb) > pbh and abs(pa) <= pah:
-            print(f"      => N explains FVE_perp and the code decay adds nothing once N is held.")
-            print(f"         They are SEPARATE, on evidence rather than on a flat aggregate.",
+            # INBOX 35a. This branch USED to print "the code decay adds nothing once N is held --
+            # they are SEPARATE", which treats "does not exclude zero" as "is zero". That is Family C
+            # -- an underpowered null believed -- and it fired here with the z_ratio point estimate
+            # 1.16x LARGER than N's, simply measured worse. It is also structural: z_ratio ~ N^-0.52
+            # at R^2 0.87 leaves corr = -0.94, VIF 8.8, and only 11% of z_ratio variance orthogonal
+            # to N, so more systems do not fix it (ratio 1.0 would need ~145; 123 exist).
+            ratio_a = abs(pa) / max(pah, 1e-12)
+            print(f"      => NOT SEPARABLE BY THIS DESIGN. N's partial excludes zero and")
+            print(f"         log(z_ratio)'s does not -- but |effect|/half-width for z_ratio is")
+            print(f"         {ratio_a:.2f}, BELOW ONE, with a point estimate {abs(pa)/max(abs(pb),1e-12):.2f}x")
+            print(f"         N's and a CI reaching {pa-pah:+.4f}. The interval is consistent with no")
+            print(f"         effect AND with a large one, so 'the encoder decay adds nothing' is not")
+            print(f"         licensed. The honest form: AT n={int(g.sum())} THE RESIDUAL ENCODER DECAY IS")
+            print(f"         NOT DISTINGUISHABLE FROM ZERO, AND THIS DESIGN CANNOT SEPARATE THE TWO.",
                   flush=True)
+            try:
+                cc = float(np.corrcoef(lz, Nv[g])[0, 1])
+                print(f"         (collinearity: corr {cc:+.3f}, VIF {1/max(1-cc**2,1e-9):.1f}, only "
+                      f"{100*(1-cc**2):.0f}% of z_ratio variance orthogonal to N -- structural, so "
+                      f"more systems do not fix it)", flush=True)
+            except Exception:
+                pass
         else:
             print(f"      => neither dominates at this n; report both coefficients, force no reading.",
                   flush=True)

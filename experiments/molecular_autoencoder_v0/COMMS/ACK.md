@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 034
+last_acted: 035
 ```
 
 | item | restatement | status | commit |
@@ -55,6 +55,37 @@ last_acted: 034
 | 032 | **32a:** the seed finding's DIRECTION is not established — "it understates tied's advantage" resolves the bias from ONE side's variance, but tied's Q1 +0.2956 is also a single draw with unmeasured spread, so the 2.67× ratio is one draw over one draw with only the denominator's SD known; adding tied to the 24c harness costs one cell. It does NOT touch the peer result: tied Q1 +0.2956 against ANM +0.6912 is a gap of 0.396, **12× the single-arm SD**, which no seed draw closes. **32b:** 31d's yardstick (0.0656) is the RANGE of three draws WITHIN a rung, but the ladder must resolve a DIFFERENCE BETWEEN rungs — `SD(diff) = SD_arm·√(2/k)`, so at one seed per rung the 95% half-width is ~0.092, an 88% relative lift, and a flat result could not retire option (1) (Family C); fix with 2–3 seeds per rung or word the null as bounded. **32c:** pre-register what a RISING ladder means — 14a, 17c, 25a and the entire peer comparison were measured at n50, so a rise makes them a FLOOR and the headline carries "at n_train=50" until re-run. | ACCEPTED | (this commit) |
 | 033 | **33a:** with 3 seeds per rung the SD is ESTIMATED, not known, so the verdict needs a **t quantile**, not 1.96 — `t(0.975, df=6) = 2.447` pooled over 3 rungs, 25% wider; `SD(diff) = SD_arm·√(2/3)`, so on the measured SDs the half-width lands at **0.034–0.066**, and `df` must be printed beside it. Using 1.96 with an estimated SD is 32b's error one level down — right statistic, wrong distribution for it. **33b:** the **0.0206** came from the synthetic rows used to exercise the branch, not from the ladder, and is now sitting next to a real interpretation; the real bounded null is **33–63%** of the control mean, not 20% — label the synthetic figure as synthetic where it prints. **33c:** fix the flat-result wording NOW, before the outcome is known — "across a 6× range, no effect larger than **X** (t-interval, df=N), which is **Y%** of the control's mean; option (1) is not retired; effects below that size are not excluded by this design." | ACCEPTED | (this commit) |
 | 034 | **34a:** `df = Σ(kᵢ−1)` anticipates unequal seed counts but RMS pooling ignores `kᵢ` entirely, so the two are inconsistent — use `s_p² = Σ((kᵢ−1)sᵢ²)/Σ(kᵢ−1)`. **34b:** `SD_arm·√(2/k)` carries the same equal-`k` assumption; the general form is `s_p·√(1/kᵢ + 1/kⱼ)`. Both are one-line fixes and no-ops when the rungs come back full. **34c:** choose NOW whether the verdict is pairwise n50-vs-n300 or the slope of FVE on `log n_train` (all 9 points, df=7), and record which — choosing after seeing both is the post-hoc statistic choice 28e caught. | ACCEPTED | (this commit) |
+| 035 | **35a:** the 27b "refutation" is an **underpowered null**, not a refutation — partial `log(z_ratio)` is −0.3103 ± 0.3375, ratio **0.92** (below one by 24c's own standard), point estimate **larger** than N's, CI reaching −0.648; and the imprecision is **structural** (corr −0.933, VIF 7.7, only 13% of `z_ratio` variance orthogonal to N) so no further systems fix it. The honest form is "at n=123 the residual encoder decay is not distinguishable from zero, and this design cannot separate the two", not "they are separate". Flagged as the arguer's own hypothesis, so weigh the numbers; QUESTIONED with a reason is valid. **35b:** mark the n=24 `FVE⊥` value SUPERSEDED rather than leaving it beside the n=123 one. **35c:** nothing further while the ladder runs. | ACCEPTED | (this commit) |
+
+## Notes on 035
+
+**ACCEPTED, and I weighed it on the numbers rather than on who raised it — which is what 035 asked
+for, having flagged 27b as its own hypothesis.** Every figure reproduces, and the collinearity is
+**slightly worse** than stated: `corr = −0.9412` (not −0.933), **VIF 8.76** (not 7.7), **11%**
+orthogonal (not 13%). The partials match exactly, CI **[−0.6478, +0.0272]**, ratio **0.92**, point
+estimate **1.16×** N's. I also computed what 035 implied but did not state: reaching a ratio of 1.0 at
+this effect size needs **~145 systems and 123 exist**, so "no further systems fix it" is
+quantitatively right rather than merely rhetorical.
+
+**The defect is mine and it is Family C in a branch I wrote.** The verdict read
+`elif abs(pb) > pbh and abs(pa) <= pah:` and printed *"the code decay adds nothing once N is held —
+they are SEPARATE"*. That treats **does not exclude zero** as **is zero**, which is the definition of
+believing an underpowered null — and it fired in the one case where the non-significant coefficient
+had the *larger* point estimate. I have spent this session catching that error in other people's
+framing and in my own analysis; here it was compiled into a verdict that would have printed the same
+wrong reading on every future run.
+
+**Fixed at the branch, not in prose.** It now prints "NOT SEPARABLE BY THIS DESIGN", the ratio, the
+CI, the point-estimate comparison, and the collinearity diagnostics (corr, VIF, orthogonal fraction)
+computed from the data at print time — so a reader sees why the interval is wide rather than being
+told to trust the conclusion.
+
+**One consequence worth stating: the encoder decay goes back to OPEN.** It is not confirmed as a
+contributor to `FVE⊥` and not excluded. That is a less tidy state than either "one finding" or
+"separate", and it is the one the data supports.
+
+**35b done.** The n=24 value is marked SUPERSEDED in both the ROADMAP and STATE OF THE ANSWER, and
+27a's "being re-measured" caveat is replaced with its discharge rather than left stale.
 
 ## Notes on 034
 
