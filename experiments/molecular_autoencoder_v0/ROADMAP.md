@@ -2836,7 +2836,11 @@ declined it.
 already carrying **~15**. That one is not a null, and it is the only one of the four that points at a
 specific fix.
 
-### 007 ANSWERED (job 10306738, 2 h, n=123): A MEASURED NULL — NOT AN UNANSWERABLE QUESTION
+### 007: **ANSWERED at m=100 (n_eff/dim 3.28, viable); NOT MEASURABLE at m=400 (n_eff/dim 0.81)**
+> **INBOX 21d — ALWAYS BOTH HALVES, TOGETHER.** A bare "007 is a measured null" is precisely the
+> claim-without-its-range that 21b forbids, and it would be cited that way within a week. The null
+> holds *at the basis where the instrument is adequately sampled*; at the larger basis the instrument
+> cannot answer at all, and the difference changes sign between them.
 Ratio-only, per INBOX 13a. **No absolute TICA exponent is quoted, here or in the output.**
 
 | basis | n_eff per TICA dim | in-sample DIFFERENCE | out-of-sample DIFFERENCE |
@@ -3061,6 +3065,17 @@ Measured on the best available arm, 24 N-stratified held-out systems, 2,000 cons
 is **2.5× below the latent's own effective rank** (14.9) — the code carries roughly fifteen usable
 dimensions of conformational variance and the decoder converts about six of them into output modes.
 
+> ### ⬛ HEADLINE FORM (INBOX 21a/21b): **the decoder emits under 4% of the directions the motion uses — 6 of 152.**
+> That is the claim to quote. It involves **no free constant**, does not involve PR at all, and is
+> therefore untouched by the threshold that flips. **"Decoder-limited" is RETIRED as a headline
+> phrase**; it may appear only as a label, with its range attached (it holds above 0.40·PR).
+>
+> **POLICY, generalised from the audit:** a headline claim must be a **quantity with no free
+> constant** — a ratio, a slope with a CI, a fraction of systems. **A label produced by comparing a
+> quantity to a chosen threshold is not a claim**; it is a reading, and it appears only beside the
+> quantity and the range over which it holds. This rule would have prevented all three Family G
+> instances *at the point of writing* rather than at the point of audit.
+>
 > **INBOX 20b — THE LABEL DEPENDS ON A THRESHOLD; THE RATIOS DO NOT. QUOTE THE RATIOS.**
 > Running `verdict_sensitivity()` over this claim (the first time it was pointed at a *surviving*
 > result rather than a suspected one) shows the **"decoder-limited" LABEL flips**: it holds for any
@@ -3076,8 +3091,8 @@ dimensions of conformational variance and the decoder converts about six of them
 > The data-rank ratio is the stronger of the two **and does not involve PR at all**, so the substance
 > of 16a does not rest on the threshold that flips. *(One qualification in the other direction: the
 > audit also lists `rank99` as flipping, but `0.6·PR` was calibrated for the rank90 convention, so
-> that row is a mis-specified comparison rather than a genuine free choice and is not evidence
-> against the claim.)*
+> that row is a MIS-SPECIFIED COMPARISON rather than a genuine free choice, and is marked as such
+> rather than counted as a flip.)*
 > **This also corrects my own earlier statement** that 16a "survives its own free choices" — that was
 > true across 0.75×–1.5× on one metric, and is not true across 0.5×–2×. The narrower test was the one
 > I happened to run.

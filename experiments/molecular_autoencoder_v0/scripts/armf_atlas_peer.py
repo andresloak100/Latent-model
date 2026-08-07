@@ -73,21 +73,25 @@ def tr_cols(d, c0, c1):
                            for r in (0, 1)], 0) - d["mu"][c0:c1]
 
 
-def peer_one(d, V):
+def peer_one(d, Vs):
     """ONE streamed pass. Returns ANM prefix-FVE at every k, and both PCA oracles at every k.
 
     Orthonormal modes make FVE_k a PREFIX SUM of per-mode projected energy, so the k-ladder costs
     nothing beyond the KMAX solve -- no separate eigensolve per k."""
     F, N3 = d["F"], 3 * d["N"]
-    kk = V.shape[1] if V is not None else 0
-    P = np.zeros((F, kk)) if kk else None      # ho @ V           (F, KMAX)
+    # INBOX 21c: ANM at EVERY cutoff in the sweep, not only the selected one. The selection margin is
+    # 2.9% of training-mean FVE (5 A over 7 A) -- effectively a tie -- and ANM is the PRIMARY
+    # comparator, so codec-vs-ANM currently inherits a coin flip. All cutoffs are projected in the
+    # SAME streamed pass, so the extra cost is the eigensolves, not the I/O.
+    Ps = {c: (np.zeros((F, V.shape[1])) if V is not None else None) for c, V in Vs.items()}
     G = np.zeros((2 * F, 2 * F))               # Xtr @ Xtr^T      frame-space Gram
     M = np.zeros((F, 2 * F))                   # ho  @ Xtr^T
     Q = np.zeros((F, F))                       # ho  @ ho^T       for the in-sample oracle
     for c0 in range(0, N3, CHUNK):
         c1 = min(c0 + CHUNK, N3)
         h = ho_cols(d, c0, c1); x = tr_cols(d, c0, c1)
-        if kk: P += h @ V[c0:c1]
+        for c, V in Vs.items():
+            if V is not None: Ps[c] += h @ V[c0:c1]
         G += x @ x.T; M += h @ x.T; Q += h @ h.T
         del h, x
     sst = d["sst"]
@@ -97,11 +101,13 @@ def peer_one(d, V):
     # k = the codec's REALISED RANK, a number that comes from a different job and can change; storing
     # only the pre-chosen ladder would force a full recomputation every time that k moved. Modes are
     # orthonormal, so the curve is a prefix sum and costs nothing extra.
-    if kk:
-        e = (P ** 2).sum(0)                                        # per-mode projected energy
-        cs = np.cumsum(e) / (sst + 1e-12)
-        out["anm_cs"] = [float(v) for v in cs]
-        for k in KS: out[f"anm{k}"] = float(cs[min(k, kk) - 1])
+    for c, P in Ps.items():
+        if P is None: continue
+        kk = P.shape[1]
+        cs = np.cumsum((P ** 2).sum(0)) / (sst + 1e-12)
+        tag = "" if c == Vs.get("_sel") else f"_c{c:g}"
+        out[f"anm_cs_c{c:g}"] = [float(v) for v in cs]
+        for k in KS: out[f"anm{k}_c{c:g}"] = float(cs[min(k, kk) - 1])
 
     # ORACLE, OUT-OF-SAMPLE: basis from replicas 0+1, evaluated on replica 2.
     w, U = np.linalg.eigh(G); o = np.argsort(w)[::-1]
@@ -192,21 +198,26 @@ if __name__ == "__main__":
         if d is None:
             res["sys"][p] = dict(N=store.meta[have[p]]["atoms"], err="sysdata failed"); continue
         t0 = time.time()
-        V, att, dt = anm_modes(d["ref"], KMAX, best)
+        Vs, atts = {}, {}
+        for c in CUTOFF_SWEEP:
+            Vs[c], atts[c], _ = anm_modes(d["ref"], KMAX, c)
         try:
-            row = peer_one(d, V)
+            row = peer_one(d, Vs)
         except Exception as e:
             row = dict(err=f"{type(e).__name__}: {e}")
-        row["N"] = d["N"]; row["anm_ok"] = V is not None; row["anm_att"] = att
+        row["N"] = d["N"]
+        row["anm_ok"] = Vs.get(best) is not None
+        row["anm_ok_by_cutoff"] = {f"{c:g}": (Vs[c] is not None) for c in CUTOFF_SWEEP}
+        row["anm_att"] = atts.get(best, 0)
         row["stamp"] = ST
         row["secs"] = time.time() - t0
         res["sys"][p] = row
         json.dump(res, open(RES, "w"))
         if (i + 1) % 5 == 0 or i < 3:
-            print(f"  {i+1}/{len(order)} {p} N={d['N']} anm{KS[0]}={row.get(f'anm{KS[0]}', float('nan')):.4f} "
+            print(f"  {i+1}/{len(order)} {p} N={d['N']} anm{KS[0]}@{best:g}A={row.get(f'anm{KS[0]}_c{best:g}', float('nan')):.4f} "
                   f"pca_out{KS[0]}={row.get(f'pca_out{KS[0]}', float('nan')):.4f} "
                   f"({row['secs']:.0f}s, {(time.time()-t00)/60:.0f} min elapsed)", flush=True)
-        del d, V
+        del d, Vs
 
     # ---------------- REPORT ----------------
     S = {p: r for p, r in res["sys"].items() if "err" not in r}
@@ -268,7 +279,7 @@ if __name__ == "__main__":
         for (p, n), c in zip(cur, r["per"]):
             s = S.get(p)
             if not s or not s.get("anm_ok"): continue
-            cf.append(c); af.append(s[f"anm{k}"]); of.append(s[f"pca_out{k}"]); Nv.append(n)
+            cf.append(c); af.append(s[f"anm{k}_c{best:g}"]); of.append(s[f"pca_out{k}"]); Nv.append(n)
         if len(cf) < 10:
             print(f"    n{r['n_train']} DM{k}: only {len(cf)} systems have BOTH a codec and a peer "
                   f"value -- too few to report. Not a null result; the peer pass is incomplete.",
@@ -315,6 +326,53 @@ if __name__ == "__main__":
                   f"   (codec alone {lc.slope:+.4f} +/- {hc:.4f})   "
                   f"{'FLAT' if abs(lr.slope) < hw else '*** MOVES WITH N ***'}", flush=True)
 
+    # ---------------- INBOX 21c: THE PRIMARY COMPARISON AT EVERY CUTOFF ----------------
+    # The peer's cutoff is selected on a TRAINING mean where 5 A beats 7 A by 2.9% -- effectively a
+    # tie. ANM is the PRIMARY comparator, so codec-vs-ANM would otherwise inherit a coin flip. The
+    # fix is NOT to pick better: report the comparison at EVERY cutoff and treat a codec result as
+    # real only where all of them agree. A 2.9% selection must not decide the project's headline.
+    if joined:
+        print(f"\n=== 21c: THE PRIMARY COMPARISON AT EVERY CUTOFF (the selection margin is 2.9%) ===",
+              flush=True)
+        bb = max(joined, key=lambda j: j["codec"])
+        k = bb["dm"]
+        pdbs2 = [p for (p, _) in cur if p in S and S[p].get("anm_ok")]
+        cmap2 = dict(zip(pdbs2, bb["codec_per"]))
+        Nmap = {p: n for (p, n) in cur}
+        print(f"  best arm: n_train={bb['n_train']} DM={k}, {len(pdbs2)} systems", flush=True)
+        print(f"    {'cutoff':>8}{'ANM-k':>10}{'codec-ANM':>12}{'frac codec>ANM':>16}"
+              f"{'gap-vs-log10(N)':>22}", flush=True)
+        verdicts = {}
+        for c in CUTOFF_SWEEP:
+            av, cv, nv = [], [], []
+            for p in pdbs2:
+                a = S[p].get(f"anm{k}_c{c:g}")
+                if a is None or cmap2.get(p) is None: continue
+                av.append(a); cv.append(cmap2[p]); nv.append(Nmap[p])
+            if len(av) < 10: continue
+            av = np.array(av); cv = np.array(cv); g = cv - av
+            lr = stats.linregress(np.log10(np.array(nv, float)), g)
+            hw = stats.t.ppf(0.975, len(g) - 2) * lr.stderr
+            verdicts[c] = ("codec WINS" if g.mean() > 0 else "codec LOSES",
+                           float(g.mean()), float((g > 0).mean()), float(lr.slope), float(hw))
+            print(f"    {c:>7.0f}A{av.mean():>10.4f}{g.mean():>+12.4f}{100*(g>0).mean():>15.0f}%"
+                  f"{lr.slope:>+15.4f}+/-{hw:.4f}", flush=True)
+        if verdicts:
+            outcomes = {v[0] for v in verdicts.values()}
+            if len(outcomes) == 1:
+                o = outcomes.pop()
+                print(f"    => ALL CUTOFFS AGREE: {o}. The peer comparison does NOT depend on a 2.9%"
+                      f" selection margin, so the result stands on its own.", flush=True)
+            else:
+                print(f"    => *** THE CUTOFFS DISAGREE ({outcomes}). THE PEER COMPARISON IS NOT "
+                      f"RESOLVED at this cutoff margin, and no codec-vs-ANM verdict may be quoted. "
+                      f"***", flush=True)
+            sl = [v[3] for v in verdicts.values()]
+            flat = all(abs(v[3]) < v[4] for v in verdicts.values())
+            print(f"    gap-vs-N slope across cutoffs: {min(sl):+.4f} to {max(sl):+.4f}  -> "
+                  f"{'FLAT at every cutoff' if flat else 'MOVES at at least one cutoff'}; the "
+                  f"objective-1 quantity must not depend on the selection either.", flush=True)
+
     # ---------------- INBOX 17c: WHERE DOES THE GAP LIVE? ----------------
     # "codec 0.155 vs PCA-16 ~ 0.53" compares SIX realised directions against SIXTEEN, so it fuses
     # two different deficits. Splitting them at matched rank says which fix is worth making:
@@ -348,7 +406,7 @@ if __name__ == "__main__":
         # which is exactly the FAMILY F failure this file's own header warns about.
         pdbs = [p for (p, _) in cur if p in S and S[p].get("anm_ok")]
         cmap = dict(zip([p for (p, _) in cur if p in S and S[p].get("anm_ok")], b["codec_per"]))
-        rows_k = [(p, at_k(p, "anm_cs", RANK_K), at_k(p, "pca_out_cs", RANK_K),
+        rows_k = [(p, at_k(p, f"anm_cs_c{best:g}", RANK_K), at_k(p, "pca_out_cs", RANK_K),
                    at_k(p, "pca_out_cs", 16), cmap.get(p)) for p in pdbs]
         rows_k = [r for r in rows_k if all(v is not None for v in r[1:])]
         if rows_k:
@@ -389,7 +447,7 @@ if __name__ == "__main__":
     print(f"\n=== THE ORACLE LADDER (fraction, never a bar) ===", flush=True)
     print(f"    {'k':>5}{'ANM-k':>10}{'PCA out':>10}{'PCA in':>10}{'in/out':>9}", flush=True)
     for k in KS:
-        a = np.array([S[p][f"anm{k}"] for p in S if S[p].get("anm_ok")], float)
+        a = np.array([S[p][f"anm{k}_c{best:g}"] for p in S if S[p].get("anm_ok")], float)
         po = np.array([S[p][f"pca_out{k}"] for p in S if f"pca_out{k}" in S[p]], float)
         pi = np.array([S[p][f"pca_in{k}"] for p in S if f"pca_in{k}" in S[p]], float)
         if not len(po): continue
