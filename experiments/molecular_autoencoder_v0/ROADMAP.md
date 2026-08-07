@@ -2599,6 +2599,35 @@ refute the architecture, because rank90 is a per-system PCA quantity and the cod
 sized by its own saturation curve; but it does remove the last version of the *physics* argument that
 a fixed width suffices. The claim now stands or falls on `armf_atlas_dm.py`.
 
+### ⬛ PRE-REGISTERED (INBOX 24b): WHAT WOULD MAKE `b` REPORTABLE — written BEFORE the re-run lands
+Finishing `atlas_b` removes the **truncation** (the top 18% of log-range was missing). It does
+nothing about the **dispersion**, and those are independent defects. On the partial data `b` ranges
+**−0.83 to +1.05 including a sign flip**, produced by two choices that are *ours* — the sample floor
+and the replica-join count — not the data's.
+
+**PRIMARY CELL, fixed now, before any number is seen:**
+- **variant** = `j{J}_rsort`, out-of-sample **sorted** — ordering-free, which INBOX 011 established
+  is the architecture-relevant one.
+- **J** = chosen by `armf_atlas_b.py`'s OWN pre-existing rule: *lowest budget-matched inflation among
+  joins whose p90 rank usage is under the 30% censoring line*. That rule predates this question and
+  was not written by me after seeing `b`.
+- **floor** = **none**, all systems. The floor sweep is my sensitivity probe; it was never part of
+  the claim, and introducing a floor would itself be a free choice.
+
+**ACCEPTANCE, also fixed now:**
+1. Report `b` as a **value** only if, across the uncensored `J` cells at no floor on the
+   ordering-free variant, the point estimates span **≤ 0.25** *and* their CIs mutually overlap.
+2. If the spread exceeds 0.25, **report `b` as a RANGE** over those cells and retire the
+   single-value form: `b ≥ 0.93` becomes `b ∈ [lo, hi], depending on join count`.
+3. The floor sweep can only ever **add a caveat**, never upgrade `b`. If it flips the sign or moves
+   `b` by more than 0.5, record that `b` is not robust to sample restriction.
+4. If no `J` clears the 30% line, report as **censored** — the script already does this.
+
+**And if the spread stays wider than the claim, the honest output is the range, not a value** — with
+it stated that `b` is produced by analysis choices as much as by data, so any width chain built on it
+inherits the range rather than the number. Per **21b** the range *is* the reportable quantity; `b ≥
+0.93` is a label.
+
 ### CORRECTION: b is an INEQUALITY, `b >= 0.93` (INBOX 007)
 The out-of-sample exponent `+0.9285 +/- 0.2220` must be recorded as **`b >= 0.93`**, not as a point
 estimate. The 5 excluded systems are the LARGEST in the corpus and were excluded **precisely because

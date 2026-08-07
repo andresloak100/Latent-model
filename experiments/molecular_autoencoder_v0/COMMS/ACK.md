@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 019
+last_acted: 024
 ```
 
 | item | restatement | status | commit |
@@ -40,6 +40,34 @@ last_acted: 019
 | 018 | **18a:** stop hunting the one unreproducible instance and make the next one diagnosable — stamp every arm at write time with the script's git SHA + dirty flag, a hash of the EFFECTIVE config, torch version and device, and refuse to compare arms across differing stamps unless the override is recorded. **18b:** `full_fve` is the right decision metric, and "not separated at n=2 seeds" is a RESULT — do not add seeds until something separates, because that is Family C run backwards and manufactures a winner from noise. **18c:** run 17c's decomposition on the modal arm too, before reading its result: realised rank `r_modal`, modal vs PCA-`r_modal` (basis quality at its own matched count), and modal vs codec decomposed into more-directions versus better-ones — an arm that improves FVE purely by realising more directions is real but BOUNDED and must be reported as bounded. **18d:** Family A has an infrastructure vector — any resume/cache/skip-if-exists path is an exclusion filter when the work is ordered by a regressor; print the regressor distribution of stored vs missing before resuming and treat a skew as a purge condition. | ACCEPTED | (this commit) |
 
 | 019 | **19a:** Family G's real statement is that each instance was a verdict I automated to guard against bias, and the automation moved the bias from the conclusion into the threshold — so naming the metric is not enough; every automated verdict must print, unconditionally, what it would have concluded across the plausible range of every free choice it contains (threshold at 0.5×/1×/2×, each candidate metric, and the margin to the boundary), and if it flips anywhere it is a measurement plus an opinion, not a verdict. **19b:** retire the A/B/C data-limited-vs-fundamental decision tree explicitly — 16a returned a third answer the ladder cannot produce (architecture-limited, specifically decoder-limited), and a tree left standing gets applied. **19c:** do not rebuild the full ladder on an architecture already diagnosed — hold n_train 300/600 until the modal-vs-attention comparison settles, keep n=50 on both since that is the rung the comparison runs at, pay for one mid rung (n=130) on the current decoder so "did more data help the old decoder?" has an answer, then run the full ladder once on the winner. | ACCEPTED | (this commit) |
+| 020 | **20a:** a watched stop is not a stop — make the ladder hold deterministic, either by cancel-and-resubmit at the n=130 boundary or (better) a guard that re-reads `NTRAIN` from disk at each rung so a hold takes effect on a RUNNING job. **20b:** sensitivity earns confidence, so point it BACKWARDS at the ROADMAP's surviving load-bearing claims, which have never been tested this way — report stable/flips and the range each holds over. **20c:** name the 18c attribution choice inline — pricing extra directions at oracle quality upper-bounds the mode-count term and lower-bounds basis quality. | ACCEPTED | `a79819bd` |
+| 021 | **21a:** the substance survives and the label does not — lead with `realised rank90 / DATA rank90 = 0.039` (6 of 152), which carries no free constant and does not involve PR; retire "decoder-limited" as a headline phrase; mark the `rank99` row a mis-specified comparison rather than a flip. **21b:** policy — a headline claim must be a quantity with no free constant; a label produced by thresholding a quantity is a READING and appears only beside the quantity and its range. **21c:** the ANM cutoff flip is the most consequential audit finding (5 Å over 7 Å by 2.9%, and ANM is the PRIMARY comparator) — do not resolve it by picking better; report the comparison at EVERY cutoff, quote a verdict only where all agree, and give the gap-vs-N slope per cutoff. **21d:** record 007 as "answered at m=100 (n_eff 3.28); not measurable at m=400 (n_eff 0.81)" — both halves, always together. | ACCEPTED | `e3a3b74b` |
+| 022 | **22a:** the nonlocality escalation has THREE rungs — rung 1 `ctx_layers ∈ {2,4}` with the receptive field REPORTED in Å rather than assumed; rung 2 (only if rung 1 stalls) Laplacian eigenvector positional encoding, nonlocal by construction, with the GNM overlap stated plainly rather than hidden; rung 3 is to report that a learned structure→basis map does not reach a physics-derived one at matched rank, and NOT to drift into optimising ANM variants. LR swept at every rung, each reported against the same 17c decomposition. **22b:** the positive gap slope is the right ceiling-free metric AND it is weak — CI ≈ [0.005, 0.098]; report it as suggestive with its range, because a barely-significant positive is not more trustworthy than a barely-significant null just because it is the answer we want. **22c:** every FVE-vs-N statement carries 19% of oracle / 0% of systems / 65% basis quality. | ACCEPTED | `0fb6a80b` |
+| 023 | **23a:** absolute reach is the wrong axis — report structure diameter (stating which definition), `reach/diameter`, and basis quality at matched rank, then regress basis quality on `reach/diameter`, NOT on N. **23b:** that converts the ctx sweep from a hyperparameter search into a MECHANISM TEST with three distinct readings. **23c:** expect rung 1 to stall at low coverage — spanning 120 Å at 2.6 Å/hop needs ~46 layers — so a stall there is STRUCTURAL and the informative quantity is the CROSSOVER. **23d:** record the rank/quality decoupling as a finding in its own right. | ACCEPTED | `8e9adb36` |
+| 024 | **24a:** `ACK.md` silently diverged for four consecutive items — backfill 020–023, fix `last_acted`, and add a mechanism that makes divergence self-detecting; the delivery was fine, the RECORD failed, and a commit message asserting "ACKed" is not an ACK. **24b:** finishing `atlas_b` removes the truncation but not the DISPERSION — pre-register, before the re-run lands, which `(floor, J)` is primary and why, what spread across remaining cells is acceptable, and what to report if it stays wider than the claim; if no choice is defensible in advance, `b` is not a measurement and the honest output is the range. **24c:** the LR sweep is underpowered for "not losing on an unswept hyperparameter" — 3 usable rates, adjacent-rate scatter 0.0433 against a 0.0350 gap at n=1, which is Family C; replicate at 2–3 seeds and report mean ± spread per rate. | ACCEPTED | (this commit) |
+
+## Notes on 024
+
+**24a is right, and I can name the exact mechanism rather than just accepting the finding.** For item
+020 I never wrote an `ACK.md` entry at all. Every later edit then did
+`s.replace("last_acted: 020", "last_acted: 021")` on a file that still said `019` — and
+`str.replace` on an absent pattern **silently does nothing**. Four consecutive no-ops. I used
+`assert old in s` on the ROADMAP and script edits throughout this session and did **not** use it on
+the ledger edits, which is why every other edit that missed its anchor failed loudly and these four
+failed quietly.
+
+So the shape is exactly the one 24a names, and it is the same one I caught in 18d: **the guard was
+satisfiable by a claim in prose.** My commit messages asserted "INBOX 023 ACKed (last_acted 022 →
+023)" while the file said 019, and nothing compared the two.
+
+**Fixed three ways, in increasing order of not depending on me:** the backfill above; an `assert` on
+every ledger edit; and `COMMS/check_ack.py`, which fails when `last_acted` does not match the highest
+item in `INBOX.md` or when any item lacks a table row — wired as a **pre-push hook**, so a push
+carrying a divergent ledger is refused rather than reported as fine.
+
+**One deviation from the instruction, stated plainly:** 24a says set `last_acted: 023`. I have set
+**024**, because this turn also acts on 024 and the protocol is that the ledger records what has been
+acted on. Setting 023 would have re-created the divergence on the next push.
 
 ## Notes on 019
 
