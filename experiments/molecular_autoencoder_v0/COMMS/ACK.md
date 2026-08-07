@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 032
+last_acted: 033
 ```
 
 | item | restatement | status | commit |
@@ -53,6 +53,36 @@ last_acted: 032
 | 030 | **30a:** `cos²` and `a*` are ORACLE quantities — `a*` is fitted against the held-out target, so "FVE after optimal rescaling" must never be reported as performance; label it at the point of computation (`fve_oracle_rescaled`, not `fve_corrected`) and compute the legitimate counterpart in the same pass — **N is an input**, so `c(N) = √(N_ref/N)` with `N_ref` frozen from the training distribution is available ZERO-SHOT, and the three numbers per system are raw FVE, N-only corrected (**reportable**), oracle rescaled (**upper bound**). **30b:** the `a* ~ N^−0.5` exponent is not decisive alone, because `a* = α/(α² + ‖e‖²/‖d‖²)` moves with directional error too — a −0.5 slope is consistent with over-scale OR with direction degrading in N, so read `cos²` and the exponent JOINTLY against the four-cell table, guarding especially against row three where the predicted exponent appears and means something else. **30c:** nothing outranks 10309145; if the two finish close together, report the peer result first. | ACCEPTED | (this commit) |
 | 031 | **31a:** an unclaimed corroboration — the over-scale story implies `a*(N_ref) = 1`, and the fitted line's crossing can be compared against `N_ref = 2460`, which was fixed from the TRAINING systems without reference to `a*`. **31b:** the "N-only recovers" column is a ratio of medians and misreports — at Q1 it says 3% where a per-system calculation says most of the gain is recoverable; report the per-system DISTRIBUTION (median and IQR), not a ratio of quartile medians. **31c:** `R² = 0.649` means 35% of per-system `log a*` variance is unexplained by N, so the correction is accurate in aggregate and imprecise per system — the honest form is that it reliably removes the LARGE scale error at high N and is within noise of doing nothing where the error is already small. **31d:** state which of three questions the project is now testing — (1) the encoder cannot reach the ~54-mode target, (2) the objective is wrong, (3) the comparison is unwinnable as posed — and have the next experiment NAME which it discriminates. | ACCEPTED | (this commit) |
 | 032 | **32a:** the seed finding's DIRECTION is not established — "it understates tied's advantage" resolves the bias from ONE side's variance, but tied's Q1 +0.2956 is also a single draw with unmeasured spread, so the 2.67× ratio is one draw over one draw with only the denominator's SD known; adding tied to the 24c harness costs one cell. It does NOT touch the peer result: tied Q1 +0.2956 against ANM +0.6912 is a gap of 0.396, **12× the single-arm SD**, which no seed draw closes. **32b:** 31d's yardstick (0.0656) is the RANGE of three draws WITHIN a rung, but the ladder must resolve a DIFFERENCE BETWEEN rungs — `SD(diff) = SD_arm·√(2/k)`, so at one seed per rung the 95% half-width is ~0.092, an 88% relative lift, and a flat result could not retire option (1) (Family C); fix with 2–3 seeds per rung or word the null as bounded. **32c:** pre-register what a RISING ladder means — 14a, 17c, 25a and the entire peer comparison were measured at n50, so a rise makes them a FLOOR and the headline carries "at n_train=50" until re-run. | ACCEPTED | (this commit) |
+| 033 | **33a:** with 3 seeds per rung the SD is ESTIMATED, not known, so the verdict needs a **t quantile**, not 1.96 — `t(0.975, df=6) = 2.447` pooled over 3 rungs, 25% wider; `SD(diff) = SD_arm·√(2/3)`, so on the measured SDs the half-width lands at **0.034–0.066**, and `df` must be printed beside it. Using 1.96 with an estimated SD is 32b's error one level down — right statistic, wrong distribution for it. **33b:** the **0.0206** came from the synthetic rows used to exercise the branch, not from the ladder, and is now sitting next to a real interpretation; the real bounded null is **33–63%** of the control mean, not 20% — label the synthetic figure as synthetic where it prints. **33c:** fix the flat-result wording NOW, before the outcome is known — "across a 6× range, no effect larger than **X** (t-interval, df=N), which is **Y%** of the control's mean; option (1) is not retired; effects below that size are not excluded by this design." | ACCEPTED | (this commit) |
+
+## Notes on 033
+
+**33a is right and it is the same error one level down, which is the part worth recording.** 32b
+corrected the *statistic* (range within a rung → SD of a difference between rungs); 33a corrects the
+*distribution used for that statistic* (normal → t, because the SD is now estimated from the arms
+themselves on few df). Verified: `t(0.975, 6) = 2.4469`, **25% wider** than 1.96, and on the measured
+control SDs (0.0171 / 0.0191 / 0.0330) the half-width becomes **0.0342 / 0.0382 / 0.0659** =
+**33% / 37% / 63%** of the control mean. All three of 033's figures reproduce exactly.
+
+The verdict now computes `df` as the pooled within-rung `Σ(kᵢ−1)`, uses a **pooled** SD (RMS of the
+per-rung SDs rather than their mean, which is the correct pooling for variances), and **prints
+`SD_arm`, `SD(diff)`, `t` and `df`** so the interval can be checked rather than trusted.
+
+**33b is a fair catch about how a number travels.** The 0.0206 was from synthetic rows exercising the
+branch, and I put it in a commit message next to a real interpretation — where it would read as the
+ladder's sensitivity three commits later. The synthetic harness now prints `[SYNTHETIC, not the
+ladder]` on every line and states the real range beneath it. Incidentally the synthetic run
+illustrates 33a's point: at n=3 the *sample* SDs came out 0.0122 and 0.0239 against true 0.0171 and
+0.0330, so an estimated SD really is the thing being corrected for.
+
+**33c's wording is now fixed in the source before the outcome is known**, in the form 033 specifies —
+it states what the bound **is** rather than what it is not, gives `X`, the df and `Y%`, and says
+outright that option (1) is not retired. That was the whole point of writing it before the numbers
+rather than after.
+
+**Restarted as 10311546 (+2 chained).** The single completed arm survived the restart, which is the
+27b stamp fix working: `SEEDS` and `LADDER` are not in the stamp, so widening the design does not
+discard work.
 
 ## Notes on 032
 

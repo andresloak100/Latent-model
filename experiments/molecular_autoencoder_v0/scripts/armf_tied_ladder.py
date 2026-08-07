@@ -170,18 +170,25 @@ if __name__ == "__main__":
     if len(pts) >= 2:
         n0, f0, m0, k0 = pts[0]; n1, f1, m1, k1 = pts[-1]
         d_mean = f1 - f0
-        sd_arm = float(np.mean(sds)) if sds else float("nan")
+        # INBOX 33a: the SD is ESTIMATED from these arms, not known, so the interval needs a
+        # t quantile rather than 1.96. Pooled within-rung df = sum(k_i - 1) over rungs. Using 1.96
+        # with an estimated SD understates the bounded null by ~25% at df=6 -- the right statistic
+        # with the wrong distribution for it, which is 32b's error one level down.
+        sd_arm = float(np.sqrt(np.mean(np.square(sds)))) if sds else float("nan")   # pooled SD
+        dfree = int(sum(max(k - 1, 0) for (_, _, _, k) in pts))
         k = min(k0, k1)
-        if np.isfinite(sd_arm) and k >= 1:
-            se = sd_arm * np.sqrt(2.0 / k); hw = 1.96 * se
+        if np.isfinite(sd_arm) and k >= 1 and dfree >= 1:
+            tq = float(stats.t.ppf(0.975, dfree))
+            se = sd_arm * np.sqrt(2.0 / k); hw = tq * se
         else:
-            se = hw = float("nan")
+            tq = se = hw = float("nan")
         print(f"\n  n_train {n0} -> {n1} ({n1/n0:.1f}x corpus): mean {f0:+.4f} -> {f1:+.4f} "
               f"(difference {d_mean:+.4f})", flush=True)
-        print(f"  TIED's own single-arm SD, measured here: {sd_arm:.4f} (pooled over rungs, "
-              f"{k} seeds/rung)", flush=True)
-        print(f"  SD of the DIFFERENCE = SD_arm*sqrt(2/{k}) = {se:.4f}; 95% half-width = {hw:.4f}",
-              flush=True)
+        print(f"  TIED's own single-arm SD, measured HERE (not borrowed): {sd_arm:.4f}, "
+              f"{k} seeds/rung", flush=True)
+        print(f"  SD(difference) = SD_arm*sqrt(2/{k}) = {se:.4f};  t(0.975, df={dfree}) = {tq:.3f}"
+              f"  ->  95% half-width = {hw:.4f}", flush=True)
+        CTRL_MEAN = 0.1042      # control lr3e-4 mean over 3 seeds (24c), the reference for "% of"
         if np.isfinite(hw) and abs(d_mean) > hw:
             print(f"  => THE CEILING MOVES WITH DATA ({d_mean:+.4f}, clearing {hw:.4f}). The tied arm")
             print(f"     is DATA-limited over this range, so 31d-(1) is NOT the binding constraint and")
@@ -190,15 +197,19 @@ if __name__ == "__main__":
             print(f"     comparison were measured at n50. A rise means every one of them was measured")
             print(f"     on an UNDER-TRAINED model and is a FLOOR, not an estimate -- including")
             print(f"     FVE_perp ~ 0 and the 0%-of-systems peer loss. It does not soften the n50 peer")
-            print(f"     result, which is what it is; it does mean the headline carries 'at n_train=50'")
-            print(f"     until the peer comparison is re-run at the best rung.", flush=True)
+            print(f"     result, which is what it is; it does mean the headline carries 'at")
+            print(f"     n_train=50' until the peer comparison is re-run at the best rung.", flush=True)
         else:
-            print(f"  => BOUNDED NULL, NOT 'NOT DATA-LIMITED' (INBOX 32b). The difference {d_mean:+.4f}")
-            print(f"     does not clear {hw:.4f}, so what is established is: NO DATA EFFECT LARGER THAN")
-            print(f"     {hw:.4f} across {n1/n0:.0f}x corpus. That is {100*hw/0.1042:.0f}% of the control")
-            print(f"     mean (+0.1042), so effects smaller than that are NOT excluded and option (1)")
-            print(f"     IS NOT RETIRED. Reporting this as 'not data-limited' would be Family C --")
-            print(f"     retiring the hypothesis the ladder exists to test.", flush=True)
+            # INBOX 33c: the wording is fixed HERE, before the outcome is known, and it says what the
+            # bound IS rather than what it is not. A bounded null of a third to two thirds of current
+            # performance is a real improvement on 88% and is still not "not data-limited".
+            pct = 100 * hw / CTRL_MEAN if np.isfinite(hw) else float("nan")
+            print(f"  => Across a {n1/n0:.0f}x range in n_train, NO EFFECT LARGER THAN {hw:.4f}")
+            print(f"     (t-interval, df={dfree}) -- which is {pct:.0f}% of the control's mean")
+            print(f"     ({CTRL_MEAN:+.4f}). OPTION (1) IS NOT RETIRED; effects below that size are")
+            print(f"     not excluded by this design.")
+            print(f"     Reporting this as 'not data-limited' would be Family C -- retiring the")
+            print(f"     hypothesis the ladder exists to test.", flush=True)
     print(f"\n  SCOPE: architecture, objective and comparator held FIXED; only n_train varies, so this")
     print(f"  discriminates (1) alone and cannot separate (2) from (3). The N-only scale correction is")
     print(f"  deliberately NOT applied -- folding it in would confound 'does more data help' with")
