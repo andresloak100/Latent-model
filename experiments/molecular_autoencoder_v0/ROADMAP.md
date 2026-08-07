@@ -2168,6 +2168,22 @@ cannot fail, so it proves nothing.
 **CHECK:** before reporting any comparison, sweep EVERY baseline hyperparameter on TRAINING data,
 report the curve, use the best. **A baseline you didn't try to make strong is not a baseline.**
 
+### FAMILY A — INFRASTRUCTURE VECTOR (INBOX 18d): resume/cache/skip-if-exists paths are exclusion filters
+The 10307102 near-miss is a new shape of an old family, and the exclusion came from **no analysis
+choice at all**. The peer loop processes systems **ascending in N** by design; 49 of the smallest were
+already stored by an earlier build; and skip-if-exists would have computed 17c's matched-rank
+decomposition on the **largest 74 only** — a 40% N-correlated exclusion of the axis under test,
+invisible in the analysis code because it lives in the resume path.
+
+> **CHECK:** any resume, cache, skip-if-exists or partial-output path is a potential exclusion filter.
+> If the work is ordered by a regressor, a partial run is a *biased sample* of it. Before resuming,
+> print the regressor distribution of what is stored against what is not, and treat a skew as a purge
+> condition rather than a saving. Implemented as `armf_stamp.coverage_by()`, called by the peer loop
+> before it resumes.
+
+**Same lesson as the Q4 runtime-print finding:** the dangerous instances are the ones *outside* the
+analysis, where nobody is looking.
+
 ## FAMILY G — a VERDICT emitted by a THRESHOLD sitting at rounding distance from the measurement
 **Signature:** the measured numbers are right and the *automated reading* of them is wrong. The
 decision flips on a hand-picked constant nobody derived, at a margin far below the uncertainty in the

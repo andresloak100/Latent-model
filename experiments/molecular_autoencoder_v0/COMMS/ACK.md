@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 017
+last_acted: 018
 ```
 
 | item | restatement | status | commit |
@@ -36,6 +36,36 @@ last_acted: 017
 | 016 | Lead every summary with the ABSOLUTE scale (reconstruction RMSD 2.412 Å against displacement RMS 2.572 Å — residual 94% of the motion's own amplitude), and never let 14b's naive timescale numbers appear without the partial coefficient beside them. **16a:** measure the decoder's REALISED RANK directly — SVD the reconstructed displacement per held-out system and report the rank capturing 90% of the reconstruction's own variance, beside DM, PR and the data's rank90; ≈6 means the decoder cannot convert latent dimensions into output modes and the function class is what binds, ≈PR means the latent is the limit, ≈DM means the problem is upstream. **16b:** negative per-mode FVE past mode 6 is EXPECTED under MSE — a capacity-limited model optimally pushes error into low-variance modes — so do not debug it, and report per-mode error against the predict-zero baseline so the injection is a visible number. **16c:** invalidate the mixed-procedure arms rather than salvaging them, and make it structural by putting the training procedure into the dedup key. **16d:** reprioritise — run 015 as the next arm instead of extending the sweep. | ACCEPTED | (this commit) |
 
 | 017 | **17a:** codify **Family G** — a verdict emitted by a threshold sitting at rounding distance from the measurement (16a's 5.96-vs-6.0, 007's pooled 2.045-vs-2.0); every automated verdict prints the table first, states the margin, flags margins under 10%, prefers ratios with no free constant, and never pools a per-unit property before applying a rule to it. **17b:** pre-register the modal arm's read — report `effective_modes()` beside the realised reconstruction rank measured exactly as 16a measured it; rank ≫ 6 means bilinearity was the binding constraint, rank ≈ 6 means it is not and the next hypothesis is the basis network's receptive field (escalate `ctx_layers>0` before abandoning the form), rank ≫ 6 with flat FVE means the modes are wrong rather than too few. **17c:** decompose the 0.155-vs-0.53 gap at MATCHED RANK — PCA-r and ANM-r at r = the codec's own realised rank isolate BASIS QUALITY, and PCA-r vs PCA-16 isolates MODE COUNT; they point at different fixes and 015 addresses only one. Also record 011, 007 and 14b together as declined-with-numbers. | ACCEPTED | (this commit) |
+
+| 018 | **18a:** stop hunting the one unreproducible instance and make the next one diagnosable — stamp every arm at write time with the script's git SHA + dirty flag, a hash of the EFFECTIVE config, torch version and device, and refuse to compare arms across differing stamps unless the override is recorded. **18b:** `full_fve` is the right decision metric, and "not separated at n=2 seeds" is a RESULT — do not add seeds until something separates, because that is Family C run backwards and manufactures a winner from noise. **18c:** run 17c's decomposition on the modal arm too, before reading its result: realised rank `r_modal`, modal vs PCA-`r_modal` (basis quality at its own matched count), and modal vs codec decomposed into more-directions versus better-ones — an arm that improves FVE purely by realising more directions is real but BOUNDED and must be reported as bounded. **18d:** Family A has an infrastructure vector — any resume/cache/skip-if-exists path is an exclusion filter when the work is ordered by a regressor; print the regressor distribution of stored vs missing before resuming and treat a skew as a purge condition. | ACCEPTED | (this commit) |
+
+## Notes on 018
+
+**18a implemented as `armf_stamp.py`, and the design choice worth flagging is what is NOT hashed.**
+Gating on the repository HEAD would retrain every arm on every commit, including documentation-only
+ones — so the gate would be switched off within a day, which is worse than not having it. Instead the
+`code` field is a **normalised AST hash** of the objects actually responsible for a result (`Codec`,
+`train`), with docstrings stripped, so it is invariant to comments, docstrings, blank lines and
+formatting and changes exactly when behaviour can. Verified rather than asserted: a
+comment+docstring+blank-line rewrite hashes identically, and changing `x+1` to `x+2` does not. The
+repo SHA is recorded alongside for forensics but never gates.
+
+That hash is now part of the DM sweep's dedup key, so a silent edit to the model or the training loop
+invalidates the affected arms automatically. It is precisely what would have named the rows 6/9/10
+cause in seconds instead of leaving it unidentified after a full investigation.
+
+**18b — already done, and I am taking the instruction to stop as binding.** On `full_fve` the gap is
++0.0057 against a seed spread of 0.0269 (21%). I am **not** adding seeds. The finding is "not
+separated by these seeds", the current procedure is kept on other grounds (it closes the Family D
+hole), and the HYBRID arm is not run because it was designed for a branch that did not happen.
+
+**18d implemented as `armf_stamp.coverage_by()`, called by the peer loop before it resumes**, plus
+stamp-based purging of rows written by a different configuration — which is the more general fix,
+since the 10307102 rows were dangerous *because they came from different code*, not merely because
+they were partial.
+
+**18c is wired but cannot report yet** — it needs the peer curves, and the peer job has not produced
+them. Sequenced rather than skipped.
 
 ## Notes on 017
 

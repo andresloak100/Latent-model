@@ -50,6 +50,7 @@ from scipy import stats
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from armf_atlas_data import AtlasStore, sysdata, ho_cols
 from armf_anm import modes as anm_modes, CUTOFF_SWEEP
+import armf_stamp as STAMP
 
 WR = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace"
 MAN = f"{WR}/atlas_manifest.json"
@@ -161,6 +162,19 @@ if __name__ == "__main__":
         res.setdefault("sys", {}); json.dump(res, open(RES, "w"))
         del TRp
     best = res["cutoff"]
+    # INBOX 18a: stamp each system row, and PURGE rows written by a different configuration rather
+    # than resuming over them. This is precisely the 10307102 case: 49 systems stored by an earlier
+    # build had no cumulative curves, would never have been recomputed, and would have silently
+    # dropped out of the matched-rank decomposition.
+    ST = STAMP.stamp(dict(ks=str(KS), kmax=KMAX, cut_k=CUT_K, cutoff=best, chunk=CHUNK),
+                     peer_one, tr_cols)
+    stale = [p for p, v in res["sys"].items() if not STAMP.same_stamp(v, ST) and "err" not in v]
+    STAMP.report(list(res["sys"].values()), ST, "system rows")
+    if stale:
+        print(f"  [stamp] purging {len(stale)} system rows written by a different configuration "
+              f"so they are RECOMPUTED rather than silently excluded.", flush=True)
+        for p in stale: res["sys"].pop(p, None)
+        json.dump(res, open(RES, "w"))
     print(f"\n=== held-out peer columns at cutoff {best} A (resuming: "
           f"{len(res.get('sys', {}))} systems already done) ===", flush=True)
 
@@ -168,6 +182,9 @@ if __name__ == "__main__":
     # SIZE-TRUNCATED sample -- so the truncation is visible in the coverage table rather than
     # silently reweighting the very axis under test.
     order = sorted(ho_ids, key=lambda p: store.meta[have[p]]["atoms"])
+    # INBOX 18d: a resume path IS an exclusion filter when the work is ordered by a regressor.
+    STAMP.coverage_by([store.meta[have[p]]["atoms"] for p in order if p in res["sys"]],
+                      [store.meta[have[p]]["atoms"] for p in order if p not in res["sys"]], "N")
     t00 = time.time()
     for i, p in enumerate(order):
         if p in res.get("sys", {}): continue
@@ -181,6 +198,7 @@ if __name__ == "__main__":
         except Exception as e:
             row = dict(err=f"{type(e).__name__}: {e}")
         row["N"] = d["N"]; row["anm_ok"] = V is not None; row["anm_att"] = att
+        row["stamp"] = ST
         row["secs"] = time.time() - t0
         res["sys"][p] = row
         json.dump(res, open(RES, "w"))
