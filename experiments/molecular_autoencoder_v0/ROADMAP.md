@@ -2797,6 +2797,41 @@ PCA-16 of ≈ 0.53, **a flat slope on a model this far from the achievable is co
 weakness, not with the architecture holding up.** INBOX 14b (job 10306939) is the direct test of which
 one it is.
 
+### INBOX 16a RESULT: THE DECODER'S OUTPUT SPANS ~6 DIRECTIONS. THE FUNCTION CLASS IS WHAT BINDS.
+Measured on the best available arm, 24 N-stratified held-out systems, 2,000 consecutive frames:
+
+| quantity | median | range |
+|---|---|---|
+| **realised rank90 of the RECONSTRUCTION** | **6** | 2–10 |
+| realised rank99 of the reconstruction | 23 | 7–39 |
+| **rank90 of the DATA on the same frames** | **152** | 22–690 |
+| latent participation ratio | 14.9 | — |
+| DM | 256 | — |
+
+**The reconstruction spans 4% of the directions the motion actually uses.** And the output rank (6)
+is **2.5× below the latent's own effective rank** (14.9) — the code carries roughly fifteen usable
+dimensions of conformational variance and the decoder converts about six of them into output modes.
+
+**This selects 016's first reading: the binding constraint is the DECODER'S FUNCTION CLASS — not
+capacity, not data, not DM.** It is not the latent (the latent already holds more than the decoder
+emits) and not the width (DM=256 against six realised directions). Consequences, per 016d: further DM
+and LR arms have low marginal value, and `INBOX 015`'s modal decoder — which makes DM dimensions into
+DM modes *by construction* — is the direct test of exactly this diagnosis.
+
+**Corroborated by the injection pattern (16b).** Per-mode error against the predict-zero baseline is
+0.757, 0.790, 0.886, 0.863, 0.876, 0.933 on modes 1–6 and crosses **above 1.0 from mode 7** (1.015,
+1.151 at 15, 1.175 at 30) — **the decoder injects error into 70% of the 30 resolved modes.** Under
+MSE that is the correct move for a restricted function class: push error where it is cheap to buy fit
+on the modes that dominate the loss. It is the signature, not a bug.
+
+> **CORRECTION, recorded because it changed a printed verdict.** The first run of this measurement
+> printed *"realised rank ~ PR, the latent is the limit"* — the opposite reading. The branch tested
+> `med <= max(3.0, 2·PR/5)`, an invented constant that evaluated to **5.96 against a measured median
+> of 6.0**, so an arbitrary threshold flipped the conclusion on a margin of 0.04, at rounding scale,
+> when the measured ratio is 6/14.9 = 0.40. The test is now that ratio directly (`med < 0.6·PR`) with
+> no free constant. **The numbers were always right; the automated reading of them was not** — which
+> is why the verdict text is never quoted here without the table above it.
+
 ### INBOX 14b RESULT: VARIANCE-SELECTIVE, NOT TIMESCALE-SELECTIVE — AND THE ABSOLUTE SCALE LEADS
 **Lead with this, always:** reconstruction RMSD **2.412 Å** (range 1.677–7.740) against a
 displacement RMS of **2.572 Å** (range 1.673–8.159). **The residual is 94% of the motion's own

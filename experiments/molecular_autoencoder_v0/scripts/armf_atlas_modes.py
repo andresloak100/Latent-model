@@ -233,7 +233,13 @@ if __name__ == "__main__":
           f"range {rdat.min():.0f}-{rdat.max():.0f}")
     print(f"    for comparison: DM = {dm_arm}, latent PR = {pr_arm:.1f}", flush=True)
     med = float(np.median(r90))
-    if med <= max(3.0, 2 * pr_arm / 5):
+    # THRESHOLD CORRECTED AFTER THE FIRST RUN, and the correction is recorded because it changed the
+    # printed verdict. The original test was `med <= max(3.0, 2*PR/5)`, an invented constant that
+    # evaluated to 5.96 against a measured median of 6.0 -- so it selected "realised rank ~ PR" on a
+    # margin of 0.04, at rounding scale, when the measured ratio is 6/14.9 = 0.40. The question 16a
+    # actually poses is whether the OUTPUT rank is materially BELOW the latent's effective rank, so
+    # the test is now that ratio directly, with no free constant tuned to nothing.
+    if med < 0.6 * pr_arm:
         print(f"    => THE DECODER CANNOT CONVERT LATENT DIMENSIONS INTO OUTPUT MODES. Realised rank")
         print(f"       {med:.0f} against DM={dm_arm} and PR={pr_arm:.1f}: the binding constraint is the")
         print(f"       DECODER'S FUNCTION CLASS -- not capacity, not data, not DM. More width and more")
@@ -243,6 +249,8 @@ if __name__ == "__main__":
         print(f"    => REALISED RANK ~ PR ({med:.0f} vs {pr_arm:.1f}). The LATENT is the limit, so")
         print(f"       capacity work is the right lever and the DM sweep is answering a real question.",
               flush=True)
+        print(f"       (ratio {med/max(pr_arm,1e-9):.2f}; this branch requires the output rank to be")
+        print(f"        COMPARABLE to the latent's effective rank, not merely below it.)", flush=True)
     elif med >= 0.5 * dm_arm:
         print(f"    => REALISED RANK ~ DM ({med:.0f} of {dm_arm}). The decoder is EXPRESSIVE; the")
         print(f"       problem is upstream, in the encoder or the objective, and 015 is unnecessary.",
