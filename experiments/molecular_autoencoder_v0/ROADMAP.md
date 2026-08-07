@@ -2977,6 +2977,42 @@ more trustworthy than a barely-significant null because it is the answer we want
 **DM=512 has no matched peer column** (ladder capped at k=256 on ANM cost) and this is printed, not
 silent. It does not hide the winner: DM=512's best is +0.1427, below DM=256's +0.1553.
 
+### ⬛⬛ 25a RESULT: THE CODEC IS A COLLECTIVE-MODE MODEL — the pre-registered verdict fired
+Best arm (n50, DM=256, lr 3e-4, seed 1, FVE **+0.1553**), 24 N-stratified held-out systems.
+Decided as a **distribution** per 26d, with **zero as the constructed boundary** (a model reproducing
+the ANM subspace exactly and nothing else gives `FVE⊥ = 0` identically):
+
+| | ANM-6 | ANM-16 |
+|---|---|---|
+| peer spans | 24% of the motion | 37% |
+| **`FVE⊥` median** | **−0.0261** | **−0.0439** |
+| IQR | [−0.0985, +0.0410] | [−0.1328, +0.0006] |
+| **above zero** | **33% of systems** | **25%** |
+| `FVE⊥` vs log10(N) | **−0.1844 ± 0.1154** | **−0.2232 ± 0.1635** |
+
+**On the motion the zero-shot peer does not span, the codec explains nothing — and for two-thirds of
+systems it slightly *adds* error.** That is the pre-registered "collective-mode model" branch: real,
+publishable as such, **but it is not an answer to "can one token encode the dynamic state," and the
+honest headline changes.**
+
+**And the discriminating metric DEGRADES WITH N while aggregate FVE stays flat.** `FVE⊥` vs log10(N)
+is **−0.1844 ± 0.1154** — the CI **excludes zero** — against the same arm's aggregate FVE slope of
+−0.0152 ± 0.0566, which does not. **This is exactly the failure 25a was built to detect: the metric
+the central question is usually judged on is flat, and the metric that can actually distinguish the
+two hypotheses is falling.** The third clause of the central question is *worse* on the discriminating
+measure than the aggregate one suggests.
+
+**PER-ATOM (25a-2): median 1.001, IQR [0.955, 1.037], p90 1.207.** A predict-zero baseline gives
+**exactly 1.000** by construction — so **the median atom is reconstructed no better than predicting no
+motion at all**, and the +0.1553 aggregate FVE is carried by a minority of high-amplitude atoms.
+
+**One correction to how the pre-registered table reads here.** 025's first row is "`FVE⊥` ≈ 0 **with a
+wide tail** → collective-mode model", the wide tail expressing "right on the mobile core, wrong in
+the tail". The measured tail is **narrow** (p90/median 1.20×) — but narrow *around 1.0*, with 50% of
+systems below it. That is not selective success with a bad tail; it is **uniform failure at the
+per-atom level**. The conclusion is the same and arrives by a simpler route than the table
+anticipated, and saying so is more accurate than forcing the observation into the row.
+
 ### ⬛ 26a: MY √N MECHANISM IS REFUTED — and the controls found something I did not predict
 `log10(‖z‖/‖disp‖)` vs `log10(N)`, trained checkpoints, forward passes only, **123 held-out systems
 over 1.75 decades**:
