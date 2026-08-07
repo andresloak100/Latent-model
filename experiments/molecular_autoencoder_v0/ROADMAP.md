@@ -2872,6 +2872,51 @@ PCA-16 of ≈ 0.53, **a flat slope on a model this far from the achievable is co
 weakness, not with the architecture holding up.** INBOX 14b (job 10306939) is the direct test of which
 one it is.
 
+### ⚠ THE SECTION BELOW IS WITHDRAWN — the control does not support it (job 10307026)
+**Withdrawn claim:** *"the procedure change moved the LR optimum."* It compared **legacy rows against
+current rows**, and the legacy rows are now known to be **unreproducible by any configuration
+available today** (see below), so the comparison was never between two procedures — it was between a
+current procedure and an unrecoverable past state.
+
+**What the control actually measured**, at matched LR (3e-4), matched code, matched data, 2 seeds each:
+
+| metric | LEGACY | CURRENT | gap | seed spread | verdict |
+|---|---|---|---|---|---|
+| `best_track` (peak of tracking curve, 24 systems) | +0.0973 | +0.0656 | 0.0317 | 0.0282 | separated, **13% margin** |
+| **`full_fve`** (final weights, all 123 — **what the sweep selects on**) | **+0.1217** | **+0.1160** | **0.0057** | **0.0269** | **NOT SEPARATED** — gap is 21% of seed noise |
+
+**Conclusion: the procedure changes the SHAPE of the training curve, and is NOT shown to change final
+held-out quality.** There is no evidence to prefer LEGACY. **Keep the current procedure** — it
+additionally closes the Family D hole (3e-5 arms VOID at a flat cap) that warmup and the lr-scaled
+budget were introduced for. The `HYBRID` arm was designed for the case where LEGACY won; it is **not
+run**, saving ~1.5 GPU-hours.
+
+> **FAMILY G, THIRD INSTANCE — and this one is in the control written to settle the question.**
+> The script's own printed verdict says *"THE PROCEDURE CHANGE IS THE CAUSE"* on a `gap > spread` rule
+> **I chose**, evaluated on a metric **I chose** (`best_track`), at a 13% margin. On the metric the
+> sweep actually selects winners with, there is no separation at all. Deciding on `best_track` would
+> have optimised a diagnostic instead of the reported quantity — and would have justified retraining
+> the entire grid to chase a difference that does not exist in the number anyone reports.
+> *Check added:* an automated verdict must name **which metric it is deciding on** and why that metric
+> is the decision-relevant one — not merely which threshold it crossed.
+
+### WHAT DOES STAND: THE PERSISTED ARMS ARE NOT REPRODUCIBLE, SO THEY MUST BE DISCARDED
+Independent of the procedure question. Control LEGACY seed1 gives all-123 **+0.1352**, stopping at
+20,000 steps; the persisted seed1 recorded **+0.1553** at 15,000 — under hyperparameters matched
+deliberately (warmup off, flat 30,000 cap). Three plausible causes were checked and **excluded**:
+model-init RNG (`down`/`up` are `None` at `dlat == dm`, so initialisation is bit-identical),
+tracked-set stratification (N-stratified `HOt` predates those arms), and training-set membership (the
+cache fills `heldout + train_ordered` in manifest order, so `tr_ids[:50]` was the same 50 systems at
+271 cached as at 697). Rows 6/9/10 carry no `z0_frac`, dating them before commit `a70aaa2b`.
+**The residual cause is unidentified and the conclusion does not depend on it:** arms that cannot be
+regenerated cannot be compared against arms that can, so the 13 legacy rows are retired.
+
+**Determinism itself is confirmed** — CURRENT seed1's `best_track` (+0.0515) reproduces the 14b re-run
+exactly, and the modal job's control arms reproduce `atlas_dm` rows to four decimals (+0.1318,
++0.1250). Within a fixed procedure *and* codebase, training is deterministic.
+
+<details><summary>WITHDRAWN — original section retained for the record</summary>
+
 ### THE PROCEDURE CHANGE MOVED THE OPTIMAL LEARNING RATE — WHICH IS WHY MIXING IS FATAL, NOT UNTIDY
 `atlas_dm.json` at the time of the INBOX 16c fix held 16 rows. Provenance is unambiguous: rows 0–12
 are the legacy 13 (flat 30,000-step cap), rows 13–15 come from job 10306831 under the current
@@ -2900,6 +2945,8 @@ boundary is meaningless. Job 10307026 decides which procedure that should be at 
 if LEGACY wins, the correct action is *not* the retrain direction assumed so far — it would be to
 **revert or condition the warmup**, which was introduced only to rescue the 3e-5 grid edge and may
 have cost the main operating point to do it.
+
+</details>
 
 ### INBOX 16a RESULT: THE DECODER'S OUTPUT SPANS ~6 DIRECTIONS. THE FUNCTION CLASS IS WHAT BINDS.
 Measured on the best available arm, 24 N-stratified held-out systems, 2,000 consecutive frames:
