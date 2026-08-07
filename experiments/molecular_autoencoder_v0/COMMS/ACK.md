@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 006
+last_acted: 010
 ```
 
 | item | restatement | status | commit |
@@ -17,6 +17,57 @@ last_acted: 006
 | 005 | The bottleneck arm is required and runs alongside, not after: because network width sets encode/decode cost while LATENT width sets the generator's cost, and objective 4 turns on the latter, a sweep of d_model cannot answer "how wide does the one token need to be." Hold d_model fixed at the widest value that trains reliably, vary only a linear down/up projection on the token, sweep DM_latent in {16,64,128,256,512} capped at d_model, and plot both curves on the same axes — where they diverge is the answer. Apply the cross-fit participation ratio and the criterion-4 dynamics measurements to the bottleneck arms, because there the latent IS the object the generator will model. | ACCEPTED | (this commit) |
 
 | 006 | `SESSION_HANDOFF.md` exists so a fresh session can restart cheaply once `.claude/settings.json` takes effect; verify and correct it against reality rather than my reports, add a LIVE JOBS section with job IDs, what each tests, expected completion and where output lands, and keep it current on every push where the answer would change — moving retracted results into section 6 in the same commit that retracts them. Restart at a natural pause, with every running job listed so nothing is orphaned. | ACCEPTED | (this commit) |
+
+| 007 | rank90's b ≈ 0.93 is about VARIANCE dimensionality, and near-linear growth there is close to what independent local thermal motion would give — those modes are real but are not what a latent generator must represent. The slowness-weighted analogue was flat across effective time but has never been measured across N, so measure TICA dimensionality vs atom count using the objective-3 definition, with Family E on the lag time (swept on training systems, applied unchanged), Family B on rank position and n_eff, Family A on any system failing to reach 90% of the slow spectrum, and both sample regimes. If flat, state that MSE is the wrong training objective for this architecture — but do not change the loss on that basis yet. Also: record b as `≥ 0.93`, an inequality, since the 5 excluded systems are the largest and were excluded *because* they need the most modes. | ACCEPTED | (this commit) |
+| 008 | 007 is CPU-only, needs no training, and is gated by neither 10305995 nor the cache reaching 825, since the 371 cached systems already span the full N range where the slope's leverage lives — so submit it in parallel now rather than waiting. It is the higher-value of the two, because it reframes what the DM sweep's curve means before its first arm lands. | ACCEPTED | (this commit) |
+| 009 | Never end a turn with unacted INBOX items, and when the inbox is empty fall through to the STANDING QUEUE (Q1 TICA-dim vs N · Q2 b on ATLAS · Q3 criterion-1 harness built and smoke-tested before it is needed · Q4 finish the rank90 audit in the files themselves · Q5 re-run the DM sweep as the cache grows · Q6 verify the handoff) rather than stopping. Only stop when the queue is exhausted and every job is finished-and-reported or genuinely blocked, and then say exactly what would unblock me. Submit long jobs and keep working while they run. | ACCEPTED | (this commit) |
+| 010 | Check whether I can schedule my own wake-ups and, if so, set a 20–30 minute recurring prompt that pulls, works the inbox, falls through to the standing queue, and checks squeue; report the mechanism and interval, or say plainly that I cannot. | ACCEPTED | (this commit) |
+
+## Notes on 010 — I CAN, with one caveat that matters
+
+**Mechanism: `CronCreate`. Job `7f6daacb`, cron `7,34 * * * *` — fires at :07 and :34, roughly every
+27 minutes.** Off-minute deliberately, since :00 and :30 are where every scheduled job on the planet
+lands. The prompt pulls, works the INBOX above `last_acted`, checks `squeue` and each running job's
+log, falls through to the 009 standing queue when the inbox is empty, pushes with verification that
+the remote moved, and re-reads the inbox before stopping.
+
+**THE CAVEAT, because it changes your plan: the schedule is SESSION-ONLY.** It lives in memory, is
+never written to disk, and **dies the moment this session exits** — including the client restart 006
+asks for so `.claude/settings.json` takes effect. It also only fires while the REPL is idle, and it
+auto-expires after 7 days. So the restart and the autonomous loop are in direct tension: restarting
+buys no approval prompts but silently kills the loop. **After any restart, the cron must be recreated
+— it will not come back on its own, and nothing will warn you.** I have added this to
+`SESSION_HANDOFF.md` so a fresh session recreates it rather than assuming it is still running.
+
+## Notes on 007
+
+**Submitted as job 10306540** (`long-cpu`, 8 CPU, 96 GB, 12 h) before finishing this ACK, per 008.
+Definition taken verbatim from `armf_slowness.py:54` so the numbers are comparable to the
+objective-3 result. Cross-replica correctness handled: the train set is replicas 0+1 concatenated, so
+lagged pairs are accumulated **within each replica only** — a lagged covariance across the join would
+pair the end of replica 0 with the start of replica 1, unrelated conformations entering as spurious
+decorrelation.
+
+**The dry run found a censoring problem before submission, and it changes what can be reported.**
+Out-of-sample TICA dimension pins at **86–87% of its basis at every basis I tried (100, 150, 300)**,
+which is over the 60% line — so a flat slope there would be a ceiling, exactly the Family B failure
+007 names. Two things follow. First, the in-sample dimension is *itself* basis-tracking: 36% of 100,
+38% of 300 — which is the pathology `armf_slowness.py` already documented ("tica/basis was a
+near-constant 0.42–0.45 across every condition") and why it fixed the basis at 100. The fixed-basis
+number is comparable across systems but is **not an absolute dimensionality**, and I will not report
+it as one. Second, I split the out-of-sample reading in two: **train-order** (ordering-sensitive, the
+direct rank90_out analogue) and **ordering-free** (ranked by actual held-out slowness). If the first
+greatly exceeds the second, the train basis is fine but its *order* does not transfer — a different
+defect from slow dynamics being high-dimensional, and only the second bears on the architecture
+question. The verdict block uses the ordering-free quantity and **withholds the verdict entirely**
+if it is still above 60% of basis.
+
+**On the b correction — accepted, and it is the stronger form of what I wrote.** I reported that the
+5 excluded systems are the largest and that this biases the slope low, but I stated the result as a
+point estimate anyway. The inequality is the honest form: **b ≥ 0.93**, because the exclusion is not
+incidental to the measurement — those systems were dropped *precisely because* they need more modes
+than the data resolves, which is the mechanism that flattens the slope. ROADMAP now carries the
+inequality.
 
 ## Notes on 006
 

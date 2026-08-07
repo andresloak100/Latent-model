@@ -2523,3 +2523,45 @@ sample on this corpus, rank90 grows at roughly `N^0.93` -- close to linear. That
 refute the architecture, because rank90 is a per-system PCA quantity and the codec is a shared model
 sized by its own saturation curve; but it does remove the last version of the *physics* argument that
 a fixed width suffices. The claim now stands or falls on `armf_atlas_dm.py`.
+
+### CORRECTION: b is an INEQUALITY, `b >= 0.93` (INBOX 007)
+The out-of-sample exponent `+0.9285 +/- 0.2220` must be recorded as **`b >= 0.93`**, not as a point
+estimate. The 5 excluded systems are the LARGEST in the corpus and were excluded **precisely because
+they need more modes than the data can resolve** -- so the exclusion is not incidental to the
+measurement, it is the mechanism that flattens the slope. Dropping the high-N systems that need the
+most modes biases b downward by construction (FAMILY A). The honest statement is **b >= 0.93,
+plausibly near-linear.**
+
+### Q1 SUBMITTED: does SLOWNESS dimensionality grow with N? (job 10306540, `armf_tica_vs_n.py`)
+rank90 is **variance**-weighted. Near-linear growth in it is close to what independent local thermal
+motion would produce -- every extra atom brings its own fast, low-amplitude degrees of freedom. Those
+modes are real but are **not the dynamics a latent generator must represent.** The slowness-weighted
+analogue was measured for objective 3 and was FLAT (TICA dim 32-42 across five temperatures at 36-38%
+of basis, uncensored, a bound 5x tighter than rank90's) -- but that was flat across **effective
+time**, and it has never been measured across **N**.
+
+Definition taken verbatim from `armf_slowness.py:54` so the two results are comparable. Guards: lag
+swept on TRAINING systems and applied unchanged (E); dimension reported as % of basis with a
+larger-basis re-measurement (B); kept-vs-dropped median N for any system failing to reach 90% of the
+slow spectrum (A); in-sample AND out-of-sample, since rank90's exponent doubled between them.
+Cross-replica correctness: lagged pairs accumulate WITHIN each replica, never across the 0/1 join.
+
+**A CENSORING PROBLEM FOUND IN THE DRY RUN, BEFORE SUBMISSION.** The out-of-sample TICA dimension
+pins at **86-87% of basis at every basis tried (100, 150, 300)** -- over the 60% line, so a flat
+slope there would be a CEILING. Two consequences, both wired into the script:
+1. The in-sample dimension is **itself basis-tracking** (36% of 100, 38% of 300), which is the exact
+   pathology `armf_slowness.py` documented and why it fixed the basis at 100. **The fixed-basis TICA
+   number is comparable across systems but is NOT an absolute dimensionality and must not be reported
+   as one.**
+2. The out-of-sample reading is split in two: **train-order** (ordering-sensitive, the direct
+   rank90_out analogue) and **ordering-free** (ranked by actual held-out slowness). If the first far
+   exceeds the second, the train basis is sound but its ORDER does not transfer -- a different defect
+   from slow dynamics being high-dimensional, and **only the second bears on the architecture
+   question**. The verdict uses the ordering-free quantity and is WITHHELD entirely if it is still
+   above 60% of basis.
+
+**Pre-registered consequence if flat:** a variance-weighted objective (plain MSE on displacement)
+spends the token's capacity in proportion to variance -- i.e. mostly on the fast local modes growing
+as N^0.93. If slow-mode dimensionality is flat, **MSE is the wrong training objective for this
+architecture.** That is the "objective mismatch" row of the 004c fan-out, and it would then carry
+evidence rather than being one hypothesis among six. **Do not change the loss on this basis yet.**

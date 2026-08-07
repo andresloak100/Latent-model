@@ -86,6 +86,7 @@ Corrected from the cluster, not from reports. Workspace `$WR` =
 
 | job | what it tests | where output lands | state |
 |---|---|---|---|
+| **10306540** `tica_vs_n` | **Q1 / INBOX 007-008.** Does SLOW-mode dimensionality grow with N, or is it flat in N the way it is flat in time? TICA dim vs N, definition identical to `armf_slowness.py:54`, lag swept on training systems only, in-sample and out-of-sample both, bases 100 and 400. Decides whether the quantity the token must carry grows with atom count at all. | `$WR/atlas_tica_vs_n.json`, log `$WR/logs/ticaN_10306540.log` | QUEUED, `long-cpu`, 12 h |
 | **10305995** `atlas_dm` | The **DM sweep + bottleneck arm** at L=1. Network sweep DM {16,64,256,512} × LR {3e-4,1e-3,3e-3} × n_train ladder {50,130,300,600}; then the 005 bottleneck (d_model fixed, DM_latent {16,64,128,256,512}); then L=12/24 addressing diagnostics same-DM and capacity-matched. | `$WR/atlas_dm.json` (accumulates; re-runnable, completed arms skipped), log `$WR/logs/atlasdm_10305995.log` | QUEUED, 20 h limit, `long` partition + `--requeue` (preemptible) |
 | **10301859** `atlas_cache` | Builds the ATLAS cache: download → stride-4 subsample (2,501 frames/replica) → uncompressed `.npy` + JSON sidecar → **delete archive**. | `$WR/atlas_cache/` | RUNNING ~3.4 h, **371 of 825 systems, 126 GB**. Train pool 136/700 cached, held-out 123/125 |
 
@@ -96,6 +97,13 @@ in the higher `n_train` arms — that ladder *is* the data-limitation control.
 Completed this session: `10305556` atlas_neff, `10305712` r90_insample,
 `10304109` atlas_guard. Cancelled deliberately: `10305469`/`10305543` (censored
 `maxlag`), `10305827`/`10305840` (pre-005 architecture). Died on a startup `NameError` and were resubmitted, not abandoned: `10305911`, `10305936`.
+
+**AUTONOMOUS LOOP — RECREATE IT AFTER ANY RESTART.** A `CronCreate` job (`7,34 * * * *`, ~27 min)
+drives the 009 work cycle: pull → work the INBOX above `last_acted` → check `squeue` and job logs →
+fall through to the STANDING QUEUE in INBOX 009 → push and verify the remote moved → re-read the
+inbox. **It is SESSION-ONLY: in memory, never on disk, and it dies when the session exits — including
+the restart 006 asks for.** Nothing warns you. A fresh session must recreate it or the project goes
+quiet until a human nudges it.
 
 **Restart guidance (INBOX 006):** a natural pause is after the DM sweep's first
 `n_train` arm prints, not mid-cache-build. Both jobs above survive a client restart —
