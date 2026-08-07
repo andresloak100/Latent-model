@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 030
+last_acted: 031
 ```
 
 | item | restatement | status | commit |
@@ -51,6 +51,35 @@ last_acted: 030
 | 028 | **28a:** the first claimed win compared tied's Q1 median against the control's ALL-N median — two sides on different systems, Family F, on the one claim that cannot afford it; report Q1–Q4 for control and untied on the same systems, boundaries and frames, then restate the win as Q1 vs Q1. **28b:** even matched, that is a win over the internal CONTROL, not the peer — tied vs zero-shot ANM is unmeasured at every N; compute both sides in ONE PASS on the SAME FRAMES rather than joining across jobs, and if tied clears ANM on Q1 that is the project's first peer win, otherwise tied is the best of several architectures that all lose to a zero-cost baseline and must be worded as one. **28c:** two learning rates at one seed share an initialisation and are not independent draws — the threshold-free monotone pattern carries the evidence, not the arm count. **28d:** the 24-vs-123 gap means every quantity measured on the 24-system subset carries a representativeness caveat until recomputed, and say which ones. **28e:** "strongest arm" needs the tail in the same sentence — report median, mean and failure fraction together, and record the median choice as pre-registered from here rather than as a discovery. | ACCEPTED | (this commit) |
 | 029 | **29a:** the collapse's arithmetic already names a mechanism — under a pure over-scale by `k`, `FVE = 1 − (k−1)²`, so tied's Q4 median −0.2791 implies k ≈ 2.13 and its worst system −8.045 implies k ≈ 4.01, against `√(N_max/N_Q1) = 4.82` predicted by the `‖B‖_F ~ √N` synthesis hypothesis. **29b:** one closed form separates "wrong magnitude" from "wrong direction" with no retraining — `a* = <r,d>/<r,r>` and **FVE at `a*` is exactly `cos²(r,d)`**, so `cos²` is FVE with all scale error removed and `cos² − FVE` is the scale-attributable portion; report `cos²` by quartile for tied and control on existing checkpoints, state which branch fires, and do NOT propose a fix (26a is the precedent). **29c:** say plainly what changed — "performance collapses as N increases" is a property of the tied pair only; control and untied are flat, so the third clause is SATISFIED for them and their problem is absolute weakness against a zero-shot baseline. **29d:** 28b remains the question that decides the project's state. | ACCEPTED | (this commit) |
 | 030 | **30a:** `cos²` and `a*` are ORACLE quantities — `a*` is fitted against the held-out target, so "FVE after optimal rescaling" must never be reported as performance; label it at the point of computation (`fve_oracle_rescaled`, not `fve_corrected`) and compute the legitimate counterpart in the same pass — **N is an input**, so `c(N) = √(N_ref/N)` with `N_ref` frozen from the training distribution is available ZERO-SHOT, and the three numbers per system are raw FVE, N-only corrected (**reportable**), oracle rescaled (**upper bound**). **30b:** the `a* ~ N^−0.5` exponent is not decisive alone, because `a* = α/(α² + ‖e‖²/‖d‖²)` moves with directional error too — a −0.5 slope is consistent with over-scale OR with direction degrading in N, so read `cos²` and the exponent JOINTLY against the four-cell table, guarding especially against row three where the predicted exponent appears and means something else. **30c:** nothing outranks 10309145; if the two finish close together, report the peer result first. | ACCEPTED | (this commit) |
+| 031 | **31a:** an unclaimed corroboration — the over-scale story implies `a*(N_ref) = 1`, and the fitted line's crossing can be compared against `N_ref = 2460`, which was fixed from the TRAINING systems without reference to `a*`. **31b:** the "N-only recovers" column is a ratio of medians and misreports — at Q1 it says 3% where a per-system calculation says most of the gain is recoverable; report the per-system DISTRIBUTION (median and IQR), not a ratio of quartile medians. **31c:** `R² = 0.649` means 35% of per-system `log a*` variance is unexplained by N, so the correction is accurate in aggregate and imprecise per system — the honest form is that it reliably removes the LARGE scale error at high N and is within noise of doing nothing where the error is already small. **31d:** state which of three questions the project is now testing — (1) the encoder cannot reach the ~54-mode target, (2) the objective is wrong, (3) the comparison is unwinnable as posed — and have the next experiment NAME which it discriminates. | ACCEPTED | (this commit) |
+
+## Notes on 031
+
+**31a is real but WEAKER than 031 states, and I am reporting it that way because it points the way I
+want.** The fitted crossing is **N = 2217** against `N_ref = 2460` — agreement to **9.9%**, not "a few
+percent". More importantly the slope CI puts the crossing anywhere in **901–7187**, a factor of eight.
+It corroborates in direction and costs nothing to state; it does not survive scrutiny as an
+independent confirmation. This is 22b's discipline applied to a number that flatters the mechanism I
+just confirmed.
+
+**31b is correct and the artefact was worse than I flagged.** Per-system recovery at Q1 is **80%
+median**, not the 3% I reported from a ratio of medians. But the IQRs carry the real finding: Q1–Q3
+span **−600% to +94%** while **Q4 is [94%, 99%]** — so the correction is not merely imprecise at low N,
+it is barely distinguishable from doing nothing there.
+
+**31c's reframing is the one the R² already supported**, and I should have derived it from the 0.649
+rather than needing it pointed out: 35% unexplained per-system variance predicts exactly "captures a
+large gain, swamped on a small one". The claim is now stated as reliably removing the **large** scale
+error at high N, not as a general calibration fix.
+
+**31d — the next experiment is submitted and it discriminates (1) ALONE.** `armf_tied_ladder.py`
+(10310946, + chained) holds architecture, objective and comparator fixed and varies **only** n_train
+∈ {50, 130, 300}. Rising → the tied arm is data-limited and (1) is not binding; flat across 6× →
+(1) stands as measured and the live options become (2) and (3), which need different experiments. It
+**cannot** separate (2) from (3) and does not pretend to. Two choices worth naming: the verdict's
+yardstick is the **measured** 24c seed spread (0.0656) rather than a threshold invented for the
+occasion, and the N-only scale correction is deliberately **not** applied — folding it in would
+confound "does more data help" with "does the calibration fix help".
 
 ## Notes on 030
 

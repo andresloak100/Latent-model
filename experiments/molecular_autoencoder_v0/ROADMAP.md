@@ -3079,6 +3079,62 @@ because it is a strong, unexplained, systematic N-dependence sitting inside the 
 unexplained. 26a was built to be decisive from one arm and it was — it just decided against the
 hypothesis it was built to test.
 
+### ⚠ IN PROGRESS (24c, job 10307865): the control's "+0.1346" is the TOP of a 3-seed range
+
+| lr | seeds | mean | spread |
+|---|---|---|---|
+| 3e-5 | +0.0978 / +0.1179 / +0.1318 | +0.1159 | 0.0341 |
+| 1e-4 | +0.1112 / +0.1216 / +0.1250 | +0.1193 | 0.0137 |
+| **3e-4** | **+0.0690 / +0.1089 / +0.1346** | **+0.1042** | **0.0656** |
+
+**The +0.1346 quoted throughout this file as "the control's best arm" is the top of that range**, not
+a typical draw; its mean is +0.1042. Every control comparison here — including tied's Q1 ratio of
+2.67× — is against a favourable seed. *(The bias understates tied's advantage rather than inflating
+it. That is convenient, and it is a separate fact from the number not being what it was presented
+as.)*
+
+**24c's objection is being borne out:** at lr3e-4 the between-**seed** spread (0.0656) exceeds both
+the between-**rate** scatter (0.0433) and the gap the sweep adjudicated (0.0350). Median seed spread
+0.0239 — a ratio of **0.55**, above the 0.5 line pre-registered for "the LR sweep never had the
+resolution". Partial (10 of 18 arms), so the verdict waits.
+
+### ⬛ 031: the crossing corroboration is REAL but WEAK, and the 91% was a ratio-of-medians artefact
+
+**31a — corroboration, stated with its uncertainty rather than its point estimate.** The fitted
+`log10(a*) = −0.4431·log10(N) + 1.4825` crosses `a* = 1.0` at **N = 2217**, against
+**N_ref = 2460** fixed independently from the 50 training systems. Point estimates agree to **9.9%**
+— and the slope CI puts the crossing anywhere in **901–7187**, a factor of eight.
+
+So this is corroboration, and it is **weak** corroboration. 031 describes it as landing "within a few
+percent"; the point estimate is within ten, and the interval is far too wide to carry weight on its
+own. Recorded because the *direction* is right and it costs nothing — not because it survives
+scrutiny as an independent confirmation. **The same discipline 22b imposed on the positive gap slope
+applies here, and this one points the way I want.**
+
+**31b — the "N-only recovers" column was a ratio of medians, and 031 is right that it misreports.**
+Per-system recovery, median [IQR]:
+
+| band | available gain | **per-system median** | IQR | ratio-of-medians (what I reported) |
+|---|---|---|---|---|
+| Q1 | 0.0376 | **80%** | [−313%, 90%] | **3%** |
+| Q2 | 0.0132 | 38% | [−55%, 60%] | −15% |
+| Q3 | 0.0117 | 73% | [−612%, 94%] | 72% |
+| **Q4** | **0.6009** | **97%** | **[94%, 99%]** | 91% |
+
+The Q1 figure was **3% by ratio-of-medians and 80% per system** — the artefact 031 predicted. But the
+IQRs are the real story: at Q1–Q3 they span from −600% to +94%, and **only Q4 is tight**.
+
+**31c — so the honest claim is narrower than "recovers 91%", and the R² already said so.** `R² = 0.649`
+on the `a*` fit means **35% of per-system `log a*` variance is unexplained by N**. A correction with
+that much scatter captures most of a *large* gain and is swamped on a *small* one — exactly the
+pattern. The supportable form:
+
+> The N-only correction **reliably removes the large scale error at high N** (Q4: median 97%, IQR
+> [94%, 99%]) and is **within noise of doing nothing** where the scale error is already small
+> (Q1–Q3: medians 38–80%, IQRs spanning −600% to +94%).
+
+That still removes the Q4 collapse, which is the result. It is not a general-purpose calibration fix.
+
 ### ⬛⬛⬛ 28b/29b/30: NO PEER WIN AT ANY N — and the tied N-collapse is a SCALE defect, removable zero-shot
 **Reported first, per 30c.** Tied vs zero-shot ANM-256, matched capacity, one pass, same frames,
 123 held-out systems:
