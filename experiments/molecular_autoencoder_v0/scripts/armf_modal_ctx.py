@@ -40,7 +40,14 @@ RES = f"{WR}/modal_ctx.json"
 CKPT = f"{WR}/modal_ctx_ckpt"
 DM, NTR, SEED = 256, 50, 0
 KNN = 16                       # neighbours per atom
-CTX = [2, 4]                   # INBOX 22a rung 1
+# INBOX 22a rung 1 as specified is {2, 4}. THE MEASURED RECEPTIVE FIELD FORCED A THIRD SETTING:
+# the all-atom 16-NN radius is only 2.6 A -- atoms are densely packed, so sixteen neighbours barely
+# leave the residue -- giving reach ~5.3 A at 2 hops and ~10.6 A at 4, at or BELOW the low end of
+# 22a's ~10-15 A estimate. A stall at 10.6 A would then be AMBIGUOUS between "message passing cannot
+# learn nonlocal coupling" and "it was never given the reach", which is a Family D hole: a
+# measurement structurally unable to express the effect it is named for. ctx=8 (~21 A) is the
+# DISAMBIGUATION arm -- not a fourth rung, and not a result to quote on its own.
+CTX = [2, 4, 8]
 LRS = D.LRS
 dev = D.dev
 
