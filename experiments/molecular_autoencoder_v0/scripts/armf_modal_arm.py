@@ -202,9 +202,69 @@ if __name__ == "__main__":
               f"{b.get('eff_modes', float('nan')):>11.0f}"
               f"{'low-PR' if b['pr_frac'] < 0.5 else '':>10}", flush=True)
 
+    # ---------------- INBOX 17b: THE PRE-REGISTERED READ ----------------
+    # 16a measured the CONTROL's realised reconstruction rank at 6 against a data rank of 152. The
+    # modal decoder turns DM dimensions into DM modes BY CONSTRUCTION, so it has a sharp prediction
+    # here. `mode_table` is IMPORTED from armf_atlas_modes rather than reimplemented, so the rank
+    # convention is identical by construction -- same 90% threshold, same own-frame-mean centring,
+    # same 2,000 consecutive frames. A reimplementation that drifted by one convention would make
+    # the comparison meaningless in exactly the way Family F describes.
+    print(f"\n=== 17b: REALISED RECONSTRUCTION RANK, measured as 16a measured it ===", flush=True)
+    print(f"  16a on the attention decoder: realised rank 6, data rank 152, latent PR 14.9.")
+    print(f"  Pre-registered: rank >> 6 tracking PR/DM => bilinearity WAS the binding constraint;")
+    print(f"  rank still ~6 => bilinearity is NOT the fix, and the next hypothesis is the basis")
+    print(f"  network's receptive field (q_tok is per-atom, collective modes are nonlocal) --")
+    print(f"  escalate ctx_layers>0 with the cached k-NN pairs BEFORE abandoning the form.", flush=True)
+    try:
+        import armf_atlas_modes as M
+        HOs = sorted(HO, key=lambda d: d["N"])
+        SUB = [HOs[i] for i in np.linspace(0, len(HOs) - 1, min(24, len(HOs))).astype(int)]
+        print(f"    {'variant':>9}{'realised rank90':>17}{'rank90 data':>13}{'eff-modes':>11}"
+              f"{'FVE':>9}", flush=True)
+        for k in VARIANTS:
+            if k not in best: continue
+            b = best[k]
+            cp = f"{CKPT}/{k}_dm{DM}_lr{b['lr']:g}_s{SEED}.pt"
+            if not os.path.exists(cp):
+                print(f"    {k:>9}: no checkpoint -- re-run this script to score it.", flush=True)
+                continue
+            D.Codec = make(k)
+            m2 = D.Codec(HO[0]["stat"].shape[1], 1, DM).to(dev)
+            D.Codec = orig
+            m2.load_state_dict(torch.load(cp, map_location=dev)); m2.eval()
+            rows_m = []
+            for d in SUB:
+                try: rows_m.append(M.mode_table(m2, d))
+                except Exception: pass
+            if not rows_m: continue
+            r90 = float(np.median([r["rank90_out"] for r in rows_m]))
+            rdat = float(np.median([r["rank90_data"] for r in rows_m]))
+            em = b.get("eff_modes", float("nan"))
+            print(f"    {k:>9}{r90:>17.0f}{rdat:>13.0f}{em:>11.0f}{b['fve']:>9.4f}", flush=True)
+            best[k]["realised_rank"] = r90
+        json.dump(rows, open(RES, "w"))
+    except Exception as e:
+        print(f"    17b scoring FAILED: {type(e).__name__}: {e}", flush=True)
+
     if "control" in best:
         cb = best["control"]
         print(f"\n=== VERDICT ===", flush=True)
+        cr = cb.get("realised_rank")
+        for k in ("untied", "tied"):
+            if k not in best or "realised_rank" not in best[k] or cr is None: continue
+            mr = best[k]["realised_rank"]
+            if mr > 2 * cr:
+                print(f"  {k}: realised rank {mr:.0f} vs the control's {cr:.0f} -- BILINEARITY WAS")
+                print(f"     THE BINDING CONSTRAINT. 16a's diagnosis holds and this form is the fix.",
+                      flush=True)
+            elif mr < 1.5 * cr:
+                print(f"  {k}: realised rank {mr:.0f}, essentially the control's {cr:.0f} --")
+                print(f"     BILINEARITY IS NOT THE FIX. Per 015/17b the next hypothesis is the basis")
+                print(f"     network's RECEPTIVE FIELD, not the bilinear form: escalate ctx_layers>0")
+                print(f"     with the cached k-NN pairs before abandoning it.", flush=True)
+            else:
+                print(f"  {k}: realised rank {mr:.0f} vs control {cr:.0f} -- intermediate; report the "
+                      f"number, force no reading.", flush=True)
         for k in ("untied", "tied"):
             if k not in best: continue
             b = best[k]

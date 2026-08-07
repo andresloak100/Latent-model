@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 016
+last_acted: 017
 ```
 
 | item | restatement | status | commit |
@@ -34,6 +34,38 @@ last_acted: 016
 | 015 | `armf_modal_decoder.py` is an ARM, not a replacement: make the decoder `disp_i = B_i(structure) @ z`, linear in `z` with per-atom modes built from the reference structure, so identity CANNOT occupy the code (exactly, not to first order like 12b's subtraction), L=1 is native (one token of width `d` is `d` coefficients on a `d`-dimensional learned basis), and the form GENERALISES the baselines — ANM fixes `B` from the Hessian, per-system PCA fits `B` to the target's own trajectory, this learns `B` from structure and stays zero-shot. Run two variants (untied encoder, tied analysis/synthesis) against the current decoder as control at the same seed with the LR SWEPT per decoder (Family E — a bilinear decoder is a different optimisation problem and an unswept LR would repeat the retracted DM=256 collapse), report the usual columns plus `basis_orthogonality` and `effective_modes`, and if the modal arm underperforms escalate `ctx_layers>0` k-NN message passing BEFORE abandoning the form, since `q_tok` is a per-atom map and collective modes are nonlocal. Dry-run the whole `__main__` path first. | ACCEPTED | (this commit) |
 
 | 016 | Lead every summary with the ABSOLUTE scale (reconstruction RMSD 2.412 Å against displacement RMS 2.572 Å — residual 94% of the motion's own amplitude), and never let 14b's naive timescale numbers appear without the partial coefficient beside them. **16a:** measure the decoder's REALISED RANK directly — SVD the reconstructed displacement per held-out system and report the rank capturing 90% of the reconstruction's own variance, beside DM, PR and the data's rank90; ≈6 means the decoder cannot convert latent dimensions into output modes and the function class is what binds, ≈PR means the latent is the limit, ≈DM means the problem is upstream. **16b:** negative per-mode FVE past mode 6 is EXPECTED under MSE — a capacity-limited model optimally pushes error into low-variance modes — so do not debug it, and report per-mode error against the predict-zero baseline so the injection is a visible number. **16c:** invalidate the mixed-procedure arms rather than salvaging them, and make it structural by putting the training procedure into the dedup key. **16d:** reprioritise — run 015 as the next arm instead of extending the sweep. | ACCEPTED | (this commit) |
+
+| 017 | **17a:** codify **Family G** — a verdict emitted by a threshold sitting at rounding distance from the measurement (16a's 5.96-vs-6.0, 007's pooled 2.045-vs-2.0); every automated verdict prints the table first, states the margin, flags margins under 10%, prefers ratios with no free constant, and never pools a per-unit property before applying a rule to it. **17b:** pre-register the modal arm's read — report `effective_modes()` beside the realised reconstruction rank measured exactly as 16a measured it; rank ≫ 6 means bilinearity was the binding constraint, rank ≈ 6 means it is not and the next hypothesis is the basis network's receptive field (escalate `ctx_layers>0` before abandoning the form), rank ≫ 6 with flat FVE means the modes are wrong rather than too few. **17c:** decompose the 0.155-vs-0.53 gap at MATCHED RANK — PCA-r and ANM-r at r = the codec's own realised rank isolate BASIS QUALITY, and PCA-r vs PCA-16 isolates MODE COUNT; they point at different fixes and 015 addresses only one. Also record 011, 007 and 14b together as declined-with-numbers. | ACCEPTED | (this commit) |
+
+## Notes on 017
+
+**17c is the item that changes what I would have concluded.** I have been quoting "codec 0.155
+against per-system PCA-16 ≈ 0.53" as the context for every FVE statement — but the codec realises
+**six** directions, so that comparison charges it for a mode-count deficit and a basis-quality deficit
+at once, and I never separated them. If PCA-6 lands well above 0.155, then 015's modal decoder — which
+widens the realised rank — addresses the *smaller* half, and I would have read a good result from it
+as more than it was.
+
+Implemented by storing the **full cumulative FVE curve** per system rather than the pre-chosen ladder
+points. The realised rank comes from a different job and can move; storing only `{16, 64, 256}` would
+have forced a full recomputation every time it did. Modes are orthonormal so the curve is a prefix
+sum and costs nothing. `RANK_K` is now **read from `atlas_modes.json` at report time**, not hardcoded.
+
+One correctness detail worth naming: adding a k to the ladder would have silently changed the ANM
+cutoff selection, because the Family-E sweep used `KS[0]`. That is pinned to `CUT_K = 16` now, so the
+peer's cutoff cannot move as a side effect of a reporting change.
+
+**17b is wired by IMPORTING `mode_table` from `armf_atlas_modes`, not reimplementing it.** The whole
+value of the comparison is that the modal arm's rank is measured the way the control's was — same
+90% threshold, same own-frame-mean centring, same 2,000 consecutive frames, same 24 N-stratified
+systems. A reimplementation that drifted by one convention would produce exactly the Family F failure
+this project has now committed once already.
+
+**17a — Family G is in the ROADMAP alongside A–F**, with all four checks and both instances. I would
+add one observation about why it is nastier than its siblings: a Family G defect emits a *confident,
+well-formatted, plausible* conclusion backed by arithmetic that is entirely correct. Nothing looks
+wrong. The only tell is a margin nobody printed — which is why "table first, verdict second" is
+listed first rather than last.
 
 ## Notes on 016
 

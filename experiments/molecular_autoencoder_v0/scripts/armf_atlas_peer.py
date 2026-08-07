@@ -55,10 +55,14 @@ WR = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace"
 MAN = f"{WR}/atlas_manifest.json"
 DMRES = f"{WR}/atlas_dm.json"
 RES = f"{WR}/atlas_peer.json"
+MODRES = f"{WR}/atlas_modes.json"
 KS = [16, 64, 256]                 # matched to the DM sweep's widths
 KMAX = max(KS)
+CUT_K = 16                         # k at which the ANM cutoff is selected -- FIXED, so that adding
+                                   # a k to the ladder cannot silently change which cutoff wins
 CUT_PROBE = 24                     # training systems for the cutoff sweep (Family E)
 CHUNK = 20000                      # columns per streamed block
+RANK_K_DEFAULT = 6                 # INBOX 16a: the codec's measured realised rank (median)
 
 
 def tr_cols(d, c0, c1):
@@ -88,9 +92,14 @@ def peer_one(d, V):
     sst = d["sst"]
     out = {}
 
+    # THE FULL CUMULATIVE CURVE IS STORED, not just the ladder points. INBOX 17c needs FVE at
+    # k = the codec's REALISED RANK, a number that comes from a different job and can change; storing
+    # only the pre-chosen ladder would force a full recomputation every time that k moved. Modes are
+    # orthonormal, so the curve is a prefix sum and costs nothing extra.
     if kk:
         e = (P ** 2).sum(0)                                        # per-mode projected energy
         cs = np.cumsum(e) / (sst + 1e-12)
+        out["anm_cs"] = [float(v) for v in cs]
         for k in KS: out[f"anm{k}"] = float(cs[min(k, kk) - 1])
 
     # ORACLE, OUT-OF-SAMPLE: basis from replicas 0+1, evaluated on replica 2.
@@ -100,12 +109,14 @@ def peer_one(d, V):
     s = np.sqrt(w[good]) + 1e-12
     Pj = (M @ U[:, good]) / s                                       # = ho @ V_pca, without forming V
     cs = np.cumsum((Pj ** 2).sum(0)) / (sst + 1e-12)
+    out["pca_out_cs"] = [float(v) for v in cs[:KMAX]]
     for k in KS: out[f"pca_out{k}"] = float(cs[min(k, len(cs)) - 1])
 
     # ORACLE, IN-SAMPLE: fit and evaluate on the same replica-2 frames. FLATTERED BY CONSTRUCTION;
     # kept only because the earlier PCA-16 ~ 0.53 figure was computed this way.
     wq = np.sort(np.clip(np.linalg.eigvalsh(Q), 0, None))[::-1]
     cs = np.cumsum(wq) / (sst + 1e-12)
+    out["pca_in_cs"] = [float(v) for v in cs[:KMAX]]
     for k in KS: out[f"pca_in{k}"] = float(cs[min(k, len(cs)) - 1])
     return out
 
@@ -119,7 +130,7 @@ def select_cutoff(TR, log=print):
     for c in CUTOFF_SWEEP:
         v = []
         for d in TR:
-            V, _, _ = anm_modes(d["ref"], KS[0], c)
+            V, _, _ = anm_modes(d["ref"], CUT_K, c)
             if V is None: continue
             P = np.zeros((d["F"], V.shape[1]))
             for c0 in range(0, 3 * d["N"], CHUNK):
@@ -127,7 +138,7 @@ def select_cutoff(TR, log=print):
                 P += ho_cols(d, c0, c1) @ V[c0:c1]
             v.append(float((P ** 2).sum() / (d["sst"] + 1e-12)))
         means[c] = float(np.mean(v)) if v else float("nan")
-        log(f"  cutoff {c:>4} A: mean TRAIN FVE at k={KS[0]}  {means[c]:.4f}  (n={len(v)})")
+        log(f"  cutoff {c:>4} A: mean TRAIN FVE at k={CUT_K}  {means[c]:.4f}  (n={len(v)})")
     best = max((c for c in means if np.isfinite(means[c])), key=lambda c: means[c])
     log(f"  -> SELECTED {best} A on TRAINING systems, applied unchanged to all held-out systems.")
     return best, means
@@ -285,6 +296,77 @@ if __name__ == "__main__":
             print(f"    n{j['n_train']:>4} DM{j['dm']:>4}: gap-vs-log10(N) {lr.slope:+.4f} +/- {hw:.4f}"
                   f"   (codec alone {lc.slope:+.4f} +/- {hc:.4f})   "
                   f"{'FLAT' if abs(lr.slope) < hw else '*** MOVES WITH N ***'}", flush=True)
+
+    # ---------------- INBOX 17c: WHERE DOES THE GAP LIVE? ----------------
+    # "codec 0.155 vs PCA-16 ~ 0.53" compares SIX realised directions against SIXTEEN, so it fuses
+    # two different deficits. Splitting them at matched rank says which fix is worth making:
+    #   codec vs PCA-r / ANM-r at r = the codec's OWN realised rank -> BASIS QUALITY at matched count
+    #   PCA-r vs PCA-16                                             -> what the missing MODES are worth
+    RANK_K = RANK_K_DEFAULT
+    try:                       # take the realised rank from the 16a measurement, not a constant
+        md = json.load(open(MODRES))
+        rr = [s_["rank90_out"] for s_ in md.get("sys", []) if "rank90_out" in s_]
+        if rr: RANK_K = max(1, int(round(float(np.median(rr)))))
+        print(f"\n  (realised rank read from atlas_modes.json: median {RANK_K} across {len(rr)} systems)",
+              flush=True)
+    except Exception:
+        print(f"\n  (atlas_modes.json unreadable -- falling back to the recorded realised rank "
+              f"{RANK_K}; re-run after 16a to pick it up automatically)", flush=True)
+
+    def at_k(p, field, k):
+        cs = S[p].get(field)
+        if not cs: return None
+        return float(cs[min(k, len(cs)) - 1])
+
+    print(f"\n=== 17c: IS THE GAP MODE COUNT, OR BASIS QUALITY? (matched rank r={RANK_K}) ===",
+          flush=True)
+    print(f"  The codec realises {RANK_K} directions (16a). Comparing it to a 16-mode fit charges it")
+    print(f"  for BOTH deficits at once. At matched rank the two separate.", flush=True)
+    if joined:
+        b = max(joined, key=lambda j: j["codec"])
+        # EVERY MEAN BELOW IS OVER THE SAME SYSTEMS. The codec value is carried alongside each row
+        # rather than reused from `b["codec"]`, because a system whose cumulative curve is missing
+        # would drop from the peer means but not from the codec's -- means over different row sets,
+        # which is exactly the FAMILY F failure this file's own header warns about.
+        pdbs = [p for (p, _) in cur if p in S and S[p].get("anm_ok")]
+        cmap = dict(zip([p for (p, _) in cur if p in S and S[p].get("anm_ok")], b["codec_per"]))
+        rows_k = [(p, at_k(p, "anm_cs", RANK_K), at_k(p, "pca_out_cs", RANK_K),
+                   at_k(p, "pca_out_cs", 16), cmap.get(p)) for p in pdbs]
+        rows_k = [r for r in rows_k if all(v is not None for v in r[1:])]
+        if rows_k:
+            a_r = np.array([r[1] for r in rows_k]); p_r = np.array([r[2] for r in rows_k])
+            p_16 = np.array([r[3] for r in rows_k]); c_r = np.array([r[4] for r in rows_k])
+            if len(rows_k) != len(pdbs):
+                print(f"    ({len(pdbs) - len(rows_k)} of {len(pdbs)} systems dropped for a missing "
+                      f"curve; ALL columns below are means over the SAME {len(rows_k)} systems)",
+                      flush=True)
+            b = dict(b); b["codec"] = float(c_r.mean())        # codec mean on the matched set
+            print(f"    {'quantity':>26}{'FVE':>10}   (n={len(rows_k)} systems)")
+            print(f"    {'codec (realises ' + str(RANK_K) + ')':>26}{b['codec']:>10.4f}")
+            print(f"    {'ANM-' + str(RANK_K) + ' (zero-shot peer)':>26}{a_r.mean():>10.4f}")
+            print(f"    {'PCA-' + str(RANK_K) + ' (oracle)':>26}{p_r.mean():>10.4f}")
+            print(f"    {'PCA-16 (oracle)':>26}{p_16.mean():>10.4f}", flush=True)
+            print(f"\n    BASIS QUALITY at matched rank {RANK_K}:")
+            print(f"      codec - PCA-{RANK_K}  = {b['codec'] - p_r.mean():+.4f}   "
+                  f"(how much worse a zero-shot structure-derived basis is than one fitted to the")
+            print(f"      {'':>{len(str(RANK_K))}}          target's own trajectory, holding the number of directions FIXED)")
+            print(f"      codec - ANM-{RANK_K}  = {b['codec'] - a_r.mean():+.4f}   "
+                  f"(the LIKE-FOR-LIKE number: both zero-shot, both {RANK_K} directions)")
+            print(f"    MODE COUNT:")
+            print(f"      PCA-16 - PCA-{RANK_K} = {p_16.mean() - p_r.mean():+.4f}   "
+                  f"(what the missing directions are worth)", flush=True)
+            bq = p_r.mean() - b["codec"]; mc = p_16.mean() - p_r.mean()
+            tot = bq + mc
+            if tot > 1e-9:
+                print(f"\n    => of the {tot:.4f} between the codec and PCA-16, "
+                      f"{100*bq/tot:.0f}% is BASIS QUALITY and {100*mc/tot:.0f}% is MODE COUNT.")
+                if bq > mc:
+                    print(f"       BASIS QUALITY DOMINATES. INBOX 015's modal decoder widens the")
+                    print(f"       realised rank, which addresses the SMALLER half. A better basis --")
+                    print(f"       not merely more modes -- is where the larger deficit is.", flush=True)
+                else:
+                    print(f"       MODE COUNT DOMINATES, so raising the realised rank (015) attacks")
+                    print(f"       the larger half.", flush=True)
 
     print(f"\n=== THE ORACLE LADDER (fraction, never a bar) ===", flush=True)
     print(f"    {'k':>5}{'ANM-k':>10}{'PCA out':>10}{'PCA in':>10}{'in/out':>9}", flush=True)

@@ -2168,6 +2168,32 @@ cannot fail, so it proves nothing.
 **CHECK:** before reporting any comparison, sweep EVERY baseline hyperparameter on TRAINING data,
 report the curve, use the best. **A baseline you didn't try to make strong is not a baseline.**
 
+## FAMILY G — a VERDICT emitted by a THRESHOLD sitting at rounding distance from the measurement
+**Signature:** the measured numbers are right and the *automated reading* of them is wrong. The
+decision flips on a hand-picked constant nobody derived, at a margin far below the uncertainty in the
+quantity being tested.
+
+**Two instances within one hour, identical in shape:**
+- **16a's realised-rank branch** tested `med <= max(3.0, 2·PR/5)` → **5.96 against a measured 6.0**, a
+  **0.7%** margin. It printed *"the latent is the limit"* when the measured ratio (6/14.9 = 0.40) says
+  the decoder is. The opposite conclusion, on a rounding-scale margin.
+- **007's stopping rule** applied the n_eff threshold to the median **pooled across bases** →
+  **2.045 against 2.0**, a **2%** margin, from a pool describing neither basis (3.28 viable, 0.81
+  censored). Pooling let a censored basis drag a viable one toward the cliff.
+
+**CHECK — all four, on every automated verdict:**
+1. Print the **table first and the verdict second**, so a reader checks the reading rather than
+   trusting it.
+2. State the **margin** between the measured value and its threshold, and flag any margin under 10%.
+3. Prefer **ratios with no free constant** (`med < 0.6·PR`) over absolute cutoffs.
+4. **Viability is per-unit.** Never pool a per-basis, per-system or per-arm property before applying a
+   rule to it — assess per unit, then report the units separately.
+
+**Why this family is worse than it looks.** A Family G defect produces a *confident, well-formatted,
+plausible* conclusion backed by correct numbers. Nothing looks wrong, the arithmetic checks out, and
+the only tell is a margin nobody printed. Both instances above were caught by reading the numbers
+next to the verdict — which is exactly why check 1 is first.
+
 ## FAMILY F -- a comparator computed on DIFFERENT DATA from the model
 **Instance:** the graph-codec ligand win. `armf_graph_codec.py:239` printed `cANM 0.77/0.74/0.73` as a
 HARDCODED STRING; ANM was never computed on that script's 190-ligand set. The numbers came from
@@ -2751,6 +2777,22 @@ was a conservative proxy. The real defect is the truncation compressing the slop
 is TICA-vs-PCA *within the same basis*; only if variance dimensionality is materially steeper than
 slowness dimensionality IN THAT BASIS does 007's claim hold. **No 007 verdict may be quoted until
 that lands.**
+
+### HYPOTHESES MEASURED AND DECLINED — WITH NUMBERS (INBOX 017)
+Kept together deliberately. A file that records only what survived reads as a run of successes and
+tells a later reader nothing about what was already tried and refuted. Each of these was proposed,
+measured properly, and **did not hold** — and in each case the measurement, not an argument, is what
+declined it.
+
+| # | hypothesis | what was measured | outcome |
+|---|---|---|---|
+| **011** | `rank90_out` was inflated by TRAIN-ORDER counting, so the ordering-free exponent should be lower | ordering penalty **1.03×**; N-slope of the gap **−0.0145 ± 0.0195** (spans zero); ordering-free exponent **+0.9429 ± 0.2306**, *higher* than train-order | **DECLINED.** The ordering artifact is real but negligible, and removing it moves the exponent the *wrong* way for the hypothesis. |
+| **007** | slow-weighted dimensionality grows more slowly in N than variance-weighted | matched-*m* `exponent(TICA) − exponent(PCA)` at the viable basis (m=100, n_eff/dim 3.28): **+0.0873 ± 0.1163** out-of-sample — positive, spans zero | **DECLINED — a measured null,** not an unanswerable question. Sign flips at m=400, confirming truncation dependence. |
+| **14b** | the codec keeps slow/collective motion and discards thermal noise, so MSE is the wrong objective | naive `FVE ~ log(IAT)` **+0.4700 ± 0.1917** (significant), but **partial** coefficient holding variance share fixed **+0.1445 ± 0.1830** — spans zero | **DECLINED.** Variance-selective, not timescale-selective: MSE selects for variance by construction. |
+
+**What survived instead:** 16a — realised rank **6** against a data rank of **152** with the latent
+already carrying **~15**. That one is not a null, and it is the only one of the four that points at a
+specific fix.
 
 ### 007 ANSWERED (job 10306738, 2 h, n=123): A MEASURED NULL — NOT AN UNANSWERABLE QUESTION
 Ratio-only, per INBOX 13a. **No absolute TICA exponent is quoted, here or in the output.**
