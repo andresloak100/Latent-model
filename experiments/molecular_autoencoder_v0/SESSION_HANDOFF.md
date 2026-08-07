@@ -85,31 +85,34 @@ split, not a categorically different one.
 Workspace `$WR` = `/network/scratch/j/jacob-junqi.tian/latent-model-workspace`. Logs in `$WR/logs/`.
 **Five live, two finished.** They are SLURM jobs, not session children — a client restart orphans nothing.
 
-> **⚠ OPEN HAZARD — `atlas_dm.json` MIXES TWO TRAINING PROCEDURES, AND THEY HAVE DIFFERENT LR
-> OPTIMA.** Rows 0–12 are legacy (flat 30k cap); rows 13–15 are current-procedure (row 13 ran 47,500
-> steps, only reachable via `maxsteps_for`). Legacy DM=256 peaks at **lr=3e-4** (+0.1453/+0.1553/
-> +0.1497); current DM=256 does best at **lr=3e-5** (+0.1318) and falls to roughly half at 3e-4. So a
-> mixed table compares **different points on different LR curves**, and "best LR per DM" is selected
-> across the boundary, then propagates up the ladder. **Family E.**
-> **Two consequences:** (1) standardising the procedure is not enough — **the whole LR grid must be
-> re-swept** under whichever one is kept; (2) the fix may be to **revert or condition the warmup**,
-> not to retrain under it — warmup existed only to rescue the 3e-5 grid edge and may have cost the
-> operating point the sweep reports from. **Job 10307026 decides.** *(10307008 died in 0 s: a `git
-> rebase` briefly removed the script as the job started — never rebase while a job is launching.)*
-> **Do not quote a DM or LR winner from `atlas_dm.json`.**
+> **✅ RESOLVED — the procedure question (job 10307026).** At matched LR/code/data, 2 seeds each:
+> `best_track` LEGACY +0.0973 vs CURRENT +0.0656 (gap 0.0317, seed spread 0.0282); **`full_fve`
+> LEGACY +0.1217 vs CURRENT +0.1160 (gap 0.0057, seed spread 0.0269) — NOT SEPARATED.** `full_fve` is
+> what the sweep selects on, so **the procedures are indistinguishable on the reported metric**.
+> **KEEP the current procedure** (it closes the Family D hole); **HYBRID not run**; **no extra seeds**
+> (INBOX 18b — adding seeds until something separates is Family C backwards).
+> The claim *"the procedure moved the LR optimum"* is **WITHDRAWN** — it compared against
+> unreproducible rows.
 >
-> **✅ SETTLED — the binding constraint is the DECODER, not width (INBOX 16a, job 10307054).**
-> Realised rank90 of the reconstruction is **median 6** (range 2–10) against a data rank90 of
-> **152** on the same frames, latent PR **14.9**, DM **256**. The output spans **4%** of the
-> directions the motion uses and **2.5× fewer than the latent already carries.** Further DM/LR arms
-> have low marginal value; `INBOX 015`'s modal decoder is the direct test.
+> **✅ SETTLED — the persisted arms are DISCARDED.** They cannot be reproduced by any configuration
+> available today (control LEGACY seed1: +0.1352 at 20,000 steps vs a stored +0.1553 at 15,000, under
+> deliberately matched hyperparameters). Three causes checked and excluded; residual unidentified.
+> **Determinism itself is confirmed** within a fixed procedure *and* codebase.
+> **INBOX 18a fix in place:** `armf_stamp.py` stamps every arm with a normalised AST hash of
+> `Codec`+`train` (invariant to comments/docstrings, changes when behaviour can) plus effective-config
+> hash, git SHA and torch/device. It gates the DM sweep's dedup key and its reporting.
+>
+> **✅ SETTLED — the binding constraint is the DECODER, not width (INBOX 16a).** Realised rank90 of
+> the reconstruction **6** (range 2–10) vs a data rank90 of **152**, latent PR **14.9**, DM **256**.
+> The output spans **4%** of the directions the motion uses and **2.5× fewer than the latent carries.**
+> `INBOX 015`'s modal decoder is the direct test.
 
 | job | what it tests | output | state |
 |---|---|---|---|
-| **10307026** `warmup_ctl` | **Which procedure to standardise on.** LEGACY (warmup off, flat 30k) vs CURRENT (warmup 1000, lr-scaled), 2 seeds each, one process one card, at n50/DM256/lr3e-4. | `$WR/warmup_control.json` · `warmupctl_10307026.log` | RUNNING. **LEGACY seed1 done: best_track +0.1086, all-123 +0.1352** — inside the persisted legacy spread, so legacy REPRODUCES. CURRENT arms pending. |
+| **10307026** `warmup_ctl` | Which procedure to standardise on. | `$WR/warmup_control.json` · `warmupctl_10307026.log` | **FINISHED** — see the resolved block above. Verdict printed on `best_track` is superseded by the `full_fve` reading. |
 | **10307054** `atlas_modes` | **INBOX 16a/16b, DONE and corrected.** Realised rank + injection column. First run printed the OPPOSITE verdict on an invented threshold (5.96 vs a measured 6.0); test is now the ratio `med < 0.6·PR` with no free constant. Numbers were always right. | `$WR/atlas_modes.json` (v1/v2 archived) · `modes_10307054.log` | **FINISHED** |
 | **10307029** `modal_arm` | **INBOX 015.** Modal decoder `disp_i = B_i(structure) @ z` as an arm: control vs untied vs tied, DM=256, n50, **LR swept per decoder** (Family E), **control re-trained in the same job** so the comparison does not depend on the `atlas_dm.json` procedure question. Self-test on real ATLAS tensors gates training and passed: superposition err 9.5e-07, **tied `‖z0‖` exactly 0.0** vs untied 5.66. | `$WR/modal_arm.json` · `$WR/modal_arm_ckpt/` · `modal_10307029.log` | RUNNING, 20 h, resumable. **16a makes this the direct test of the diagnosis, not a speculative arm.** |
-| **10307102** `atlas_peer` | **INBOX 14a — THE PRIMARY COMPARISON, which has never appeared in an ATLAS output.** codec vs **ANM-k** (the zero-shot peer, cutoff swept on TRAINING systems) vs **per-system PCA-k** (the oracle, reported as a fraction only), at matched capacity k=DM ∈ {16,64,256}. CPU-only: it JOINS to codec arms already in `atlas_dm.json` rather than training anything. Also reports the **codec−ANM gap vs N**, which is ceiling-free because the shared denominator cancels. | `$WR/atlas_peer.json` · `peer_10307102.log` | QUEUED. **Right-sized 110G/8cpu → 32G/4cpu** after measuring actual peak (~3 GB): `long-cpu` had 113 running / 21 pending and the over-request was blocking it. 10306938 cancelled while still PD — no compute lost, script is resumable per system. |
+| **10307337** `atlas_peer` | **INBOX 14a — THE PRIMARY COMPARISON, which has never appeared in an ATLAS output.** codec vs **ANM-k** (the zero-shot peer, cutoff swept on TRAINING systems) vs **per-system PCA-k** (the oracle, reported as a fraction only), at matched capacity k=DM ∈ {16,64,256}. CPU-only: it JOINS to codec arms already in `atlas_dm.json` rather than training anything. Also reports the **codec−ANM gap vs N**, which is ceiling-free because the shared denominator cancels. | `$WR/atlas_peer.json` · `peer_10307337.log` | QUEUED (32G/4cpu, right-sized from 110G). Now stores the **full cumulative FVE curve** per system (17c), stamps each row, purges rows from a different config, and prints the **18d resume-coverage check** before resuming. Predecessors: 10306938 (never ran), 10307102 (**ran 20:58**, its 49 small-N rows purged), 10307124 (never ran). |
 | **10306939** `atlas_modes` | **INBOX 14b — where the error LIVES.** DONE. Verdict **VARIANCE-SELECTIVE, NOT timescale-selective**: the one-variable log(IAT) coefficient is +0.4700 ± 0.1917, but the PARTIAL coefficient holding variance share fixed is **+0.1445 ± 0.1830 — CI spans zero**. Residual is **94% of the motion's own amplitude** (2.412 Å vs 2.572 Å). Per-mode FVE goes **negative beyond mode ~7**. | `$WR/atlas_modes.json` · `modes_10306939.log` | **FINISHED** — but measured on a re-trained arm that did NOT reproduce; re-run once the procedure question (10307008) is settled |
 | **10306831** `atlas_dm` | DM sweep + 005 bottleneck + **013b criterion-1-vs-N** + **12b identity ablation**, at L=1. LR {3e-5…3e-3} with **1,000-step warmup** and an lr-scaled step budget; ladder {50,130,300,600}. Checkpoints each arm so criterion-1 scoring never re-trains. | `$WR/atlas_dm.json` · `$WR/atlas_dm_criterion1.json` · `$WR/atlas_dm_ckpt/` · `atlasdm_10306831.log` | RUNNING ~40 min, on the `n50 dm64 lr3e-5` arm |
 | **10306738** `tica_vs_n` | **Q1 re-run with the TRUNCATION-MATCHED CONTROL** and the 13a stopping rule. Reports only the matched-*m* difference `exponent(TICA\|m) − exponent(PCA\|m)`; **no absolute exponent**. Closes 007 as unanswerable if n_eff per TICA dimension < 2.0. | `$WR/atlas_tica_vs_n.json` (v1 archived `..._v1_nocontrol.json`) · `ticaN_10306738.log` | RUNNING ~40 min, τ=20 selected on train, ~60/123 held-out |
