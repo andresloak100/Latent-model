@@ -157,59 +157,84 @@ if __name__ == "__main__":
     print(f"\n=== 31d/32b: DOES THE TIED ARM'S CEILING MOVE WITH DATA? (discriminates option 1 only) ===",
           flush=True)
     print(f"    {'n_train':>9}{'seeds':>7}{'mean FVE':>11}{'SD':>9}{'median FVE':>13}", flush=True)
-    pts, sds = [], []
+    pts, sds, sd_ks = [], [], []
     for nt in LADDER:
         v = [r for r in rows if r.get("n_train") == nt and not r["improving"]]
         if not v: continue
         f = np.array([r["fve"] for r in v], float)
         m = np.array([r.get("med", np.nan) for r in v], float)
         sd = float(np.std(f, ddof=1)) if len(f) > 1 else float("nan")
-        if np.isfinite(sd): sds.append(sd)
+        if np.isfinite(sd): sds.append(sd); sd_ks.append(len(f))
         pts.append((nt, float(f.mean()), float(np.nanmean(m)), len(f)))
         print(f"    {nt:>9}{len(f):>7}{f.mean():>+11.4f}{sd:>9.4f}{np.nanmean(m):>+13.4f}", flush=True)
     if len(pts) >= 2:
         n0, f0, m0, k0 = pts[0]; n1, f1, m1, k1 = pts[-1]
         d_mean = f1 - f0
-        # INBOX 33a: the SD is ESTIMATED from these arms, not known, so the interval needs a
-        # t quantile rather than 1.96. Pooled within-rung df = sum(k_i - 1) over rungs. Using 1.96
-        # with an estimated SD understates the bounded null by ~25% at df=6 -- the right statistic
-        # with the wrong distribution for it, which is 32b's error one level down.
-        sd_arm = float(np.sqrt(np.mean(np.square(sds)))) if sds else float("nan")   # pooled SD
-        dfree = int(sum(max(k - 1, 0) for (_, _, _, k) in pts))
-        k = min(k0, k1)
-        if np.isfinite(sd_arm) and k >= 1 and dfree >= 1:
+        # INBOX 34a/34b: pooling and the standard error must both handle UNEQUAL seed counts.
+        #   34a  RMS pooling ignores k_i entirely and is only correct when the rungs are equal. The
+        #        weighted form is s_p^2 = sum((k_i-1) s_i^2) / sum(k_i-1) -- the same denominator as
+        #        the df already computed, which is what made the inconsistency visible.
+        #   34b  SD_arm*sqrt(2/k) carries the same assumption; the general form is
+        #        s_p*sqrt(1/k_i + 1/k_j).
+        # Both are no-ops when the rungs come back full at (3,3,3), which is the expected case.
+        var_num = sum((k_ - 1) * sd_ ** 2 for sd_, k_ in zip(sds, sd_ks) if k_ > 1)
+        dfree = int(sum(max(k_ - 1, 0) for (_, _, _, k_) in pts))
+        sd_arm = float(np.sqrt(var_num / dfree)) if dfree > 0 else float("nan")
+        if np.isfinite(sd_arm) and dfree >= 1 and k0 >= 1 and k1 >= 1:
             tq = float(stats.t.ppf(0.975, dfree))
-            se = sd_arm * np.sqrt(2.0 / k); hw = tq * se
+            se = sd_arm * np.sqrt(1.0 / k0 + 1.0 / k1)      # 34b: general, not sqrt(2/k)
+            hw = tq * se
         else:
             tq = se = hw = float("nan")
-        print(f"\n  n_train {n0} -> {n1} ({n1/n0:.1f}x corpus): mean {f0:+.4f} -> {f1:+.4f} "
-              f"(difference {d_mean:+.4f})", flush=True)
-        print(f"  TIED's own single-arm SD, measured HERE (not borrowed): {sd_arm:.4f}, "
-              f"{k} seeds/rung", flush=True)
-        print(f"  SD(difference) = SD_arm*sqrt(2/{k}) = {se:.4f};  t(0.975, df={dfree}) = {tq:.3f}"
-              f"  ->  95% half-width = {hw:.4f}", flush=True)
-        CTRL_MEAN = 0.1042      # control lr3e-4 mean over 3 seeds (24c), the reference for "% of"
-        if np.isfinite(hw) and abs(d_mean) > hw:
-            print(f"  => THE CEILING MOVES WITH DATA ({d_mean:+.4f}, clearing {hw:.4f}). The tied arm")
-            print(f"     is DATA-limited over this range, so 31d-(1) is NOT the binding constraint and")
-            print(f"     (2)/(3) are premature.")
-            print(f"     INBOX 32c CONSEQUENCE, pre-registered: 14a, 17c, 25a and the ENTIRE peer")
-            print(f"     comparison were measured at n50. A rise means every one of them was measured")
-            print(f"     on an UNDER-TRAINED model and is a FLOOR, not an estimate -- including")
-            print(f"     FVE_perp ~ 0 and the 0%-of-systems peer loss. It does not soften the n50 peer")
-            print(f"     result, which is what it is; it does mean the headline carries 'at")
-            print(f"     n_train=50' until the peer comparison is re-run at the best rung.", flush=True)
+        CTRL_MEAN = 0.1042      # control lr3e-4 mean over 3 seeds (24c)
+
+        # ---- INBOX 34c: THE PRIMARY TEST IS FIXED HERE, BEFORE THE NUMBERS ----
+        # PRIMARY  = slope of FVE on log10(n_train) over ALL arms (df = n_arms - 2).
+        # SECONDARY= pairwise n50 vs n300, reported as descriptive.
+        # Chosen because the question is a TREND across the ladder, the slope uses all nine points
+        # rather than six, and it has more df. Picking whichever of the two reads better once both
+        # exist is the post-hoc statistic choice 28e caught, so it is recorded now.
+        allr = [r for r in rows if not r["improving"] and r.get("n_train") in LADDER]
+        print(f"\n  --- PRIMARY (fixed before results, INBOX 34c): slope of FVE on log10(n_train) ---",
+              flush=True)
+        if len(allr) >= 4:
+            x = np.log10([r["n_train"] for r in allr]); y = np.array([r["fve"] for r in allr])
+            sl = stats.linregress(x, y); dfs = len(x) - 2
+            hs = float(stats.t.ppf(0.975, dfs)) * sl.stderr
+            span = np.log10(max(x_ for x_ in 10 ** x) / min(x_ for x_ in 10 ** x))
+            print(f"    slope {sl.slope:+.4f} +/- {hs:.4f}  (t, df={dfs}, n={len(x)} arms)  "
+                  f"R^2 {sl.rvalue**2:.3f}", flush=True)
+            print(f"    implied change over the measured {10**span:.1f}x range: "
+                  f"{sl.slope*span:+.4f} +/- {hs*span:.4f}", flush=True)
+            moves = abs(sl.slope) > hs
         else:
-            # INBOX 33c: the wording is fixed HERE, before the outcome is known, and it says what the
-            # bound IS rather than what it is not. A bounded null of a third to two thirds of current
-            # performance is a real improvement on 88% and is still not "not data-limited".
-            pct = 100 * hw / CTRL_MEAN if np.isfinite(hw) else float("nan")
-            print(f"  => Across a {n1/n0:.0f}x range in n_train, NO EFFECT LARGER THAN {hw:.4f}")
-            print(f"     (t-interval, df={dfree}) -- which is {pct:.0f}% of the control's mean")
-            print(f"     ({CTRL_MEAN:+.4f}). OPTION (1) IS NOT RETIRED; effects below that size are")
-            print(f"     not excluded by this design.")
+            moves = False; sl = None
+            print(f"    only {len(allr)} arms -- primary test not yet computable", flush=True)
+
+        print(f"\n  --- SECONDARY (descriptive): pairwise n{n0} vs n{n1} ---", flush=True)
+        print(f"    difference {d_mean:+.4f};  pooled SD_arm {sd_arm:.4f} (df={dfree}, "
+              f"k={k0}/{k1});  SE {se:.4f};  t {tq:.3f};  95% half-width {hw:.4f}", flush=True)
+
+        if moves and sl is not None:
+            print(f"\n  => THE CEILING MOVES WITH DATA. Slope {sl.slope:+.4f} +/- {hs:.4f} excludes")
+            print(f"     zero, so the tied arm is DATA-limited over this range: 31d-(1) is NOT the")
+            print(f"     binding constraint and (2)/(3) are premature.")
+            print(f"     INBOX 32c CONSEQUENCE, pre-registered: 14a, 17c, 25a and the ENTIRE peer")
+            print(f"     comparison were measured at n50, so a rise means each was measured on an")
+            print(f"     UNDER-TRAINED model and is a FLOOR, not an estimate -- including FVE_perp ~ 0")
+            print(f"     and the 0%-of-systems peer loss. It does not soften the n50 peer result; it")
+            print(f"     means the headline carries 'at n_train=50' until the peer comparison is")
+            print(f"     re-run at the best rung.", flush=True)
+        elif sl is not None:
+            bound = abs(hs * span)
+            print(f"\n  => Across a {10**span:.0f}x range in n_train, NO EFFECT LARGER THAN "
+                  f"{bound:.4f}")
+            print(f"     (t-interval on the slope, df={dfs}) -- which is {100*bound/CTRL_MEAN:.0f}% of")
+            print(f"     the control's mean ({CTRL_MEAN:+.4f}). OPTION (1) IS NOT RETIRED; effects")
+            print(f"     below that size are not excluded by this design.")
             print(f"     Reporting this as 'not data-limited' would be Family C -- retiring the")
             print(f"     hypothesis the ladder exists to test.", flush=True)
+
     print(f"\n  SCOPE: architecture, objective and comparator held FIXED; only n_train varies, so this")
     print(f"  discriminates (1) alone and cannot separate (2) from (3). The N-only scale correction is")
     print(f"  deliberately NOT applied -- folding it in would confound 'does more data help' with")

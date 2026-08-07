@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 033
+last_acted: 034
 ```
 
 | item | restatement | status | commit |
@@ -54,6 +54,38 @@ last_acted: 033
 | 031 | **31a:** an unclaimed corroboration — the over-scale story implies `a*(N_ref) = 1`, and the fitted line's crossing can be compared against `N_ref = 2460`, which was fixed from the TRAINING systems without reference to `a*`. **31b:** the "N-only recovers" column is a ratio of medians and misreports — at Q1 it says 3% where a per-system calculation says most of the gain is recoverable; report the per-system DISTRIBUTION (median and IQR), not a ratio of quartile medians. **31c:** `R² = 0.649` means 35% of per-system `log a*` variance is unexplained by N, so the correction is accurate in aggregate and imprecise per system — the honest form is that it reliably removes the LARGE scale error at high N and is within noise of doing nothing where the error is already small. **31d:** state which of three questions the project is now testing — (1) the encoder cannot reach the ~54-mode target, (2) the objective is wrong, (3) the comparison is unwinnable as posed — and have the next experiment NAME which it discriminates. | ACCEPTED | (this commit) |
 | 032 | **32a:** the seed finding's DIRECTION is not established — "it understates tied's advantage" resolves the bias from ONE side's variance, but tied's Q1 +0.2956 is also a single draw with unmeasured spread, so the 2.67× ratio is one draw over one draw with only the denominator's SD known; adding tied to the 24c harness costs one cell. It does NOT touch the peer result: tied Q1 +0.2956 against ANM +0.6912 is a gap of 0.396, **12× the single-arm SD**, which no seed draw closes. **32b:** 31d's yardstick (0.0656) is the RANGE of three draws WITHIN a rung, but the ladder must resolve a DIFFERENCE BETWEEN rungs — `SD(diff) = SD_arm·√(2/k)`, so at one seed per rung the 95% half-width is ~0.092, an 88% relative lift, and a flat result could not retire option (1) (Family C); fix with 2–3 seeds per rung or word the null as bounded. **32c:** pre-register what a RISING ladder means — 14a, 17c, 25a and the entire peer comparison were measured at n50, so a rise makes them a FLOOR and the headline carries "at n_train=50" until re-run. | ACCEPTED | (this commit) |
 | 033 | **33a:** with 3 seeds per rung the SD is ESTIMATED, not known, so the verdict needs a **t quantile**, not 1.96 — `t(0.975, df=6) = 2.447` pooled over 3 rungs, 25% wider; `SD(diff) = SD_arm·√(2/3)`, so on the measured SDs the half-width lands at **0.034–0.066**, and `df` must be printed beside it. Using 1.96 with an estimated SD is 32b's error one level down — right statistic, wrong distribution for it. **33b:** the **0.0206** came from the synthetic rows used to exercise the branch, not from the ladder, and is now sitting next to a real interpretation; the real bounded null is **33–63%** of the control mean, not 20% — label the synthetic figure as synthetic where it prints. **33c:** fix the flat-result wording NOW, before the outcome is known — "across a 6× range, no effect larger than **X** (t-interval, df=N), which is **Y%** of the control's mean; option (1) is not retired; effects below that size are not excluded by this design." | ACCEPTED | (this commit) |
+| 034 | **34a:** `df = Σ(kᵢ−1)` anticipates unequal seed counts but RMS pooling ignores `kᵢ` entirely, so the two are inconsistent — use `s_p² = Σ((kᵢ−1)sᵢ²)/Σ(kᵢ−1)`. **34b:** `SD_arm·√(2/k)` carries the same equal-`k` assumption; the general form is `s_p·√(1/kᵢ + 1/kⱼ)`. Both are one-line fixes and no-ops when the rungs come back full. **34c:** choose NOW whether the verdict is pairwise n50-vs-n300 or the slope of FVE on `log n_train` (all 9 points, df=7), and record which — choosing after seeing both is the post-hoc statistic choice 28e caught. | ACCEPTED | (this commit) |
+
+## Notes on 034
+
+**Both fixes adopted — they are strictly more correct and are exact no-ops at (3,3,3). But neither
+stated magnitude reproduces against my code, and in one case the sign is opposite, so I am recording
+what I measured rather than the quoted figures.**
+
+**34a.** The inconsistency is real and worth naming precisely: `df` was computed as `Σ(kᵢ−1)`, which
+*presumes* unequal rungs, while the SD was pooled by RMS, which *presumes* equal ones — the two
+lines disagreed with each other. Fixed to the weighted form. On SDs `[0.020, 0.030, 0.015]` the RMS
+error is **not** a fixed 6.9% / 7.9%: it depends on **which** rung is short, in sign as well as size —
+across all assignments it spans **−5.1% to +8.7%** at (3,3,2) and **−8.4% to +7.8%** at (3,2,2). RMS
+is high when the short rung has a large SD and low when it has a small one. The direction is not
+predictable in advance, which is a better argument for the fix than a single number would be.
+
+**34b.** The general form is adopted. But my code used `k = min(k₀,k₁)`, not a hardcoded `k`, and
+`√(2/min)` is **never narrower** than `√(1/k₀+1/k₁)` — checked exhaustively over `kᵢ,kⱼ ∈ {1,2,3}`,
+minimum of `mine/general − 1` is **+0.0%**. So my form was *conservative*, by up to +22.5% at (3,1),
+not anti-conservative; at (2,2) the two are identical, where 034 expected 18% wider. The general form
+is still the right one — it is exact rather than merely safe — and it tightens the interval where the
+rungs differ.
+
+**34c — PRIMARY IS THE SLOPE, fixed in the source before any number exists.** Slope of FVE on
+`log10(n_train)` across all arms (df = n−2), with pairwise n50-vs-n300 reported as **secondary,
+descriptive**. Chosen because the question is a *trend* across the ladder, the slope uses nine points
+rather than six, and it carries more df. The bounded null is expressed as the slope's half-width
+scaled to the measured range, so it stays in FVE units and comparable to the control mean.
+
+**Verdict exercised on four synthetic cases** — flat and rising at (3,3,3), plus (3,2,2) and (3,3,2)
+to drive the unequal-`k` paths 34a/34b exist for. `df` adapts correctly (7 / 7 / 5 / 6) and `k₀/k₁`
+print beside the interval. Restarted as 10311656 (+2 chained); the completed arm survived again.
 
 ## Notes on 033
 
