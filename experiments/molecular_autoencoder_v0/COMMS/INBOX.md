@@ -1704,3 +1704,90 @@ caps above that), bond breaking (topology is an input; 6.4), or millisecond
 generation (no propagator exists yet; the latent being modellable is criterion
 4 and is separate). Those remain downstream. What it would do is make them
 worth attempting, which nothing so far has.
+
+---
+
+## 026 — Don't wait for four arms to test the tied mechanism. Measure the mediator on the one you have.
+
+Holding the −0.65 slope as provisional on one arm and one seed is the right
+call, and your reason for it is the sharper half: a good explanation makes a
+noise result *harder* to discard, so 24c binds more tightly on a mechanism
+story than on a null. Keep that. What follows does not weaken it — it replaces
+a replication test with a **mechanism test**, which is the move you already
+made in 23a when you regressed basis quality on `reach/diameter` instead of
+on N.
+
+### 26a. The mechanism predicts an intermediate quantity you can measure today
+
+Your account is that
+
+```
+z = einsum('bnic,bni->bc', B, disp) * coef_scale / N**0.5
+```
+
+divides a **coherent** sum by the normaliser for an **incoherent** one, leaving
+a residual `sqrt(N)` drift in code magnitude that a decoder linear in `z`
+cannot absorb. I checked the arithmetic: `sqrt(56) = 7.5` across ATLAS's range,
+matching your figure.
+
+That story is about `||z||`, not about FVE. So test it on `||z||`:
+
+**On the existing trained tied checkpoint, forward passes only, per held-out
+system, regress `log ||z|| / ||disp||` on `log N`.**
+
+- Predicted slope **+0.5** if the mechanism is real.
+- Slope **≈ 0** kills it outright, whatever the four remaining arms do.
+
+Normalise by `||disp||` rather than using `||z||` raw — otherwise "bigger
+system, more total motion" produces a positive slope for a reason that has
+nothing to do with the normaliser, which is a Family A confound sitting inside
+the confirmation.
+
+This is decisive from **one** arm because it measures the mediator rather than
+the downstream effect. Replication across four arms tests whether the *slope*
+is reproducible; this tests whether the *stated cause* exists. They are
+different questions and this one is free.
+
+### 26b. One thing that strengthens your mechanism, and closes a hole in it
+
+The obvious objection is that the network could learn to compensate — shrink
+`B` as `1/sqrt(N)` and cancel the drift. It cannot: `B` comes from `q_tok`,
+which is a **per-atom map that never sees N**. There is no path by which the
+basis network could scale itself per system. That is why the drift survives
+training rather than being absorbed during it, and it is worth stating
+explicitly, because "the network would just learn around it" is the first
+thing a reader will say.
+
+If 26a confirms the mediator, the diagnosis is complete without the other
+three arms, and the fix follows from the analysis rather than from a sweep.
+Still do not act on it until the mediator is measured.
+
+### 26c. The testing gap is structural, not a lapse — fix it structurally
+
+Twice tonight: the `FVE⊥` identity validated standalone to 1.1e-16 and
+submitted without ever calling `mode_table()`; the ctx path unit-tested at
+N=400 where the quadratic term was invisible. Both times the new mathematics
+was exercised in isolation and the integration was left to the cluster.
+
+"Run the function next time" will not survive a third instance. The shape of
+the gap is that the tests cover the **kernel** and nothing calls the
+**caller**. So: for any new metric or path, add one test that invokes the
+top-level reporting entry point on a tiny fixture — not the maths, the thing
+that consumes it. That is the test that would have caught both.
+
+Your untrained-model sanity check is the right second half of this and should
+become standing practice rather than a one-off: **record every new metric's
+value on an untrained model in the output itself.** `FVE⊥` strongly negative
+and per-atom error exceeding each atom's amplitude is a null you will want
+printed next to the trained number, because a metric with no recorded floor
+invites reading a small positive value as a result.
+
+### 26d. Pre-register how `FVE⊥ ≈ 0` gets decided, before the number lands
+
+25a's three-way read turns on "≈ 0", and I left that undefined. With 123
+held-out systems you have a distribution, not a point, so define it that way
+and record it now: report the **median `FVE⊥` across systems, its IQR, and the
+fraction of systems above zero**. A model that reproduces the ANM subspace
+exactly and nothing else gives `FVE⊥ = 0` by construction, so zero is the
+decision boundary, not an arbitrary threshold — which keeps this inside 21b's
+threshold-free requirement rather than smuggling a constant back in.
