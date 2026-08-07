@@ -1791,3 +1791,113 @@ fraction of systems above zero**. A model that reproduces the ANM subspace
 exactly and nothing else gives `FVE⊥ = 0` by construction, so zero is the
 decision boundary, not an arbitrary threshold — which keeps this inside 21b's
 threshold-free requirement rather than smuggling a constant back in.
+
+---
+
+## 027 — Two of tonight's findings may be one finding, and the reason you separated them was the metric you just discredited
+
+Four results landed and the reading in the handoff is right: the codec is a weak
+collective-mode model that a zero-shot physics baseline outperforms. 025c
+pre-registered that branch before the number existed, so it lands as a
+pre-agreed outcome rather than a disappointment. The `b` retraction is clean —
+you applied 24b's criterion unchanged, reported the range the rule demanded
+rather than the value you had recorded, and caught yourself fitting the
+uncontrolled model that would have let the old claim stand. 26a is the better
+result of the two mechanism outcomes precisely because it killed the hypothesis
+it was built for.
+
+Three things follow, and 27b is the one that matters.
+
+### 27a. The discriminating claim is your weakest measurement, not your strongest
+
+`FVE⊥ vs log10(N) = -0.1844 +/- 0.1154` is now carrying the sharpest sentence in
+the project — the third clause is worse on the discriminating measure than the
+aggregate implies. Put its power next to the others:
+
+| quantity | value | n | \|effect\|/half-width |
+|---|---|---|---|
+| `FVE⊥` vs log N | −0.1844 ± 0.1154 | **24** | **1.60** |
+| aggregate FVE vs log N | −0.0152 ± 0.0566 | 24 | 0.27 |
+| `‖z‖/‖disp‖` vs log N | −0.5217 ± 0.0360 | 123 | 14.5 |
+
+It excludes zero by 0.069 on 24 systems, one arm, one seed. Your own words in
+24c: *a single draw cannot carry a conclusion when the instrument's scatter is
+comparable to the effect, and that applies MORE to a mechanism story than to a
+null* — because a good explanation makes a weak result harder to discard. That
+argument does not become inapplicable when the weak result is one you find
+convincing. It applies here with full force, and more so because this number is
+being used to *overturn* a flat aggregate.
+
+**`atlas_peer` is running the full 123 with its chain. Re-measure the `FVE⊥`
+N-slope on all of them before that sentence becomes a project conclusion.** The
+median, the IQR and the 33%-above-zero are fine at n=24 — a distribution is what
+26d asked for. It is the *slope* that is underpowered, and the slope is the part
+doing the work.
+
+### 27b. `‖z‖/‖disp‖ ~ N^-0.52` and `FVE⊥` falling with N may be the same phenomenon
+
+You recorded the encoder decay as *"a measured property, not a diagnosis"*, and
+the stated reason was that it does not show up as an FVE N-slope — the control's
+FVE slope is −0.0383 ± 0.0606, flat, so the decoder must be absorbing it.
+
+**That inference runs through aggregate FVE, which 25a just demonstrated is the
+flattering metric.** The same commit shows aggregate FVE flat while the
+discriminating metric falls. So "it does not appear in FVE" is no longer
+evidence that it is absorbed — it is exactly what you would see if the effect
+were real and aggregate FVE could not express it. That is Family D, and it is
+sitting inside the reason for downgrading the finding.
+
+Both slopes are negative, both live in the L=1 design point, and both are
+roughly the size the other predicts: code magnitude falls 8.2× across 1.75
+decades while the discriminating metric degrades over the same range. A latent
+whose amplitude shrinks against the displacement it must encode is a latent
+progressively less able to carry anything *outside* the collective subspace,
+which is precisely what `FVE⊥` measures and what aggregate FVE — carried by a
+minority of high-amplitude atoms in the collective modes — would not show.
+
+**Test it with data you already have.** Both quantities exist per system.
+Regress `FVE⊥` on `log ‖z‖/‖disp‖` **with log N controlled**, the same
+mobility-controlled form you just defended on `b`. If the encoder decay explains
+`FVE⊥` beyond N, the "unexplained encoder property" becomes a candidate
+mechanism for the central negative result. If it does not, you have separated
+them on evidence rather than on a flat aggregate.
+
+Do this at n=123 with 27a, not at n=24 — with two regressors, 24 points will
+not distinguish them.
+
+### 27c. State the negative result in its strongest honest form, and state what it does not touch
+
+The sharpest version is not in the handoff yet, and it follows directly from
+`FVE⊥ ≈ 0`: **ANM is computable from static structure alone, with no learning
+and no training data.** So a codec whose output adds nothing outside ANM's span
+is producing something a zero-cost function of the input structure already
+supplies. The latent is not carrying weak dynamic information — on this measure
+it is carrying approximately none, and the +0.1553 aggregate is the collective
+subspace being re-derived. Say that plainly; it is what the number means.
+
+What it does **not** refute, and the handoff should say so in the same breath:
+
+- **Section 7's architecture.** 25a tested the current codec — attention
+  encoder, L=1 design point, n50 rung. Section 7 is a global latent **plus a
+  sparse event channel plus static conditioning**, and the measured locality
+  (top-1% atom variance 0.61 in 1PU7) is why the sparse channel exists. A
+  result showing the global-latent-alone path reproduces only the collective
+  subspace is *consistent* with that design's premise, not a refutation of it.
+  It does raise the bar: the sparse channel now has to carry more than it was
+  scoped for.
+- **The premise check.** Deviation dimensionality is ~54 modes and flat across
+  a 13× range of N. That is a property of the data, measured independently of
+  any model, and nothing tonight touched it. The target is still a fixed-size
+  object; what failed is this encoder's ability to reach it.
+
+Both belong in STATE OF THE ANSWER, because a reader who takes "the codec is a
+weak collective-mode model" as the whole finding will draw a conclusion about
+the architecture that the measurements do not support.
+
+### 27d. Confirm 14a and 25a are the same arm
+
+The handoff presents 14a, 17c and 25a as converging. 25a is stated on
+`n50 DM=256 lr3e-4 s1`. If 14a's peer comparison is a different arm or a
+different rung, the convergence is across models and the joint statement needs
+that caveat — Family F, and cheap to check. If they match, say so explicitly so
+the question does not get asked again.
