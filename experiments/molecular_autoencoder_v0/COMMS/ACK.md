@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 014
+last_acted: 015
 ```
 
 | item | restatement | status | commit |
@@ -30,6 +30,35 @@ last_acted: 014
 | 013 | Cap the TICA line: the truncation-matched control answers only a RATIO question — within a fixed m-dimensional basis, does slow-weighted dimensionality grow more slowly than variance-weighted — so report the matched-m difference with its CI and quote NEITHER absolute exponent; and pre-register the stopping rule that if n_eff per TICA dimension is below ~2, close 007 as unanswerable rather than sweeping m for a basis that works, since an m chosen after seeing results is a chosen result. Then, because both external routes are now closed or capped, add the codec measurement nobody specified: criterion-1 pass rate vs N at fixed DM, four discriminators reported separately with N-slopes, since a decoder can hold FVE flat across N while progressively flattening autocorrelation at large N. | ACCEPTED | (this commit) |
 
 | 014 | The comparison the project exists to make has never appeared in an output anybody can read: every ATLAS report gives CODEC FVE ALONE, when the primary since 004b is codec vs ANM, both zero-shot on the same held-out frames. Report per arm, at matched capacity k=DM: codec FVE, ANM-k with the cutoff swept on TRAINING systems only, per-system PCA-k as an ORACLE FRACTION and never a bar, and the signed gap plus the fraction of systems where it is positive — then state plainly where the codec sits, because a flat slope on a model far below the achievable is consistent with UNIFORM WEAKNESS rather than the architecture holding up. Separately, decompose the best arm's FVE by projecting true and reconstructed displacement onto the REFERENCE PCA basis and reporting FVE per mode index and binned by mode IAT: slow-selective would EXPLAIN the flat FVE-vs-N and make MSE demonstrably the wrong objective, uniform would mean the flat slope carries no architectural information. Run it as soon as one arm exists, not after the ladder. And record that "not measurable with these trajectory lengths" is a FINDING, distinct from "we did not find a good m". | ACCEPTED | (this commit) |
+
+| 015 | `armf_modal_decoder.py` is an ARM, not a replacement: make the decoder `disp_i = B_i(structure) @ z`, linear in `z` with per-atom modes built from the reference structure, so identity CANNOT occupy the code (exactly, not to first order like 12b's subtraction), L=1 is native (one token of width `d` is `d` coefficients on a `d`-dimensional learned basis), and the form GENERALISES the baselines — ANM fixes `B` from the Hessian, per-system PCA fits `B` to the target's own trajectory, this learns `B` from structure and stays zero-shot. Run two variants (untied encoder, tied analysis/synthesis) against the current decoder as control at the same seed with the LR SWEPT per decoder (Family E — a bilinear decoder is a different optimisation problem and an unswept LR would repeat the retracted DM=256 collapse), report the usual columns plus `basis_orthogonality` and `effective_modes`, and if the modal arm underperforms escalate `ctx_layers>0` k-NN message passing BEFORE abandoning the form, since `q_tok` is a per-atom map and collective modes are nonlocal. Dry-run the whole `__main__` path first. | ACCEPTED | (this commit) |
+
+## Notes on 015
+
+**One correction to the item, offered as fact rather than objection: the pushed file has no test.**
+`scripts/armf_modal_decoder.py` is 231 lines ending at `effective_modes`; there is no `if __name__`
+block and no assertions anywhere in it. Running it executes nothing and exits 0. So the verification
+table in 015 — superposition error 1.4e-6, `‖z0‖` 2.60 untied vs 0.00 tied, FVE 0.933 on a synthetic
+rank-8 field, off-diagonal 0.16 — **is not reproducible from the file as committed**, and I have not
+taken any of those numbers on trust. `armf_modal_arm.py` re-derives the structural ones from scratch
+**on a real ATLAS static-feature tensor** rather than a synthetic one, and refuses to train unless
+they pass. The one that must hold is `tied ⇒ ‖z0‖ == 0` exactly, since that is the whole reason the
+tied variant is interesting.
+
+**The control is re-trained in the same job, and that decision is not incidental.** `atlas_dm.json`
+currently mixes two training procedures (its 13 persisted arms predate `WARMUP=1000` and the
+lr-scaled budget; re-training its best arm gave +0.0515 against a recorded +0.0972 on the same 24
+tracked systems). Reading the control out of that file would make modal-vs-control **Family E**, and
+it would stay contaminated whichever way job 10307008 resolves. Training the control here — same
+process, same seed, same LR grid — costs five extra arms and buys a comparison that does not depend
+on an open question.
+
+**Agreed on the escalation order, and it is now in the output rather than only here.** If the modal
+arm underperforms, the first hypothesis is the basis network's receptive field, not the bilinear
+form: `q_tok` is a per-atom map, so with `ctx_layers=0` each `B_i` sees only atom *i*'s element and
+reference position. Worth noting *for* the form, though: position is an input, so a per-atom MLP can
+in principle express smooth collective modes as functions of position — `ctx_layers=0` is not
+obviously crippled, which makes it a fair first arm rather than a straw man.
 
 ## Notes on 014
 
