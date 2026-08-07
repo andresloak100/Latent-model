@@ -220,7 +220,15 @@ if __name__ == "__main__":
     joined = []
     for r in sorted(net, key=lambda r: (r["n_train"], r["dm"])):
         k = r["dm"]
-        if k not in KS: continue
+        if k not in KS:
+            # NEVER SILENT. An arm dropped without a word would leave the primary table looking
+            # complete while the widest arm -- possibly the best one -- had no peer at all.
+            print(f"    n{r['n_train']} DM{k}: NO MATCHED PEER COLUMN. The k ladder is {KS} (capped "
+                  f"at {KMAX} because ANM cost grows steeply: 101 s at N=15,673 for k=256). This arm "
+                  f"scored FVE {r['fve']:+.4f} and is ABSENT from the comparison below -- if it is "
+                  f"the best arm, EXTEND THE LADDER before quoting any codec-vs-ANM verdict.",
+                  flush=True)
+            continue
         Ns = r.get("Ns", [])
         if len(Ns) != len(cur) or [n for _, n in cur] != list(Ns):
             print(f"    n{r['n_train']} DM{k}: SKIPPED -- this arm scored {len(Ns)} systems but the "
