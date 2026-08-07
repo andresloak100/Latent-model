@@ -2089,3 +2089,85 @@ first, and deliberately not joining `atlas_peer.json` across a position-keyed an
 a PDB-keyed artefact. Nothing above changes its priority. Tied at 2.67× the
 control on Q1 is only interesting if it also clears ANM there; if it does not, the
 whole table is a ranking among architectures that lose.
+
+---
+
+## 030 — Two guardrails on the cos² job before its numbers exist, one of which is a hole I opened in 029
+
+10309733 is well built — full 2,501-frame window rather than a subsample, per-system
+checkpointing, and the 18d coverage check moved to per-arm because an ascending-N
+loop makes a partial arm a size-truncated sample. That last one is the guard being
+carried to a place it was not originally written for, which is the right instinct.
+And catching that your own cross-check compared a 64-frame numerator against a
+2,501-frame denominator — the project's recurring error class, inside the check
+written to catch it — is the third time that shape has surfaced tonight.
+
+Both items below are about how the results get read, and both need to be settled
+before the numbers exist.
+
+### 30a. `cos²` and `a*` are ORACLE quantities. They can diagnose; they must never be reported as performance.
+
+This is a hole I opened. `a* = <r,d>/<r,r>` is fitted **against the held-out target**.
+So "tied Q4 FVE after optimal rescaling" is an oracle number in exactly the sense the
+oracle-fraction secondary is permanently caveated for. If it lands in a table beside
+honest FVE values it will be read as performance within one week of anyone reading
+the file — including by us.
+
+**Label it at the point of computation, not in prose.** Name the field something
+that cannot be mistaken (`fve_oracle_rescaled`, not `fve_corrected`), and state
+beside it that no model achieves it.
+
+The legitimate counterpart, which is worth computing in the same pass:
+
+> **N is an input.** A correction that is a fixed function of N alone — divide the
+> output by `sqrt(N/N_ref)` with `N_ref` frozen from the training distribution — uses
+> nothing from the target and is available **zero-shot on an unseen system**.
+
+If the mechanism is real, that correction should recover most of what the oracle
+rescale recovers, and *that* number is reportable. The gap between them is the part
+of the scale error not explained by N. So report three things per system, in this
+order: raw FVE, FVE after the N-only correction (**reportable**), FVE after the
+oracle rescale (**upper bound, not achievable**). One pass, and it converts a
+diagnostic into a candidate result without ever crossing the line.
+
+### 30b. The `a* ~ N^-0.5` exponent is not decisive on its own — `cos²` flat is what licenses it
+
+You describe the exponent test as sharper than the quartile comparison because it
+names a number. It is sharper, but only under a condition worth making explicit,
+because `a*` is not a pure magnitude measure. Decomposing `r = α·d + e` with `e ⊥ d`:
+
+```
+a* = α / (α² + ‖e‖²/‖d‖²)
+```
+
+so `a*` moves with the directional error as well as the scale. Verified:
+
+| α | ‖e‖/‖d‖ | cos² | a* | 1/α |
+|---|---|---|---|---|
+| 2.0 | 0.00 | 1.000 | 0.500 | 0.500 |
+| 2.0 | 1.50 | 0.640 | 0.320 | 0.500 |
+| 1.0 | 1.50 | 0.308 | 0.308 | 1.000 |
+
+The last row is the trap: **α = 1, no over-scale at all, and `a*` still falls to
+0.308** purely from directional error. A −0.5 slope in `log a*` is therefore
+consistent with over-scale *or* with directional error growing in N.
+
+So read them jointly, and record this before the numbers land:
+
+| `cos²` vs N | `a*` slope | reading |
+|---|---|---|
+| flat | ≈ −0.5 | **pure over-scale, `sqrt(N)`.** Mechanism confirmed; the N-only correction should recover it. |
+| flat | ≠ −0.5 | magnitude-only failure, but not the `‖B‖_F` story. The exponent is the finding. |
+| falls | ≈ −0.5 | **ambiguous — do not read the exponent as confirmation.** The direction is degrading and `a*` inherits it. |
+| falls | ≠ −0.5 | structural. No rescale helps, and `‖B‖_F` is at most part of it. |
+
+Row three is the one to guard against, because it is the case where the predicted
+exponent appears and means something else. That is the same shape as the tied
+`−0.65` slope arriving with a mechanism attached and the mechanism turning out to be
+wrong — 26a's lesson, one level up.
+
+### 30c. Nothing here outranks 10309145
+
+Tied at 2.67× the control on Q1 is a ranking among architectures until one of them
+clears zero-shot ANM. If `cos²` and the peer comparison finish close together,
+report the peer result first.
