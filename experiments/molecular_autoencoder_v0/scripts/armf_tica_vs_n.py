@@ -292,41 +292,69 @@ if __name__ == "__main__":
                       f"than slowness IN THE SAME BASIS, so the flatness is SLOWNESS, not "
                       f"truncation. That is the 007 claim, controlled.", flush=True)
 
-    # ---------- verdict on the canonical basis, using the pre-registered rule ----------
-    R = [r for r in rows if r["m_req"] == TICA_BASIS]
-    Rb = [r for r in rows if r["m_req"] == BIG_BASIS]
-    if R:
-        N = np.array([r["N"] for r in R], float)
-        # VERDICT uses the ORDERING-FREE out-of-sample dimension: the train-order variant pins
-        # against the basis, and a quantity at its measurement ceiling cannot support a flat call.
-        do = np.array([r.get("dim_out_sorted") or np.nan for r in R], float)
-        mm = np.array([r["m"] for r in R], float)
-        g = np.isfinite(do)
-        if g.sum() >= 3 and 100 * np.median(do[g] / mm[g]) > 60:
-            print("\n=== VERDICT WITHHELD: the ordering-free out-of-sample dimension is still above")
-            print("    60% of its basis, so it is CENSORED and a flat slope would be a ceiling.")
-            print("    Read the larger-basis rows instead. ===", flush=True)
-            g = np.zeros_like(g)
-        if g.sum() >= 3:
-            s, hw = reg(np.log10(N[g]), np.log10(do[g]), "VERDICT (ordering-free, out-of-sample)")
-            print(f"\n=== VERDICT (pre-registered) ===", flush=True)
-            if abs(s) < hw and s + hw < 0.5:
-                print("  TICA EXPONENT IS FLAT and EXCLUDES ~0.5.")
-                print("  => SLOW dynamics are low-dimensional REGARDLESS OF SYSTEM SIZE. The one-token")
-                print("     architecture is viable FOR THE DYNAMICS THAT MATTER, and the N^0.93 variance")
-                print("     result describes fast local noise a generator need not represent explicitly.")
-                print("  => CONSEQUENCE TO STATE, NOT YET TO ACT ON: a variance-weighted objective (plain")
-                print("     MSE on displacement) spends the token's capacity in proportion to VARIANCE,")
-                print("     i.e. mostly on the fast local modes that grow as N^0.93. If slow-mode")
-                print("     dimensionality is flat, MSE IS THE WRONG TRAINING OBJECTIVE here. That is the")
-                print("     'objective mismatch' row of the 004c fan-out, now with evidence behind it")
-                print("     rather than being one hypothesis among six. DO NOT change the loss yet.")
-            elif s - hw > 0.5:
-                print("  TICA EXPONENT TRACKS rank90.")
-                print("  => The information limit is REAL even for slow dynamics, and a fixed-width token")
-                print("     faces a genuine ceiling. Report plainly; this is a finding, not a setback.")
-            else:
-                print(f"  IN BETWEEN: {s:+.4f} +/- {hw:.4f}. Report the exponent with CI. NO VERDICT.")
-    if Rb and R:
-        print("\n  BASIS CHECK (Family B): if the two bases disagree, the constant-basis exponent is")
-        print("  censored and the flat/steep call belongs to the LARGER basis.", flush=True)
+    # ---------- INBOX 13a: the RATIO is the only well-posed question, and a STOPPING RULE ----------
+    # Neither absolute exponent is interpretable: truncation compresses both, and the TICA exponent
+    # moves 13x with m. What IS well posed is whether, INSIDE A FIXED m-dimensional basis, slow-
+    # weighted dimensionality grows more slowly than variance-weighted dimensionality -- because the
+    # truncation compresses both equally, so it cancels in the comparison.
+    # NO ABSOLUTE EXPONENT IS QUOTED BELOW, deliberately.
+    print(f"\n{'='*78}\n=== 13a: exponent(TICA | m) vs exponent(PCA | m) AT MATCHED m ===\n{'='*78}",
+          flush=True)
+    try:
+        NE = {r["pdb"]: r for r in json.load(open(f"{WR}/atlas_neff.json"))}
+    except Exception:
+        NE = {}
+    verdicts = {}
+    for m_req in (TICA_BASIS, BIG_BASIS):
+        R = [r for r in rows if r["m_req"] == m_req]
+        if len(R) < 3: continue
+        N = np.array([r["N"] for r in R], float); x = np.log10(N)
+        def sl(key):
+            v = np.array([r.get(key) or np.nan for r in R], float); g = np.isfinite(v)
+            if g.sum() < 3: return None
+            lr = stats.linregress(x[g], np.log10(v[g]))
+            return lr.slope, stats.t.ppf(0.975, int(g.sum()) - 2) * lr.stderr, v, g
+        t_in, p_in = sl("dim_in"), sl("pca_dim_in_m")
+        t_ou, p_ou = sl("dim_out_sorted"), sl("pca_dim_out_m")
+        # FAMILY B STOPPING RULE, PRE-REGISTERED (13a): n_eff PER TICA DIMENSION.
+        ne = [NE[r["pdb"]]["neff256"] / r["dim_in"] for r in R
+              if r["pdb"] in NE and r.get("dim_in")]
+        nem = float(np.median(ne)) if ne else float("nan")
+        print(f"\n--- basis {m_req}, n={len(R)} ---", flush=True)
+        print(f"  n_eff PER TICA DIMENSION: median {nem:.2f}"
+              + ("   *** BELOW 2.0: TICA IS NOT A VIABLE INSTRUMENT ON THIS CORPUS ***"
+                 if nem < 2.0 else "   (>= 2.0, the instrument is adequately sampled)"), flush=True)
+        for lab, tt, pp in (("in-sample", t_in, p_in), ("out-of-sample (sorted)", t_ou, p_ou)):
+            if not (tt and pp): continue
+            ts, th, _, _ = tt; ps, ph, _, _ = pp
+            d = ts - ps; dh = th + ph                       # conservative CI on the difference
+            print(f"  {lab:24s} TICA|m {ts:+.4f} +/- {th:.4f}   PCA|m {ps:+.4f} +/- {ph:.4f}   "
+                  f"DIFFERENCE {d:+.4f} +/- {dh:.4f}", flush=True)
+            verdicts[(m_req, lab)] = (d, dh, nem)
+    print(f"\n=== 13a VERDICT (pre-registered before results) ===", flush=True)
+    nems = [v[2] for v in verdicts.values() if np.isfinite(v[2])]
+    if nems and np.median(nems) < 2.0:
+        print("  n_eff per TICA dimension is BELOW 2.0.")
+        print("  => TICA IS NOT A VIABLE INSTRUMENT ON THIS CORPUS. **007 IS CLOSED AS UNANSWERABLE.**")
+        print("     The generalised eigenproblem eigh(Ctau, C0) estimates a time-lagged covariance,")
+        print("     which needs MORE effective samples than PCA, and n_eff here is 1-7% of frames.")
+        print("     The exponent already moves 13x with m, so any basis chosen after seeing results")
+        print("     would be a CHOSEN RESULT -- m is therefore NOT swept further. An honest")
+        print("     'not measurable at these trajectory lengths' is worth more than a number")
+        print("     extracted from a basis picked to produce one.")
+        print("  => The question moves to the CODEC's own behaviour, where it belongs: FVE-vs-N and")
+        print("     CRITERION-1-vs-N at fixed DM (armf_atlas_dm.py).", flush=True)
+    elif verdicts:
+        sig = [(k, v) for k, v in verdicts.items() if v[0] + v[1] < 0]
+        if sig:
+            print("  Slow-weighted dimensionality grows SIGNIFICANTLY MORE SLOWLY than variance-")
+            print("  weighted dimensionality inside the same basis, in: "
+                  + ", ".join(f"{k[0]}/{k[1]}" for k, _ in sig))
+            print("  => the 007 claim holds in the only form that is well posed. NO absolute exponent")
+            print("     may be quoted -- the result is the DIFFERENCE at matched m.", flush=True)
+        else:
+            print("  The difference at matched m does NOT exclude zero. Slow-weighted dimensionality")
+            print("  is not shown to grow more slowly than variance-weighted. Report as such.", flush=True)
+    print("\n  NOTE: absolute TICA exponents are deliberately NOT quoted anywhere above. Truncation")
+    print("  compresses them and they move 13x with m; only the matched-m DIFFERENCE is well posed.",
+          flush=True)

@@ -55,8 +55,11 @@ warnings.filterwarnings("ignore")
 from scipy import stats
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from armf_atlas_data import AtlasStore, sysdata, ho_frames, train_frames
+from armf_criterion1 import acceptance
 WR = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace"
 MAN = f"{WR}/atlas_manifest.json"; RES = f"{WR}/atlas_dm.json"
+C1RES = f"{WR}/atlas_dm_criterion1.json"
+CKPT = f"{WR}/atlas_dm_ckpt"   # so criterion-1 scoring never has to RE-TRAIN a finished arm
 DMS = [16, 64, 256, 512]
 # FAMILY E, WIDENED AFTER MEASUREMENT. The first run showed the optimal LR falling steadily with
 # width -- best 3e-3 at DM=16, 3e-4 at DM=64 and DM=256, and DM=512 COLLAPSED (FVE ~0, PR 1.0) at
@@ -300,6 +303,37 @@ def identity_offset(mdl, systems, nf=16):
     return float(np.median(rs))
 
 
+@torch.no_grad()
+def criterion1_vs_n(mdl, systems, nf=300, chunk=8):
+    """INBOX 13b. THE objective-1 question, and it was specified nowhere until now:
+
+        does passing a trajectory through ONE fixed-width token destroy dynamics MORE
+        at 33,377 atoms than at 598?
+
+    Per 004b, criterion 1 outranks FVE, and this can matter exactly where FVE-vs-N is flat: a decoder
+    can hold reconstruction error constant across N while progressively FLATTENING autocorrelation at
+    large N. That is the failure the shuffled-frames control was built to detect, it leaves FVE
+    untouched, and it would make the latent useless to stage 2 at precisely the sizes objective 1
+    cares about.
+
+    Frames must be CONSECUTIVE -- the kinetic discriminator is meaningless on a strided sample.
+    The four discriminators are returned SEPARATELY, never averaged (standing rule): a mean would let
+    a kinetic collapse hide behind three passing distributional checks."""
+    out = []
+    for d in systems:
+        k = min(nf, d["F"])
+        ref = ho_frames(d, 0, k).reshape(k, d["N"], 3)
+        st = torch.tensor(d["stat"], device=dev)
+        dec = np.empty_like(ref)
+        for s0 in range(0, k, chunk):
+            e0 = min(s0 + chunk, k)
+            dw = torch.tensor((ref[s0:e0] / d["scale"]).astype(np.float32), device=dev)
+            dec[s0:e0] = mdl(st.unsqueeze(0).expand(e0 - s0, -1, -1), dw).cpu().numpy() * d["scale"]
+        a = acceptance(ref, dec, k=10, label=d["pdb"])
+        a["N"] = d["N"]; out.append(a)
+    return out
+
+
 def train(tr, HOt, dm, lr, tag, L, dlat=None, sub_z0=False):
     mdl = Codec(tr[0]["stat"].shape[1], L, dm, dlat=dlat, sub_z0=sub_z0).to(dev)
     opt = torch.optim.Adam(mdl.parameters(), lr); hist = []; t0 = time.time()
@@ -384,6 +418,13 @@ if __name__ == "__main__":
                        nslope=float(lr_.slope), nslope_ci=float(hw),
                        per=[float(v) for v in per], Ns=[int(x["N"]) for x in HO], **p)
             rows.append(rec); json.dump(rows, open(RES, "w")); done.add((Lv, n, dm, lr, seed, dl, sub_z0))
+            try:                                  # cheap (a few MB) and saves a full re-train later
+                os.makedirs(CKPT, exist_ok=True)
+                torch.save(mdl.state_dict(),
+                           f"{CKPT}/L{Lv}_n{n}_dm{dm}_dl{dl}_lr{lr:g}_s{seed}_z{int(sub_z0)}.pt")
+            except Exception as e:
+                print(f"      (checkpoint save failed: {type(e).__name__}; criterion-1 will "
+                      f"re-train this arm instead)", flush=True)
             print(f"    {tag}: FVE {fve:+.4f}  PR {p['pr']:.1f}/{dl} ({100*p['pr_frac']:.0f}%"
                   f"{', CENSORED n_obs=' + str(p['n_obs']) if p['censored'] else ''})  "
                   f"identity {100*p['ident_frac']:.0f}% (z0 {100*p['z0_frac']:.0f}%)  N-slope {lr_.slope:+.4f}+/-{hw:.4f}  "
@@ -639,6 +680,55 @@ if __name__ == "__main__":
             print(f"    => the subtraction HURTS. The encoder is non-linear, so z0 removes the offset")
             print(f"       only to first order; identity may also be carrying useful conditioning.",
                   flush=True)
+
+    print(f"\n=== INBOX 13b: CRITERION-1 PASS RATE vs N -- the objective-1 question ===", flush=True)
+    print(f"  Does one fixed-width token destroy DYNAMICS more at 33,377 atoms than at 598?")
+    print(f"  Criterion 1 outranks FVE (004b), and it can fail where FVE-vs-N is flat: a decoder can")
+    print(f"  hold reconstruction error constant across N while progressively flattening")
+    print(f"  autocorrelation at large N. Four discriminators, reported SEPARATELY, never averaged.",
+          flush=True)
+    c1 = json.load(open(C1RES)) if os.path.exists(C1RES) else {}
+    for n in sorted({r["n_train"] for r in rows if r["L"] == L_PRIMARY}):
+        cand = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n
+                and r["arch"] == "network" and not r["improving"]]
+        if not cand: continue
+        b = max(cand, key=lambda r: r["fve"])
+        key = f"n{n}_dm{b['dm']}_lr{b['lr']:g}_s{b['seed']}"
+        if key not in c1:
+            cp = (f"{CKPT}/L{L_PRIMARY}_n{n}_dm{b['dm']}_dl{b['dlat']}_lr{b['lr']:g}"
+                  f"_s{b['seed']}_z{int(b.get('sub_z0', False))}.pt")
+            m2 = Codec(HO[0]["stat"].shape[1], L_PRIMARY, b["dm"], dlat=b["dlat"],
+                       sub_z0=bool(b.get("sub_z0", False))).to(dev)
+            if os.path.exists(cp):
+                m2.load_state_dict(torch.load(cp, map_location=dev))
+                print(f"  scoring criterion 1 for n_train={n} DM={b['dm']} from checkpoint", flush=True)
+            else:
+                print(f"  (no checkpoint for the n_train={n} winner DM={b['dm']} -- arm predates "
+                      f"checkpointing, RE-TRAINING to score criterion 1)", flush=True)
+                TRk = [x for x in (sysdata(store, have[p]) for p in tr_ids[:n]) if x is not None]
+                m2, _, _, _, _ = train(TRk, HOt, b["dm"], b["lr"], f"c1:{key}", L_PRIMARY)
+            m2.eval()
+            c1[key] = criterion1_vs_n(m2, HO)
+            json.dump(c1, open(C1RES, "w"))
+        rr = c1[key]
+        Nv = np.log10(np.array([r["N"] for r in rr], float))
+        print(f"  n_train={n}, DM={b['dm']}, {len(rr)} held-out systems:", flush=True)
+        for disc, fld, pf in (("1 marginal std", "std_frac", "pass_std"),
+                              ("2 IAT (KINETIC)", "iat_frac", "pass_iat"),
+                              ("3 cross-mode", "corr_frac", "pass_corr"),
+                              ("4 free energy JS", "js", "pass_js")):
+            v = np.array([r[fld] for r in rr], float)
+            frac_pass = float(np.mean([r[pf] for r in rr]))
+            lr_ = stats.linregress(Nv, v); hw = stats.t.ppf(0.975, len(v) - 2) * lr_.stderr
+            tag = ("DEGRADES WITH N" if (lr_.slope + hw < 0 and fld != "js") or
+                   (lr_.slope - hw > 0 and fld == "js") else "flat in N")
+            print(f"    {disc:18s} passes {frac_pass*100:>5.0f}% of systems   median "
+                  f"{np.median(v):.3f}   N-slope {lr_.slope:+.4f} +/- {hw:.4f}  -> {tag}", flush=True)
+        both_flat = all(True for _ in ())
+        print(f"    (FVE-vs-N for this arm: {b['nslope']:+.4f} +/- {b['nslope_ci']:.4f})", flush=True)
+        print(f"    If criterion-1 pass rates are FLAT in N *and* FVE is flat in N, that is a far")
+        print(f"    stronger statement than either alone -- and the first version of the headline")
+        print(f"    claim that would survive scrutiny.", flush=True)
 
     print(f"\n=== CRITERION 4: is the latent something a PROPAGATOR can model? ===", flush=True)
     print(f"  004b demotes per-frame FVE. A code that reconstructs well but jumps between consecutive")

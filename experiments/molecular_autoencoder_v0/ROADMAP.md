@@ -2774,3 +2774,56 @@ and above keep 30,000), so low-LR arms are not judged on a budget built for high
 Not applied to the running job (10306611), which is 40 minutes into the full ladder and producing
 valid arms at the good LRs; it takes effect on the next re-run, and its VOID arms remain correctly
 flagged rather than quietly counted.
+
+## DECLINED HYPOTHESIS (INBOX 011, closed on measurement): rank90's growth is NOT an ordering artifact
+Recorded with numbers attached so it is not re-proposed. The hypothesis was that part of rank90's
+near-linear out-of-sample growth is the train PCA basis **ordering** worse at large N rather than
+held-out content being higher-dimensional -- which, if true, would partially rehabilitate the physics
+argument for a fixed latent width, since a learned structure-conditioned decoder is not locked to a
+fixed component order.
+
+| quantity | measured (n=123 held-out ATLAS systems) |
+|---|---|
+| ORDERING PENALTY (ordered / ordering-free) | **1.03x** |
+| its N-slope | **-0.0145 +/- 0.0195** (CI spans zero -- the basis does NOT order worse at large N) |
+| exponent, TRAIN ORDER | +0.9285 +/- 0.2220 |
+| exponent, ORDERING-FREE (cross-fit) | **+0.9429 +/- 0.2306** -- *higher*, not lower |
+| selection inflation (naive / cross-fit) | 1.02x |
+
+**Declined.** The growth is real dimensionality. `b >= 0.93` holds on both readings, and the
+fixed-width physics argument stays retired.
+
+## 007 IS CAPPED: TICA IS PROBABLY NOT A VIABLE INSTRUMENT ON THIS CORPUS (INBOX 13a)
+The truncation-matched control answers a **RATIO** question and only that: *within a fixed
+m-dimensional basis, does slow-weighted dimensionality grow more slowly than variance-weighted?*
+That is well posed even though neither absolute exponent is, because truncation compresses both
+equally and cancels in the comparison. **No absolute TICA exponent may be quoted.**
+
+**PRE-REGISTERED STOPPING RULE, recorded before the re-run lands:** if n_eff per TICA dimension is
+below ~2, **007 closes as UNANSWERABLE**. n_eff per TICA dimension measured **0.81** on the first
+run (below 1.0 in 103/123 systems), so this is likely to fire. **m will NOT be swept further looking
+for a basis where it works** -- the exponent already moves 13x with m, so any m chosen after seeing
+results is a chosen result. "Not measurable at these trajectory lengths" is worth more than a number
+extracted from a basis picked to produce one, and costs a paragraph instead of a week.
+
+## THE MEASUREMENT THAT WAS MISSING: CRITERION-1 PASS RATE vs N (INBOX 13b)
+Both external routes to "does the required content grow with N" are now closed or capped, so the
+question is settled by the codec's own behaviour -- where it should have been. Two codec measurements
+matter and **only one was specified**: FVE-vs-N was running; **criterion-1-vs-N was specified
+nowhere.**
+
+> **Does passing a trajectory through ONE fixed-width token destroy dynamics MORE at 33,377 atoms
+> than at 598?**
+
+That is the objective-1 question, and criterion 1 outranks FVE (004b). **It can fail exactly where
+FVE-vs-N is flat**: a decoder can hold reconstruction error constant across N while progressively
+FLATTENING autocorrelation at large N -- the failure the shuffled-frames control was built to detect,
+invisible to FVE, and fatal to stage 2 at precisely the sizes objective 1 cares about. I built and
+validated that harness under Q3 and then reported FVE-vs-N as the headline without ever asking what
+it says as a function of N.
+
+Now wired at fixed DM on the held-out systems: **four discriminators reported SEPARATELY** (never
+averaged) with per-discriminator N-slopes and CIs, on **consecutive** frames because the kinetic
+discriminator is meaningless on a strided sample.
+**If criterion-1 pass rates are flat in N AND FVE is flat in N, that is far stronger than either
+alone -- and the first version of the headline claim that would survive scrutiny.**

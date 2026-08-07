@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 012
+last_acted: 013
 ```
 
 | item | restatement | status | commit |
@@ -26,6 +26,37 @@ last_acted: 012
 | 011 | The two-way TICA reading applies retroactively to b: `rank90_out` was counted in TRAIN ORDER, so `b ≥ 0.93` conflates the train basis ordering worse at large N with held-out content being genuinely higher-dimensional. Re-measure rank90 three ways — in-sample, out-of-sample ordered, out-of-sample sorted by held-out variance — report all three exponents with CIs plus the ordering gap as its own quantity vs N, and cross-fit the sorted variant (order on one half of held-out frames, evaluate on the other) since sorting on the evaluation data is a selection that can only flatter it. The ordering-free number is the architecture-relevant one, because a fixed PCA basis is locked to its order while the codec's learned structure-conditioned decoder is not. | ACCEPTED | (this commit) |
 
 | 012 | Retract the mdCATH DM=256/512 collapse explicitly — those arms lost on an unswept learning rate, not on capacity, and the collapse was cited as evidence wide codes cannot train. Then settle whether PR≈15 is saturation or a capability limit by reporting PR and FVE jointly at every rung of the n_train ladder with the PR-vs-FVE slope and CI. And treat the 86–91% identity share as wasted capacity: measure `||z0||/||z||` directly, then ablate with `z := encode(x) − z0` (zero-shot, since z0 needs only the reference structure), reporting FVE, PR and identity share before and after — noting the encoder is non-linear so this is first-order only, with the architectural fix proposed only if the cheap one moves the number. | ACCEPTED | (this commit) |
+
+| 013 | Cap the TICA line: the truncation-matched control answers only a RATIO question — within a fixed m-dimensional basis, does slow-weighted dimensionality grow more slowly than variance-weighted — so report the matched-m difference with its CI and quote NEITHER absolute exponent; and pre-register the stopping rule that if n_eff per TICA dimension is below ~2, close 007 as unanswerable rather than sweeping m for a basis that works, since an m chosen after seeing results is a chosen result. Then, because both external routes are now closed or capped, add the codec measurement nobody specified: criterion-1 pass rate vs N at fixed DM, four discriminators reported separately with N-slopes, since a decoder can hold FVE flat across N while progressively flattening autocorrelation at large N. | ACCEPTED | (this commit) |
+
+## Notes on 013
+
+**13a implemented, including the stopping rule, and it will very likely fire.** I already measured
+n_eff per TICA dimension at **0.81** on the v1 run — the rule's threshold is 2.0, so unless the
+truncation-matched re-run moves it substantially, 007 closes as unanswerable. The verdict block now
+prints that closure with its reasoning, and **no absolute TICA exponent is quoted anywhere in the
+output** — only the matched-m difference. I have not swept m further, deliberately: your point that
+an m chosen after seeing results is a chosen result is exactly right, and the 13× movement of the
+exponent with m is what makes it unanswerable rather than merely imprecise.
+
+**13b is the item I should have specified myself and did not.** I built the criterion-1 harness under
+Q3, validated it against a shuffled-frames control specifically because that control catches a
+decoder that preserves every distribution while destroying time ordering — and then reported
+FVE-vs-N as the headline without ever asking what the harness says as a function of N. The failure
+mode you describe is precisely the one the shuffled control exists for, it is invisible to FVE, and
+it would bite at exactly the sizes objective 1 cares about. Now wired: four discriminators reported
+separately (never averaged) with per-discriminator N-slopes and CIs, on consecutive frames because
+the kinetic discriminator is meaningless on a strided sample.
+
+**One efficiency fix the dry run forced.** Scoring criterion 1 needed the trained model, and the
+sweep did not checkpoint — so the first implementation RE-TRAINED the winning arm, doubling its cost.
+Checkpointing is now wired (a few MB per arm), with the re-train kept only as a fallback for arms
+that predate it — which includes everything the currently-running 10306611 produces.
+
+**On 13c — agreed, and the ablation reporting already does it.** The output prints FVE and PR before
+and after alongside the identity share, and explicitly flags the case you name: if the subtraction
+drops identity but does not move FVE, the identity component was **free rather than costly**, which
+is a different and much less useful finding than the one 12b hopes for.
 
 ## Notes on 012
 
