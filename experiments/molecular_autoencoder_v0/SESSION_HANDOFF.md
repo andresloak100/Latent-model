@@ -109,11 +109,14 @@ Workspace `$WR` = `/network/scratch/j/jacob-junqi.tian/latent-model-workspace`. 
 
 | job | what it tests | output | state |
 |---|---|---|---|
-| **10307514** + **10307661/10307662** `atlas_peer` | **14a/17c/21c.** codec vs **ANM at EVERY cutoff {5,7,10} Å** (21c: the selection margin is 2.9%, so the primary comparison must not inherit a coin flip) vs the per-system PCA oracle. Stores full cumulative FVE curves; stamped; 18d resume-coverage check. | `$WR/atlas_peer.json` · `peer_%j.log` | RUNNING 80/123. **Two `afterany` continuations chained** — it will hit its 3:45 wall on the large-N tail, and the chain resumes deterministically rather than waiting on a human. |
-| **10307539** `modal_ctx` | **22a rung 1 + 23a mechanism test.** `ctx_layers ∈ {2,4,8}` (8 = labelled disambiguation arm), LR swept. Reports **basis quality regressed on reach/diameter** with N controlled (partial), not on N. | `$WR/modal_ctx.json` · `$WR/modal_ctx_ckpt/` · `modalctx_%j.log` | RUNNING. Measured reach: **2.6 Å/hop** → 5.3/10.6/20.8 Å. Coverage analysis is reporting-only so re-running after it finishes adds the mechanism test **without retraining**. |
-| **10307029** `modal_arm` | **015/17b/18c.** control vs untied vs tied, LR swept per decoder, control trained in-job. | `$WR/modal_arm.json` · `modal_10307029.log` | RUNNING. control best **+0.1346**; untied sweep done, best **+0.0996**. Tied variant now. |
-| **10307413** `atlas_dm` | DM sweep under the **20a ladder guard** (re-reads `NTRAIN` from disk each rung) and the **18a stamp**. `NTRAIN=[50,130]` per 19c. | `$WR/atlas_dm.json` · `atlasdm_%j.log` | RUNNING, n50 rung |
-| **10306590** `atlas_b` | **Q2.** b on ATLAS, three rank90 variants. | `$WR/atlas_b.json` · `atlasb_10306590.log` | RUNNING 700/841, ~10 h of a 16 h limit |
+| **10306590** `atlas_b` | **Q2.** b on ATLAS, three rank90 variants x 3 replica-join counts. | `$WR/atlas_b.json` | RUNNING **790/841**, 11.6 h of a 16 h limit. The large-N tail is slow. |
+| **10307888** `sens_audit` | **20b/24b.** Re-runs the sensitivity audit over surviving claims once `b` is untruncated. **Chained `--dependency=afterany:10306590`** so it fires on completion rather than on my attention. | `audit_%j.log` | PENDING (dependency) |
+| **10307514** + **10307661/2** `atlas_peer` | **14a/17c/21c.** codec vs ANM at **every** cutoff {5,7,10} Å vs the PCA oracle. | `$WR/atlas_peer.json` · `peer_%j.log` | RUNNING **100/123**, 2.9 h. Two `afterany` continuations chained for the large-N tail. |
+| **10307887** `atlas_modes` | **25a.** FVE on the **ANM-orthogonal residual** + per-atom error tail — the metric that can distinguish "encodes the dynamic state" from "encodes the top six modes". | `$WR/atlas_modes.json` · `modes_%j.log` | QUEUED (1 h limit, backfills). Predecessor 10307872 failed on all 24 systems (variable shadowing), fixed and verified by **running the function**. |
+| **10307865** `modal_seeds` | **24c.** 3 usable LRs x 3 seeds x **both** variants — does the LR sweep have the resolution to rule out Family E, or is that Family C? | `$WR/modal_seeds.json` · `modalseeds_%j.log` | RUNNING |
+| **10307539** `modal_ctx` | **22a rung 1 + 23a mechanism test.** `ctx ∈ {2,4,8}`; basis quality regressed on **reach/diameter** with N controlled. | `$WR/modal_ctx.json` · `modalctx_%j.log` | RUNNING, ctx=2 sweep |
+| **10307029** `modal_arm` | **015/17b/18c.** control vs untied vs tied. | `$WR/modal_arm.json` · `modal_10307029.log` | RUNNING, tied variant. control best **+0.1346**, untied best **+0.0996**; tied lr3e-5 shows an N-slope of **−0.65** (provisional, 1 arm). |
+| **10307413** `atlas_dm` | DM sweep under the **20a ladder guard** + **18a stamp**, `NTRAIN=[50,130]`. | `$WR/atlas_dm.json` · `atlasdm_%j.log` | RUNNING, n50 rung |
 
 
 **THE CACHE IS COMPLETE** — `10301859` finished in 6:27:23. **841 systems, 263 GB, train pool 697/700,
