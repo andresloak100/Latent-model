@@ -128,6 +128,55 @@ def peer_one(d, Vs):
     return out
 
 
+
+def report_cutoffs(joined, S, cur, log=print):
+    """INBOX 21c, as a FUNCTION so the path can be exercised without a multi-hour run.
+    The inlined version only executed when `joined` was non-empty, which no truncated dry run
+    produces -- exactly the shape of the untested-__main__ defect this project has already hit."""
+    import numpy as np
+    from scipy import stats
+    print_ = log
+    if not joined:
+        print_("  (no joined codec arms -- 21c skipped)"); return {}
+    bb = max(joined, key=lambda j: j["codec"])
+    k = bb["dm"]
+    pdbs2 = [p for (p, _) in cur if p in S and S[p].get("anm_ok")]
+    cmap2 = dict(zip(pdbs2, bb["codec_per"]))
+    Nmap = {p: n for (p, n) in cur}
+    print_(f"\n=== 21c: THE PRIMARY COMPARISON AT EVERY CUTOFF (selection margin 2.9%) ===")
+    print_(f"  best arm: n_train={bb['n_train']} DM={k}, {len(pdbs2)} systems")
+    print_(f"    {'cutoff':>8}{'ANM-k':>10}{'codec-ANM':>12}{'frac codec>ANM':>16}{'gap-vs-log10(N)':>22}")
+    verdicts = {}
+    for c in CUTOFF_SWEEP:
+        av, cv, nv = [], [], []
+        for p in pdbs2:
+            a = S[p].get(f"anm{k}_c{c:g}")
+            if a is None or cmap2.get(p) is None: continue
+            av.append(a); cv.append(cmap2[p]); nv.append(Nmap[p])
+        if len(av) < 10: continue
+        av = np.array(av); cv = np.array(cv); g = cv - av
+        lr = stats.linregress(np.log10(np.array(nv, float)), g)
+        hw = stats.t.ppf(0.975, len(g) - 2) * lr.stderr
+        verdicts[c] = ("codec WINS" if g.mean() > 0 else "codec LOSES",
+                       float(g.mean()), float((g > 0).mean()), float(lr.slope), float(hw))
+        print_(f"    {c:>7.0f}A{av.mean():>10.4f}{g.mean():>+12.4f}{100*(g>0).mean():>15.0f}%"
+               f"{lr.slope:>+15.4f}+/-{hw:.4f}")
+    if verdicts:
+        outcomes = {v[0] for v in verdicts.values()}
+        if len(outcomes) == 1:
+            print_(f"    => ALL CUTOFFS AGREE: {outcomes.pop()}. The peer comparison does NOT depend "
+                   f"on a 2.9% selection margin, so the result stands on its own.")
+        else:
+            print_(f"    => *** THE CUTOFFS DISAGREE ({sorted(outcomes)}). THE PEER COMPARISON IS NOT "
+                   f"RESOLVED at this cutoff margin, and no codec-vs-ANM verdict may be quoted. ***")
+        sl = [v[3] for v in verdicts.values()]
+        flat = all(abs(v[3]) < v[4] for v in verdicts.values())
+        print_(f"    gap-vs-N slope across cutoffs: {min(sl):+.4f} to {max(sl):+.4f}  -> "
+               f"{'FLAT at every cutoff' if flat else 'MOVES at at least one cutoff'}; the "
+               f"objective-1 quantity must not depend on the selection either.")
+    return verdicts
+
+
 def select_cutoff(TR, log=print):
     """FAMILY E. Sweep the cutoff on TRAINING systems only; apply the winner unchanged to held-out.
     Selecting it on held-out would make the peer an oracle; not sweeping it at all would make the
@@ -326,52 +375,7 @@ if __name__ == "__main__":
                   f"   (codec alone {lc.slope:+.4f} +/- {hc:.4f})   "
                   f"{'FLAT' if abs(lr.slope) < hw else '*** MOVES WITH N ***'}", flush=True)
 
-    # ---------------- INBOX 21c: THE PRIMARY COMPARISON AT EVERY CUTOFF ----------------
-    # The peer's cutoff is selected on a TRAINING mean where 5 A beats 7 A by 2.9% -- effectively a
-    # tie. ANM is the PRIMARY comparator, so codec-vs-ANM would otherwise inherit a coin flip. The
-    # fix is NOT to pick better: report the comparison at EVERY cutoff and treat a codec result as
-    # real only where all of them agree. A 2.9% selection must not decide the project's headline.
-    if joined:
-        print(f"\n=== 21c: THE PRIMARY COMPARISON AT EVERY CUTOFF (the selection margin is 2.9%) ===",
-              flush=True)
-        bb = max(joined, key=lambda j: j["codec"])
-        k = bb["dm"]
-        pdbs2 = [p for (p, _) in cur if p in S and S[p].get("anm_ok")]
-        cmap2 = dict(zip(pdbs2, bb["codec_per"]))
-        Nmap = {p: n for (p, n) in cur}
-        print(f"  best arm: n_train={bb['n_train']} DM={k}, {len(pdbs2)} systems", flush=True)
-        print(f"    {'cutoff':>8}{'ANM-k':>10}{'codec-ANM':>12}{'frac codec>ANM':>16}"
-              f"{'gap-vs-log10(N)':>22}", flush=True)
-        verdicts = {}
-        for c in CUTOFF_SWEEP:
-            av, cv, nv = [], [], []
-            for p in pdbs2:
-                a = S[p].get(f"anm{k}_c{c:g}")
-                if a is None or cmap2.get(p) is None: continue
-                av.append(a); cv.append(cmap2[p]); nv.append(Nmap[p])
-            if len(av) < 10: continue
-            av = np.array(av); cv = np.array(cv); g = cv - av
-            lr = stats.linregress(np.log10(np.array(nv, float)), g)
-            hw = stats.t.ppf(0.975, len(g) - 2) * lr.stderr
-            verdicts[c] = ("codec WINS" if g.mean() > 0 else "codec LOSES",
-                           float(g.mean()), float((g > 0).mean()), float(lr.slope), float(hw))
-            print(f"    {c:>7.0f}A{av.mean():>10.4f}{g.mean():>+12.4f}{100*(g>0).mean():>15.0f}%"
-                  f"{lr.slope:>+15.4f}+/-{hw:.4f}", flush=True)
-        if verdicts:
-            outcomes = {v[0] for v in verdicts.values()}
-            if len(outcomes) == 1:
-                o = outcomes.pop()
-                print(f"    => ALL CUTOFFS AGREE: {o}. The peer comparison does NOT depend on a 2.9%"
-                      f" selection margin, so the result stands on its own.", flush=True)
-            else:
-                print(f"    => *** THE CUTOFFS DISAGREE ({outcomes}). THE PEER COMPARISON IS NOT "
-                      f"RESOLVED at this cutoff margin, and no codec-vs-ANM verdict may be quoted. "
-                      f"***", flush=True)
-            sl = [v[3] for v in verdicts.values()]
-            flat = all(abs(v[3]) < v[4] for v in verdicts.values())
-            print(f"    gap-vs-N slope across cutoffs: {min(sl):+.4f} to {max(sl):+.4f}  -> "
-                  f"{'FLAT at every cutoff' if flat else 'MOVES at at least one cutoff'}; the "
-                  f"objective-1 quantity must not depend on the selection either.", flush=True)
+    report_cutoffs(joined, S, cur)
 
     # ---------------- INBOX 17c: WHERE DOES THE GAP LIVE? ----------------
     # "codec 0.155 vs PCA-16 ~ 0.53" compares SIX realised directions against SIXTEEN, so it fuses
