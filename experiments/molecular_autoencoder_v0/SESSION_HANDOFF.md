@@ -80,43 +80,52 @@ split, not a categorically different one.
 
 ---
 
-## 4. LIVE JOBS — check these first (verified against squeue/sacct, 2026-08-06)
+## 4. STATE OF THE ANSWER — read this before the job table
 
-Workspace `$WR` = `/network/scratch/j/jacob-junqi.tian/latent-model-workspace`. Logs in `$WR/logs/`.
-**Five live, two finished.** They are SLURM jobs, not session children — a client restart orphans nothing.
+**The central question (INBOX 025):** *can one fixed-width global latent token encode the dynamic
+state of an unseen molecular system well enough to reconstruct its atom-level motion, without
+performance collapsing as N increases?*
 
-> **✅ RESOLVED — the procedure question (job 10307026).** At matched LR/code/data, 2 seeds each:
-> `best_track` LEGACY +0.0973 vs CURRENT +0.0656 (gap 0.0317, seed spread 0.0282); **`full_fve`
-> LEGACY +0.1217 vs CURRENT +0.1160 (gap 0.0057, seed spread 0.0269) — NOT SEPARATED.** `full_fve` is
-> what the sweep selects on, so **the procedures are indistinguishable on the reported metric**.
-> **KEEP the current procedure** (it closes the Family D hole); **HYBRID not run**; **no extra seeds**
-> (INBOX 18b — adding seeds until something separates is Family C backwards).
-> The claim *"the procedure moved the LR optimum"* is **WITHDRAWN** — it compared against
-> unreproducible rows.
->
-> **✅ SETTLED — the persisted arms are DISCARDED.** They cannot be reproduced by any configuration
-> available today (control LEGACY seed1: +0.1352 at 20,000 steps vs a stored +0.1553 at 15,000, under
-> deliberately matched hyperparameters). Three causes checked and excluded; residual unidentified.
-> **Determinism itself is confirmed** within a fixed procedure *and* codebase.
-> **INBOX 18a fix in place:** `armf_stamp.py` stamps every arm with a normalised AST hash of
-> `Codec`+`train` (invariant to comments/docstrings, changes when behaviour can) plus effective-config
-> hash, git SHA and torch/device. It gates the DM sweep's dedup key and its reporting.
->
-> **✅ SETTLED — the binding constraint is the DECODER, not width (INBOX 16a).** Realised rank90 of
-> the reconstruction **6** (range 2–10) vs a data rank90 of **152**, latent PR **14.9**, DM **256**.
-> The output spans **4%** of the directions the motion uses and **2.5× fewer than the latent carries.**
-> `INBOX 015`'s modal decoder is the direct test.
+**Where the evidence now stands — four measurements, all on held-out systems:**
 
-| job | what it tests | output | state |
-|---|---|---|---|
-| **10306590** `atlas_b` | **Q2.** b on ATLAS, three rank90 variants x 3 replica-join counts. | `$WR/atlas_b.json` | RUNNING **790/841**, 11.6 h of a 16 h limit. The large-N tail is slow. |
-| **10307888** `sens_audit` | **20b/24b.** Re-runs the sensitivity audit over surviving claims once `b` is untruncated. **Chained `--dependency=afterany:10306590`** so it fires on completion rather than on my attention. | `audit_%j.log` | PENDING (dependency) |
-| **10307514** + **10307661/2** `atlas_peer` | **14a/17c/21c.** codec vs ANM at **every** cutoff {5,7,10} Å vs the PCA oracle. | `$WR/atlas_peer.json` · `peer_%j.log` | RUNNING **100/123**, 2.9 h. Two `afterany` continuations chained for the large-N tail. |
-| **10307887** `atlas_modes` | **25a.** FVE on the **ANM-orthogonal residual** + per-atom error tail — the metric that can distinguish "encodes the dynamic state" from "encodes the top six modes". | `$WR/atlas_modes.json` · `modes_%j.log` | QUEUED (1 h limit, backfills). Predecessor 10307872 failed on all 24 systems (variable shadowing), fixed and verified by **running the function**. |
-| **10307865** `modal_seeds` | **24c.** 3 usable LRs x 3 seeds x **both** variants — does the LR sweep have the resolution to rule out Family E, or is that Family C? | `$WR/modal_seeds.json` · `modalseeds_%j.log` | RUNNING |
-| **10307539** `modal_ctx` | **22a rung 1 + 23a mechanism test.** `ctx ∈ {2,4,8}`; basis quality regressed on **reach/diameter** with N controlled. | `$WR/modal_ctx.json` · `modalctx_%j.log` | RUNNING, ctx=2 sweep |
-| **10307029** `modal_arm` | **015/17b/18c.** control vs untied vs tied. | `$WR/modal_arm.json` · `modal_10307029.log` | RUNNING, tied variant. control best **+0.1346**, untied best **+0.0996**; tied lr3e-5 shows an N-slope of **−0.65** (provisional, 1 arm). |
-| **10307413** `atlas_dm` | DM sweep under the **20a ladder guard** + **18a stamp**, `NTRAIN=[50,130]`. | `$WR/atlas_dm.json` · `atlasdm_%j.log` | RUNNING, n50 rung |
+| | result |
+|---|---|
+| **14a** primary comparison | codec **loses to zero-shot ANM at every width, on 0% of 123 systems**; reaches 19% of a per-system PCA oracle |
+| **17c** where the gap lives | **65% basis quality / 35% mode count**; ANM-6 beats the codec at **matched rank six** |
+| **25a** is it more than collective modes | **NO.** `FVE⊥` median **−0.026**, above zero on **33%** of systems; per-atom median **1.001** where predict-zero is exactly 1.000 |
+| **25a** the N clause | `FVE⊥` vs log10(N) **−0.1844 ± 0.1154, CI excludes zero** — the discriminating metric **degrades with N while aggregate FVE is flat** |
+
+**The honest headline: the codec is a weak collective-mode model that a zero-shot physics baseline
+outperforms, and the aggregate FVE metric has been flattering it throughout.** Per 025 that is
+publishable as such, but it is *not* an answer to the central question.
+
+**Retracted or refuted tonight:** `b ≥ 0.93` → **`b ∈ [+0.68, +0.83]`**, both cells excluding 0.93
+(841 systems, complete, mobility-controlled); the **√N tied mechanism** (predicted +0.5, measured
+−0.099); the A/B/C data-vs-fundamental tree (16a returned a third answer); the 012b identity share as
+a *cause* (identity fell 90%→24% and reconstruction got worse).
+
+**One unexplained finding worth carrying:** both attention encoders show `‖z‖/‖disp‖ ∝ N^−0.52`
+with **R² ≈ 0.87** — the code magnitude falls **7.5×** across the ATLAS range in the L=1 design point.
+It does *not* currently manifest as an FVE slope, so it is a measured encoder property, not a
+diagnosis.
+
+## 5. LIVE JOBS
+
+| job | what it tests | state |
+|---|---|---|
+| **10307661** → **10307662** `atlas_peer` | **14a/17c/21c** at **every** ANM cutoff {5,7,10} Å — 21c: the 2.9% selection margin must not decide the headline | RUNNING, resumed at **107/123**. The `afterany` chain fired on its own when 10307514 hit its wall — the remaining systems are the largest. |
+| **10307029** `modal_arm` | 015/17b/18c control vs untied vs tied | RUNNING, tied sweep. control best **+0.1346**, untied best **+0.0996**; tied lr1e-4 mid-training at **+0.1078**, well above tied lr3e-5's +0.0607 |
+| **10307539** `modal_ctx` | 22a rung 1 + **23a mechanism test** (basis quality vs reach/diameter, N controlled) | RUNNING. ctx=2: lr3e-5 **+0.0714**, lr1e-4 **+0.0848** — both below the ctx=0 untied best so far |
+| **10307865** `modal_seeds` | **24c** 3 rates × 3 seeds × both variants — does the LR sweep have the resolution to rule out Family E? | RUNNING |
+| **10307413** `atlas_dm` | DM sweep under the **20a ladder guard** + **18a stamp**, `NTRAIN=[50,130]` | RUNNING, n50 rung |
+
+**Finished tonight:** `atlas_b` (841 systems, 12:24:51) · `sens_audit` (chained, fired automatically)
+· `atlas_modes` 25a · `tied_mediator` 26a · `tica_vs_n` 007 · `warmup_ctl`.
+
+**Guards now automatic, with no human in the loop:** the ladder hold re-reads `NTRAIN` from disk each
+rung (20a); the peer tail chains `afterany`; the audit chained to `atlas_b`; `COMMS/check_ack.py` runs
+as a **pre-push hook** and refuses a divergent ledger; `armf_smoke.py` tests the **callers**, not the
+kernels (26c), and is verified to catch both historical failures.
 
 
 **THE CACHE IS COMPLETE** — `10301859` finished in 6:27:23. **841 systems, 263 GB, train pool 697/700,
