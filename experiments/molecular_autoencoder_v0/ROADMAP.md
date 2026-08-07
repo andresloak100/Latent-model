@@ -2734,6 +2734,51 @@ is TICA-vs-PCA *within the same basis*; only if variance dimensionality is mater
 slowness dimensionality IN THAT BASIS does 007's claim hold. **No 007 verdict may be quoted until
 that lands.**
 
+**INBOX 14c — RECORD WHICH KIND OF NEGATIVE THIS IS.** If the stopping rule fires, the finding is
+**"TICA dimensionality is NOT MEASURABLE at these trajectory lengths"** — n_eff per TICA dimension
+0.81 against a threshold of 2.0 pre-registered before the re-run. That is a statement about the
+corpus, and it is corpus-independent in the same way INBOX 002 is: **no dataset supplies the
+trajectory length that would fix it**, because the requirement grows with the dimensionality being
+fitted. It is emphatically **not** "we did not find a good *m*", which would be an admission of
+insufficient search and would license exactly the *m*-sweep that turns the answer into a chosen
+result. The exponent moves **13×** across the *m* values tried; picking the one that reports a
+result is picking the result. The two statements license opposite next actions — one closes the
+question, the other reopens it as a search — and the writeups say which one this is.
+
+### INBOX 14a: THE PRIMARY COMPARISON WAS MISSING FROM EVERY ATLAS REPORT
+The standing frame since 004b is that the primary result is **codec vs ANM, both zero-shot on the
+same held-out frames** — ceiling-free, immune to the failed guard, and the claim the thesis rests on.
+Every ATLAS report so far has given **codec FVE alone**.
+
+**The diagnosis is more specific than an oversight.** `armf_atlas_curve.py` has had the
+codec/ANM/oracle columns all along, but it is pinned to `L = 24; DM = 256; KS = [24]` — the
+configuration INBOX 003 retired when L=1 became the architecture — and it TRAINS its own learning
+curve, so it needs the GPU the DM sweep holds. It has never produced an `atlas_curve.json`. The
+comparison was not forgotten; it was **blocked behind a stale script**, and the reportable column got
+reported instead of the load-bearing one. *A measurement that exists only in unrun code is not a
+measurement.*
+
+**The fix needs no GPU.** `atlas_dm.json` already stores per-system held-out FVE for every finished
+arm, so `armf_atlas_peer.py` computes the peer and oracle columns on CPU and joins them to arms
+already paid for (job 10306938).
+
+Two properties of the comparison recorded before results, both cutting against us:
+- **Matched capacity is not matched information.** At k=DM both emit the same numbers per frame, but
+  ANM-k derives a **system-specific** basis from that system's own structure while the codec's DM
+  numbers come from **one model shared across every system**. The peer is the more favoured of the
+  two at matched k. It is still the right bar — it is what a practitioner does without training
+  anything — but that asymmetry belongs beside the number.
+- **The PCA column is an ORACLE and never a bar** (3N×k free parameters fitted to the target's own
+  trajectory — 1.6M at k=16, N=33,377), reported only as a fraction. Two versions are computed: the
+  honest `pca_out` (basis from replicas 0+1, scored on replica 2) and the in-sample `pca_in` that
+  earlier numbers used. On the smallest held-out system the in-sample version is **1.68× flattered at
+  k=4** — the same in-sample inflation retracted for rank90, arriving through a different door.
+
+**The context this puts in front of every FVE-vs-N statement:** at codec ≈ 0.155 against a per-system
+PCA-16 of ≈ 0.53, **a flat slope on a model this far from the achievable is consistent with uniform
+weakness, not with the architecture holding up.** INBOX 14b (job 10306939) is the direct test of which
+one it is.
+
 ### RETRACTED (INBOX 012): the mdCATH DM=256/512 COLLAPSE
 `armf_capacity_axis.md` recorded DM=256 and DM=512 collapsing to constant output on mdCATH (G1 cos
 1.0000, G4 base -0.000) and this was cited as evidence that **wide codes cannot train**. **Withdrawn.**

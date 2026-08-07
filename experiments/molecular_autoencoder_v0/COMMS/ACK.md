@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 013
+last_acted: 014
 ```
 
 | item | restatement | status | commit |
@@ -28,6 +28,44 @@ last_acted: 013
 | 012 | Retract the mdCATH DM=256/512 collapse explicitly — those arms lost on an unswept learning rate, not on capacity, and the collapse was cited as evidence wide codes cannot train. Then settle whether PR≈15 is saturation or a capability limit by reporting PR and FVE jointly at every rung of the n_train ladder with the PR-vs-FVE slope and CI. And treat the 86–91% identity share as wasted capacity: measure `||z0||/||z||` directly, then ablate with `z := encode(x) − z0` (zero-shot, since z0 needs only the reference structure), reporting FVE, PR and identity share before and after — noting the encoder is non-linear so this is first-order only, with the architectural fix proposed only if the cheap one moves the number. | ACCEPTED | (this commit) |
 
 | 013 | Cap the TICA line: the truncation-matched control answers only a RATIO question — within a fixed m-dimensional basis, does slow-weighted dimensionality grow more slowly than variance-weighted — so report the matched-m difference with its CI and quote NEITHER absolute exponent; and pre-register the stopping rule that if n_eff per TICA dimension is below ~2, close 007 as unanswerable rather than sweeping m for a basis that works, since an m chosen after seeing results is a chosen result. Then, because both external routes are now closed or capped, add the codec measurement nobody specified: criterion-1 pass rate vs N at fixed DM, four discriminators reported separately with N-slopes, since a decoder can hold FVE flat across N while progressively flattening autocorrelation at large N. | ACCEPTED | (this commit) |
+
+| 014 | The comparison the project exists to make has never appeared in an output anybody can read: every ATLAS report gives CODEC FVE ALONE, when the primary since 004b is codec vs ANM, both zero-shot on the same held-out frames. Report per arm, at matched capacity k=DM: codec FVE, ANM-k with the cutoff swept on TRAINING systems only, per-system PCA-k as an ORACLE FRACTION and never a bar, and the signed gap plus the fraction of systems where it is positive — then state plainly where the codec sits, because a flat slope on a model far below the achievable is consistent with UNIFORM WEAKNESS rather than the architecture holding up. Separately, decompose the best arm's FVE by projecting true and reconstructed displacement onto the REFERENCE PCA basis and reporting FVE per mode index and binned by mode IAT: slow-selective would EXPLAIN the flat FVE-vs-N and make MSE demonstrably the wrong objective, uniform would mean the flat slope carries no architectural information. Run it as soon as one arm exists, not after the ladder. And record that "not measurable with these trajectory lengths" is a FINDING, distinct from "we did not find a good m". | ACCEPTED | (this commit) |
+
+## Notes on 014
+
+**14a is a fair hit and the diagnosis is more specific than "we forgot".** The table exists —
+`armf_atlas_curve.py` has had the codec/ANM/oracle columns all along — but that script is pinned to
+`L = 24; DM = 256; KS = [24]`, which INBOX 003 retired, and it TRAINS its own learning curve, so it
+needs the GPU the DM sweep holds for the next 19 hours. It has never produced an `atlas_curve.json`.
+So the comparison was not omitted from the reports; it was **blocked behind a stale script**, and I
+kept reporting the column I had instead of the one that carries the thesis.
+
+The fix does not need the GPU at all. Every codec number is already paid for: `atlas_dm.json` stores
+per-system held-out FVE (`per`) and `Ns` for each finished arm. `armf_atlas_peer.py` computes the
+peer and oracle columns on CPU and JOINS them to arms that already exist. Submitted now, in parallel.
+
+**Two things I am adding because they cut against us and should be visible:**
+
+1. *Matched capacity is not matched information.* ANM-k gets a **system-specific** basis derived from
+   that system's own structure; the codec's DM numbers come from ONE model shared across every
+   system. Matched on numbers-per-frame, the peer is the more favoured of the two. It is still the
+   right bar — it is what a practitioner does without training anything — but the asymmetry belongs
+   next to the number rather than in a footnote.
+2. *The 14b confound that would have let me over-claim.* Mode index, variance and IAT are heavily
+   confounded, and **MSE selects for high-variance modes by construction**. So "FVE is high on modes
+   that happen to be slow" is the expected consequence of the training objective, not evidence for
+   the interesting reading. The verdict therefore comes from a two-variable regression of per-mode
+   FVE on log(IAT) **and** log(variance share); only the partial log(IAT) coefficient can support a
+   timescale claim. Both pre-registered branches are in the code before any result. Without this
+   control the slow-selective verdict was close to unfalsifiable — it would have fired on a model
+   doing exactly what MSE tells it to.
+
+**On 14c, recorded as instructed.** "TICA dimensionality is not measurable at these trajectory
+lengths — n_eff per TICA dimension is 0.81 against a pre-registered threshold of 2.0" is a FINDING
+about the corpus, and it is corpus-independent in the same way 002 is: no dataset supplies the
+trajectory length that would fix it. "We did not find a good m" would have been an admission of
+insufficient search, and would have licensed exactly the m-sweep that makes the answer a chosen
+result. The two are not the same statement and the writeups say which one this is.
 
 ## Notes on 013
 

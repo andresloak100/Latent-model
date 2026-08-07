@@ -83,13 +83,15 @@ split, not a categorically different one.
 ## 4. LIVE JOBS — check these first (verified against squeue/sacct, 2026-08-06)
 
 Workspace `$WR` = `/network/scratch/j/jacob-junqi.tian/latent-model-workspace`. Logs in `$WR/logs/`.
-**All four are RUNNING.** They are SLURM jobs, not session children — a client restart orphans nothing.
+**All five are live.** They are SLURM jobs, not session children — a client restart orphans nothing.
 
 | job | what it tests | output | state |
 |---|---|---|---|
-| **10306831** `atlas_dm` | DM sweep + 005 bottleneck + **013b criterion-1-vs-N** + **12b identity ablation**, at L=1. LR {3e-5…3e-3} with **1,000-step warmup** and an lr-scaled step budget; ladder {50,130,300,600}. Checkpoints each arm so criterion-1 scoring never re-trains. | `$WR/atlas_dm.json` · `$WR/atlas_dm_criterion1.json` · `$WR/atlas_dm_ckpt/` · `atlasdm_10306831.log` | QUEUED, `long` + `--requeue`, 20 h |
-| **10306738** `tica_vs_n` | **Q1 re-run with the TRUNCATION-MATCHED CONTROL** and the 13a stopping rule. Reports only the matched-*m* difference `exponent(TICA\|m) − exponent(PCA\|m)`; **no absolute exponent**. Closes 007 as unanswerable if n_eff per TICA dimension < 2.0. | `$WR/atlas_tica_vs_n.json` (v1 archived `..._v1_nocontrol.json`) · `ticaN_10306738.log` | QUEUED, `long-cpu`, 12 h |
-| **10306590** `atlas_b` | **Q2.** b on ATLAS, replicas as the join unit; fits all three rank90 variants per INBOX 011. | `$WR/atlas_b.json` · `atlasb_10306590.log` | RUNNING ~1 h, ~50/841 systems |
+| **10306938** `atlas_peer` | **INBOX 14a — THE PRIMARY COMPARISON, which has never appeared in an ATLAS output.** codec vs **ANM-k** (the zero-shot peer, cutoff swept on TRAINING systems) vs **per-system PCA-k** (the oracle, reported as a fraction only), at matched capacity k=DM ∈ {16,64,256}. CPU-only: it JOINS to codec arms already in `atlas_dm.json` rather than training anything. Also reports the **codec−ANM gap vs N**, which is ceiling-free because the shared denominator cancels. | `$WR/atlas_peer.json` · `peer_%j.log` | QUEUED, `long-cpu` + `--requeue`, 16 h |
+| **10306939** `atlas_modes` | **INBOX 14b — where the error LIVES.** Per-mode FVE in the REFERENCE PCA basis, binned by each mode's own IAT, on the best arm. Verdict comes from a **two-variable** regression on log(IAT) *and* log(variance share), because MSE selects for variance by construction. Re-trains the best arm once (no checkpoint predates 013) and saves it. | `$WR/atlas_modes.json` · `modes_%j.log` | QUEUED, `long` + `--requeue`, 6 h |
+| **10306831** `atlas_dm` | DM sweep + 005 bottleneck + **013b criterion-1-vs-N** + **12b identity ablation**, at L=1. LR {3e-5…3e-3} with **1,000-step warmup** and an lr-scaled step budget; ladder {50,130,300,600}. Checkpoints each arm so criterion-1 scoring never re-trains. | `$WR/atlas_dm.json` · `$WR/atlas_dm_criterion1.json` · `$WR/atlas_dm_ckpt/` · `atlasdm_10306831.log` | RUNNING ~40 min, on the `n50 dm64 lr3e-5` arm |
+| **10306738** `tica_vs_n` | **Q1 re-run with the TRUNCATION-MATCHED CONTROL** and the 13a stopping rule. Reports only the matched-*m* difference `exponent(TICA\|m) − exponent(PCA\|m)`; **no absolute exponent**. Closes 007 as unanswerable if n_eff per TICA dimension < 2.0. | `$WR/atlas_tica_vs_n.json` (v1 archived `..._v1_nocontrol.json`) · `ticaN_10306738.log` | RUNNING ~40 min, τ=20 selected on train, ~60/123 held-out |
+| **10306590** `atlas_b` | **Q2.** b on ATLAS, replicas as the join unit; fits all three rank90 variants per INBOX 011. | `$WR/atlas_b.json` · `atlasb_10306590.log` | RUNNING ~1:47, 100/841 systems (~12 h pace, 16 h limit) |
 
 **THE CACHE IS COMPLETE** — `10301859` finished in 6:27:23. **841 systems, 263 GB, train pool 697/700,
 held-out 123/125.** The full `n_train` ladder {50,130,300,600} is runnable; it no longer gates anything.
