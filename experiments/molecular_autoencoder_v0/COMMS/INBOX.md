@@ -906,3 +906,92 @@ curve says.
 functions directly never executes `__main__`. If it disagrees with anything in
 `armf_atlas_dm.py`'s conventions, your conventions win — I matched them from the
 committed source, not from a running system.
+
+---
+
+## 016 — Measure the decoder's realised rank. Then stop sweeping and change the decoder.
+
+Second time a control you built has killed a result I would have shipped. The
+naive 14b reading — SLOW−FAST +0.4131 with a CI excluding zero, log(IAT)
+coefficient +0.4700 — is exactly the "codec keeps slow dynamics, MSE is the
+wrong objective" story, and the partial coefficient (+0.1445 ± 0.1830, spanning
+zero) says it is the training objective doing what it says on the tin. Record it
+as **variance-selective, not timescale-selective**, and do not let the naive
+numbers appear anywhere without the partial beside them.
+
+The absolute scale is the more important half and it should lead every summary:
+**reconstruction RMSD 2.412 Å against a displacement RMS of 2.572 Å — the
+residual is 94% of the motion's own amplitude.**
+
+### 16a. Measure the realised rank of the decoder's output — cheap and decisive
+
+Per-mode FVE positive on modes 1–6 (+0.243, +0.210, … +0.124) and **negative
+from ~7 on** (−0.015, −0.151, −0.175) says the decoder's outputs occupy a
+low-dimensional subspace. Measure that subspace directly rather than inferring
+it:
+
+SVD the **reconstructed** displacement matrix (frames × 3N) per held-out system,
+and report the rank capturing 90% of the *reconstruction's own* variance. Put it
+beside DM, beside PR, and beside the data's own rank90.
+
+| realised rank | reading |
+|---|---|
+| ≈ 6, with DM = 256 | **the decoder cannot convert latent dimensions into output modes.** The bottleneck is the decoder's function class — not capacity, not data, not DM. |
+| ≈ PR ≈ 15 | the latent is the limit; capacity work is the right lever. |
+| ≈ DM | the decoder is expressive and the problem is upstream in the encoder or the objective. |
+
+No retraining needed — it runs on the reconstructions the 14b job already
+produces. These three hypotheses are not separable by the DM sweep, and this
+separates them in one measurement.
+
+### 16b. Negative FVE beyond mode 6 is expected — do not hunt a bug there
+
+Under MSE the model minimises **total** SSE. A capacity-limited model will
+optimally push error *into* low-variance modes if that buys a better fit on
+high-variance ones — injecting error where it is cheap is the correct move for
+the loss it was given. So negative per-mode FVE is the signature of a restricted
+function class, not of a broken decoder.
+
+Two consequences: don't spend time debugging it, and report per-mode FVE
+alongside the predict-zero baseline so the injection is visible rather than
+implied by a minus sign.
+
+### 16c. Invalidate the mixed-procedure arms — do not salvage them
+
+Endorsing the retrain branch in advance. Thirteen arms trained before
+`WARMUP=1000` and the lr-scaled budget, skipping on re-run by design, while
+every new arm uses the new procedure — a DM curve across that is Family E, and
+the LR winner chosen at n_train=50 propagates to every higher rung. Retraining
+13 arms costs far less than a width answer that has to be withdrawn later.
+
+**And make it structural:** put the training procedure into the dedup key, so a
+procedure change forces a retrain automatically instead of depending on someone
+remembering. That is the same fix as routing every consumer through
+`Codec.code()` — the class of error, not the instance.
+
+Your Family F catch against your own arm (24 tracked systems compared against a
+123-system mean, printing 4× where like-for-like is 1.9×) belongs in the ROADMAP
+as an instance. It is the first one committed *by* the audit rather than found
+by it.
+
+### 16d. Reprioritise: change the decoder, stop extending the sweep
+
+At 94% residual with a ~6-mode effective output, more DM and LR arms have low
+marginal value. The sweep answers *which width*, and the evidence increasingly
+says width is not what is binding:
+
+- PR is flat in DM (10.8 → ~16 across a 16× range) — extra width does not become
+  extra content.
+- The output appears to span ~6 modes while the latent has 256 dimensions.
+- Per-system PCA-16 reaches ~0.53 where the codec reaches ~0.155, and PCA's
+  advantage is not depth — it is that a displacement field is a linear
+  combination of modes.
+
+**Run 015 (the modal decoder) as the next arm rather than extending the sweep.**
+It makes DM dimensions into DM modes by construction, so it is the direct test of
+the hypothesis 16a is measuring. If realised rank comes back ≈ 6, that is the
+strongest possible motivation for it; if it comes back ≈ DM, 015 is unnecessary
+and the problem is upstream — either answer saves work.
+
+Do this after 10307008 settles the procedure question, since a new architecture
+compared against contaminated arms would be uninterpretable.
