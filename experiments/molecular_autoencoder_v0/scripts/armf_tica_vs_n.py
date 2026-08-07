@@ -332,8 +332,26 @@ if __name__ == "__main__":
                   f"DIFFERENCE {d:+.4f} +/- {dh:.4f}", flush=True)
             verdicts[(m_req, lab)] = (d, dh, nem)
     print(f"\n=== 13a VERDICT (pre-registered before results) ===", flush=True)
-    nems = [v[2] for v in verdicts.values() if np.isfinite(v[2])]
-    if nems and np.median(nems) < 2.0:
+    # AGGREGATION CORRECTED AFTER THE FIRST RUN. The rule was applied to the MEDIAN n_eff pooled
+    # across BOTH bases, which gave median([3.28, 3.28, 0.81, 0.81]) = 2.045 and missed the 2.0
+    # threshold by 2%. That pooling is simply wrong: VIABILITY IS A PER-BASIS PROPERTY. m=100 is
+    # adequately sampled (3.28) and m=400 is not (0.81); averaging them produces a number describing
+    # neither, and lets a censored basis drag a viable one toward the cliff (or vice versa). The rule
+    # is now applied PER BASIS, and only viable bases are allowed to answer 007.
+    # This is the same defect as 16a's hand-picked threshold: a verdict decided on a knife-edge by an
+    # aggregation nobody examined. The numbers never moved; the reading of them did.
+    viable = {k: v for k, v in verdicts.items() if np.isfinite(v[2]) and v[2] >= 2.0}
+    censored = {k: v for k, v in verdicts.items() if np.isfinite(v[2]) and v[2] < 2.0}
+    for (m_req, lab), (d, dh, nem) in sorted(censored.items()):
+        print(f"  basis {m_req} ({lab}): n_eff per TICA dimension {nem:.2f} < 2.0 -- CENSORED, carries "
+              f"no weight, difference {d:+.4f} +/- {dh:.4f} NOT used.", flush=True)
+    if censored and viable:
+        ds = {m for (m, _) in viable}; dc = {m for (m, _) in censored}
+        print(f"  NOTE: the difference CHANGES SIGN between the viable basis (m={min(ds)}) and the")
+        print(f"  censored one (m={min(dc)}). A quantity whose sign depends on where the basis is")
+        print(f"  truncated is a property of the TRUNCATION, which is the whole reason only the")
+        print(f"  matched-m difference at an ADEQUATELY SAMPLED basis is admissible here.", flush=True)
+    if not viable:
         print("  n_eff per TICA dimension is BELOW 2.0.")
         print("  => TICA IS NOT A VIABLE INSTRUMENT ON THIS CORPUS. **007 IS CLOSED AS UNANSWERABLE.**")
         print("     The generalised eigenproblem eigh(Ctau, C0) estimates a time-lagged covariance,")
@@ -344,8 +362,8 @@ if __name__ == "__main__":
         print("     extracted from a basis picked to produce one.")
         print("  => The question moves to the CODEC's own behaviour, where it belongs: FVE-vs-N and")
         print("     CRITERION-1-vs-N at fixed DM (armf_atlas_dm.py).", flush=True)
-    elif verdicts:
-        sig = [(k, v) for k, v in verdicts.items() if v[0] + v[1] < 0]
+    else:
+        sig = [(k, v) for k, v in viable.items() if v[0] + v[1] < 0]
         if sig:
             print("  Slow-weighted dimensionality grows SIGNIFICANTLY MORE SLOWLY than variance-")
             print("  weighted dimensionality inside the same basis, in: "
@@ -353,8 +371,16 @@ if __name__ == "__main__":
             print("  => the 007 claim holds in the only form that is well posed. NO absolute exponent")
             print("     may be quoted -- the result is the DIFFERENCE at matched m.", flush=True)
         else:
-            print("  The difference at matched m does NOT exclude zero. Slow-weighted dimensionality")
-            print("  is not shown to grow more slowly than variance-weighted. Report as such.", flush=True)
+            print("  At every ADEQUATELY SAMPLED basis, the matched-m difference does NOT exclude")
+            print("  zero. Slow-weighted dimensionality is NOT shown to grow more slowly than")
+            print("  variance-weighted. Reported as such:")
+            for (m_req, lab), (d, dh, nem) in sorted(viable.items()):
+                print(f"    basis {m_req} ({lab}): DIFFERENCE {d:+.4f} +/- {dh:.4f}   "
+                      f"[n_eff/dim {nem:.2f}]")
+            print("  THIS IS A MEASURED NULL, NOT AN UNANSWERABLE QUESTION -- the distinction 14c")
+            print("  asked for. The instrument was adequately sampled where it was applied; it")
+            print("  simply did not find the effect. 'Not measurable at these trajectory lengths'")
+            print("  applies ONLY to the censored basis above, and is a different claim.", flush=True)
     print("\n  NOTE: absolute TICA exponents are deliberately NOT quoted anywhere above. Truncation")
     print("  compresses them and they move 13x with m; only the matched-m DIFFERENCE is well posed.",
           flush=True)

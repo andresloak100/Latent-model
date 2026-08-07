@@ -2752,6 +2752,39 @@ is TICA-vs-PCA *within the same basis*; only if variance dimensionality is mater
 slowness dimensionality IN THAT BASIS does 007's claim hold. **No 007 verdict may be quoted until
 that lands.**
 
+### 007 ANSWERED (job 10306738, 2 h, n=123): A MEASURED NULL — NOT AN UNANSWERABLE QUESTION
+Ratio-only, per INBOX 13a. **No absolute TICA exponent is quoted, here or in the output.**
+
+| basis | n_eff per TICA dim | in-sample DIFFERENCE | out-of-sample DIFFERENCE |
+|---|---|---|---|
+| **m = 100** | **3.28 — VIABLE** | +0.1310 ± 0.1252 | **+0.0873 ± 0.1163** |
+| m = 400 | 0.81 — **CENSORED** | −0.0766 ± 0.1713 | −0.0384 ± 0.1575 |
+
+`DIFFERENCE = exponent(TICA|m) − exponent(PCA|m)`, conservative CI (sum of half-widths). 007's claim
+requires this to be **significantly negative**. At the adequately-sampled basis it is **positive and
+spans zero** on the architecture-relevant out-of-sample variant. **007's claim is NOT SUPPORTED.**
+
+**And the sign FLIPS between m=100 (+0.087) and m=400 (−0.038)** — a quantity whose sign depends on
+where the basis is truncated is a property of the truncation. That is precisely why only the
+matched-*m* difference at a viable basis is admissible, and why sweeping *m* for a basis that
+"works" would have manufactured whichever answer was wanted.
+
+> **I PREDICTED THIS WRONG, AND THE REASON MATTERS.** In the 013 ACK I wrote that the stopping rule
+> *"will very likely fire — I already measured n_eff per TICA dimension at 0.81."* That 0.81 is the
+> **m=400** figure; at the canonical m=100 basis it is **3.28**, comfortably viable. I quoted a number
+> from one basis as though it characterised the measurement. The instrument was adequately sampled
+> where it counted, so 007 gets a **measured null**, not a closure for unanswerability — the exact
+> distinction 14c asked to be preserved, landing on the opposite side from my prediction.
+
+> **AGGREGATION DEFECT, FOUND AND FIXED.** The first run applied the stopping rule to the median
+> n_eff **pooled across both bases** — median([3.28, 3.28, 0.81, 0.81]) = **2.045**, missing the 2.0
+> threshold by 2%. Viability is a **per-basis** property; pooling produced a number describing neither
+> basis and let a censored basis drag a viable one toward the cliff. Now applied per basis, with
+> censored bases excluded from answering and printed as excluded. **Same defect as 16a's hand-picked
+> threshold: a verdict decided on a knife-edge by an aggregation nobody examined.** In both cases the
+> measured numbers never moved — only the automated reading of them. Re-run as job 10307083; the
+> pooled-verdict log is archived as `ticaN_10306738_v1_pooledverdict.log`.
+
 **INBOX 14c — RECORD WHICH KIND OF NEGATIVE THIS IS.** If the stopping rule fires, the finding is
 **"TICA dimensionality is NOT MEASURABLE at these trajectory lengths"** — n_eff per TICA dimension
 0.81 against a threshold of 2.0 pre-registered before the re-run. That is a statement about the
