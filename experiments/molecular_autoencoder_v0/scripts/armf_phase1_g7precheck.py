@@ -54,5 +54,11 @@ for b in BUCKETS:
     print(f"    -> bucket mean held-out FVE: " + "  ".join(f"L{LS[j]} {A[:,j].mean():.2f}" for j in range(len(LS))) + f"   mean rank90 {np.mean([r[1] for r in rows]):.0f}")
 
 print("\n  G7 verdict guide: PCA-64 train FVE ~= 1.0 AND large train-vs-heldout gap -> rank-saturated,")
-print("  ceiling is the artifact (void the L=64 read). rank90 << 64 -> signal is low-rank, L=64 over-")
-print("  provisioned (ceiling = signal, deficit-ratio read may still hold). Report before the GPU run.")
+print("  ceiling is the artifact (void the L=64 read).")
+print("  *** THE SECOND HALF OF THIS GUIDE IS RETIRED (INBOX 002). It used to read 'rank90 << 64 ->")
+print("  signal is low-rank, L=64 over-provisioned'. That inference RUNS THE FLOOR BACKWARDS: the")
+print("  rank90 printed above is IN-SAMPLE, and an in-sample rank90 is a LOWER BOUND on the true")
+print("  dimensionality (out of sample the same modes cover 77.1% of held-out variance, and the")
+print("  out-of-sample count is 3.49x larger). A small FLOOR licenses NO conclusion that the signal")
+print("  is low-rank, and therefore none that L=64 is over-provisioned. Read the rank90 column as a")
+print("  floor and take the width answer from the codec's own saturation curve instead. ***")

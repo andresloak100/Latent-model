@@ -115,6 +115,14 @@ if TOP in F:
         print(f"    {nm:>10}{sc:>13.2f}{ASYMPTOTE/FLOPPY_TO_BOUND*sc:>18.0f}   (b={bv:+.3f})")
     print("    caveats: 2.5-decade extrapolation; ns-us regime; variance-weighted (rare states")
     print("    excluded, coverage open); floppy->bound 0.65 from a 1.65x RMSF ratio via c~-0.9.")
+    print("    *** AND THE DECISIVE ONE (INBOX 002): EVERY NUMBER IN THIS TABLE IS A FLOOR. The")
+    print("    ASYMPTOTE is an IN-SAMPLE rank90 (understates dimensionality) and b is CENSORED at")
+    print("    large N (understates its own growth), so both inputs are biased the SAME direction and")
+    print("    the product cannot be read as a width requirement. DO NOT SIZE DM FROM THIS TABLE --")
+    print("    size it from the codec's held-out FVE-vs-DM saturation curve (armf_atlas_dm.py), whose")
+    print("    effective sample size is the CORPUS rather than one trajectory. This is")
+    print("    corpus-independent: no dataset supplies the trajectory length that would fix it.")
+    print("    See ROADMAP 'WIDTH CHAIN IS A FLOOR'. ***")
 
 
 # ---------------- between-replica spread: is rank90 noisier than the CIs suggest? ----------------

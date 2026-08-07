@@ -111,6 +111,10 @@ if sat:
     A = np.array([r["fits"]["saturating"]["p"][0] for r in sat]); Rl = np.array([r["R"][-1] for r in sat])
     print(f"  saturating asymptote A: median {np.median(A):.0f}  range {A.min():.0f}-{A.max():.0f}   "
           f"(observed rank90 at T=2400 is {np.median(Rl/A)*100:.0f}% of A -- how close to the asymptote we are)", flush=True)
+    print(f"  *** A IS A FLOOR (INBOX 002). This median is the ~168 that ANCHORED the width chain, and", flush=True)
+    print(f"  it is fitted to IN-SAMPLE rank90, which understates dimensionality -- out of sample the", flush=True)
+    print(f"  same modes cover 77.1% of held-out variance, not 90%. The SATURATION-IN-TIME finding", flush=True)
+    print(f"  stands (that is what this file measures); what is retired is using A to SIZE DM. ***", flush=True)
 pw = [r for r in rows if r["best"] == "power"]
 if pw:
     C = np.array([r["fits"]["power"]["p"][1] for r in pw])

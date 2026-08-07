@@ -86,7 +86,10 @@ for tag, msk in [("ALL domains", np.ones(len(rows), bool)), ("CONVERGED only", c
         a = np.median(y - beta[0]*np.log10(Nv[msk]) - beta[1]*np.log10(Mv[msk]))
         m0 = np.log10(np.median(Mv[msk]))
         print(f"  {'':16s}      -> rank90(1e6 atoms, median mobility) ~ {10**(a+beta[0]*6+beta[1]*m0):.0f}"
-              f"  [95% CI {10**(a+(beta[0]-t*se[0])*6+beta[1]*m0):.0f} - {10**(a+(beta[0]+t*se[0])*6+beta[1]*m0):.0f}]", flush=True)
+              f"  [95% CI {10**(a+(beta[0]-t*se[0])*6+beta[1]*m0):.0f} - {10**(a+(beta[0]+t*se[0])*6+beta[1]*m0):.0f}]"
+              f"  -- A FLOOR, NOT A REQUIREMENT (INBOX 002)", flush=True)
+        print(f"  {'':16s}         in-sample rank90 understates dimensionality and b is censored at", flush=True)
+        print(f"  {'':16s}         large N, so both inputs bias this DOWN. It is not a DM budget.", flush=True)
     else:
         print(f"  {'':16s}      -> b(N) NOT significantly different from 0; no extrapolation is licensed", flush=True)
 print("\n  read: converged + significant b -> a latent budget can be planned. Unconverged or b~0 ->", flush=True)

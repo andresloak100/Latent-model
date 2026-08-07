@@ -163,3 +163,8 @@ for k in ["tica", "rank90", "states"]:
           f"[at 1ms effective: {10**((lr.slope-ci)*ms):.2f}x - {10**((lr.slope+ci)*ms):.2f}x]", flush=True)
 print("\n  read: TICA + states FLAT like rank90 -> ms concern genuinely reduced, not just unmeasured.", flush=True)
 print("  TICA/states RISE while rank90 flat -> that IS the rare-state effect PCA was blind to.", flush=True)
+print("  *** SCOPE (INBOX 002/007): 'flat' here is flat across EFFECTIVE TIME and TEMPERATURE, which", flush=True)
+print("  is what this file varies. It says NOTHING about flatness across ATOM COUNT, and it licenses", flush=True)
+print("  NO width budget: the rank90 it is compared against is an in-sample FLOOR. The N axis was", flush=True)
+print("  measured separately (armf_tica_vs_n.py) and is reported there, capped by its own stopping", flush=True)
+print("  rule -- flat-in-time was never flat-in-N. ***", flush=True)
