@@ -2884,6 +2884,11 @@ result. The exponent moves **13×** across the *m* values tried; picking the one
 result is picking the result. The two statements license opposite next actions — one closes the
 question, the other reopens it as a search — and the writeups say which one this is.
 
+> **STANDING CONTEXT (INBOX 22c) — carry all three in front of ANY statement about flatness in N:**
+> **the codec sits at 19% of a per-system oracle, loses to the zero-shot peer on 0% of systems, and
+> 65% of that gap is basis quality.** A flat slope on a model this far from achievable is consistent
+> with uniform weakness — and that context is now *measured*, not asserted.
+
 ### ⬛ 14a RESULT (job 10307401, n=123 held-out): THE CODEC LOSES TO THE ZERO-SHOT PEER, EVERYWHERE
 The comparison the project exists to make, finally in an output. **ANM computable on 123/123 systems
 across all three N terciles — no Family A exclusion.** Cutoff 5 Å, swept on TRAINING systems only.
@@ -2899,11 +2904,13 @@ across all three N terciles — no Family A exclusion.** Cutoff 5 Å, swept on T
 the product — but it belongs in front of every FVE-vs-N statement, and **a flat slope on a model this
 far from the achievable is consistent with uniform weakness.**
 
-**ONE THING RUNS THE OTHER WAY, and it is the ceiling-free metric.** The codec−ANM *gap* shares a
-denominator with its comparator, so an N-dependent ceiling cancels. At DM=256 that gap is
-**+0.0514 ± 0.0464 per decade** (5 of 7 arms flagged as moving) — **positive**, meaning the codec
-*closes* on ANM as systems get larger. Small against a −0.52 gap (≈ +0.09 over the 1.75-decade range),
-but it is the opposite sign from what the failed guard implied, and it is the right metric to watch.
+**ONE THING RUNS THE OTHER WAY — AND IT IS SUGGESTIVE, NOT A RESULT (INBOX 22b).** The codec−ANM
+*gap* shares a denominator with its comparator, so an N-dependent ceiling cancels; it is the
+ceiling-free quantity and the only measurement currently pointing the right way. At DM=256 it is
+**+0.0514 ± 0.0464 per decade** — a CI of roughly **[0.005, 0.098]**, *barely* excluding zero, in
+5 of 7 arms. **The same discipline applies in this direction: a barely-significant positive is not
+more trustworthy than a barely-significant null because it is the answer we want.** It amounts to
+≈ **+0.09 over the measured range against a −0.52 gap**. Right quantity to track; not yet a result.
 
 **DM=512 has no matched peer column** (ladder capped at k=256 on ANM cost) and this is printed, not
 silent. It does not hide the winner: DM=512's best is +0.1427, below DM=256's +0.1553.
