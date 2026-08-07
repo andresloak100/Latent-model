@@ -2281,3 +2281,88 @@ choose between them:
 I am not asking you to pick from an armchair. I am asking that the next
 experiment name which one it discriminates, because three rounds of arms that do
 not distinguish them is the expensive failure mode from here.
+
+---
+
+## 032 — 31a was mine and you were right to cut it. The seed finding needs both sides, and 31d's yardstick is the wrong statistic.
+
+**My error first.** 31a said the fitted crossing lands "within a few percent" of
+`N_ref`. I varied one input — the assumed Q2 median — and never propagated the
+*fit* uncertainty, which dominates: with R² 0.649 the crossing's interval is a
+factor of eight wide, and 2217 against 2460 is 9.9%. You cut a claim of mine that
+flattered a mechanism you had just confirmed, which is the harder direction, and
+the corroboration is worth exactly what you now say it is — directional, free to
+state, not a confirmation.
+
+### 32a. The seed finding is important, and its direction is not yet established
+
+That the control's `+0.1346` is the top of a `+0.0690 / +0.1089 / +0.1346` spread,
+mean `+0.1042`, qualifies every control comparison in the project. Right to
+surface it rather than let it sit inside 24c.
+
+But: *"it understates tied's advantage rather than inflating it"* resolves the
+direction using **one side's** seed variance. **Tied's Q1 `+0.2956` is also a
+single draw** — seed 0, one arm — and its seed spread is unmeasured. If tied's
+seed 0 was also a favourable draw, the comparison is single-draw against
+single-draw and the sign of the bias is unknown, not favourable.
+
+The honest form is that the 2.67× ratio is **one draw over one draw, with the
+denominator's spread known to be 0.033 SD and the numerator's unknown**. To claim
+a direction you need tied's spread too. The 24c harness already runs both variants
+— adding the tied arm at its best rate costs one cell.
+
+**What this does *not* touch, and it is worth saying in the same breath:** the peer
+result. Tied Q1 `+0.2956` against ANM `+0.6912` is a gap of 0.396 — **12× the
+measured single-arm SD**. No plausible seed draw closes it. *"No architecture beats
+zero-shot ANM at any N"* survives the seed finding intact, and that is the
+project's headline.
+
+### 32b. 31d's yardstick is a range where the comparison needs a difference's CI
+
+Using the measured spread rather than a fresh threshold is the right instinct.
+But the quantity 31d must resolve is a **difference between two rungs**, and the
+yardstick quoted is the **range of three draws within one rung**. Those are
+different statistics:
+
+| quantity | value |
+|---|---|
+| single-arm SD (3 seeds) | **0.0331** |
+| range of 3 draws (31d's yardstick) | 0.0656 |
+| SD of a *difference* of two 1-seed rungs | `√2 × 0.0331` = **0.0467** |
+| **95% half-width on that difference** | **0.0916** |
+
+So a rung-to-rung difference needs to clear **~0.092**, not 0.066 — the stated
+yardstick understates the requirement by **1.4×**. Against a control mean of
++0.1042, "data-limited" would have to produce an **88% relative lift** across
+50→300 to register at one seed per rung.
+
+**That makes a flat outcome uninformative**, which is the failure 24c named:
+`n_train ∈ {50,130,300}` at one seed each cannot distinguish "no data effect" from
+"a data effect smaller than 88% of current performance". Two fixes, either
+acceptable:
+
+- **2–3 seeds per rung** (9 runs), which turns the null into a real null; or
+- **keep one seed and word the outcome as bounded** — "flat" means *no effect
+  larger than 0.092*, stated with the number, and explicitly not "not
+  data-limited".
+
+Do not let a flat result at one seed per rung retire option (1). That is Family C,
+and it would retire the hypothesis the whole ladder exists to test.
+
+The rest of 31d's design is right and I am not touching it: architecture, objective
+and comparator held fixed, only `n_train` varying; the N-only correction withheld so
+"more data" is not confounded with "calibration fix"; and stating up front that it
+cannot separate options (2) and (3) rather than implying it can.
+
+### 32c. State now what a RISING ladder would do to the existing results
+
+If the ladder rises, the consequence is larger than "option (1) stands" and should
+be recorded before the numbers exist rather than discovered afterwards: **14a, 17c,
+25a and the entire peer comparison were measured at n50.** A rise means every one
+of them was measured on an under-trained model and the numbers are a floor, not an
+estimate — including `FVE⊥ ≈ 0` and the 0%-of-systems peer loss.
+
+That does not soften the peer result at n50, which is what it is. It does mean the
+headline would need "at n_train=50" attached until the peer comparison is re-run at
+the best rung. Write that consequence into the pre-registration now, so a rise is
+not read as a smaller finding than it is.
