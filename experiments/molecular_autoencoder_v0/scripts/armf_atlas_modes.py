@@ -148,11 +148,22 @@ if __name__ == "__main__":
         mdl, hist, used, stopped, improving = D.train(TR, HOt, b["dm"], b["lr"], "14b-retrain", 1,
                                                       dlat=b["dlat"])
         os.makedirs(D.CKPT, exist_ok=True); torch.save(mdl.state_dict(), cp)
+        # COMPARE LIKE WITH LIKE. `b["fve"]` is the mean over ALL held-out systems; what a re-run
+        # produces here is the mean over the 24 N-STRATIFIED TRACK systems, and those two differ
+        # SYSTEMATICALLY -- for the recorded DM=256 arms, 0.1453/0.1553/0.1497 over all 123 against
+        # 0.0969/0.0913/0.0958 over the 24, a consistent ~1.6x. The stratified sample deliberately
+        # over-weights the large end, so it is the harder set, not a noisier estimate of the same
+        # thing. Checking a re-run against `fve` would therefore report a divergence that is really
+        # a change of denominator -- the Family F shape (comparator computed on different data),
+        # committed against my own arm.
         got = float(np.mean([D.fve_model(mdl, x) for x in HOt]))
-        agree = ("consistent" if abs(got - b["fve"]) < 0.03 else
+        ref = b.get("best_track", float("nan"))
+        agree = ("consistent" if abs(got - ref) < 0.03 else
                  "*** DIVERGED -- treat this as a RE-RUN, not a reproduction of the recorded arm ***")
-        print(f"  re-trained: tracked FVE {got:+.4f} vs the recorded {b['fve']:+.4f} ({agree})",
-              flush=True)
+        print(f"  re-trained: tracked FVE {got:+.4f} vs the recorded arm's BEST TRACKED {ref:+.4f} "
+              f"on the same 24 systems ({agree})", flush=True)
+        print(f"  (the recorded arm's all-{b['nho']}-system FVE was {b['fve']:+.4f}; that is a "
+              f"DIFFERENT denominator and is not the comparison to make here)", flush=True)
         del TR
     mdl.eval()
 
