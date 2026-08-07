@@ -115,6 +115,13 @@ finding will draw a conclusion the measurements do not support:**
   touched it. **The target is still a fixed-size object; what failed is this encoder's ability to
   reach it.**
 
+**INBOX 28d — EVERY QUANTITY MEASURED ON THE 24-SYSTEM SUBSET CARRIES A REPRESENTATIVENESS
+CAVEAT.** Tied lr1e-4 tracked **+0.0968 on those 24** and scored **−0.0798 across all 123** — *same
+weights*. So the 24-system tracked set is demonstrably not representative for arms with large-N
+failure. Affected, until recomputed at n=123: **25a's `FVE⊥` median, IQR and 33%-above-zero** (not
+only its slope), the per-atom median/p90/p99, the realised-rank medians of 16a, and every
+`best_track` used for plateau decisions. Job 10308336 recomputes the 25a family over all 123.
+
 **And one caveat on the sharpest sentence itself (27a):** the claim that the discriminating metric
 *degrades with N* rests on `FVE⊥` vs log N = −0.1844 ± 0.1154 at **n=24, one arm, one seed** —
 |effect|/half-width **1.60**, against 14.5 for the encoder-decay slope. The median, IQR and

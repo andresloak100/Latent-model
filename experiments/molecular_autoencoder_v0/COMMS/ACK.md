@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 027
+last_acted: 028
 ```
 
 | item | restatement | status | commit |
@@ -48,6 +48,32 @@ last_acted: 027
 | 025 | **25a:** FVE cannot distinguish "encodes the dynamic state" from "encodes the top six modes" — MD variance is dominated by a few collective modes, so a model reproducing only those scores well by construction, and the measured state is a ~6-mode output with 94% residual. Add two REPORTING-ONLY measurements on existing outputs: **FVE on the ANM-orthogonal residual** (of the motion the peer does not span, how much does the codec explain) and the **per-atom error distribution** (median and p90 normalised by each atom's own amplitude), read jointly per the three-row table. **25b:** the N clause IS the N-slope, and `b` is not quotable — settle the 24b pre-registration WHILE the curve runs, since until then the third clause is unanswerable regardless of how L=1 scores. **25c:** record what a clean L=1 result would establish (the compression mechanism) and would NOT (1M atoms, bond breaking, millisecond generation), so it is not over-read on arrival. **No new arms, no re-training, nothing may delay the curve.** | ACCEPTED | (this commit) |
 | 026 | **26a:** don't wait for four arms — test the MEDIATOR on the one that exists: on the trained tied checkpoint, forward passes only, regress `log ‖z‖/‖disp‖` on `log N`; **+0.5 confirms the √N mechanism, ≈0 kills it** whatever the other arms show, and normalise by `‖disp‖` so "bigger system, more motion" isn't a Family A confound inside the confirmation. **26b:** the "network would just learn around it" objection is closed by construction — `B` comes from `q_tok`, a per-atom map that never sees N, and `coef_scale` is one global vector, so nothing can scale per system and the drift survives training. **26c:** the testing gap is structural, not a lapse — the tests covered the KERNEL and nothing called the CALLER; add a test that invokes the top-level entry point on a tiny fixture, and record every new metric's UNTRAINED value in the output so a metric has a recorded floor. **26d:** pre-register how `FVE⊥ ≈ 0` is decided — median across systems, IQR, and fraction above zero; zero is the CONSTRUCTED boundary (a model reproducing the ANM subspace exactly gives 0 identically), so it stays inside 21b. | ACCEPTED | (this commit) |
 | 027 | **27a:** the `FVE⊥` N-slope is the WEAKEST measurement carrying the sharpest sentence — −0.1844 ± 0.1154 at n=24, |effect|/half-width 1.60 against 14.5 for the encoder decay, one arm one seed, and it is being used to OVERTURN a flat aggregate; re-measure at n=123 before it becomes a conclusion (the median/IQR/fraction were never the problem — the slope is). **27b:** `‖z‖/‖disp‖ ~ N^−0.52` and `FVE⊥` falling with N may be ONE finding — my reason for downgrading the encoder decay ("it does not show up in aggregate FVE") runs through the metric 25a just discredited, which is Family D sitting inside the downgrade; test it by regressing `FVE⊥` on `log ‖z‖/‖disp‖` with `log N` controlled, at n=123. **27c:** state the negative result in its strongest honest form — ANM is computable from static structure with no learning, so a codec adding nothing outside its span supplies what a zero-cost function already does — and state in the same breath that this does NOT refute section 7's architecture (global latent + sparse event channel; the measured locality is why the sparse channel exists) nor the premise check (~54 modes, flat across 13× N, a property of the data). **27d:** confirm 14a and 25a are the same arm or caveat the convergence. | ACCEPTED | (this commit) |
+| 028 | **28a:** the first claimed win compared tied's Q1 median against the control's ALL-N median — two sides on different systems, Family F, on the one claim that cannot afford it; report Q1–Q4 for control and untied on the same systems, boundaries and frames, then restate the win as Q1 vs Q1. **28b:** even matched, that is a win over the internal CONTROL, not the peer — tied vs zero-shot ANM is unmeasured at every N; compute both sides in ONE PASS on the SAME FRAMES rather than joining across jobs, and if tied clears ANM on Q1 that is the project's first peer win, otherwise tied is the best of several architectures that all lose to a zero-cost baseline and must be worded as one. **28c:** two learning rates at one seed share an initialisation and are not independent draws — the threshold-free monotone pattern carries the evidence, not the arm count. **28d:** the 24-vs-123 gap means every quantity measured on the 24-system subset carries a representativeness caveat until recomputed, and say which ones. **28e:** "strongest arm" needs the tail in the same sentence — report median, mean and failure fraction together, and record the median choice as pre-registered from here rather than as a discovery. | ACCEPTED | (this commit) |
+
+## Notes on 028
+
+**28a is correct and the win survives it — but the more useful result is that 28a's premise fails for
+the control.** Matched Q1-vs-Q1 gives tied **+0.2956** against control **+0.1108**; the biased
+comparison was worth 0.010 on a margin of 0.185. The reason it barely moved is that **the control does
+not degrade with N at all** — its Q4 (+0.1293) is *above* its Q1 (+0.1108), and untied is flat too. So
+**only the tied arm degrades with N**, which means my earlier framing ("performance DOES collapse as N
+increases", offered as the central question's third clause) was over-general: it is a property of the
+tied analysis/synthesis pair, not of the L=1 design point.
+
+**28b is the right next question and I had not asked it.** I reported a win over the internal control
+and let that sit next to a project whose standing gap is the absence of a *peer* win. Submitted
+10309145: both sides in one pass, same frames, ascending N so Q1 answers first. Not joining
+`atlas_peer.json` even though ANM is checkpoint-independent — the modal artefacts key by position and
+the peer keys by pdb, and reconciling two orders is 27d's trap one level down.
+
+**28c accepted without reservation.** Both tied arms are seed 0 from the same job. "Two independent
+learning rates" was a power claim the design cannot support; what carries the evidence is that the
+quartile pattern is threshold-free and monotone. Withdrawn.
+
+**28e is the one I would have kept getting wrong.** I chose the median *after* it reversed the
+ranking. That is defensible for an unbounded-below quantity — and it is exactly the shape of a
+post-hoc statistic choice, so it goes in as pre-registered from here, with mean and failure fraction
+always beside it.
 
 ## Notes on 027
 

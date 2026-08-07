@@ -3079,7 +3079,49 @@ because it is a strong, unexplained, systematic N-dependence sitting inside the 
 unexplained. 26a was built to be decisive from one arm and it was — it just decided against the
 hypothesis it was built to test.
 
-### ⬛⬛ THE TIED ARM IS THE BEST ARCHITECTURE ON SMALL SYSTEMS AND COLLAPSES ON LARGE ONES
+### ⬛ CORRECTED (INBOX 28a): the claimed win compared tied's Q1 against the control's ALL-N median
+My sentence *"the tied arm is the first architecture measured that beats the control anywhere"* set
+tied's **Q1** median (+0.2956, 31 smallest) against the control's **overall** median (+0.1009, all
+123). Two sides on different systems — Family F, on the project's first claimed win.
+
+**Matched: same 123 systems, same quartile boundaries (1434 / 3249 / 7406), same frames.**
+
+| arm | Q1 | Q2 | Q3 | Q4 | overall |
+|---|---|---|---|---|---|
+| **tied 3e-5** | **+0.2956** | +0.2622 | +0.2030 | **−0.2791** | +0.1990 |
+| tied 1e-4 | +0.2670 | +0.2476 | +0.1876 | −0.3838 | +0.1876 |
+| **control 3e-4** | **+0.1108** | +0.1037 | +0.0794 | **+0.1293** | +0.1009 |
+| untied 3e-4 | +0.0875 | +0.0621 | +0.0567 | +0.0854 | +0.0662 |
+
+**The win survives: Q1 vs Q1, tied +0.2956 against control +0.1108.** The bias was worth **0.010** on
+a margin of 0.185.
+
+**And 28a's premise does not hold for the control, which is worth more than the correction.** The
+control does **not** degrade with N — its Q4 (+0.1293) is *above* its Q1 (+0.1108), and untied is flat
+too (+0.0875 → +0.0854). **Only the tied arm degrades with N.** So the N-collapse is a property of the
+tied analysis/synthesis pair, not of the L=1 design point in general — which the earlier framing
+("performance DOES collapse as N increases") did not distinguish.
+
+**INBOX 28c — correcting a power claim of mine.** I wrote "monotone decline crossing zero, at TWO
+independent learning rates". Both tied arms are **seed 0** from the same job, so they share an
+initialisation and are **not independent draws**. What carries the evidence is that the pattern is
+threshold-free and monotone across four quartiles, not the number of arms. The word "independent" is
+withdrawn.
+
+**INBOX 28e — the tail travels with the claim, every time.** Tied's worst system is **FVE −8.045**
+(a reconstruction nine times worse than predicting no motion) with **14%** of systems below −0.5.
+Best-on-the-typical-system *and* catastrophic on a seventh is **a different operating point, not a
+uniformly better model.** Median, mean and failure fraction are reported together from here, and the
+choice of median is **pre-registered from now on** rather than presented as a discovery — it was
+selected after it reversed the ranking, which is defensible for an unbounded-below quantity and must
+be recorded as such.
+
+**STILL A WIN OVER THE INTERNAL CONTROL, NOT THE PEER (INBOX 28b).** The peer is zero-shot ANM, and
+tied-vs-ANM is unmeasured at every N. Job **10309145** computes both sides in one pass on the same
+frames, ascending N so Q1 lands first. Until it reports, there is **no surviving peer-comparison win
+in this project**.
+
+### ⬛⬛ THE TIED ARM: BEST ON SMALL SYSTEMS, COLLAPSES ON LARGE ONES
 **And the mean was hiding it.** Arms have been ranked all night by mean per-system FVE — an
 **unbounded-below** quantity, so a handful of catastrophic systems dominates it:
 
