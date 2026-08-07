@@ -70,6 +70,48 @@ def spectra(path, joins, matchnf):
         out[f"j{J}_r"] = r90; out[f"j{J}_nf"] = nf
         out[f"j{J}_pct"] = float(r90 / max(nf - 1, 1))
         out[f"j{J}_rmsf"] = float(np.sqrt(ssq / (nf * N)))
+        # ---- INBOX 011 / Q2: b measured OUT OF SAMPLE, both ways ----
+        # rank90 above is IN-SAMPLE: the basis is fitted and scored on the same frames, which it
+        # explains optimally by construction. On ATLAS the in-sample rank90 modes cover a median
+        # 77.1% of held-out variance, not 90%, and the exponent roughly DOUBLES out of sample -- so an
+        # in-sample b is not the quantity the architecture question needs. And per 011 the
+        # out-of-sample count must be reported BOTH in the train basis's own ORDER (which charges the
+        # basis for ordering worse at large N) and ORDERING-FREE (which does not). The codec's decoder
+        # is learned and structure-conditioned, so it is not locked to a fixed component order the way
+        # a PCA basis is -- but it must also allocate ZERO-SHOT, without seeing the trajectory, so the
+        # ordering-free number is a LOWER bound on what it owes and the ordered one an UPPER bound.
+        if J < R:                                        # a replica remains to hold out
+            hoR = J                                      # first unused replica
+            M = np.zeros((F, nf)); ss_f = np.zeros(F)
+            mu = np.zeros(3 * N)
+            for c0 in range(0, 3 * N, 20000):
+                c1 = min(c0 + 20000, 3 * N)
+                X = np.concatenate([np.asarray(a[r]).reshape(F, -1)[:, c0:c1]
+                                    for r in range(J)], 0).astype(np.float64)
+                m = X.mean(0); X -= m
+                ho = np.asarray(a[hoR]).reshape(F, -1)[:, c0:c1].astype(np.float64) - m
+                M += ho @ X.T; ss_f += (ho * ho).sum(1)
+                del X, ho
+            wv, Uv = np.linalg.eigh(G); ov = np.argsort(wv)[::-1]
+            wv = np.clip(wv[ov], 0, None); Uv = Uv[:, ov]
+            nzv = int((wv > wv[0] * 1e-12).sum()); sv = np.sqrt(wv[:nzv])
+            Wt = M @ Uv[:, :nzv]
+            eh = (Wt * Wt).sum(0) / (sv ** 2)
+            sst = float(ss_f.sum())
+            cO = np.cumsum(eh) / (sst + 1e-12)           # TRAIN ORDER
+            hit = np.nonzero(cO >= 0.90)[0]
+            out[f"j{J}_rout"] = int(hit[0] + 1) if len(hit) else None
+            # ordering-free, CROSS-FIT on alternating ~300-frame blocks (tau_int ~600 of 2,501, so a
+            # contiguous split would put a slow drift entirely in one half)
+            idx = np.arange(F); blk = idx // 300
+            A_ = idx[blk % 2 == 0]; B_ = idx[blk % 2 == 1]
+            if len(A_) > 1 and len(B_) > 1:
+                eA = (Wt[A_] ** 2).sum(0) / (sv ** 2)
+                eB = (Wt[B_] ** 2).sum(0) / (sv ** 2)
+                cB = np.cumsum(eB[np.argsort(eA)[::-1]]) / (float(ss_f[B_].sum()) + 1e-12)
+                hb = np.nonzero(cB >= 0.90)[0]
+                out[f"j{J}_rsort"] = int(hb[0] + 1) if len(hb) else None
+            out[f"j{J}_holdout_rep"] = hoR
         # BUDGET-MATCHED inflation: same total frames, spread across J replicas vs taken from one.
         take = matchnf // J
         if take >= 8 and take <= F:
@@ -83,11 +125,16 @@ def spectra(path, joins, matchnf):
     return out
 
 
-def fit(rows, key, sub=None):
+def fit(rows, key, sub=None, which="r"):
     """log10(rank90) ~ b*log10(N) + c*log10(RMSF). Mobility control is mandatory: the naive
-    N-exponent is a mediated confound."""
-    A = [(r["N"], r[f"{key}_rmsf"], r[f"{key}_r"]) for r in rows
-         if f"{key}_r" in r and (sub is None or r["pdb"] in sub)]
+    N-exponent is a mediated confound.
+
+    `which` selects the rank90 variant: "r" in-sample, "rout" out-of-sample in TRAIN ORDER,
+    "rsort" out-of-sample ORDERING-FREE (cross-fit). All three are reported -- on ATLAS the
+    in-sample and out-of-sample exponents differ by roughly 2x, so an in-sample b answers a
+    different question from the one the architecture claim needs."""
+    A = [(r["N"], r[f"{key}_rmsf"], r[f"{key}_{which}"]) for r in rows
+         if r.get(f"{key}_{which}") and f"{key}_rmsf" in r and (sub is None or r["pdb"] in sub)]
     if len(A) < 8: return None
     A = np.array(A, float)
     X = np.column_stack([np.log10(A[:, 0]), np.log10(np.maximum(A[:, 1], 1e-6)), np.ones(len(A))])
@@ -142,9 +189,49 @@ if __name__ == "__main__":
         bb, hw = JF[pick]["b"], JF[pick]["bhw"]
         print(f"    b = {bb:+.4f} +/- {hw:.4f}   c = {JF[pick]['c']:+.4f} +/- {JF[pick]['chw']:.4f}   "
               f"R^2 {JF[pick]['r2']:.3f}   n={JF[pick]['n']}   N range {JF[pick]['nrange']:.2f} decades", flush=True)
+        # ---- Q2/011: the SAME fit on all three rank90 variants ----
+        print(f"\n  === b IN-SAMPLE vs OUT-OF-SAMPLE, ORDERED vs ORDERING-FREE (J={pick}) ===", flush=True)
+        print(f"  On ATLAS the in-sample and out-of-sample rank90 exponents differ by roughly 2x, so an")
+        print(f"  in-sample b answers a different question from the architecture claim. And per 011 the")
+        print(f"  out-of-sample count in TRAIN ORDER also charges the basis for ordering worse at large")
+        print(f"  N -- a defect the codec's learned, structure-conditioned decoder does not share.")
+        VB = {}
+        for wk, lab in (("r", "in-sample"), ("rout", "out-of-sample, TRAIN ORDER"),
+                        ("rsort", "out-of-sample, ORDERING-FREE (cross-fit)")):
+            fv = fit(rows, f"j{pick}", which=wk)
+            if not fv:
+                print(f"    {lab:44s}  n<8, not fitted", flush=True); continue
+            VB[wk] = fv
+            print(f"    {lab:44s}  b = {fv['b']:+.4f} +/- {fv['bhw']:.4f}   "
+                  f"c = {fv['c']:+.4f} +/- {fv['chw']:.4f}   R^2 {fv['r2']:.3f}   n={fv['n']}", flush=True)
+        if "rout" in VB and "rsort" in VB:
+            lo, hi = VB["rsort"]["b"], VB["rout"]["b"]
+            print(f"\n    THE INTERVAL THE CODEC OWES: [{min(lo,hi):+.4f}, {max(lo,hi):+.4f}].")
+            print(f"    ORDERING-FREE is a LOWER bound -- it grants a perfect ordering chosen with")
+            print(f"    knowledge of the held-out trajectory, which the codec must instead produce")
+            print(f"    ZERO-SHOT from structure alone. TRAIN ORDER is an UPPER bound -- it locks the")
+            print(f"    allocation to a fixed global component order the learned decoder is not bound")
+            print(f"    to. Neither endpoint may be quoted alone as 'the' exponent.", flush=True)
+        if "r" in VB and "rsort" in VB:
+            print(f"    in-sample -> ordering-free out-of-sample: {VB['r']['b']:+.4f} -> "
+                  f"{VB['rsort']['b']:+.4f} ({VB['rsort']['b']-VB['r']['b']:+.4f})", flush=True)
+        nA = sum(1 for r in rows if r.get(f"j{pick}_rout") is None and f"j{pick}_r" in r)
+        if nA:
+            NA = [r["N"] for r in rows if r.get(f"j{pick}_rout") is None and f"j{pick}_r" in r]
+            NK = [r["N"] for r in rows if r.get(f"j{pick}_rout")]
+            print(f"    FAMILY A: {nA} systems never reach 90% out of sample; dropped median N "
+                  f"{np.median(NA):.0f} vs kept {np.median(NK):.0f}"
+                  + ("   <-- DROPS AT HIGH N: every out-of-sample b above is biased LOW"
+                     if np.median(NA) > np.median(NK) else ""), flush=True)
+
         print(f"\n  === WIDTH CHAIN AT THE MEASURED b -- ALL VALUES ARE FLOORS ===", flush=True)
         for nm, v in (("lower CI", bb - hw), ("MEASURED", bb), ("upper CI", bb + hw)):
             sc = (1e6 / ANCHOR_N) ** v
+            if v <= 0:
+                print(f"    {nm:>9}  b={v:+.4f}  -> b <= 0: the chain is UNDEFINED here (a "
+                      f"non-positive exponent means dimensionality does not grow with N, so there "
+                      f"is no extrapolation to make). Not '0 dims'.", flush=True)
+                continue
             print(f"    {nm:>9}  b={v:+.4f}  N^b to 1e6 = {sc:>7.2f}  -> "
                   f">= {ASYMPTOTE/FLOPPY_TO_BOUND*sc:>7.0f} dims for a 1e6-atom bound complex "
                   f"(LOWER BOUND)", flush=True)
