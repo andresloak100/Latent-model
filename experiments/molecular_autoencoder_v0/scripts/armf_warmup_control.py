@@ -115,10 +115,28 @@ if __name__ == "__main__":
     D.maxsteps_for = orig_ms
 
     print(f"\n=== VERDICT ===", flush=True)
-    def bt(nm, lr_=LR):
-        return np.array([v["best_track"] for v in out.values()
+    def bt(nm, lr_=LR, field="best_track"):
+        return np.array([v[field] for v in out.values()
                          if v["proc"] == nm and v.get("lr", LR) == lr_], float)
     L, C, H = bt("LEGACY"), bt("CURRENT"), bt("HYBRID")
+    # REPORT BOTH METRICS, because they answer different questions and can disagree.
+    #   best_track = the PEAK of the tracking curve on the 24 stratified systems during training
+    #   full_fve   = the FINAL weights evaluated on ALL held-out systems
+    # The sweep SELECTS ITS WINNERS ON full_fve, so that is the metric the procedure decision must
+    # turn on; best_track is a property of the training curve's shape and two procedures can differ
+    # sharply there while landing in the same place. Deciding on best_track alone would optimise a
+    # diagnostic instead of the reported quantity.
+    Lf, Cf, Hf = bt("LEGACY", field="full_fve"), bt("CURRENT", field="full_fve"), bt("HYBRID", field="full_fve")
+    print(f"\n  METRIC 1 -- best_track (peak of the tracking curve, 24 stratified systems):")
+    for nm, v in (("LEGACY", L), ("CURRENT", C), ("HYBRID", H)):
+        if len(v): print(f"    {nm:>8}: mean {v.mean():+.4f}  n={len(v)}  spread {v.max()-v.min():.4f}")
+    print(f"  METRIC 2 -- full_fve (FINAL weights, ALL held-out systems) <- WHAT THE SWEEP SELECTS ON:")
+    for nm, v in (("LEGACY", Lf), ("CURRENT", Cf), ("HYBRID", Hf)):
+        if len(v): print(f"    {nm:>8}: mean {v.mean():+.4f}  n={len(v)}  spread {v.max()-v.min():.4f}")
+    if len(Lf) and len(Cf):
+        gf = Lf.mean() - Cf.mean(); wf = max(Lf.max()-Lf.min(), Cf.max()-Cf.min())
+        print(f"    LEGACY - CURRENT on full_fve = {gf:+.4f}, within-procedure seed spread {wf:.4f}"
+              f"  -> {'SEPARATED' if abs(gf) > wf else 'NOT SEPARATED by these seeds'}", flush=True)
     if not len(L) or not len(C):
         print("  incomplete."); raise SystemExit
     print(f"  LEGACY   best_track {L.mean():+.4f}  (n={len(L)}, spread {L.max()-L.min():.4f})")
