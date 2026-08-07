@@ -87,10 +87,9 @@ Workspace `$WR` = `/network/scratch/j/jacob-junqi.tian/latent-model-workspace`. 
 
 | job | what it tests | output | state |
 |---|---|---|---|
-| **10306611** `atlas_dm` | DM sweep + 005 bottleneck at L=1. Network sweep DM {16,64,256,512} × LR **{3e-5,1e-4,3e-4,1e-3,3e-3}** × n_train **{50,130,300,600}**; then the bottleneck (d_model fixed, DM_latent {16,64,128,256,512}); then L=12/24 addressing diagnostics, same-DM and capacity-matched. | `$WR/atlas_dm.json` (accumulates, re-runnable, completed arms skipped) · `atlasdm_10306611.log` | RUNNING, `long` + `--requeue`, 20 h |
-| **10306590** `atlas_b` | **Q2.** b on ATLAS, replicas as the join unit: join sweep, p90 selection, threshold sweep as diagnostic-not-exclusion, mobility control, conservation of n. Fits **all three** rank90 variants per INBOX 011. | `$WR/atlas_b.json` · `atlasb_10306590.log` | RUNNING, `long-cpu`, 16 h |
-| **10306553** `r90_insample` | **INBOX 011.** rank90 three ways (in-sample · out-of-sample train-order · out-of-sample ordering-free cross-fit) plus the ordering penalty vs N. Supersedes the `b ≥ 0.93` framing, which was counted in train order. | `$WR/atlas_rank90_insample.json` (v1 archived `..._v1_ordered_only.json`) · `r90in_10306553.log` | RUNNING, `long-cpu` |
-| **10306540** `tica_vs_n` | **Q1 / INBOX 007–008.** Does SLOW-mode dimensionality grow with N, or is it flat in N the way it is flat in time? Definition identical to `armf_slowness.py:54`; lag swept on training systems only; in-sample and out-of-sample; bases 100 and 400. | `$WR/atlas_tica_vs_n.json` · `ticaN_10306540.log` | RUNNING, `long-cpu`, 12 h |
+| **10306831** `atlas_dm` | DM sweep + 005 bottleneck + **013b criterion-1-vs-N** + **12b identity ablation**, at L=1. LR {3e-5…3e-3} with **1,000-step warmup** and an lr-scaled step budget; ladder {50,130,300,600}. Checkpoints each arm so criterion-1 scoring never re-trains. | `$WR/atlas_dm.json` · `$WR/atlas_dm_criterion1.json` · `$WR/atlas_dm_ckpt/` · `atlasdm_10306831.log` | QUEUED, `long` + `--requeue`, 20 h |
+| **10306738** `tica_vs_n` | **Q1 re-run with the TRUNCATION-MATCHED CONTROL** and the 13a stopping rule. Reports only the matched-*m* difference `exponent(TICA\|m) − exponent(PCA\|m)`; **no absolute exponent**. Closes 007 as unanswerable if n_eff per TICA dimension < 2.0. | `$WR/atlas_tica_vs_n.json` (v1 archived `..._v1_nocontrol.json`) · `ticaN_10306738.log` | QUEUED, `long-cpu`, 12 h |
+| **10306590** `atlas_b` | **Q2.** b on ATLAS, replicas as the join unit; fits all three rank90 variants per INBOX 011. | `$WR/atlas_b.json` · `atlasb_10306590.log` | RUNNING ~1 h, ~50/841 systems |
 
 **THE CACHE IS COMPLETE** — `10301859` finished in 6:27:23. **841 systems, 263 GB, train pool 697/700,
 held-out 123/125.** The full `n_train` ladder {50,130,300,600} is runnable; it no longer gates anything.
@@ -111,6 +110,8 @@ the restart 006 asks for.** Nothing warns you. A fresh session must recreate it 
 quiet until a human nudges it.
 
 **Restart guidance (INBOX 006):** a natural pause is after the DM sweep's `n_train=130` arms land.
+**13 arms from earlier `atlas_dm` runs persist in `atlas_dm.json` and are skipped on re-run** — a
+restart of that job costs only the in-flight arm, never the finished ones.
 All four jobs survive a restart.
 
 ---
