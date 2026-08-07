@@ -2915,6 +2915,25 @@ more trustworthy than a barely-significant null because it is the answer we want
 **DM=512 has no matched peer column** (ladder capped at k=256 on ANM cost) and this is printed, not
 silent. It does not hide the winner: DM=512's best is +0.1427, below DM=256's +0.1553.
 
+### ⬛ REALISED RANK AND BASIS QUALITY ARE SEPARABLE (INBOX 23d) — a finding in its own right
+Holding across the **whole LR sweep** of the modal `untied` arms, against a procedure-matched control
+trained in the same job:
+
+| | control (attention) | modal untied |
+|---|---|---|
+| participation ratio | ~15–20 / 256 | **43–69 / 256** |
+| identity share | 64–92% | **24%** |
+| held-out FVE | **+0.1346** | +0.0974 / +0.0996 |
+
+**More latent capacity used, far less identity carried, consistently worse reconstruction.** Three
+quantities, no chosen constants, same direction across an LR sweep — it passes 21b's threshold-free
+test, and it holds independently of whether the modal form eventually wins.
+
+**Two consequences.** (1) **Optimising realised rank does not deliver basis quality**; they are
+separable, so a design that widens rank is not thereby better. (2) It **retires the 012b identity
+share as a *cause* of the gap**: identity fell from ~90% to 24% and reconstruction got *worse*. The
+wasted-capacity reading was reasonable and is now measured to be not the binding problem.
+
 ### ⬛ 17c: THE GAP IS 65% BASIS QUALITY, 35% MODE COUNT — SO 015 ADDRESSES THE SMALLER HALF
 At matched rank **r = 6** (the codec's own realised rank, read from `atlas_modes.json`), same systems:
 

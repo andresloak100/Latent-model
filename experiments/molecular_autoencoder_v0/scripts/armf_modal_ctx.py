@@ -111,6 +111,80 @@ def receptive_field(d, k=KNN, hops=2):
     return r, r * hops
 
 
+
+def diameter(d, kind="2Rg"):
+    """Structure extent in ANGSTROMS. `kind` is stated in the output, never left implicit:
+      2Rg  -- twice the radius of gyration; robust, defined for every system
+      maxd -- max pairwise reference distance on a subsample; the true extent, noisier
+    INBOX 23a: absolute reach is the wrong axis. The same 21 A covers most of a 598-atom domain and a
+    fifth of a 33,377-atom one, so what determines whether message passing can express a COLLECTIVE
+    mode is reach RELATIVE TO THE STRUCTURE'S OWN EXTENT."""
+    ref = d["ref"]
+    if kind == "2Rg":
+        c = ref.mean(0)
+        return float(2.0 * np.sqrt(((ref - c) ** 2).sum(1).mean()))
+    sel = ref[np.linspace(0, len(ref) - 1, min(len(ref), 1500)).astype(int)]
+    from scipy.spatial.distance import pdist
+    return float(pdist(sel).max())
+
+
+def coverage_report(rows, HO, hop_radius, log=print):
+    """INBOX 23a/23b: regress BASIS QUALITY on reach/diameter, not on N.
+
+    This is what converts the ctx sweep from a hyperparameter search into a MECHANISM TEST. Without
+    the coverage column, a stall at any ctx is the same ambiguity one rung further along."""
+    try:
+        pj = json.load(open(f"{WR}/atlas_peer.json")).get("sys", {})
+    except Exception:
+        log("  23a: atlas_peer.json unavailable -- basis quality needs the PCA curves. Sequenced, "
+            "not skipped."); return
+    def pca_at(pdb, k):
+        cs = pj.get(pdb, {}).get("pca_out_cs")
+        return float(cs[min(int(k), len(cs)) - 1]) if cs else None
+    diam = {d["pdb"]: diameter(d, "2Rg") for d in HO}
+    log(f"\n=== 23a: BASIS QUALITY vs REACH/DIAMETER (diameter = 2*Rg, stated) ===")
+    log(f"  structure 2*Rg spans {min(diam.values()):.0f}-{max(diam.values()):.0f} A over "
+        f"{len(diam)} held-out systems")
+    log(f"    {'ctx':>5}{'reach A':>9}{'cov med':>9}{'cov range':>14}{'r':>7}"
+        f"{'slope(bq~cov)':>16}{'slope(bq~logN)':>17}{'partial cov':>14}")
+    for r in sorted(rows, key=lambda z: (z["ctx"], -z["fve"])):
+        if r.get("_reported"): continue
+        rr = r.get("realised_rank")
+        if not rr: continue
+        r["_reported"] = True
+        reach = hop_radius * r["ctx"]
+        bq, cov, lgn = [], [], []
+        for pdb, n, f in zip([d["pdb"] for d in HO], r["Ns"], r["per"]):
+            p_ = pca_at(pdb, rr)
+            if p_ is None: continue
+            bq.append(f - p_); cov.append(reach / diam[pdb]); lgn.append(np.log10(n))
+        if len(bq) < 10: continue
+        bq = np.array(bq); cov = np.array(cov); lgn = np.array(lgn)
+        s1 = stats.linregress(cov, bq); h1 = stats.t.ppf(0.975, len(bq) - 2) * s1.stderr
+        s2 = stats.linregress(lgn, bq); h2 = stats.t.ppf(0.975, len(bq) - 2) * s2.stderr
+        # PARTIAL: does coverage survive controlling for N? (23b's third branch)
+        X = np.column_stack([np.ones_like(cov), cov, lgn])
+        beta, *_ = np.linalg.lstsq(X, bq, rcond=None)
+        res = bq - X @ beta
+        s2e = float(res @ res) / max(len(bq) - 3, 1)
+        se = np.sqrt(np.clip(np.diag(s2e * np.linalg.pinv(X.T @ X)), 0, None))
+        hp = stats.t.ppf(0.975, max(len(bq) - 3, 1)) * se[1]
+        log(f"    {r['ctx']:>5}{reach:>9.1f}{np.median(cov):>9.2f}"
+            f"{f'{cov.min():.2f}-{cov.max():.2f}':>14}{rr:>7.0f}"
+            f"{s1.slope:>+11.4f}+/-{h1:.4f}{s2.slope:>+12.4f}+/-{h2:.4f}"
+            f"{beta[1]:>+9.4f}+/-{hp:.4f}")
+    log(f"  READ (INBOX 23b): basis quality tracking coverage, with N adding nothing once coverage is")
+    log(f"  controlled => THE RECEPTIVE FIELD IS THE MECHANISM, and rung 2 (nonlocality without")
+    log(f"  depth) is the evidence-directed step. Flat in coverage while still below ANM at matched")
+    log(f"  rank => reach is NOT the constraint and rung 2 would treat the wrong cause. Tracking N")
+    log(f"  even after controlling for coverage => a size effect independent of receptive field,")
+    log(f"  which is a third finding and must not be folded into either.")
+    log(f"  INBOX 23c: spanning a 120 A structure at {hop_radius:.1f} A per hop needs ~{120/hop_radius:.0f}")
+    log(f"  layers, which over-smoothing makes unusable long before it is affordable. So a stall at")
+    log(f"  LOW coverage is STRUCTURAL, not a disappointment -- the informative quantity is the")
+    log(f"  CROSSOVER, and that is the number rung 2 has to beat.")
+
+
 if __name__ == "__main__":
     print(f"[modal-ctx] INBOX 22a RUNG 1: does message passing buy the nonlocal coupling ANM has? "
           f"ctx_layers {CTX}, k={KNN}, DM={DM}, n_train={NTR}, LR grid {LRS}", flush=True)
@@ -187,6 +261,30 @@ if __name__ == "__main__":
                 D.Codec = orig
 
     if not rows: raise SystemExit
+    # realised rank per arm (INBOX 17b convention, imported so it cannot drift)
+    try:
+        import armf_atlas_modes as M
+        SUB = [HO[i] for i in np.linspace(0, len(HO) - 1, min(16, len(HO))).astype(int)]
+        for r in rows:
+            if r.get("realised_rank") or r["improving"]: continue
+            cp = f"{CKPT}/ctx{r['ctx']}_lr{r['lr']:g}_s{SEED}.pt"
+            if not os.path.exists(cp): continue
+            D.Codec = (lambda c: (lambda Fs, L, dm, dlat=None, sub_z0=False:
+                                  GraphModalCodec(Fs, L, dm, dlat=dlat, sub_z0=sub_z0,
+                                                  ctx_layers=c, tie_encoder=False)))(r["ctx"])
+            m2 = D.Codec(HO[0]["stat"].shape[1], 1, DM).to(dev); D.Codec = orig
+            m2.load_state_dict(torch.load(cp, map_location=dev)); m2.eval()
+            rk = []
+            for d in SUB:
+                try: rk.append(M.mode_table(m2, d)["rank90_out"])
+                except Exception: pass
+            if rk: r["realised_rank"] = float(np.median(rk))
+        json.dump(rows, open(RES, "w"))
+    except Exception as e:
+        print(f"  realised-rank scoring FAILED: {type(e).__name__}: {e}", flush=True)
+    hop_r = float(np.median([receptive_field(d, KNN, 1)[0] for d in HOt[:8]]))
+    coverage_report(rows, HO, hop_r)
+
     print(f"\n=== RUNG 1 SUMMARY (best LR per ctx) ===", flush=True)
     print(f"    {'ctx':>5}{'bestLR':>9}{'FVE':>9}{'PR':>8}{'ident':>8}{'eff-modes':>11}"
           f"{'basis-off':>11}", flush=True)
