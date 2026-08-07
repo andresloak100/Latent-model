@@ -1393,3 +1393,85 @@ a hold takes effect on a *running* job — is better than the cancel-and-resubmi
 I asked for, and cancelling 10306831 because it held the old code in memory is
 the correct application of your own objection. Seven redone arms is the right
 price; they were unstamped and the 18a gate would have invalidated them anyway.
+
+---
+
+## 022 — Peer loss recorded. The nonlocality escalation, with a rung between 015 and ANM.
+
+The comparison this project exists to make is now in an output, and it is a
+loss: **codec below ANM at every width, on 0% of systems, at matched capacity,
+reaching 19% of a per-system oracle.** ANM on 123/123 held-out systems with
+41/41 in each tercile — no Family A exclusion, which was the specific risk of
+putting a peer at the top of the range. Record it as the project's first
+measured peer comparison and as a loss, without softening.
+
+**And 015 addresses the smaller half.** You flagged that risk in the 017 ACK
+before anything was measured, 18c turned it into a number, and the number is
+65% basis quality / 35% mode count — conservative, since 20c's attribution
+upper-bounds the mode-count term. **ANM-6 beats the codec at matched rank six.**
+Holding the number of directions fixed, a physics-derived zero-shot basis beats
+the learned one. My proposal was correctly sized before it ran, which is the
+whole point of having sized it.
+
+The first modal arms confirm the decomposition cleanly: PR 69.1/256 and identity
+24% against the control's PR ~15–20 and identity 64–92% — **it uses far more of
+the latent, carries far less identity, and scores worse.** More directions, worse
+ones. That is a genuinely useful result: it decouples rank from quality
+empirically, and it means widening rank alone is not a path.
+
+### 22a. The escalation ladder — three rungs, not two
+
+Your diagnosis is right and pre-registered: ANM's basis is **nonlocal** (a
+Hessian coupling neighbours within 5 Å, whose low modes span the whole
+structure), while `ModalCodec` at `ctx_layers=0` builds `B_i` from atom *i*'s own
+element and reference position alone. But there is a rung between "more message
+passing" and "put ANM in the model," and it matters because two or three k-NN
+hops give a receptive field of ~10–15 Å — still local, while the modes that
+matter are global.
+
+**Rung 1 — `ctx_layers` ∈ {2, 4}.** Can message passing learn nonlocal coupling
+at all? Report realised rank, basis quality at matched rank, and receptive field
+(hops × mean k-NN radius) so the reach is stated rather than assumed.
+
+**Rung 2 — Laplacian eigenvector positional encoding.** If rung 1 stalls, give
+the basis network the low eigenvectors of the **k-NN graph Laplacian** as extra
+per-atom static features. This is the standard graph positional encoding
+(Laplacian eigenmaps, as used in graph transformers) — a cheap, general,
+geometry-only descriptor that is nonlocal **by construction**, requiring no
+elastic-network interpretation and no force field.
+
+State the honest overlap rather than hiding it: the graph Laplacian of a
+distance-cutoff graph *is* the Kirchhoff matrix, so these are GNM modes by
+another name. The distinction that keeps this from being "ANM inside the model"
+is real but narrow — it is the **scalar** version, supplied as *input features*
+the network may use, weight or ignore, not a fixed basis the output is confined
+to. Say so in the writeup; do not let it read as more independent than it is.
+
+**Rung 3 — only if both stall.** Then the finding is that a learned
+structure→basis map does not reach a physics-derived one at matched rank on this
+data, and *that* is the result to report. Do not drift into optimising ANM
+variants; that is the loop 004b exists to prevent.
+
+Sweep the LR at every rung (Family E). Report each rung against the same 17c
+decomposition so "did it fix basis quality or only rank?" is answered per rung
+rather than at the end.
+
+### 22b. The positive gap slope is the right metric — and it is weak
+
+`+0.0514 ± 0.0464` per decade is the **ceiling-free** quantity, it shares a
+denominator with its comparator so an N-dependent ceiling cancels, and it is the
+only measurement currently pointing the right way. It is also a CI of roughly
+[0.005, 0.098] — **barely excluding zero**, in 5 of 7 arms.
+
+Apply the same discipline in this direction. A barely-significant positive is
+not more trustworthy than a barely-significant null just because it is the
+answer we want. Report it as **suggestive, with the range it still permits**, and
+note it amounts to ~+0.09 over the measured range against a −0.52 gap. It is the
+right quantity to track and it is not yet a result.
+
+### 22c. Both halves in front of every FVE-vs-N statement
+
+From here, any statement about flatness in N carries: **codec at 19% of oracle,
+losing to the zero-shot peer on 0% of systems, with 65% of the gap in basis
+quality.** A flat slope on a model this far from achievable is consistent with
+uniform weakness, and that context is now measured rather than asserted.
