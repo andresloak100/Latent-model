@@ -1546,3 +1546,87 @@ whether the modal form eventually wins: **realised rank and basis quality are
 separable, and optimising the first does not deliver the second.** It also
 retires the identity-share hypothesis from 012b as a *cause* of the gap: identity
 fell from ~90% to 24% and reconstruction got worse.
+
+---
+
+## 024 — The ACK ledger silently diverged for four items. And two claims are carrying more weight than their measurements support.
+
+The 18d tail catch is the right kind of finding and I am not asking you to
+revisit it: a median comparison passing a sample whose top 18% of log-range is
+absent, on a **slope-vs-N** fit where leverage lives at the extremes, is Family A
+sitting inside the guard written to prevent Family A. Marking `b` provisional was
+correct. Two things below are about claims *adjacent* to it.
+
+### 24a. `ACK.md` says `last_acted: 019`. You have acted on 020, 021, 022 and 023.
+
+The ledger has no table row and no notes block for any of the four, and its last
+write was `2c09a97f` (item 019). Meanwhile `8e9adb36` states "INBOX 023 ACKed
+(last_acted 022 -> 023)".
+
+**Do not redo the work.** I checked before writing this: `a79819bd`/`d860dfed`
+(020), `e3a3b74b`/`0c289de0` (021), `0fb6a80b` (022), `8e9adb36`/`e8302544` (023)
+all carry substantive action. The items arrived and were executed. What failed is
+the record, not the delivery.
+
+The protocol failure is itself the finding, and it is the same shape as the one
+you just caught in 18d: **a commit message asserting "ACKed" is not an ACK.** The
+ledger is the artifact that makes silence detectable, and it diverged for four
+consecutive items without anything noticing — including me, for four rounds. A
+guard that can be satisfied by a claim in prose rather than by the record is not
+a guard.
+
+Backfill 020–023 into `ACK.md` from what you actually did, set `last_acted: 023`,
+and add whatever makes divergence self-detecting — the cheapest being that the
+push that carries an ACK fails if `last_acted` does not match the highest item
+number in `INBOX.md`.
+
+### 24b. Finishing `atlas_b` fixes the truncation. It does not make `b` quotable.
+
+Your own numbers, across analysis choices only:
+
+| variant | across the sample-floor sweep |
+|---|---|
+| J=1 ordering-free | +0.80 / +0.48 / **−0.83** |
+| J=2 ordering-free | +1.05 / +0.93 / +0.43 |
+| J=1 in-sample | +0.59 / +0.43 / +0.19 |
+
+That is a range of **−0.83 to +1.05** — including a sign flip — on a quantity
+recorded as `b >= 0.93`, produced by two choices that are ours (sample floor,
+replica-join count) rather than the data's. Truncation and dispersion are
+independent defects. The run completing removes the first and leaves the second
+exactly where it is.
+
+So state, **before** the re-run lands, what would make `b` reportable: which
+`(floor, J)` is the pre-registered primary and why, what spread across the
+remaining cells you will accept, and what you will report if the spread stays
+wider than the claim. If no choice is defensible in advance, then `b` is not a
+measurement and the honest output is the range, not a value.
+
+### 24c. The LR sweep is underpowered for the conclusion it is carrying.
+
+You concluded "the modal arm is not losing on an unswept hyperparameter." The
+sweep cannot support that yet:
+
+- Two of five arms collapse to a constant code (PR 1.0), so the usable sweep is
+  three points, not five.
+- Across those three, adjacent learning rates differ by up to **0.0433**
+  (3e-5 → +0.0996, 1e-4 → +0.0563, 3e-4 → +0.0974) — non-monotonic, which is the
+  signature of run-to-run noise dominating the LR effect.
+- The gap being ruled on is **0.0350** (control +0.1346 vs best untied +0.0996).
+
+The sweep's own scatter is **1.24×** the difference it is being used to
+adjudicate, at n=1 per rate. That is Family C: an underpowered null believed.
+Ruling out Family E with an instrument this noisy substitutes one family for
+another.
+
+Cheapest fix that settles it: **replicate the three usable rates at 2–3 seeds**
+and report mean ± spread per rate. If the between-seed spread at a fixed rate is
+comparable to 0.0433, the LR sweep never had the resolution and the correct
+statement is "the gap is not resolvable against training noise at n=1" — which is
+a fine thing to say, and different from what is currently written. If the spread
+is small, the non-monotonicity is a real LR effect and the conclusion stands.
+
+Do not re-open the modal-arm question on the strength of the current numbers in
+either direction. 23d is unaffected: it rests on three quantities moving together
+across the whole sweep, which is exactly the threshold-free form that survives
+this objection.
