@@ -811,3 +811,98 @@ Deliberately not sweeping m to find a basis where TICA works is the right call
 and the reason 007 is unanswerable rather than imprecise. Record that
 distinction explicitly — "not measurable with these trajectory lengths" is a
 finding; "we did not find a good m" would not be.
+
+---
+
+## 015 — A modal decoder, written and unit-tested. Run it as an arm.
+
+`scripts/armf_modal_decoder.py` is pushed alongside this item. It is
+interface-compatible with `armf_atlas_dm.Codec` — same constructor signature,
+same `encode`/`decode`/`z0`/`code`/`forward` contract — so it drops in as an
+ablation arm on identical data, splits and guards. **Not a replacement.**
+
+### Why this shape, from your own measurements
+
+Your decoder reaches the atoms as
+`h = LN(q + a) * (1 + g) + b; disp = out(h + dff(h))`. At L=1 the
+cross-attention has one key, so `a` is the **same vector for every atom**. The
+latent therefore arrives through exactly three global objects — `a`, `g`, `b` —
+modulating a shared nonlinearity of `q_i`, and `a` is added immediately before a
+LayerNorm, which compresses the very component the latent contributes.
+
+Three measured facts point at that shape:
+
+1. **86–91% of latent variance encodes which system** (012b). Nothing prevents
+   it: `a`, `g`, `b` are free to carry identity, and identity is *useful* to a
+   decoder inferring per-atom behaviour from a generic nonlinearity.
+2. **PR ≈ 15 at every width** — 10.8 at DM=16, ~15–17 at DM=256. Extra width is
+   not becoming extra conformational content.
+3. **FVE ≈ 0.155 against per-system PCA-16 ≈ 0.53.** PCA's advantage is not
+   depth. A displacement field *is* a linear combination of modes; PCA
+   represents that exactly, and this decoder has to discover it through a
+   nonlinearity.
+
+### The change
+
+    B_i = basis(q_i)  in R^{3 x d}     # per-atom modes, from structure alone
+    disp_i = B_i @ z                   # linear in z
+
+- **Identity cannot occupy the code.** Everything system-specific lives in `B`,
+  computed from the reference structure the decoder already has. `z` is
+  dimensionally unable to say which protein this is. This is the architectural
+  form of your 012b subtraction, and it is *exact* rather than first-order.
+- **It generalises the baselines instead of competing with them.** ANM fixes `B`
+  from the Hessian; per-system PCA fits `B` to the target's own trajectory. This
+  learns `B` from structure — more expressive than ANM, zero-shot unlike PCA.
+- **L=1 is native.** One token of width `d` is exactly `d` coefficients on a
+  `d`-dimensional learned basis. No attention degeneracy to work around.
+
+### What I verified locally (torch 2.13 CPU, in the file's test)
+
+| check | result |
+|---|---|
+| all four variants forward + backward, shapes correct | pass |
+| `decode` exactly linear in `z` (superposition) | max err 1.4e-6 |
+| untied encoder identity offset `‖z0‖` | **2.60** — the leak, reproduced at random init |
+| tied encoder `‖z0‖` | **exactly 0.00** — architecturally impossible |
+| fit a synthetic rank-8 modal field at `dlat=8` | FVE **0.933** |
+| basis conditioning | off-diagonal 0.16, 6 effective modes of 8 |
+
+**Scope of that last one, stated honestly:** the rank-8 target uses a random
+per-atom basis unrelated to `stat`, so the network is memorising a mapping over
+300 distinguishable atoms. It is a **capacity** test — the bilinear form can
+represent an arbitrary modal field — not a generalisation test. Generalisation
+is what your experiment measures.
+
+### The risk, on record before the result
+
+**Collective modes are nonlocal.** `q_tok` is a per-atom map, so a basis built
+from it alone can only express modes that are functions of an atom's own
+attributes. If the modal arm underperforms, the first hypothesis is **not** that
+bilinearity is wrong — it is that the basis network cannot see enough structure.
+`ctx_layers > 0` adds k-NN message passing so `B_i` depends on a neighbourhood;
+the repo already caches k-NN pairs in `precompute_graph_features.py`. Escalate
+that before abandoning the form.
+
+### How to run it
+
+Two arms at the DM sweep's best configuration, against the current decoder as
+control, same seed and LR grid (Family E — the optimal LR will differ; a bilinear
+decoder is a different optimisation problem, and an unswept LR here would repeat
+the DM=256 collapse):
+
+1. `ModalCodec(..., tie_encoder=False)` — modal decoder, attention encoder
+2. `ModalCodec(..., tie_encoder=True)` — analysis/synthesis pair, `z0 ≡ 0`
+
+Report the usual columns plus the two decoder-side diagnostics the file
+provides. `effective_modes()` is worth particular attention: it is the
+**architecture's** rank, not a per-system PCA fit, so it is subject to neither
+the in-sample bias nor the n_eff limit that made rank90 a floor. If it saturates
+well below `dlat`, the token is over-provisioned regardless of what the training
+curve says.
+
+**UNTESTED ON REAL DATA and written without cluster access.** Dry-run the whole
+`__main__` path before submitting, per your own rule that a smoke test calling
+functions directly never executes `__main__`. If it disagrees with anything in
+`armf_atlas_dm.py`'s conventions, your conventions win — I matched them from the
+committed source, not from a running system.
