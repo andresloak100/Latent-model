@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 025
+last_acted: 026
 ```
 
 | item | restatement | status | commit |
@@ -46,6 +46,32 @@ last_acted: 025
 | 023 | **23a:** absolute reach is the wrong axis — report structure diameter (stating which definition), `reach/diameter`, and basis quality at matched rank, then regress basis quality on `reach/diameter`, NOT on N. **23b:** that converts the ctx sweep from a hyperparameter search into a MECHANISM TEST with three distinct readings. **23c:** expect rung 1 to stall at low coverage — spanning 120 Å at 2.6 Å/hop needs ~46 layers — so a stall there is STRUCTURAL and the informative quantity is the CROSSOVER. **23d:** record the rank/quality decoupling as a finding in its own right. | ACCEPTED | `8e9adb36` |
 | 024 | **24a:** `ACK.md` silently diverged for four consecutive items — backfill 020–023, fix `last_acted`, and add a mechanism that makes divergence self-detecting; the delivery was fine, the RECORD failed, and a commit message asserting "ACKed" is not an ACK. **24b:** finishing `atlas_b` removes the truncation but not the DISPERSION — pre-register, before the re-run lands, which `(floor, J)` is primary and why, what spread across remaining cells is acceptable, and what to report if it stays wider than the claim; if no choice is defensible in advance, `b` is not a measurement and the honest output is the range. **24c:** the LR sweep is underpowered for "not losing on an unswept hyperparameter" — 3 usable rates, adjacent-rate scatter 0.0433 against a 0.0350 gap at n=1, which is Family C; replicate at 2–3 seeds and report mean ± spread per rate. | ACCEPTED | (this commit) |
 | 025 | **25a:** FVE cannot distinguish "encodes the dynamic state" from "encodes the top six modes" — MD variance is dominated by a few collective modes, so a model reproducing only those scores well by construction, and the measured state is a ~6-mode output with 94% residual. Add two REPORTING-ONLY measurements on existing outputs: **FVE on the ANM-orthogonal residual** (of the motion the peer does not span, how much does the codec explain) and the **per-atom error distribution** (median and p90 normalised by each atom's own amplitude), read jointly per the three-row table. **25b:** the N clause IS the N-slope, and `b` is not quotable — settle the 24b pre-registration WHILE the curve runs, since until then the third clause is unanswerable regardless of how L=1 scores. **25c:** record what a clean L=1 result would establish (the compression mechanism) and would NOT (1M atoms, bond breaking, millisecond generation), so it is not over-read on arrival. **No new arms, no re-training, nothing may delay the curve.** | ACCEPTED | (this commit) |
+| 026 | **26a:** don't wait for four arms — test the MEDIATOR on the one that exists: on the trained tied checkpoint, forward passes only, regress `log ‖z‖/‖disp‖` on `log N`; **+0.5 confirms the √N mechanism, ≈0 kills it** whatever the other arms show, and normalise by `‖disp‖` so "bigger system, more motion" isn't a Family A confound inside the confirmation. **26b:** the "network would just learn around it" objection is closed by construction — `B` comes from `q_tok`, a per-atom map that never sees N, and `coef_scale` is one global vector, so nothing can scale per system and the drift survives training. **26c:** the testing gap is structural, not a lapse — the tests covered the KERNEL and nothing called the CALLER; add a test that invokes the top-level entry point on a tiny fixture, and record every new metric's UNTRAINED value in the output so a metric has a recorded floor. **26d:** pre-register how `FVE⊥ ≈ 0` is decided — median across systems, IQR, and fraction above zero; zero is the CONSTRUCTED boundary (a model reproducing the ANM subspace exactly gives 0 identically), so it stays inside 21b. | ACCEPTED | (this commit) |
+
+## Notes on 026
+
+**26a is the right move and it reframes what I was doing.** I was treating the −0.65 slope as
+needing *replication*; 26a points out that replication tests whether the **slope** reproduces, while
+the mediator tests whether the **stated cause exists** — and only the second is answerable from one
+arm. That is the same substitution as 23a (regress on `reach/diameter`, not on N), which I made there
+and did not think to make here.
+
+**Submitted as 10307921, with a control the item did not ask for.** The regression also runs on the
+**untied** and **control** checkpoints, which have no such normaliser. A mechanism that is not
+*specific* is not established: if all three arms drift at +0.5, the tied normaliser cannot be the
+cause even when the tied number matches its prediction. The verdict block refuses the diagnosis in
+that case.
+
+**26c implemented as `armf_smoke.py`, and its claim is verified rather than asserted.** I
+re-introduced the shadowing bug into a copy and ran the suite: `modes FAIL … TypeError: 'float'
+object is not iterable`, then restored and it passes. The `modal_ctx` entry runs at **B=8, N=3000**
+and reports that the old path would have needed **37 GB** — i.e. it is at a size where the historical
+OOM would have fired. So both failures are demonstrably covered, not merely believed to be.
+
+**26d implemented, and the reason it stays inside 21b is worth restating:** zero is not a chosen
+threshold here. A model that reproduces the ANM subspace exactly and nothing else gives `FVE⊥ = 0`
+*identically*, so the boundary is constructed by the definition rather than picked. Reported as
+median, IQR and fraction above zero across 123 systems.
 
 ## Notes on 025
 

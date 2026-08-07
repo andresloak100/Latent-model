@@ -313,6 +313,11 @@ if __name__ == "__main__":
     print(f"  FVE on the ANM-ORTHOGONAL RESIDUAL: of the motion the zero-shot peer does NOT span,")
     print(f"  how much does the codec explain? Aggregate FVE cannot answer this -- a model that")
     print(f"  reproduces only the top collective modes scores well on it by construction.", flush=True)
+    print(f"  INBOX 26d: '~ 0' is decided as a DISTRIBUTION, not a point -- median, IQR and the")
+    print(f"  fraction of systems above zero. ZERO IS THE CONSTRUCTED BOUNDARY, not a chosen")
+    print(f"  threshold: a model reproducing the ANM subspace exactly and nothing else gives")
+    print(f"  FVE_perp = 0 identically. So this stays inside 21b's threshold-free requirement.",
+          flush=True)
     for kk_ in ANM_K:
         v = np.array([r[f"fve_perp_anm{kk_}"] for r in out if f"fve_perp_anm{kk_}" in r
                       and np.isfinite(r[f"fve_perp_anm{kk_}"])], float)
@@ -323,8 +328,11 @@ if __name__ == "__main__":
                                 and np.isfinite(r[f"fve_perp_anm{kk_}"])], float))
         sl, h = regress(Nv, v)
         print(f"    ANM-{kk_} spans {100*np.median(sh):.0f}% of the motion; on the REMAINDER the codec")
-        print(f"      FVE_perp median {np.median(v):+.4f}  mean {v.mean():+.4f}  "
-              f"[{v.min():+.3f}, {v.max():+.3f}]  positive on {100*np.mean(v > 0):.0f}% of systems")
+        q1, q3 = np.percentile(v, [25, 75])
+        print(f"      FVE_perp median {np.median(v):+.4f}   IQR [{q1:+.4f}, {q3:+.4f}]   "
+              f"range [{v.min():+.3f}, {v.max():+.3f}]")
+        print(f"      ABOVE ZERO on {100*np.mean(v > 0):.0f}% of {len(v)} systems"
+              f"   (n>0 = {int((v > 0).sum())})")
         print(f"      vs log10(N): {sl:+.4f} +/- {h:.4f}", flush=True)
 
     print(f"\n=== 25a-2: PER-ATOM ERROR, NORMALISED BY EACH ATOM'S OWN AMPLITUDE ===", flush=True)
@@ -335,6 +343,21 @@ if __name__ == "__main__":
           f"p99 atom {np.median(p99):.3f}   (1.0 = error equals the atom's own motion)")
     print(f"  tail width p90/median: {np.median(p9/pm):.2f}x -- a mean would have hidden this",
           flush=True)
+
+    # INBOX 26c: a metric with no recorded FLOOR invites reading a small positive value as a result.
+    # The untrained value is computed here, on ONE system, and printed beside the trained numbers.
+    try:
+        m0 = D.Codec(HO[0]["stat"].shape[1], 1, b["dm"], dlat=b["dlat"]).to(dev); m0.eval()
+        r0 = mode_table(m0, HO[len(HO) // 2])
+        print(f"\n  [26c NULL] same metrics on an UNTRAINED model, {r0['pdb']}: "
+              f"FVE_perp(ANM-{ANM_K[0]}) {r0.get(f'fve_perp_anm{ANM_K[0]}', float('nan')):+.3f}   "
+              f"per-atom med {r0['peratom_med']:.3f} p90 {r0['peratom_p90']:.3f}   "
+              f"realised rank90 {r0['rank90_out']}", flush=True)
+        print(f"  [26c NULL] an untrained decoder SHOULD sit well below zero on FVE_perp and above "
+              f"1.0 per-atom; that is the floor the trained numbers are read against.", flush=True)
+        del m0
+    except Exception as e:
+        print(f"  [26c NULL] untrained reference FAILED: {type(e).__name__}: {e}", flush=True)
 
     print(f"\n=== 25a JOINT READING (pre-registered in INBOX 025) ===", flush=True)
     k0 = ANM_K[0]
