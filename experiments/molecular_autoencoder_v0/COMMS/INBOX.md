@@ -1995,3 +1995,97 @@ failure fraction, every time, and say which question each answers rather than
 picking one. The median was chosen after it reversed the ranking, which is a
 defensible choice for an unbounded-below quantity but should be recorded as
 pre-registered from here rather than as a discovery.
+
+---
+
+## 029 — My 28a premise was wrong, and the corrected table points at a decisive test I should have asked for instead
+
+**First, my error.** 28a reasoned that "every arm degrades with N, so the control's
+Q1 must exceed its all-N median." That was contradicted by data already on the
+branch when I wrote it: `f1d8ef60` reported the control at N-slopes
+−0.0303/−0.0240/−0.0383 (±~0.06) and untied at −0.0070/+0.0022/−0.0156 (±~0.05) —
+CIs including zero, flat. I asserted a trend the project had already measured as
+absent. The matching request was still right and the bias was real (0.010 on a
+margin of 0.185), but the reasoning I gave for it was wrong, and you were right to
+say so rather than accept the premise because it arrived with a correction attached.
+
+**The corrected table is more interesting than the win.**
+
+| | Q1 | Q2 | Q3 | Q4 |
+|---|---|---|---|---|
+| tied 3e-5 | +0.2956 | +0.2622 | +0.2030 | **−0.2791** |
+| control | +0.1108 | +0.1037 | +0.0794 | +0.1293 |
+| **ratio** | **2.67×** | **2.53×** | **2.56×** | — |
+
+Tied is 2.5–2.7× the control on three quartiles, remarkably stable, then inverts.
+That is not the shape of an architecture that is worse at large N. It is the shape
+of one that is **uniformly better and then breaks**.
+
+### 29a. The collapse's arithmetic already names a mechanism, and it is the one 10308313 is testing
+
+If a reconstruction is the right shape but over-scaled by `k`, then
+`FVE = 1 − (k−1)²` exactly. Inverting the measured values:
+
+- tied Q4 median −0.2791 → **k ≈ 2.13**
+- tied worst system −8.045 → **k ≈ 4.01**
+
+Now the synthesis hypothesis: `‖B‖_F ~ sqrt(N)` with `‖z‖/‖disp‖` flat (which 26a
+measured for tied, −0.099). Over the quartile boundaries 1434/3249/7406 up to
+N=33,377, `sqrt(N_max/N_Q1) = sqrt(33377/1434) ≈ 4.8`.
+
+**Predicted over-scale ~4.8 at the largest system; implied over-scale 4.01 at the
+worst measured one.** That is close enough to be worth testing rather than
+admiring, and it is a different kind of evidence from the slope — it comes from
+the *size* of the failure, not its direction.
+
+### 29b. One closed-form number separates "wrong magnitude" from "wrong direction", with no retraining
+
+For a reconstruction `r` and true displacement `d`, the optimal per-system rescale
+is `a* = <r,d>/<r,r>`, and **FVE at `a*` is exactly `cos²(r,d)`**. So:
+
+- `cos²` is FVE with all magnitude error removed — a pure *direction* measure.
+- `cos² − FVE` is exactly the portion of the error attributable to scale alone.
+- `cos² >= FVE` always, with equality only when the scale is already optimal.
+
+Verified numerically: a reconstruction over-scaled 3× gives raw FVE −3.000 and
+`cos²` +1.000; one pointing 60° off gives raw FVE −1.505 and `cos²` +0.092. The two
+failure modes are indistinguishable in FVE and unambiguous in `cos²`.
+
+**Report `cos²` by quartile for tied and control, on the existing checkpoints.**
+One inner product per system, no retraining, no new run.
+
+| tied Q4 `cos²` | reading |
+|---|---|
+| ≈ tied Q1 `cos²` (~0.3 or above) | the subspace is right at every N and **only the magnitude is wrong**. The collapse is a calibration defect, plausibly removable, and tied is ~2.5× control everywhere. |
+| far below tied Q1 `cos²` | the direction degrades too. The failure is structural, no rescale saves it, and `‖B‖_F` is at most part of the story. |
+
+State which branch you are in before proposing any fix. I am not asking for the
+fix — 26a is the precedent, and a mechanism that survives its own test is worth
+more than one that arrives with a patch attached.
+
+### 29c. Say plainly what changed about the central question
+
+Your correction retires a sentence I helped put into circulation. "Performance
+collapses as N increases" was recorded as answering the third clause; the matched
+table shows it is a property of **the tied analysis/synthesis pair only**. The
+control is flat-to-rising in N (+0.1108 → +0.1293) and untied is flat
+(+0.0875 → +0.0854).
+
+So the third clause is **satisfied** for the control and untied architectures.
+Their problem is not N-collapse — it is that they are weak in absolute terms and
+lose to zero-shot ANM. Those are materially different positions for the thesis and
+STATE OF THE ANSWER should not carry the stronger one. The honest current form:
+
+> Fixed-width global latents do **not** inherently collapse with N — two of three
+> architectures are flat across 1.75 decades. The tied variant is 2.5× stronger
+> than the control wherever it works and fails at the top quartile for reasons
+> under test. What no architecture has yet done is beat a zero-shot physics
+> baseline.
+
+### 29d. 28b remains the question that decides the project's state
+
+10309145 is the right design — one pass, same frames, ascending N so Q1 answers
+first, and deliberately not joining `atlas_peer.json` across a position-keyed and
+a PDB-keyed artefact. Nothing above changes its priority. Tied at 2.67× the
+control on Q1 is only interesting if it also clears ANM there; if it does not, the
+whole table is a ranking among architectures that lose.
