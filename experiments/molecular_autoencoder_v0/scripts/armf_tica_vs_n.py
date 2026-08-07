@@ -135,6 +135,21 @@ def measure(path, tau, m_req):
     lam_tr, V, _ = tica_train(Ytr, reps, tau, m)
     if lam_tr is None: return None
     lam_ho = tica_holdout(Yho, V, tau, m)
+    # ---- TRUNCATION-MATCHED CONTROL (the control this whole comparison needs) ----
+    # TICA is computed inside an m-dimensional PCA basis; rank90 is not truncated at all. So
+    # "slow-mode dimensionality is flatter in N than variance dimensionality" could be nothing but a
+    # TRUNCATION effect -- any count confined to m components is bounded by m and its N-slope is
+    # compressed toward zero. The only way to tell is to measure VARIANCE dimensionality inside the
+    # SAME m-dimensional basis and compare like with like:
+    #   pca_dim_in_m  ~ TICA's exponent  => the flatness is TRUNCATION, and says nothing about slowness
+    #   pca_dim_in_m  >> TICA's exponent => the flatness is SLOWNESS, which is the 007 claim
+    wtr = (Ytr[:, :m] ** 2).sum(0)
+    c = np.cumsum(wtr) / (wtr.sum() + 1e-12)
+    pdi = int(np.searchsorted(c, FRAC) + 1)
+    who = (Yho[:, :m] ** 2).sum(0)
+    ws = np.sort(who)[::-1]
+    c2 = np.cumsum(ws) / (ws.sum() + 1e-12)
+    pdo = int(np.searchsorted(c2, FRAC) + 1)
     # TWO out-of-sample readings, because they answer different questions and the dry run showed the
     # first alone pins against the basis (87% of m) and would report a CEILING as a flat slope:
     #   dim_out       -- train ORDER kept. Ordering-sensitive: if the train TICs generalise in the
@@ -145,6 +160,7 @@ def measure(path, tau, m_req):
     # different defect from slow dynamics being high-dimensional -- and only the second bears on the
     # architecture question.
     return dict(N=N, F=F, nz=nz, m=m, tau=tau,
+                pca_dim_in_m=pdi, pca_dim_out_m=pdo,
                 dim_in=_dim(lam_tr),
                 dim_out=(_dim(lam_ho) if lam_ho is not None else None),
                 dim_out_sorted=(_dim(np.sort(lam_ho)[::-1]) if lam_ho is not None else None),
@@ -255,10 +271,26 @@ if __name__ == "__main__":
         # the exponents
         print(f"  vs rank90 out-of-sample b = +{RANK90_OUT:.4f} +/- 0.2220 (itself a LOWER bound):",
               flush=True)
+        pdi = np.array([r.get("pca_dim_in_m") or np.nan for r in R], float)
+        pdo = np.array([r.get("pca_dim_out_m") or np.nan for r in R], float)
         for nm, v in (("TICA dim in-sample", di), ("TICA dim OUT (train order)", do),
-                      ("TICA dim OUT (sorted)", ds)):
+                      ("TICA dim OUT (sorted)", ds),
+                      ("PCA dim in SAME basis", pdi), ("PCA dim OUT in SAME basis", pdo)):
             g = np.isfinite(v)
             if g.sum() >= 3: reg(x[g], np.log10(v[g]), nm, ref=RANK90_OUT)
+        gi = np.isfinite(di) & np.isfinite(pdi)
+        if gi.sum() >= 3:
+            st_, _ = stats.linregress(x[gi], np.log10(di[gi]))[:2]
+            sp_, _ = stats.linregress(x[gi], np.log10(pdi[gi]))[:2]
+            print(f"  TRUNCATION CONTROL: at basis {m_req}, VARIANCE dimensionality inside the SAME "
+                  f"basis grows at {sp_:+.4f} while SLOWNESS grows at {st_:+.4f}.", flush=True)
+            if abs(sp_) < 2 * abs(st_) + 0.02:
+                print(f"    => BOTH are flattened by the truncation. The TICA flatness is a "
+                      f"TRUNCATION artifact and says NOTHING about slowness. Family D.", flush=True)
+            else:
+                print(f"    => variance dimensionality is {abs(sp_)/max(abs(st_),1e-9):.1f}x steeper "
+                      f"than slowness IN THE SAME BASIS, so the flatness is SLOWNESS, not "
+                      f"truncation. That is the 007 claim, controlled.", flush=True)
 
     # ---------- verdict on the canonical basis, using the pre-registered rule ----------
     R = [r for r in rows if r["m_req"] == TICA_BASIS]

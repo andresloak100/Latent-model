@@ -2674,3 +2674,62 @@ struck through in place. Live code marked at the point of use: `armf_atlas_b.py`
 - `armf_slowness.md` claimed the TICA result "licenses sizing DM from rank90/TICA". **The SIZING half
   is retired; the TIME half stands.** Flat-in-time was never flat-in-N, and TICA-dim vs atom count
   was never measured until job 10306540 -- the distinction the writeup silently elided.
+
+## INBOX 011 ANSWERED: THE ORDERING HYPOTHESIS IS REFUTED (job 10306553, n=123)
+011 proposed that part of rank90's near-linear out-of-sample growth might be the train basis
+**ordering** worse at large N rather than held-out content being higher-dimensional, and that if so
+the physics argument for a fixed width would be partially rehabilitated. **Measured, it is not.**
+
+| quantity | median | exponent in N |
+|---|---|---|
+| rank90_in | 138 | +0.4657 +/- 0.2158 |
+| rank90_out, TRAIN ORDER | 426 | **+0.9285 +/- 0.2220** |
+| rank90_out, ORDERING-FREE (cross-fit) | 382 | **+0.9429 +/- 0.2306** |
+| ORDERING PENALTY (ordered/sorted) | **1.03x** | **-0.0145 +/- 0.0195** (CI spans 0) |
+
+The ordering penalty is **3%**, it does **not** grow with N, and the ordering-free exponent is
+**slightly HIGHER** than the ordered one, not lower. Sorting on the evaluation data inflates by only
+2% (naive/cross-fit 1.02x), so the cross-fit was worth doing and changes nothing.
+**The growth is real dimensionality. The fixed-width argument stays retired, and `b >= 0.93` stands
+on the ordering-free number as well as the ordered one.**
+
+## Q1 FIRST RESULT AND ITS OWN CONTROL: THE FLATNESS WAS TRUNCATION, NOT SLOWNESS
+Job 10306540 (n=123, tau=20 chosen on TRAINING systems) returned TICA exponents far below rank90's:
+`+0.0089 +/- 0.0041` (in-sample, basis 400) up to `+0.1162 +/- 0.0130` (in-sample, basis 100), every
+variant at every basis EXCLUDING rank90's `+0.9285`. Read naively that is the 007 result: slow
+dynamics nearly flat in N while variance dimensionality grows near-linearly.
+
+**It does not survive the control, and the control had to be built because TICA is computed inside an
+m-dimensional PCA basis while rank90 is not truncated at all.** Any count confined to m components is
+bounded by m, so its N-slope is compressed toward zero *whatever* it weights by. Measuring VARIANCE
+dimensionality inside the SAME basis (n=14 spanning the full N range, m=100):
+
+| quantity | exponent in N |
+|---|---|
+| TICA dim, in-sample | +0.0903 +/- 0.0200 |
+| **PCA dim, SAME basis, in-sample** | **-0.0580 +/- 0.2891** |
+| TICA dim, out-of-sample sorted | +0.0061 +/- 0.0191 |
+| **PCA dim, SAME basis, out-of-sample** | **+0.0291 +/- 0.1525** |
+
+**Variance dimensionality inside the truncated basis is ALSO flat.** So "TICA +0.06 vs rank90 +0.94"
+compared a truncated count against an untruncated one -- apples to oranges, and a **FAMILY D** error
+if reported: the measurement is structurally unable to express growth beyond m.
+
+Three further reasons the raw TICA number cannot carry the claim, all measured:
+- **The dimension TRACKS THE BASIS**: median 41 of 100 and 164 of 400 -- exactly 41% both times. It
+  is not an absolute dimensionality, which is the pathology `armf_slowness.py` documented and why it
+  fixed the basis at 100.
+- **The exponent MOVES 13x with the basis** (+0.1162 at m=100 vs +0.0089 at m=400, in-sample), which
+  is direct evidence the number is a property of the truncation.
+- **n_eff per TICA dimension is 0.81, below 1.0 in 103/123 systems** at basis 400 -- TICA fits more
+  dimensions than it has independent samples, exactly the Family B failure 007 warned of. (007 asked
+  for this statistic explicitly and my first implementation did not report it.)
+
+The verdict block WITHHELD a verdict on censoring grounds, which was the right instinct for a
+slightly wrong reason: **no system is pinned at the cap** (max 364 of 400), so the >60%-of-basis flag
+was a conservative proxy. The real defect is the truncation compressing the slope for every system.
+
+**Re-running with the truncation-matched control at n=123 (job 10306738).** The controlled quantity
+is TICA-vs-PCA *within the same basis*; only if variance dimensionality is materially steeper than
+slowness dimensionality IN THAT BASIS does 007's claim hold. **No 007 verdict may be quoted until
+that lands.**
