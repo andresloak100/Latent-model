@@ -2600,3 +2600,58 @@ warns FVE would reward.
 Reporting rule enforced in the code: **FRACTIONS PER DISCRIMINATOR, never a mean across them.** A mean
 would let a catastrophic kinetic failure hide behind three passing distributional checks -- precisely
 the case the harness exists to catch.
+
+## FIRST REAL DM-SWEEP ARMS (job 10305995, n_train=50, L=1) -- GUARDS FIRST
+
+**GUARDS, before any number is quoted.** 11 arms completed at n_train=50. Of those:
+- **2 VOID (Family D, still improving at MAXSTEPS):** DM=16 lr=3e-4, DM=256 lr=3e-3.
+- **4 COLLAPSED to a constant code (PR = 1.0-3.3, FVE ~= 0):** DM=64 lr=3e-3, DM=256 lr=1e-3,
+  DM=256 lr=3e-3, DM=512 lr=3e-4.
+- **5 VALID:** DM=16 lr=1e-3/3e-3, DM=64 lr=3e-4/1e-3, DM=256 lr=3e-4 (x3 seeds).
+
+### THE LR SWEEP WAS NOT OPTIONAL -- it changes the conclusion at every width
+| DM | best LR | FVE at best | FVE at 1e-3 | FVE at 3e-3 |
+|---|---|---|---|---|
+| 16 | 3e-3 | +0.1185 | +0.1143 | +0.1185 |
+| 64 | 3e-4 | +0.1068 | +0.0986 | **+0.0000 (collapsed)** |
+| 256 | 3e-4 | **+0.1553** | **-0.0001 (collapsed)** | **-0.0004 (collapsed)** |
+| 512 | -- | **collapsed at 3e-4, the grid FLOOR** | -- | -- |
+
+**The optimal LR falls monotonically with width, and the mdCATH collapse is explained.** DM=256 does
+not collapse because 256 dimensions cannot be trained; it collapses **at the wrong learning rate**.
+With lr=3e-4 it is the BEST arm. Had the LR not been swept, this run would have reproduced the
+mdCATH conclusion -- "the wide arms collapse" -- and it would have been an artifact both times.
+**FAMILY E, caught by the control built to catch it.**
+
+**AND THE SAME ERROR WAS STILL LIVE AT THE TOP.** DM=512 collapsed at **3e-4, the floor of my grid**,
+so the widest arm was losing on an unswept hyperparameter rather than on capacity -- the grid simply
+did not extend far enough. Floor lowered to **3e-5** and the sweep resubmitted (job 10306611). Cost
+controlled by running the full grid only at the cheapest n_train and transferring the winner plus one
+lower neighbour up the ladder.
+
+### SEED REPRODUCIBILITY (control 5) -- the valid wide arm is stable
+DM=256, lr=3e-4, three seeds: **+0.1453 / +0.1553 / +0.1497** (spread 0.0100), PR 15.6 / 14.9 / 16.7.
+**Collapse rate 0/3 at the right LR**, against 2/2 at the wrong one. A one-seed collapse would have
+been an anecdote; this is a rate.
+
+### PRELIMINARY, AND THE MOST INTERESTING NUMBER SO FAR: PR DOES NOT GROW WITH DM
+| DM | PR (conformational, cross-fit, within-system centred) | PR/DM |
+|---|---|---|
+| 16 | 10.8 | 68% |
+| 64 | 16.2 | 25% |
+| 256 | 15.6 / 14.9 / 16.7 | 6-7% |
+
+**The code uses ~15 effective conformational dimensions regardless of how wide the token is.** PR is
+not censored here (n_obs ~1,845 >> 2xDM=512 at DM=256), and it is measured on within-system-centred
+latents, so it counts conformational directions and not system identity. If this survives the wider
+LR grid and the n_train ladder, **the latent saturates far below DM** -- which is what the 005
+bottleneck arm exists to confirm independently.
+**Identity share is 86-91% at DM=256**: most latent variance encodes WHICH system, not how it moves.
+
+### THE HEADLINE QUESTION, PRELIMINARY: FVE-vs-N IS FLAT
+Across N = 598-33,377 (1.75 decades), evaluated on 123 UNSEEN systems, the valid arms give slopes
+**-0.0139 +/- 0.0593, -0.0152 +/- 0.0566, -0.0143 +/- 0.0547** (DM=256, three seeds) and
+**-0.0055 +/- 0.0433** (DM=16). Consistently slightly negative, **every CI spanning zero**.
+**SCOPE: n_train=50 only, and absolute FVE is ~0.15 -- low. A flat slope on a weak model is a much
+weaker claim than a flat slope on a strong one, and the ladder must land before this is read as
+"the codec holds flat with N".**

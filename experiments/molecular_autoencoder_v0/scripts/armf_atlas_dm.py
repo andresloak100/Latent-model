@@ -58,7 +58,16 @@ from armf_atlas_data import AtlasStore, sysdata, ho_frames, train_frames
 WR = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace"
 MAN = f"{WR}/atlas_manifest.json"; RES = f"{WR}/atlas_dm.json"
 DMS = [16, 64, 256, 512]
-LRS = [3e-4, 1e-3, 3e-3]
+# FAMILY E, WIDENED AFTER MEASUREMENT. The first run showed the optimal LR falling steadily with
+# width -- best 3e-3 at DM=16, 3e-4 at DM=64 and DM=256, and DM=512 COLLAPSED (FVE ~0, PR 1.0) at
+# 3e-4, the floor of the original grid. So the top arm was losing on an unswept hyperparameter rather
+# than on capacity: precisely the error the sweep exists to prevent, with the grid simply not
+# extending far enough. The floor is now 3e-5.
+# COST CONTROL, stated so it is not mistaken for a full factorial: the FULL grid runs only at the
+# CHEAPEST n_train. Larger n_train inherit the winning LR from the previous rung plus one lower
+# neighbour, which is a hyperparameter tuned on the cheap arm and transferred with a check that it is
+# still optimal -- not an assumption that it transfers.
+LRS = [3e-5, 1e-4, 3e-4, 1e-3, 3e-3]
 # INBOX 003: L=1 IS THE ARCHITECTURE, not one option in a sweep. One latent token per frame
 # regardless of whether the system has 1e3, 3e4 or 1e6 atoms; DM is the ONLY capacity knob.
 # L=12/24 are DEMOTED TO DIAGNOSTICS -- they exist solely to localise any degradation with N:
@@ -337,7 +346,17 @@ if __name__ == "__main__":
         TR = [x for x in (sysdata(store, have[p]) for p in tr_ids[:n]) if x is not None]
         print(f"\n=== n_train={n} ({len(TR)} loaded) -- L={L_PRIMARY} IS THE DESIGN POINT ===", flush=True)
         for dm in DMS:
-            for lr in LRS:                                   # CONTROL 2: no arm loses on the LR
+            if n == NT[0]:
+                grid = LRS                                   # full sweep on the cheapest rung
+            else:
+                prev = [r for r in rows if r["L"] == L_PRIMARY and r["dm"] == dm
+                        and r["arch"] == "network" and r["n_train"] < n and not r["improving"]]
+                if prev:
+                    bl = max(prev, key=lambda r: r["fve"])["lr"]
+                    grid = sorted({bl, max(LRS[0], bl / 3.0)})   # winner + one lower neighbour
+                else:
+                    grid = LRS
+            for lr in grid:                                  # CONTROL 2: no arm loses on the LR
                 run(TR, n, dm, lr, L_PRIMARY)
             # CONTROL 5 (seeds). The wide arms are the ones that collapsed on mdCATH, and a one-seed
             # collapse is not evidence ABOUT DM -- it is one draw. Repeat the winning LR at extra
