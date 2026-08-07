@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 010
+last_acted: 011
 ```
 
 | item | restatement | status | commit |
@@ -22,6 +22,35 @@ last_acted: 010
 | 008 | 007 is CPU-only, needs no training, and is gated by neither 10305995 nor the cache reaching 825, since the 371 cached systems already span the full N range where the slope's leverage lives — so submit it in parallel now rather than waiting. It is the higher-value of the two, because it reframes what the DM sweep's curve means before its first arm lands. | ACCEPTED | (this commit) |
 | 009 | Never end a turn with unacted INBOX items, and when the inbox is empty fall through to the STANDING QUEUE (Q1 TICA-dim vs N · Q2 b on ATLAS · Q3 criterion-1 harness built and smoke-tested before it is needed · Q4 finish the rank90 audit in the files themselves · Q5 re-run the DM sweep as the cache grows · Q6 verify the handoff) rather than stopping. Only stop when the queue is exhausted and every job is finished-and-reported or genuinely blocked, and then say exactly what would unblock me. Submit long jobs and keep working while they run. | ACCEPTED | (this commit) |
 | 010 | Check whether I can schedule my own wake-ups and, if so, set a 20–30 minute recurring prompt that pulls, works the inbox, falls through to the standing queue, and checks squeue; report the mechanism and interval, or say plainly that I cannot. | ACCEPTED | (this commit) |
+
+| 011 | The two-way TICA reading applies retroactively to b: `rank90_out` was counted in TRAIN ORDER, so `b ≥ 0.93` conflates the train basis ordering worse at large N with held-out content being genuinely higher-dimensional. Re-measure rank90 three ways — in-sample, out-of-sample ordered, out-of-sample sorted by held-out variance — report all three exponents with CIs plus the ordering gap as its own quantity vs N, and cross-fit the sorted variant (order on one half of held-out frames, evaluate on the other) since sorting on the evaluation data is a selection that can only flatter it. The ordering-free number is the architecture-relevant one, because a fixed PCA basis is locked to its order while the codec's learned structure-conditioned decoder is not. | ACCEPTED | (this commit) |
+
+## Notes on 011 — you are right, and I had the defect in front of me
+
+I introduced the ordered/sorted split for TICA *in the same turn* and did not carry it back to the
+number it invalidates. `rank90_out` accumulates `e_ho` in the train basis's own order, so
+`b ≥ 0.93` charges the basis for its ordering as well as for dimensionality. Re-measurement submitted
+as **job 10306553**; the previous results file is archived rather than overwritten, since the schema
+changed and every row needs recomputation.
+
+**The cross-fit caught a real bug in my first implementation.** I pro-rated the held-out denominator
+across the two halves (`sst_ho × |B|/F`), which assumes displacement energy is uniform across frames.
+It is not, and the error showed up as the cross-fit number looking *better* than the naive one —
+backwards, since a selection over the evaluation data can only flatter. Now the per-frame energy is
+accumulated during the chunked pass so each half gets its **exact** denominator. With that fixed, on
+8 systems: cross-fit ≈ naive (0.99×), so the selection inflation is negligible, and the ordering
+penalty is **1.08×**, not the 1.20× the pro-rated version reported. A denominator that looked
+harmless was manufacturing a fifth of the effect.
+
+**On which number the architecture claim rests — I agree, with one boundary worth stating.** The
+ordering-free number is the right one for the reason you give: a fixed PCA basis is locked to its
+order, the codec's decoder is learned and structure-conditioned and can allocate the token's
+dimensions per system. But the codec's ordering freedom is *not unlimited* — it must produce that
+allocation **zero-shot from structure alone**, having never seen the system. `rank90_out_sorted`
+grants a perfect oracle ordering chosen with knowledge of the held-out trajectory. So the sorted
+exponent is a **lower bound** on what the codec owes and the ordered one is an **upper bound**; the
+truth is between, and neither should be quoted alone. I will report it that way rather than replacing
+one point estimate with another.
 
 ## Notes on 010 — I CAN, with one caveat that matters
 
