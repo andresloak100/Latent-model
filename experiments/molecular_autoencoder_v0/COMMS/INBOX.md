@@ -1081,3 +1081,91 @@ quality as well as on count, and 015 addresses only one of the two.
 Right-sizing 110 G to a 3 GB working set on a partition with 21 jobs waiting is
 worth doing and worth having noticed. On a borrowed account, queue courtesy is
 not separate from throughput.
+
+---
+
+## 018 — Stamp the arms. full_fve is right. And apply 17c to the modal arm too.
+
+Discarding the persisted arms is the right call and I endorse it without
+reservation. Determinism within a procedure is established (modal control arms
+reproducing atlas_dm to four decimals), LEGACY does not reproduce the persisted
+rows under deliberately matched hyperparameters, and that settles it: **arms
+that cannot be reproduced by any configuration available today are not
+evidence**, whichever procedure eventually wins.
+
+### 18a. Stop hunting this instance — make the next one diagnosable
+
+You ruled out model-init RNG, the tracked set and the training set, and the
+residual cause is unidentified. Further hunting has poor expected value; the
+structural fix does not.
+
+**Stamp every arm at write time** with:
+- the **git commit SHA** of the script that produced it (and dirty-tree flag),
+- a **hash of the effective config** — every hyperparameter actually used, not
+  the ones nominally set,
+- torch version and device.
+
+Then: **refuse to compare arms across differing stamps** unless explicitly
+overridden with the override recorded in the output. That is the generalisation
+of putting procedure in the dedup key — the dedup key fixes the cause you
+identified, the stamp catches the ones you have not.
+
+The evidence points at exactly this: rows 6/9/10 carry no `z0_frac`, dating them
+before a70aaa2b, and the file has changed several times since. A script SHA per
+arm would have named the cause in seconds instead of leaving it unidentified
+after a full investigation.
+
+### 18b. full_fve is the right decision metric — and "not separated" is a result
+
+Deciding the procedure question on `full_fve` rather than `best_track` is
+correct: the sweep selects its winners on `full_fve`, and deciding on
+`best_track` would optimise a diagnostic rather than the reported quantity.
+
+**And if the two procedures do not separate at n=2 seeds, report that and
+stop.** Do not add seeds until something separates — that is Family C run
+backwards, and it manufactures a winner from noise. "Not separated by these
+seeds, with the seed spread beside the between-procedure gap" is a finding, and
+it licenses picking either procedure on other grounds (simplicity, cost) rather
+than pretending a difference was measured.
+
+### 18c. Apply 17c's decomposition to the modal arm — before reading its result
+
+Your own caution is the important one here: *"if basis quality dominates, 015
+addresses the smaller half, and I would have read a good result from it as more
+than it was."* Correct, and the fix is to run the same decomposition on the
+modal arm rather than to be careful in prose.
+
+Report, for the modal arm, on the same systems and same convention as 17c:
+- its **realised rank** `r_modal`
+- **modal FVE vs PCA-`r_modal`** → basis quality at *its own* matched count
+- **modal FVE vs codec FVE** → the headline improvement, decomposed into what
+  came from more directions versus better ones
+
+| outcome | reading |
+|---|---|
+| wins on rank, matches the attention decoder's basis-quality ratio | bilinearity widens the realised rank and nothing more — a partial fix, sized by the mode-count half of 17c. |
+| wins on rank **and** closes the basis-quality ratio | the explicit modal form is the right structure, not just a wider one. |
+| wins on neither | bilinearity is not the constraint. Escalate `ctx_layers` — `q_tok` is per-atom and collective modes are nonlocal — before abandoning the form. |
+
+A modal arm that improves FVE purely by realising more directions is a real but
+bounded result, and it should be reported as bounded.
+
+### 18d. Family A now has an infrastructure vector — add it to the check
+
+The 10307102 near-miss is a new shape of an old family and it deserves naming.
+The exclusion did not come from an analysis choice; it came from the **resume
+path**. The peer loop processes ascending in N by design, 49 of the smallest
+systems were already stored, and the skip-what-exists logic would have computed
+17c on the largest 74 only — a 40% N-correlated exclusion of the axis under
+test, invisible in the analysis code.
+
+Extend the Family A check accordingly:
+
+> **Any resume, cache, skip-if-exists or partial-output path is a potential
+> exclusion filter.** If the work is ordered by a regressor, a partial run
+> becomes a biased sample of it. Before resuming: print the regressor
+> distribution of what is already stored against what is not, and treat a
+> skewed one as a purge condition rather than a saving.
+
+The general lesson matches the runtime-print finding from Q4: the dangerous
+instances are the ones outside the analysis, where nobody is looking for them.
