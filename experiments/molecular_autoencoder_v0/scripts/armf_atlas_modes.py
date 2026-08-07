@@ -227,13 +227,33 @@ if __name__ == "__main__":
         del TR
     mdl.eval()
 
-    out = []
+    # INBOX 26d/26c made the REPORT change while the per-system computation stayed identical, and a
+    # re-run recomputed everything to print different summary statistics. Resume on the 18a stamp so
+    # a reporting change costs nothing -- the same reason the coverage analysis was kept
+    # reporting-only in 23a.
+    ST = STAMP.stamp(dict(nmode=NMODE, nframe=NFRAME, nsys=NSYS, anm_k=str(ANM_K),
+                          anm_cutoff=ANM_CUTOFF, arm=f"{b['n_train']}_{b['dm']}_{b['lr']:g}_{b['seed']}"),
+                     mode_table, D.Codec)
+    prev = []
+    if os.path.exists(RES):
+        try:
+            pj = json.load(open(RES))
+            prev = [r for r in pj.get("sys", []) if STAMP.same_stamp(r, ST)]
+        except Exception:
+            prev = []
+    if prev:
+        print(f"  [resume] {len(prev)} systems already scored under this stamp -- recomputing only "
+              f"the rest, then re-reporting.", flush=True)
+    have_pdb = {r["pdb"] for r in prev}
+    out = list(prev)
     for i, d in enumerate(HO):
+        if d["pdb"] in have_pdb: continue
         t0 = time.time()
         try:
             r = mode_table(mdl, d)
         except Exception as e:
             print(f"    {d['pdb']} N={d['N']}: FAIL {type(e).__name__}: {e}", flush=True); continue
+        r["stamp"] = ST
         out.append(r)
         print(f"    {i+1}/{len(HO)} {d['pdb']} N={d['N']:>6}  FVE mode1 {r['fve'][0]:+.3f}  "
               f"mode10 {r['fve'][9] if len(r['fve']) > 9 else float('nan'):+.3f}  "

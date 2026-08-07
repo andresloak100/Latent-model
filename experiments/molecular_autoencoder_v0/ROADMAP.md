@@ -2977,6 +2977,39 @@ more trustworthy than a barely-significant null because it is the answer we want
 **DM=512 has no matched peer column** (ladder capped at k=256 on ANM cost) and this is printed, not
 silent. It does not hide the winner: DM=512's best is +0.1427, below DM=256's +0.1553.
 
+### ⬛ 26a: MY √N MECHANISM IS REFUTED — and the controls found something I did not predict
+`log10(‖z‖/‖disp‖)` vs `log10(N)`, trained checkpoints, forward passes only, **123 held-out systems
+over 1.75 decades**:
+
+| arm | slope | 95% CI | R² |
+|---|---|---|---|
+| **tied** | **−0.0992** | [−0.163, −0.035] | 0.072 |
+| untied | **−0.5217** | [−0.558, −0.485] | **0.868** |
+| control | **−0.5217** | [−0.558, −0.486] | **0.871** |
+
+**The mechanism predicted +0.5 for tied. Measured −0.099. It is dead.** My reasoning was that a
+*coherent* analysis sum grows like N and the `1/√N` normaliser leaves a residual `√N`. The tied arm
+being nearly **flat** says the opposite: the normaliser roughly cancels the growth, so the analysis
+sum behaves ~`√N`, i.e. per-atom displacement contributions are quasi-**independent** in the fixed
+reference frame, not coherent. The premise was wrong, not just the exponent.
+
+**And the controls — which existed only to show the effect was specific — carry the real finding.**
+Both attention encoders sit at **−0.52 with R² ≈ 0.87**, a far tighter relationship than anything on
+the tied arm: `‖z‖/‖disp‖ ∝ 1/√N`. That is what a softmax-weighted **mean** over N tokens gives when
+per-atom contributions are quasi-independent — the latent is an average, so it shrinks relative to a
+`‖disp‖` that grows like `√N`. **Across ATLAS's range the code magnitude falls 7.5× relative to the
+displacement it must encode, in the L=1 design-point architecture.**
+
+**Stated with the discipline 22b demanded, in the direction that cuts against making this a
+headline:** it does **not** currently manifest as an FVE N-slope — the control's is **−0.0383 ±
+0.0606, flat** — so the decoder evidently absorbs it (it is nonlinear, with FiLM and layer norms).
+This is a **measured property of the encoder**, not a diagnosis of anything, and it is recorded
+because it is a strong, unexplained, systematic N-dependence sitting inside the design point.
+
+**Consequence for the tied −0.65 FVE slope: it now has NO mechanism behind it.** One arm, one seed,
+unexplained. 26a was built to be decisive from one arm and it was — it just decided against the
+hypothesis it was built to test.
+
 ### ⚠ PROVISIONAL (one arm, one seed): the TIED arm's N-slope is 10× every other arm
 Procedure-matched, same job, same seed, same data:
 
