@@ -995,3 +995,89 @@ and the problem is upstream — either answer saves work.
 
 Do this after 10307008 settles the procedure question, since a new architecture
 compared against contaminated arms would be uninterpretable.
+
+---
+
+## 017 — Family G. The modal arm's pre-registered read. And decompose the gap at matched rank.
+
+16a is the cleanest diagnostic this project has produced. **Realised rank 6
+against a data rank of 152, with the latent already holding ~15** — the code is
+not the constraint, the width is not the constraint, and the decoder converts
+less than half of what it is handed. Both alternative readings are excluded by
+the same table.
+
+007 also closes properly: **a measured null, not an unanswerable question.** At
+the adequately-sampled basis the difference is *positive* and spans zero, and
+the sign flips with truncation — which is exactly why 13a forbade sweeping m.
+Your correction about the 0.81 figure is the right one to record: quoting
+n_eff from one basis as though it characterised the measurement is what made
+you predict the wrong branch. Only the m=400 arm earns "not measurable."
+
+That is now three hypotheses of mine measured and declined — 011 ordering, 007
+slowness, and 14b's timescale reading. Record them together as declined-with-
+numbers, so the file shows what was tested and refuted, not only what survived.
+
+### 17a. Codify Family G — a verdict emitted by a threshold at rounding distance
+
+Two in one hour, same shape:
+
+- 16a's branch tested `med <= max(3.0, 2*PR/5)` → **5.96 against a measured
+  6.0**, a 0.7% margin, and it printed the opposite conclusion.
+- 007's stopping rule pooled n_eff across bases → **2.045 against a 2.0
+  threshold**, a 2% margin, describing neither basis.
+
+> **Family G — a verdict emitted by a threshold sitting at rounding distance
+> from the measurement.**
+> *Signature:* the numbers are right and the automated reading is wrong; the
+> decision flips on a hand-picked constant nobody derived.
+> *Check:* every automated verdict prints the **table first and the verdict
+> second**, states the margin between the measured value and its threshold, and
+> flags any margin under 10%. Prefer ratios with no free constant
+> (`med < 0.6*PR`) over absolute cutoffs. And **viability is per-unit** — never
+> pool a per-basis, per-system or per-arm property before applying a rule to it.
+
+Add it to the ROADMAP alongside A–F.
+
+### 17b. Pre-registered read for the modal arm (10307029), before it lands
+
+The modal decoder makes DM dimensions into DM modes *by construction*, so 16a
+gives it a sharp prediction. Report `effective_modes()` (the basis's own rank,
+from the file) beside the **realised reconstruction rank** measured exactly as
+16a measured it — same systems, same 2,000 frames, same rank90 convention.
+
+| outcome | reading |
+|---|---|
+| realised rank ≫ 6, tracking PR or DM | bilinearity was the binding constraint. The diagnosis holds and the form is the fix. |
+| realised rank still ≈ 6 | bilinearity is **not** the fix. Next hypothesis is the basis network's receptive field — `q_tok` is per-atom and collective modes are nonlocal — so escalate `ctx_layers > 0` with the cached k-NN pairs **before** abandoning the form. This is written in the file and I am restating it so it is not re-derived. |
+| realised rank ≫ 6 but FVE flat | the modes are there and are the wrong ones — a basis-quality problem, which 17c measures directly. |
+
+Sweep the LR. A bilinear decoder is a different optimisation problem, and 59343333
+already showed a procedure change moves the LR optimum.
+
+### 17c. Decompose the gap: how much is mode COUNT, how much is basis QUALITY?
+
+The standing comparison is codec 0.155 against PCA-16 ≈ 0.53. But the codec
+realises **six** modes, so that compares six against sixteen and conflates two
+different deficits.
+
+**Report PCA-k at k = the codec's own realised rank**, per system, on the same
+held-out frames:
+
+- `codec FVE` vs `PCA-6 FVE` → **basis quality** at matched count: how much worse
+  is a zero-shot structure-predicted basis than one fitted to the target's own
+  trajectory, holding the number of directions fixed?
+- `PCA-6` vs `PCA-16` → **mode count**: what the missing directions are worth.
+
+Those two numbers say where the 0.155 → 0.53 gap actually lives, and they point
+at different fixes — a wider realised rank versus a better basis. Do the same
+against ANM-k at matched k, since ANM is the zero-shot peer and therefore the
+like-for-like comparison on *both* axes.
+
+I would expect PCA-6 well above 0.155; if so, the codec is losing on basis
+quality as well as on count, and 015 addresses only one of the two.
+
+### 17d. Note
+
+Right-sizing 110 G to a 3 GB working set on a partition with 21 jobs waiting is
+worth doing and worth having noticed. On a borrowed account, queue courtesy is
+not separate from throughput.
