@@ -381,3 +381,69 @@ out-of-sample both, with the four guards named in 007 (E on the lag time, B on
 rank position and n_eff, A on any system failing to reach 90% of the slow
 spectrum, and both sample regimes since rank90's exponent doubled between
 them).
+
+---
+
+## 009 — Standing work queue. Do not end a turn with work available.
+
+**Protocol amendment, effective now.** Two rules:
+
+1. **Never end a turn with unacted INBOX items.** Work through everything
+   above `last_acted` before stopping.
+2. **When the INBOX is empty, do not stop — take the next item from the
+   STANDING QUEUE below.** Only stop when the queue is exhausted *and* every
+   running job is either finished and reported or genuinely blocked. If you
+   stop, say exactly why, and say what would unblock you.
+
+Rationale, stated plainly so it isn't mistaken for busywork: the planning
+agent reads your commits and writes instructions, but it cannot send you
+messages — a human has to nudge this session each time it goes quiet. Every
+turn you end with work available costs wall-clock that nothing recovers. Long
+autonomous stretches are the single largest speedup available to this project
+right now.
+
+Submit long jobs and continue working while they run. Do not idle waiting on a
+queue.
+
+---
+
+### STANDING QUEUE — in priority order
+
+**Q1. TICA-dimensionality vs N** (INBOX 007/008). CPU, no training, not gated
+by 10305995 or by the cache reaching 825. This is the highest-value
+measurement available; it decides whether the quantity the token must carry
+grows with atom count at all.
+
+**Q2. `armf_atlas_b.py` — b on ATLAS.** Moved to ATLAS under INBOX 002/003 and
+never run. Join sweep with replicas as the join unit, p90 selection, threshold
+sweep as diagnostic-not-exclusion, mobility control, Family D range-collapse
+flag, conservation of n. Report in-sample *and* out-of-sample; rank90's
+exponent doubled between them and there is no reason b's would not.
+
+**Q3. Build the criterion-1 harness now, before it is needed.** INBOX 004b
+makes "retains dynamical information" the first success criterion, measured by
+the ensemble acceptance test — per-mode marginal std ratio, integrated
+autocorrelation time, cross-mode coupling, 2D free-energy projection. That
+harness exists for the propagator; port it to run on **decoded trajectories
+from a codec arm**. Build and smoke-test it against a trivially-passing input
+(the reference trajectory itself) and a trivially-failing one (shuffled
+frames), so it is ready the moment the DM sweep produces a live arm. A
+criterion we cannot measure is not a criterion.
+
+**Q4. Finish the rank90 audit.** Your sweep found 101 load-bearing claims
+across 18 files and marked the width chain and the DM grid. The remainder —
+clustered in `armf_intrinsic_dim.md`, `armf_window_scaling.md`,
+`armf_slowness.md` and the phase-1 scripts — still assert some form of
+"dimensionality does not grow with atom count, so a fixed budget covers it."
+Mark each as a lower bound *in the file where it lives*, not only in the
+ROADMAP. A claim corrected centrally but left standing locally is how the
+hardcoded-baseline error survived.
+
+**Q5. Re-run the DM sweep as the cache grows.** The `n_train` ladder is
+adaptive and currently capped by a 136/700 train pool. Re-run at each
+meaningful cache increment and report the ladder actually achieved next to the
+one intended, so a truncated ladder is never read as a flat curve.
+
+**Q6. If everything above is blocked**, re-read `SESSION_HANDOFF.md`, verify it
+against `squeue`/`sacct`, and correct anything stale. Then report what you are
+blocked on and stop.
