@@ -387,13 +387,29 @@ if __name__ == "__main__":
           f"plateau signal on {len(HOt)} systems, final eval on all {len(HO)}", flush=True)
 
     rows = json.load(open(RES)) if os.path.exists(RES) else []
+    # INBOX 16c: THE TRAINING PROCEDURE IS PART OF THE DEDUP KEY.
+    # Completed arms skip on re-run, which is right for cost and WRONG across a procedure change:
+    # the 13 arms trained before WARMUP and the lr-scaled budget would never retrain, so this file
+    # would permanently mix two procedures and every DM/LR table built from it would be FAMILY E --
+    # a comparator separated from its peers by an unswept hyperparameter. Keying on PROC makes a
+    # procedure change force the retrain AUTOMATICALLY instead of depending on someone remembering.
+    # Same shape of fix as routing every consumer through Codec.code(): repair the CLASS of error,
+    # not the instance. BUMP THIS STRING whenever the training procedure changes.
+    PROC = f"warmup{WARMUP}_lrscaled_ms{MAXSTEPS}_ev{EVAL_EVERY}_pat{PATIENCE}_fps{FRAMES_PER_STEP}"
+    print(f"  training procedure: {PROC}", flush=True)
+    nleg = sum(1 for r in rows if r.get("proc") != PROC)
+    if nleg:
+        print(f"  *** {nleg} of {len(rows)} stored arms were trained under a DIFFERENT procedure and "
+              f"are INVALIDATED (INBOX 16c): they will be RETRAINED, and they are excluded from every "
+              f"table below. Retraining them costs less than a width answer that has to be withdrawn.",
+              flush=True)
     done = {(r["L"], r["n_train"], r["dm"], r["lr"], r.get("seed", 0), r.get("dlat", r["dm"]),
-             bool(r.get("sub_z0", False))) for r in rows}
+             bool(r.get("sub_z0", False)), r.get("proc")) for r in rows}
 
     def run(TR, n, dm, lr, Lv, seed=0, dlat=None, sub_z0=False):
         dl = dlat if (dlat and dlat < dm) else dm
         arch = ("bottleneck" if dl < dm else "network") + ("+noid" if sub_z0 else "")
-        if (Lv, n, dm, lr, seed, dl, sub_z0) in done: return None
+        if (Lv, n, dm, lr, seed, dl, sub_z0, PROC) in done: return None
         tag = f"L{Lv} n{n} dm{dm}/dlat{dl} lr{lr:g} s{seed}{' NOID' if sub_z0 else ''}"
         try:
             torch.manual_seed(seed); np.random.seed(seed + 1)
@@ -410,14 +426,15 @@ if __name__ == "__main__":
             hw = stats.t.ppf(0.975, len(per) - 2) * lr_.stderr
             # snapshot noise: a single final eval is one draw. Report the tail mean alongside it.
             tail = float(np.mean([h[1] for h in hist[-5:]])) if hist else float("nan")
-            rec = dict(L=Lv, n_train=n, dm=dm, dlat=dl, arch=arch, lr=lr, seed=seed,
+            rec = dict(L=Lv, n_train=n, dm=dm, dlat=dl, arch=arch, lr=lr, seed=seed, proc=PROC,
                        sub_z0=bool(sub_z0),
                        fve=fve, med=float(np.median(per)),
                        tail_track=tail, steps=used, stopped=stopped, improving=improving,
                        best_track=max(h[1] for h in hist), nho=len(HO),
                        nslope=float(lr_.slope), nslope_ci=float(hw),
                        per=[float(v) for v in per], Ns=[int(x["N"]) for x in HO], **p)
-            rows.append(rec); json.dump(rows, open(RES, "w")); done.add((Lv, n, dm, lr, seed, dl, sub_z0))
+            rows.append(rec); json.dump(rows, open(RES, "w"))
+            done.add((Lv, n, dm, lr, seed, dl, sub_z0, PROC))
             try:                                  # cheap (a few MB) and saves a full re-train later
                 os.makedirs(CKPT, exist_ok=True)
                 torch.save(mdl.state_dict(),
@@ -537,7 +554,13 @@ if __name__ == "__main__":
                 dmm = max(16, (b["dm"] // Lv) // 8 * 8)               # (b) capacity-matched
                 if dmm != b["dm"]: run(TR, n, dmm, b["lr"], Lv)
 
-    if not rows: raise SystemExit
+    # INBOX 16c: the tables below see ONE procedure only. Legacy rows stay in the JSON (they
+    # are history, and the retract trail matters) but they are NEVER reported beside new ones.
+    rows = [r for r in rows if r.get("proc") == PROC]
+    if not rows:
+        print("  no arms under the CURRENT procedure yet -- every stored arm is legacy. That is\n"
+              "  not a null result; re-run to retrain them.", flush=True)
+        raise SystemExit
 
     def saturating_dm(n, Lv, arch="network"):
         """First width at which FVE stops improving by >2%. Keyed on dlat for the bottleneck arm,

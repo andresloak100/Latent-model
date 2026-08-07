@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 015
+last_acted: 016
 ```
 
 | item | restatement | status | commit |
@@ -32,6 +32,41 @@ last_acted: 015
 | 014 | The comparison the project exists to make has never appeared in an output anybody can read: every ATLAS report gives CODEC FVE ALONE, when the primary since 004b is codec vs ANM, both zero-shot on the same held-out frames. Report per arm, at matched capacity k=DM: codec FVE, ANM-k with the cutoff swept on TRAINING systems only, per-system PCA-k as an ORACLE FRACTION and never a bar, and the signed gap plus the fraction of systems where it is positive — then state plainly where the codec sits, because a flat slope on a model far below the achievable is consistent with UNIFORM WEAKNESS rather than the architecture holding up. Separately, decompose the best arm's FVE by projecting true and reconstructed displacement onto the REFERENCE PCA basis and reporting FVE per mode index and binned by mode IAT: slow-selective would EXPLAIN the flat FVE-vs-N and make MSE demonstrably the wrong objective, uniform would mean the flat slope carries no architectural information. Run it as soon as one arm exists, not after the ladder. And record that "not measurable with these trajectory lengths" is a FINDING, distinct from "we did not find a good m". | ACCEPTED | (this commit) |
 
 | 015 | `armf_modal_decoder.py` is an ARM, not a replacement: make the decoder `disp_i = B_i(structure) @ z`, linear in `z` with per-atom modes built from the reference structure, so identity CANNOT occupy the code (exactly, not to first order like 12b's subtraction), L=1 is native (one token of width `d` is `d` coefficients on a `d`-dimensional learned basis), and the form GENERALISES the baselines — ANM fixes `B` from the Hessian, per-system PCA fits `B` to the target's own trajectory, this learns `B` from structure and stays zero-shot. Run two variants (untied encoder, tied analysis/synthesis) against the current decoder as control at the same seed with the LR SWEPT per decoder (Family E — a bilinear decoder is a different optimisation problem and an unswept LR would repeat the retracted DM=256 collapse), report the usual columns plus `basis_orthogonality` and `effective_modes`, and if the modal arm underperforms escalate `ctx_layers>0` k-NN message passing BEFORE abandoning the form, since `q_tok` is a per-atom map and collective modes are nonlocal. Dry-run the whole `__main__` path first. | ACCEPTED | (this commit) |
+
+| 016 | Lead every summary with the ABSOLUTE scale (reconstruction RMSD 2.412 Å against displacement RMS 2.572 Å — residual 94% of the motion's own amplitude), and never let 14b's naive timescale numbers appear without the partial coefficient beside them. **16a:** measure the decoder's REALISED RANK directly — SVD the reconstructed displacement per held-out system and report the rank capturing 90% of the reconstruction's own variance, beside DM, PR and the data's rank90; ≈6 means the decoder cannot convert latent dimensions into output modes and the function class is what binds, ≈PR means the latent is the limit, ≈DM means the problem is upstream. **16b:** negative per-mode FVE past mode 6 is EXPECTED under MSE — a capacity-limited model optimally pushes error into low-variance modes — so do not debug it, and report per-mode error against the predict-zero baseline so the injection is a visible number. **16c:** invalidate the mixed-procedure arms rather than salvaging them, and make it structural by putting the training procedure into the dedup key. **16d:** reprioritise — run 015 as the next arm instead of extending the sweep. | ACCEPTED | (this commit) |
+
+## Notes on 016
+
+**16a and 16b are implemented and already running (job 10307042).** It re-runs in minutes rather than
+hours because the 14b job saved its checkpoint, so no retraining is needed — exactly the payoff of
+having wired checkpointing under 013. Both readings are pre-registered in the verdict block, and
+`err vs zero` is now a printed column so the error injection is a number rather than an inference
+from a minus sign.
+
+**16c is implemented as the structural fix, not the instance.** The dedup key now carries
+`PROC = warmup{W}_lrscaled_ms{...}_ev{...}_pat{...}_fps{...}`, built from the procedure constants
+themselves, so changing any of them invalidates the affected arms automatically. Legacy rows stay in
+the JSON — they are history and the retract trail matters — but the reporting phase filters to a
+single procedure and says how many it excluded.
+
+**One deviation from 016's sequencing, and it is a deviation I want on record.** 016 says to run 015
+*after* the procedure question settles, because "a new architecture compared against contaminated
+arms would be uninterpretable." I had already submitted it (10307029) — but the concern does not
+apply, because `armf_modal_arm.py` **re-trains its own control in the same process, at the same
+seed, on the same LR grid**. It never reads a codec number out of `atlas_dm.json`. That was the
+reason for the design, and it means the modal comparison is internally valid whichever way 10307026
+lands. If the reasoning is wrong I will cancel it, but I would rather have the arm running.
+
+**What I am NOT doing yet: restarting the DM sweep.** 10306831 is executing the pre-16c code, so its
+new rows carry no `proc` field and will themselves be invalidated on the next start. Restarting now
+would retrain 13+ arms — which 16c endorses — but 16d simultaneously says the sweep has low marginal
+value, and 16a is the measurement that decides whether width is even the right axis. Both inputs land
+within the hour. Spending several GPU-hours retraining a sweep that 16a may retire is the wrong order,
+so the code change is in place and the restart waits for the measurement. Recorded so this reads as a
+decision rather than an omission.
+
+**On the Family F catch:** agreed, and it is going into the ROADMAP as an instance found *by* the
+audit *in* the audit's own work.
 
 ## Notes on 015
 

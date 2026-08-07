@@ -76,8 +76,30 @@ def mode_table(mdl, d, k=NMODE, nf=NFRAME, chunk=8):
     num = ((A - B) ** 2).sum(0)                  # per-mode residual energy
     den = (A ** 2).sum(0)
     fve = 1.0 - num / (den + 1e-12)
+
+    # INBOX 16a: THE REALISED RANK OF THE DECODER'S OUTPUT.
+    # Per-mode FVE going negative past mode ~6 SUGGESTS the outputs live in a low-dimensional
+    # subspace; this MEASURES that subspace instead of inferring it. Both matrices are centred on
+    # their OWN frame-mean, because the question is how many directions the output actually varies
+    # along -- a constant offset is not a mode. The data's rank on the SAME frames is computed the
+    # same way so the two numbers are comparable.
+    def rank_at(M, frac):
+        Mc = M - M.mean(0)
+        w = np.clip(np.linalg.eigvalsh(Mc @ Mc.T), 0, None)[::-1]
+        t = w.sum()
+        if t <= 0: return 0
+        return int(np.searchsorted(np.cumsum(w) / t, frac) + 1)
+
     return dict(pdb=d["pdb"], N=d["N"], F=F,
+                rank90_out=rank_at(Y, 0.90), rank99_out=rank_at(Y, 0.99),
+                rank90_data=rank_at(X, 0.90),
                 fve=[float(v) for v in fve],
+                # INBOX 16b: report the residual AGAINST THE PREDICT-ZERO BASELINE explicitly.
+                # Under MSE a capacity-limited model will optimally PUSH error into low-variance
+                # modes to buy a better fit on high-variance ones, so a ratio above 1.0 is the
+                # signature of a restricted function class -- not a bug to hunt. Making it a
+                # visible number beats leaving it implied by a minus sign on FVE.
+                err_ratio=[float(v) for v in num / (den + 1e-12)],
                 var=[float(v) for v in den / (den.sum() + 1e-12)],
                 var_abs=[float(v) for v in den],
                 tau=[float(iat(A[:, i])) for i in range(kk)],
@@ -196,11 +218,54 @@ if __name__ == "__main__":
     print(f"  i.e. the residual is {100*np.median(rm)/np.median(am):.0f}% of the motion's own "
           f"amplitude, in absolute Angstroms.", flush=True)
 
+    print(f"\n=== 16a: THE REALISED RANK OF THE DECODER'S OUTPUT ===", flush=True)
+    print(f"  SVD of the RECONSTRUCTED displacement per system: how many directions does the output")
+    print(f"  actually vary along? This separates three hypotheses the DM sweep cannot.", flush=True)
+    r90 = np.array([r["rank90_out"] for r in out], float)
+    r99 = np.array([r["rank99_out"] for r in out], float)
+    rdat = np.array([r["rank90_data"] for r in out], float)
+    dm_arm = b["dm"]; pr_arm = b.get("pr", float("nan"))
+    print(f"    realised rank90 of the RECONSTRUCTION : median {np.median(r90):.0f}   "
+          f"range {r90.min():.0f}-{r90.max():.0f}")
+    print(f"    realised rank99 of the RECONSTRUCTION : median {np.median(r99):.0f}   "
+          f"range {r99.min():.0f}-{r99.max():.0f}")
+    print(f"    rank90 of the DATA on the same frames : median {np.median(rdat):.0f}   "
+          f"range {rdat.min():.0f}-{rdat.max():.0f}")
+    print(f"    for comparison: DM = {dm_arm}, latent PR = {pr_arm:.1f}", flush=True)
+    med = float(np.median(r90))
+    if med <= max(3.0, 2 * pr_arm / 5):
+        print(f"    => THE DECODER CANNOT CONVERT LATENT DIMENSIONS INTO OUTPUT MODES. Realised rank")
+        print(f"       {med:.0f} against DM={dm_arm} and PR={pr_arm:.1f}: the binding constraint is the")
+        print(f"       DECODER'S FUNCTION CLASS -- not capacity, not data, not DM. More width and more")
+        print(f"       LR arms have low marginal value; changing the decoder is the lever (INBOX 015).",
+              flush=True)
+    elif med <= 1.6 * pr_arm:
+        print(f"    => REALISED RANK ~ PR ({med:.0f} vs {pr_arm:.1f}). The LATENT is the limit, so")
+        print(f"       capacity work is the right lever and the DM sweep is answering a real question.",
+              flush=True)
+    elif med >= 0.5 * dm_arm:
+        print(f"    => REALISED RANK ~ DM ({med:.0f} of {dm_arm}). The decoder is EXPRESSIVE; the")
+        print(f"       problem is upstream, in the encoder or the objective, and 015 is unnecessary.",
+              flush=True)
+    else:
+        print(f"    => INTERMEDIATE: {med:.0f}, between PR ({pr_arm:.1f}) and DM ({dm_arm}). Report the")
+        print(f"       number; no single hypothesis is selected.", flush=True)
+    print(f"    (the DATA needs {np.median(rdat):.0f} directions on these frames, so the reconstruction "
+          f"spans {100*np.median(r90)/max(np.median(rdat), 1):.0f}% of what the motion does)", flush=True)
+
     print(f"\n=== FVE BY MODE INDEX (median across {len(out)} systems) ===", flush=True)
-    print(f"    {'mode':>5}{'FVE':>9}{'var share':>11}{'IAT (frames)':>14}")
+    print(f"  'err vs zero' is per-mode SSE divided by the SSE of PREDICTING ZERO (INBOX 16b): above")
+    print(f"  1.0 the decoder INJECTS error into that mode. Under MSE that is the CORRECT move for a")
+    print(f"  capacity-limited model -- error is pushed where it is cheap to buy fit on the modes that")
+    print(f"  dominate the loss -- so it is the signature of a restricted function class, NOT a bug.",
+          flush=True)
+    Ev = np.array([r["err_ratio"][:K] for r in out])
+    print(f"    {'mode':>5}{'FVE':>9}{'err vs zero':>13}{'var share':>11}{'IAT (frames)':>14}")
     for i in list(range(min(10, K))) + [j for j in (14, 19, 24, 29) if j < K]:
-        print(f"    {i+1:>5}{np.median(Fv[:, i]):>9.4f}{100*np.median(Vv[:, i]):>10.2f}%"
-              f"{np.median(Tv[:, i]):>14.0f}", flush=True)
+        print(f"    {i+1:>5}{np.median(Fv[:, i]):>9.4f}{np.median(Ev[:, i]):>13.3f}"
+              f"{100*np.median(Vv[:, i]):>10.2f}%{np.median(Tv[:, i]):>14.0f}", flush=True)
+    inj = float(np.mean(np.median(Ev, 0) > 1.0))
+    print(f"    -> the decoder injects error into {100*inj:.0f}% of the {K} resolved modes", flush=True)
 
     print(f"\n=== FVE BY TIMESCALE (modes binned by their OWN reference IAT, per system) ===",
           flush=True)
