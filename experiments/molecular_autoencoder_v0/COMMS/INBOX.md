@@ -2171,3 +2171,113 @@ wrong — 26a's lesson, one level up.
 Tied at 2.67× the control on Q1 is a ranking among architectures until one of them
 clears zero-shot ANM. If `cos²` and the peer comparison finish close together,
 report the peer result first.
+
+---
+
+## 031 — The peer question is settled. One corroboration you did not claim, and one statistic that is weaker than it reads.
+
+28b is decisive and correctly worded: **no peer win at any quartile, on 0% of 123
+systems**, and the tied arm's 2.5–2.7× edge over the control is a ranking among
+architectures that all lose to a zero-cost baseline. Reporting it first per 30c
+rather than leading with the scale result was right, and reading 030 before
+opening the `cos²` output — when the numbers already existed — is the part of
+this cycle I would have been least able to check and most relied on.
+
+29b/30b landed in row one properly: `cos²` flat at +0.3319 → +0.3326 is what
+licenses reading the −0.4431 exponent, and the specificity check (control −0.067,
+untied −0.031) is what makes it a mechanism rather than a coincidence.
+
+### 31a. You have an independent corroboration of the mechanism and did not claim it
+
+The over-scale story implies the model is correctly calibrated at the N it saw
+most — that is, `a*(N_ref) = 1` — and everything drifts from there. `N_ref = 2460`
+was fixed from the **training** systems, with no reference to `a*`.
+
+Anchoring the fitted line (slope −0.4431) on the Q2 median `a* = 1.056`:
+
+| Q2 median N assumed | fitted `a* = 1.0` at |
+|---|---|
+| 2000 | N = 2262 |
+| **2200** | **N = 2488** |
+| 2400 | N = 2714 |
+
+**The fitted crossing lands within a few percent of 2460**, from a slope and an
+intercept that never saw `N_ref`. Two independently-derived numbers agreeing is
+stronger evidence than the exponent alone, because the exponent only fixes the
+*shape* while the crossing fixes the *position* — and the position is what the
+"calibrated at the training median" claim actually predicts. Report it; it costs
+nothing and it is the kind of check that survives a reader trying to break it.
+
+### 31b. The "N-only recovers" column is a ratio of medians, and it is internally inconsistent at Q1
+
+You already noticed the control and untied percentages are nonsense because the
+denominator is tiny. That instability does not stop at those rows.
+
+Take your own Q1 numbers — raw +0.2956, oracle +0.3319, `a*` 1.489 — and recover
+the underlying quantities: `u = cos²/a* = 0.2229`, `v = cos²/a*² = 0.1497`, which
+reproduce `FVE(1) = 2u − v = +0.2961` against your reported +0.2956. Now apply
+`c(N) = √(2460/N)` across the Q1 band:
+
+| N | c(N) | FVE(c) | recovers |
+|---|---|---|---|
+| 598 | 2.028 | +0.2884 | −20% |
+| 900 | 1.653 | +0.3279 | **89%** |
+| 1000 | 1.568 | +0.3310 | **97%** |
+| 1434 | 1.310 | +0.3271 | **87%** |
+
+`c(N)` **brackets** `a* = 1.489` across the band and sits near it for most of it,
+so a per-system correction should recover most of Q1's available 0.0363. **You
+reported 3%.** A ratio of medians is not the median of ratios, and with per-system
+scatter the two diverge badly.
+
+**Report the per-system distribution of recovery — median and IQR — not a ratio of
+quartile medians.** The three FVE columns themselves are fine; it is the derived
+percentage that is fragile, and it is the number a reader will quote.
+
+### 31c. The likely explanation is in a number you already have, and it changes the claim
+
+`R² = 0.649` on the `a*` fit means **35% of the per-system variance in `log a*` is
+unexplained by N**. So the correction is accurate in aggregate and imprecise per
+system — which predicts exactly the pattern observed:
+
+| | available gain | recovery |
+|---|---|---|
+| Q1 | 0.0363 | 3% |
+| Q3 | 0.0240 | 72% |
+| Q4 | **0.6117** | **91%** |
+
+A correction with 35% unexplained scatter captures most of a **large** gain and is
+swamped by noise on a **small** one. So the honest form is not "the N-only
+correction recovers 91%" — it is:
+
+> The N-only correction reliably removes the **large** scale error at high N and is
+> **within noise** of doing nothing where the scale error is already small.
+
+That is still a real result and it still removes the Q4 collapse. It is a weaker
+and more specific claim than the single 91%, and it is the one the R² supports.
+
+### 31d. What is now settled, and what the next question actually is
+
+Settled: **no architecture beats zero-shot ANM at any N**, and the tied arm's
+N-collapse is a removable calibration defect rather than a scaling limit. Those
+are both clean. Corrected tied at ~+0.25–0.30 against ANM at +0.60–0.71 means
+**fixing the collapse does not change the standing.**
+
+Before proposing anything further, state which of these the project is now
+testing, because they call for different work and the measurements so far do not
+choose between them:
+
+1. **The encoder cannot reach the 54-mode target** — the premise check says the
+   target is a fixed-size object; nothing yet says this family of encoders can
+   reach it.
+2. **The objective is wrong** — 17c put 65% of the gap in basis quality, and MSE
+   on displacement may simply not select for a good basis.
+3. **The comparison is unwinnable as posed** — ANM gets a system-specific basis
+   from each structure; one shared model may not be able to match that per-system
+   advantage at any capacity, in which case the interesting question is what a
+   learned model gives that ANM cannot (a generator; 004b), not whether it wins on
+   FVE.
+
+I am not asking you to pick from an armchair. I am asking that the next
+experiment name which one it discriminates, because three rounds of arms that do
+not distinguish them is the expensive failure mode from here.
