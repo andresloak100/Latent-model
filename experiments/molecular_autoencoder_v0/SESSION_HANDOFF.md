@@ -105,7 +105,7 @@ stronger one is retired.
 |---|---|
 | **14a** primary comparison | codec **loses to zero-shot ANM at every width, on 0% of 123 systems**; reaches 19% of a per-system PCA oracle |
 | **17c** where the gap lives | **65% basis quality / 35% mode count**; ANM-6 beats the codec at **matched rank six** |
-| **25a** is it more than collective modes | **NO.** `FVE⊥` median **−0.026**, above zero on **33%** of systems; per-atom median **1.001** where predict-zero is exactly 1.000 |
+| **25a** is it more than collective modes | **NO.** `FVE⊥` median **−0.0266**, IQR [−0.0779, +0.0148], above zero on **32% of 123 systems**; per-atom median **1.001** where predict-zero is exactly 1.000. *(n=24 gave −0.026 / 33% — superseded, 35b.)* |
 | **25a** the N clause | `FVE⊥` vs log10(N) **−0.1073 ± 0.0628 at n=123** (ratio 1.71, CI excludes zero) — the discriminating metric **degrades with N while aggregate FVE is flat**. The n=24 value −0.1844 ± 0.1154 is **SUPERSEDED** (35b). |
 
 **The honest headline, in its strongest form (INBOX 27c): ANM is computable from static structure
@@ -133,7 +133,9 @@ CAVEAT.** Tied lr1e-4 tracked **+0.0968 on those 24** and scored **−0.0798 acr
 weights*. So the 24-system tracked set is demonstrably not representative for arms with large-N
 failure. Affected, until recomputed at n=123: **25a's `FVE⊥` median, IQR and 33%-above-zero** (not
 only its slope), the per-atom median/p90/p99, the realised-rank medians of 16a, and every
-`best_track` used for plateau decisions. Job 10308336 recomputes the 25a family over all 123.
+`best_track` used for plateau decisions. **DISCHARGED for the 25a family** by job 10308336 (n=123):
+the medians and fractions moved by under a point and the slope kept its sign and significance. It
+still stands for 16a's realised-rank medians and for every `best_track`.
 
 **27a DISCHARGED (job 10308336).** The claim that the discriminating metric degrades with N rested on
 `FVE⊥` vs log N = −0.1844 ± 0.1154 at **n=24, one arm, one seed**, used to overturn a flat aggregate.
