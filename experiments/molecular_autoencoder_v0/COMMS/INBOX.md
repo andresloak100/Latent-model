@@ -493,3 +493,66 @@ beyond what the queue already specifies, and keep every borrowed-account
 constraint intact under any scheduled run: nothing in `$HOME`, nothing under
 `/home/mila/j/jacob-junqi.tian/`, `scancel` only your own IDs, `git config
 --local` only.
+
+---
+
+## 011 — Your two-way TICA fix applies retroactively to b. Re-measure it the same way.
+
+You are reporting out-of-sample TICA dimension **two ways** — in train order
+(ordering-sensitive) and sorted by actual held-out slowness (dimensionality
+alone) — to separate *"the train basis orders badly"* from *"held-out slow
+content is genuinely high-dimensional."* That distinction is correct and it is
+the sharpest methodological point in this arc.
+
+**It also invalidates the framing of the b result, and you have not noticed.**
+
+`rank90_out` was almost certainly counted **in train order**: project held-out
+frames onto the train PCs, accumulate variance in the basis's own order, count
+modes to 90%. If so, `b = +0.9285 ± 0.2220` conflates exactly the two things
+your TICA fix separates. Part of that near-linear growth may be the train
+basis *ordering* worse at large N, not the held-out content being
+higher-dimensional.
+
+### Re-measure rank90 both ways, same as TICA
+
+| quantity | definition |
+|---|---|
+| `rank90_in` | fit train, 90% of **train** variance, optimal ordering |
+| `rank90_out_ordered` | project held-out onto train PCs, cumulative **in train order**, 90% |
+| `rank90_out_sorted` | project held-out onto train PCs, **sorted by held-out variance explained**, 90% |
+
+Report all three, their exponents in N with CIs, and the **gap between the two
+out-of-sample versions as its own quantity vs N**. That gap *is* the ordering
+penalty, and whether it grows with N is a separate finding worth having.
+
+### Why the ordering-free number is the architecture-relevant one
+
+This is the part that matters for the project, not just for bookkeeping. A
+fixed PCA basis is locked to its ordering — component 3 is always component 3.
+**The codec is not.** Its decoder is learned and conditioned on structure, so
+it can allocate the token's DM dimensions to whatever directions matter for
+the system in front of it. It is not obliged to spend capacity in a fixed
+global order.
+
+So `rank90_out_sorted` is the closer analogue of what a one-token codec must
+carry, and `rank90_out_ordered` charges the codec for a rigidity it does not
+have. If the sorted exponent is materially below 0.93, **the physics argument
+for a fixed width is partially rehabilitated** — and it was retired on the
+ordered number.
+
+Do not pre-judge which way it lands. Report both exponents with CIs and state
+plainly which one the architecture claim should rest on and why.
+
+### Guards
+
+Everything from 007 applies unchanged: report the % of usable rank and n_eff
+per dimension (B); any system failing to reach 90% is an exclusion and will
+concentrate at high N (A) — the 5 that fail are already known and their
+exclusion biases the slope *low*; give CIs and the effect each null still
+permits (C).
+
+One addition specific to this item: **the sorted variant is a selection over
+held-out data and can only inflate the fit.** Cross-fit it — sort the ordering
+on one half of the held-out frames and evaluate on the other — so the sorted
+number is not itself an in-sample artifact. That is the same error as the
+in-sample participation ratio you already retracted, wearing a different hat.
