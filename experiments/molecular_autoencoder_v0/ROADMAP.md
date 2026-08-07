@@ -2181,6 +2181,24 @@ from the same rows as the model.
 same run. No baseline number may be a hardcoded constant. If a number is quoted from another run,
 label it with its own n and never place it in the same table as a differently-sampled result.
 
+### SECOND INSTANCE — COMMITTED *BY* THE AUDIT, IN THE AUDIT'S OWN CODE (INBOX 016)
+The 14b reproduction guard compared a re-trained arm's mean over the **24 N-stratified TRACKED
+systems** against the recorded `fve`, a mean over **all 123 held-out systems**. Those denominators
+differ systematically — for the three DM=256 arms, 0.1453/0.1553/0.1497 over 123 against
+0.0969/0.0913/0.0958 over the 24, a consistent ~1.6× — because the stratified sample deliberately
+over-weights the large end and is therefore the *harder* set, not a noisier estimate of the same
+quantity. The guard printed a **4× divergence where the like-for-like gap is 1.9×**.
+
+**Why this instance matters more than the first.** The first was found by the audit in old code. This
+one was *written* by the audit, in a guard whose entire purpose was to detect a discrepancy — and it
+fired correctly while overstating the magnitude, which is the failure mode most likely to be believed.
+A check that compares the right two things for the wrong reason is not a check.
+**Signature:** two aggregates with the same *name* (`FVE`) computed over different row sets, compared
+without either being restated. **CHECK:** any guard that compares a new number to a stored one must
+name the denominator of both, and prefer a stored field computed on the *identical* set —
+`best_track` here, not `fve`. Fixed in `armf_atlas_modes.py`, which now compares `best_track` to
+`best_track` and prints the all-system figure separately, labelled as a different denominator.
+
 ## GRAPH-CODEC WIN: WITHDRAWN (was PROVISIONAL pending this re-run)
 Held-out, same 48 ligands, baselines swept on training molecules only:
 codec **0.800/0.640/0.440** vs swept ANM **0.594/0.571/0.549** at L=4/8/16.
@@ -2778,6 +2796,32 @@ Two properties of the comparison recorded before results, both cutting against u
 PCA-16 of ≈ 0.53, **a flat slope on a model this far from the achievable is consistent with uniform
 weakness, not with the architecture holding up.** INBOX 14b (job 10306939) is the direct test of which
 one it is.
+
+### INBOX 14b RESULT: VARIANCE-SELECTIVE, NOT TIMESCALE-SELECTIVE — AND THE ABSOLUTE SCALE LEADS
+**Lead with this, always:** reconstruction RMSD **2.412 Å** (range 1.677–7.740) against a
+displacement RMS of **2.572 Å** (range 1.673–8.159). **The residual is 94% of the motion's own
+amplitude.** Every FVE ratio below is a ratio on top of that fact.
+
+The naive timescale reading is strong and would have been shipped:
+`SLOW − FAST = +0.4131 ± 0.1764` (passes the pre-registered >0.10 with a CI excluding zero) and
+`FVE ~ log(IAT)` coefficient `+0.4700 ± 0.1917`. That is the "codec keeps slow collective motion,
+discards thermal noise, so MSE is the wrong objective" story.
+
+**It does not survive the control.** With variance share held fixed, the partial `log(IAT)`
+coefficient is **+0.1445 ± 0.1830 — the CI spans zero.** Slow modes *are* the high-variance modes and
+MSE selects for variance by construction, so the apparent timescale preference is the training
+objective doing exactly what it says. **VERDICT: variance-selective, not timescale-selective.**
+*The naive numbers must never appear without the partial beside them.*
+
+Per-mode FVE: +0.243 (mode 1, 45.1% of variance), +0.210, +0.114, +0.137, +0.124, +0.067, then
+**negative from ~mode 7** (−0.015, −0.151 at 15, −0.175 at 30). Per **INBOX 16b** that is EXPECTED,
+not a bug: under MSE a capacity-limited model optimally pushes error into low-variance modes to buy
+fit on the ones that dominate the loss. It is the signature of a restricted function class.
+Timescale bins are flat in N (SLOW−FAST vs log10(N): −0.1167 ± 0.3879).
+
+**Caveat on the arm:** measured on a re-trained model that did NOT reproduce the recorded arm
+(+0.0515 vs +0.0972 best-tracked). At 94% residual the "uniformly weak" reading is not delicate, but
+the mode-resolved numbers should be re-measured once the procedure question settles.
 
 ### RETRACTED (INBOX 012): the mdCATH DM=256/512 COLLAPSE
 `armf_capacity_axis.md` recorded DM=256 and DM=512 collapsing to constant output on mdCATH (G1 cos
