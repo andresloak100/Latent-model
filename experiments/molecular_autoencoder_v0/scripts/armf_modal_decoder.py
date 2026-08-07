@@ -79,6 +79,34 @@ import torch
 import torch.nn as nn
 
 
+
+def _neighbour_mean(q, knn, chunk=4096):
+    """Mean of each atom's k-NN features. (B,N,dm) x (B,N,K) -> (B,N,dm).
+
+    FIXED (was an OOM at scale, not a wrong answer). The original built
+    `q.unsqueeze(1).expand(-1, N, -1, -1)` and gathered from it, materialising a
+    (B, N, N, dm) tensor -- QUADRATIC IN ATOM COUNT. At B=8, N=2,000, dm=256 that
+    is 33 GB, and it asked the allocator for 45 GiB on the first training step.
+    Only (B, N, K, dm) is ever needed.
+
+    Two further economies, both bounded rather than merely smaller:
+      * when `stat` was expanded from ONE system (`stride(0) == 0`, which every
+        caller in this project does), the trunk is identical across the batch, so
+        it is computed once and broadcast;
+      * the gather is chunked over atoms, so peak memory is O(chunk*K*dm) and does
+        not grow with N -- the N-correlated failure mode that would otherwise kill
+        the LARGEST systems first.
+    """
+    B, N, dmv = q.shape
+    K = knn.shape[-1]
+    out = q.new_empty(B, N, dmv)
+    for i in range(0, N, chunk):
+        j = min(i + chunk, N)
+        idx = knn[:, i:j, :].reshape(B, -1, 1).expand(-1, -1, dmv)   # (B, n*K, dm)
+        out[:, i:j] = q.gather(1, idx).reshape(B, j - i, K, dmv).mean(2)
+    return out
+
+
 class ModalCodec(nn.Module):
     """Interface-compatible with armf_atlas_dm.Codec.
 
@@ -135,15 +163,16 @@ class ModalCodec(nn.Module):
 
     def _struct(self, stat, knn=None):
         """(B, N, Fs) -> (B, N, dm). knn: optional (B, N, K) neighbour indices."""
+        if stat.shape[0] > 1 and stat.stride(0) == 0:
+            # every caller expands ONE system across the batch, so the structure trunk is identical
+            # on every row; computing it once turns a B-fold cost into a broadcast.
+            return self._struct(stat[:1], None if knn is None else knn[:1]).expand(stat.shape[0], -1, -1)
         q = self.q_ln(self.q_tok(stat))
         q = q + self.q_ff(q)
         for layer, ln in zip(self.ctx, self.ctx_ln):
             if knn is None:
                 break
-            nb = torch.gather(
-                q.unsqueeze(1).expand(-1, knn.shape[1], -1, -1), 2,
-                knn.unsqueeze(-1).expand(-1, -1, -1, q.shape[-1]),
-            ).mean(2)
+            nb = _neighbour_mean(q, knn)
             q = ln(q + layer(torch.cat([q, nb], -1)))
         return q
 
