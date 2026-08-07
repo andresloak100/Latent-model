@@ -58,7 +58,17 @@ def build(kind):
 
 @torch.no_grad()
 def ratio_for(mdl, d, nf=NFRAME):
-    """median over frames of ||z||_F / ||disp||_F, on the SCALED displacement the model receives."""
+    """Returns (||z||/||disp||, ||decoded||/||disp||), medians over frames, on the SCALED
+    displacement the model receives.
+
+    THE SECOND RATIO IS THE SYNTHESIS SIDE, added after 26a refuted the analysis-side story. 26a
+    showed the tied encoder's code magnitude is nearly FLAT in N (-0.099), so the analysis normaliser
+    is doing roughly the right thing. But the tied arm collapses at large N anyway -- median FVE
+    +0.296 on the smallest quartile against -0.279 on the largest. The reconstruction is `B @ z`, and
+    `B` is built per atom, so ||B||_F grows like sqrt(N): with ||z||/||disp|| flat, ||B z||/||disp||
+    would grow like sqrt(N) and the OUTPUT would be over-scaled at large N. That is a DIFFERENT
+    mechanism from the one just refuted, on the other half of the analysis/synthesis pair, and it is
+    measured the same way rather than asserted."""
     F = min(nf, d["F"])
     ref = ho_frames(d, 0, F).reshape(F, d["N"], 3) / d["scale"]
     st = torch.tensor(d["stat"], device=dev)
@@ -66,15 +76,18 @@ def ratio_for(mdl, d, nf=NFRAME):
     # and at N=33,377 a careless chunk is 6.6 GB. Bound it rather than discover it on the biggest
     # system, which is the N-correlated failure this project keeps designing out.
     chunk = max(1, min(32, int(2e8 // max(d["N"] * 3 * DM, 1))))
-    rs = []
+    rs, os_ = [], []
     for s0 in range(0, F, chunk):
         e0 = min(s0 + chunk, F)
         dw = torch.tensor(ref[s0:e0].astype(np.float32), device=dev)
-        z = mdl.code(st.unsqueeze(0).expand(e0 - s0, -1, -1), dw)
+        S = st.unsqueeze(0).expand(e0 - s0, -1, -1)
+        z = mdl.code(S, dw)
+        out = mdl.decode(S, z)                      # the SYNTHESIS side
         zn = z.reshape(e0 - s0, -1).norm(dim=1)
         dn = dw.reshape(e0 - s0, -1).norm(dim=1) + 1e-12
-        rs.append((zn / dn).cpu().numpy())
-    return float(np.median(np.concatenate(rs)))
+        on = out.reshape(e0 - s0, -1).norm(dim=1)
+        rs.append((zn / dn).cpu().numpy()); os_.append((on / dn).cpu().numpy())
+    return float(np.median(np.concatenate(rs))), float(np.median(np.concatenate(os_)))
 
 
 if __name__ == "__main__":
@@ -105,7 +118,7 @@ if __name__ == "__main__":
                 rr.append(ratio_for(mdl, d)); NN.append(d["N"])
             except Exception as e:
                 print(f"    {d['pdb']} N={d['N']}: FAIL {type(e).__name__}: {e}", flush=True)
-        out[kind] = dict(lr=lr, N=NN, ratio=rr)
+        out[kind] = dict(lr=lr, N=NN, ratio=[a for a, _ in rr], out_ratio=[b for _, b in rr])
         json.dump(out, open(RES, "w"))
         print(f"  {kind}: scored {len(rr)}/{len(HO)} systems", flush=True)
         del mdl
@@ -113,8 +126,21 @@ if __name__ == "__main__":
 
     print(f"\n=== 26a: log10(||z||/||disp||) vs log10(N) ===", flush=True)
     print(f"  mechanism predicts slope +{PREDICTED:.1f} for TIED and ~0 for the others.", flush=True)
-    print(f"    {'arm':>9}{'n':>5}{'slope':>10}{'95% CI':>20}{'R^2':>8}   verdict", flush=True)
+    print(f"    {'arm':>9}{'field':>12}{'n':>5}{'slope':>10}{'95% CI':>20}{'R^2':>8}   verdict",
+          flush=True)
     res = {}
+    for kind, _ in ARMS:
+        if kind not in out: continue
+        for fld, lab in (("ratio", "||z||/||d||"), ("out_ratio", "||dec||/||d||")):
+            if fld not in out[kind]: continue
+            N2 = np.array(out[kind]["N"], float); r2 = np.array(out[kind][fld], float)
+            g2 = np.isfinite(r2) & (r2 > 0)
+            if g2.sum() < 10: continue
+            l2 = stats.linregress(np.log10(N2[g2]), np.log10(r2[g2]))
+            h2 = stats.t.ppf(0.975, int(g2.sum()) - 2) * l2.stderr
+            print(f"    {kind:>9}{lab:>12}{int(g2.sum()):>5}{l2.slope:>+10.4f}"
+                  f"{f'[{l2.slope-h2:+.3f}, {l2.slope+h2:+.3f}]':>20}{l2.rvalue**2:>8.3f}",
+                  flush=True)
     for kind, _ in ARMS:
         if kind not in out: continue
         N = np.array(out[kind]["N"], float); r = np.array(out[kind]["ratio"], float)

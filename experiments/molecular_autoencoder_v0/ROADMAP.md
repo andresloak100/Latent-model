@@ -3079,7 +3079,44 @@ because it is a strong, unexplained, systematic N-dependence sitting inside the 
 unexplained. 26a was built to be decisive from one arm and it was — it just decided against the
 hypothesis it was built to test.
 
-### ⚠ PROVISIONAL (one arm, one seed): the TIED arm's N-slope is 10× every other arm
+### ⬛⬛ THE TIED ARM IS THE BEST ARCHITECTURE ON SMALL SYSTEMS AND COLLAPSES ON LARGE ONES
+**And the mean was hiding it.** Arms have been ranked all night by mean per-system FVE — an
+**unbounded-below** quantity, so a handful of catastrophic systems dominates it:
+
+| arm | mean | **median** | min | frac < −0.5 |
+|---|---|---|---|---|
+| control 3e-4 | **+0.1346** | +0.1009 | −0.376 | 0% |
+| untied 3e-5 | +0.0996 | +0.0715 | −0.410 | 0% |
+| **tied 3e-5** | +0.0607 | **+0.1990** | **−4.040** | **9%** |
+| **tied 1e-4** | **−0.0798** | **+0.1876** | **−8.045** | **14%** |
+
+**On the median the ranking REVERSES: tied (+0.199) > control (+0.101) > untied (+0.072).** The tied
+variant has the best typical-system performance of anything measured and the worst tail.
+
+**And the tail is entirely at large N** — FVE median by N quartile:
+
+| arm | Q1 smallest | Q2 | Q3 | Q4 largest |
+|---|---|---|---|---|
+| tied 3e-5 | **+0.296** | +0.262 | +0.203 | **−0.279** (29% below −0.5) |
+| tied 1e-4 | **+0.267** | +0.248 | +0.188 | **−0.384** (45% below −0.5) |
+
+Monotone decline crossing zero, reproduced at **two independent learning rates**. **The −0.65/−0.75
+N-slopes were not noise** — 24c's objection about single draws applied to the *slope*, and the
+quartile medians are a stronger, threshold-free statement of the same thing (21b form: no free
+constant, same direction across two rates).
+
+**This is the central question's third clause answered for this architecture: performance DOES
+collapse as N increases.** And it is the first architecture measured that beats the control anywhere.
+
+**The mechanism is still unknown.** 26a refuted the analysis-side √N story — the tied encoder's
+`‖z‖/‖disp‖` is nearly flat (−0.099). But the reconstruction is `B @ z`, and `B` is built per atom so
+`‖B‖_F` grows like `√N`: with `‖z‖/‖disp‖` flat, `‖Bz‖/‖disp‖` would grow like `√N` and the **output**
+would be over-scaled at large N. That is the *other half* of the analysis/synthesis pair, and it is
+**being measured, not asserted** — job 10308313 adds `‖decoded‖/‖disp‖` vs N to the same harness.
+Having had one mechanism refuted by exactly this test, the second gets the same treatment before it
+is claimed.
+
+
 Procedure-matched, same job, same seed, same data:
 
 | variant | lr 3e-5 / 1e-4 / 3e-4 | N-slope |

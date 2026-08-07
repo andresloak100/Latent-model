@@ -54,8 +54,13 @@ def smoke_mediator():
     T.dev = D.dev
     m = ModalCodec(d["stat"].shape[1], 1, 64, tie_encoder=True).to(D.dev); m.eval()
     v = T.ratio_for(m, d, nf=6)
-    assert np.isfinite(v) and v > 0, f"bad ratio {v}"
-    return f"||z||/||disp|| = {v:.4f}"
+    # ratio_for returns (analysis, synthesis) since the 26a follow-up; assert the CONTRACT, not just
+    # a value -- this test caught the tuple change the moment it was made, which is the point of it.
+    assert isinstance(v, tuple) and len(v) == 2, f"expected (z_ratio, out_ratio), got {type(v)}"
+    zr, orr = v
+    assert np.isfinite(zr) and zr > 0, f"bad z ratio {zr}"
+    assert np.isfinite(orr) and orr >= 0, f"bad decoded ratio {orr}"
+    return f"||z||/||disp|| = {zr:.4f}, ||dec||/||disp|| = {orr:.4f}"
 
 
 def smoke_modal_ctx():
