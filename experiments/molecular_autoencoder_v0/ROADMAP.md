@@ -3146,6 +3146,52 @@ pattern. The supportable form:
 
 That still removes the Q4 collapse, which is the result. It is not a general-purpose calibration fix.
 
+### ⬛ 21c/27a/27b LANDED: the peer loss survives the cutoff sweep, the gap slope does NOT, and 27b is refuted
+
+**21c — the peer result does not depend on the 2.9% cutoff selection.** All three cutoffs, best arm,
+123 systems:
+
+| cutoff | ANM-k | codec−ANM | codec > ANM | **gap vs log10(N)** |
+|---|---|---|---|---|
+| 5 Å | 0.6720 | −0.5168 | **0%** | **+0.0514 ± 0.0464** |
+| 7 Å | 0.6271 | −0.4718 | **0%** | +0.0156 ± 0.0477 |
+| 10 Å | 0.5669 | −0.4106 | **0%** | **−0.0207 ± 0.0509** |
+
+**ALL CUTOFFS AGREE: the codec loses, on 0% of systems, at every cutoff.** 14a's headline stands on
+its own rather than on a coin flip — which is exactly what 21c was written to establish.
+
+> ### ⛔ RETRACTED: "the codec closes on ANM as systems get larger"
+> The positive gap-vs-N slope was recorded (with 22b's caveat that it was weak) as *the one
+> measurement pointing the right way*. **It flips sign across the cutoff sweep** — +0.0514 at 5 Å,
+> +0.0156 at 7 Å, **−0.0207 at 10 Å**. It was an artefact of the cutoff selection, and 21c caught it
+> for precisely the reason 21c existed. The project has **no** measurement showing the codec
+> improving relative to the peer with N.
+
+**27a — the `FVE⊥` slope SURVIVES at n=123.** It was −0.1844 ± 0.1154 (ratio 1.60) on 24 systems,
+one arm, one seed, and was being used to overturn a flat aggregate. Recomputed on **all 123**:
+
+| | slope | ratio | n |
+|---|---|---|---|
+| ANM-6 | **−0.1073 ± 0.0628** | 1.71 | 123 |
+| ANM-16 | −0.1002 ± 0.0630 | 1.59 | 123 |
+
+Same sign, smaller magnitude, still excluding zero, now on five times the systems. **The
+discriminating metric does degrade with N while aggregate FVE is flat**, and the sharpest sentence in
+the project keeps its support. The distribution also holds: `FVE⊥` median **−0.0266**, IQR
+[−0.0779, +0.0148], **above zero on 32% of 123** (n=24 gave −0.026 and 33%).
+
+**27b — REFUTED, on evidence.** The hypothesis was that the encoder decay (`‖z‖/‖disp‖ ~ N^−0.52`) and
+the `FVE⊥` degradation are one finding, and that my reason for separating them appealed to the metric
+25a discredited. Tested directly, same arm, same frames, n=123:
+
+| | partial `log(z_ratio)` | partial `log N` |
+|---|---|---|
+| ANM-6 | **−0.3103 ± 0.3375** (spans zero) | **−0.2668 ± 0.1843** (excludes zero) |
+| ANM-16 | −0.2169 ± 0.3410 (spans zero) | −0.2116 ± 0.1862 (excludes zero) |
+
+**N explains `FVE⊥`; the code decay adds nothing once N is held.** They are **separate** — and now
+separated on evidence rather than on the flat aggregate that made 27b a fair objection.
+
 ### ⬛⬛⬛ 28b/29b/30: NO PEER WIN AT ANY N — and the tied N-collapse is a SCALE defect, removable zero-shot
 **Reported first, per 30c.** Tied vs zero-shot ANM-256, matched capacity, one pass, same frames,
 123 held-out systems:
