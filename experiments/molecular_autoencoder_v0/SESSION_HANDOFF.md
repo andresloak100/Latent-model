@@ -71,7 +71,8 @@ not frames, mdCATH had frames but not range or system count. ATLAS has all
 three. `atoms = 15.77 × residues − 8`, R² = 0.9894 (validated against real
 topologies, 0.5% error at the top).
 
-Cache: stride 4 → 2,501 frames/replica, all 3 replicas, uncompressed `.npy` +
+Cache: **COMPLETE — 841 systems, 263 GB** (train pool 697/700, held-out 123/125).
+Stride 4 → 2,501 frames/replica, all 3 replicas, uncompressed `.npy` +
 JSON sidecar (npz cannot be memmapped). Replicas 0+1 train, replica 2
 held-out. **Replicas are only ~1.18× between/within RMSD** — 100 ns does not
 decorrelate them, so replica 2 is a somewhat harder test than a temporal
@@ -79,26 +80,28 @@ split, not a categorically different one.
 
 ---
 
-## 4. LIVE JOBS — check these first (verified 2026-08-06)
+## 4. LIVE JOBS — check these first (verified against squeue/sacct, 2026-08-06)
 
-Corrected from the cluster, not from reports. Workspace `$WR` =
-`/network/scratch/j/jacob-junqi.tian/latent-model-workspace`. Logs in `$WR/logs/`.
+Workspace `$WR` = `/network/scratch/j/jacob-junqi.tian/latent-model-workspace`. Logs in `$WR/logs/`.
+**All four are RUNNING.** They are SLURM jobs, not session children — a client restart orphans nothing.
 
-| job | what it tests | where output lands | state |
+| job | what it tests | output | state |
 |---|---|---|---|
-| **10306590** `atlas_b` | **Q2.** b on ATLAS with replicas as the join unit: join sweep, p90 selection, threshold sweep as diagnostic-not-exclusion, mobility control, conservation of n. Now fits **all three** rank90 variants (in-sample, out-of-sample train-order, out-of-sample ordering-free cross-fit) per INBOX 011. | `$WR/atlas_b.json`, log `$WR/logs/atlasb_10306590.log` | QUEUED, `long-cpu`, 16 h |
-| **10306553** `r90_insample` | **INBOX 011 re-measurement.** rank90 three ways plus the ordering penalty vs N. Supersedes the b ≥ 0.93 framing, which was counted in train order. | `$WR/atlas_rank90_insample.json` (v1 archived as `..._v1_ordered_only.json`), log `$WR/logs/r90in_10306553.log` | RUNNING |
-| **10306540** `tica_vs_n` | **Q1 / INBOX 007-008.** Does SLOW-mode dimensionality grow with N, or is it flat in N the way it is flat in time? TICA dim vs N, definition identical to `armf_slowness.py:54`, lag swept on training systems only, in-sample and out-of-sample both, bases 100 and 400. Decides whether the quantity the token must carry grows with atom count at all. | `$WR/atlas_tica_vs_n.json`, log `$WR/logs/ticaN_10306540.log` | QUEUED, `long-cpu`, 12 h |
-| **10305995** `atlas_dm` | The **DM sweep + bottleneck arm** at L=1. Network sweep DM {16,64,256,512} × LR {3e-4,1e-3,3e-3} × n_train ladder {50,130,300,600}; then the 005 bottleneck (d_model fixed, DM_latent {16,64,128,256,512}); then L=12/24 addressing diagnostics same-DM and capacity-matched. | `$WR/atlas_dm.json` (accumulates; re-runnable, completed arms skipped), log `$WR/logs/atlasdm_10305995.log` | QUEUED, 20 h limit, `long` partition + `--requeue` (preemptible) |
-| **10301859** `atlas_cache` | Builds the ATLAS cache: download → stride-4 subsample (2,501 frames/replica) → uncompressed `.npy` + JSON sidecar → **delete archive**. | `$WR/atlas_cache/` | RUNNING ~3.4 h, **371 of 825 systems, 126 GB**. Train pool 136/700 cached, held-out 123/125 |
+| **10306611** `atlas_dm` | DM sweep + 005 bottleneck at L=1. Network sweep DM {16,64,256,512} × LR **{3e-5,1e-4,3e-4,1e-3,3e-3}** × n_train **{50,130,300,600}**; then the bottleneck (d_model fixed, DM_latent {16,64,128,256,512}); then L=12/24 addressing diagnostics, same-DM and capacity-matched. | `$WR/atlas_dm.json` (accumulates, re-runnable, completed arms skipped) · `atlasdm_10306611.log` | RUNNING, `long` + `--requeue`, 20 h |
+| **10306590** `atlas_b` | **Q2.** b on ATLAS, replicas as the join unit: join sweep, p90 selection, threshold sweep as diagnostic-not-exclusion, mobility control, conservation of n. Fits **all three** rank90 variants per INBOX 011. | `$WR/atlas_b.json` · `atlasb_10306590.log` | RUNNING, `long-cpu`, 16 h |
+| **10306553** `r90_insample` | **INBOX 011.** rank90 three ways (in-sample · out-of-sample train-order · out-of-sample ordering-free cross-fit) plus the ordering penalty vs N. Supersedes the `b ≥ 0.93` framing, which was counted in train order. | `$WR/atlas_rank90_insample.json` (v1 archived `..._v1_ordered_only.json`) · `r90in_10306553.log` | RUNNING, `long-cpu` |
+| **10306540** `tica_vs_n` | **Q1 / INBOX 007–008.** Does SLOW-mode dimensionality grow with N, or is it flat in N the way it is flat in time? Definition identical to `armf_slowness.py:54`; lag swept on training systems only; in-sample and out-of-sample; bases 100 and 400. | `$WR/atlas_tica_vs_n.json` · `ticaN_10306540.log` | RUNNING, `long-cpu`, 12 h |
 
-**The cache gates everything.** `armf_atlas_dm.py` filters its `n_train` ladder to
-what is cached and skips completed arms, so **re-run it as the cache grows** to fill
-in the higher `n_train` arms — that ladder *is* the data-limitation control.
+**THE CACHE IS COMPLETE** — `10301859` finished in 6:27:23. **841 systems, 263 GB, train pool 697/700,
+held-out 123/125.** The full `n_train` ladder {50,130,300,600} is runnable; it no longer gates anything.
 
-Completed this session: `10305556` atlas_neff, `10305712` r90_insample,
-`10304109` atlas_guard. Cancelled deliberately: `10305469`/`10305543` (censored
-`maxlag`), `10305827`/`10305840` (pre-005 architecture). Died on a startup `NameError` and were resubmitted, not abandoned: `10305911`, `10305936`.
+**Cancelled deliberately, NOT failures** (so six cancelled `atlas_dm` jobs are not read as a failing
+experiment): `10305469`/`10305543` censored `maxlag` · `10305827`/`10305840` pre-005 architecture ·
+`10305911`/`10305936` died on a startup `NameError`, fixed and resubmitted · **`10305995` cancelled
+after its first 11 arms because the LR grid floor (3e-4) was too high for DM=512** — the completed
+arms are saved in `atlas_dm.json` and skip on re-run.
+
+Completed earlier: `10305556` atlas_neff · `10305712` r90_insample (v1) · `10304109` atlas_guard.
 
 **AUTONOMOUS LOOP — RECREATE IT AFTER ANY RESTART.** A `CronCreate` job (`7,34 * * * *`, ~27 min)
 drives the 009 work cycle: pull → work the INBOX above `last_acted` → check `squeue` and job logs →
@@ -107,9 +110,8 @@ inbox. **It is SESSION-ONLY: in memory, never on disk, and it dies when the sess
 the restart 006 asks for.** Nothing warns you. A fresh session must recreate it or the project goes
 quiet until a human nudges it.
 
-**Restart guidance (INBOX 006):** a natural pause is after the DM sweep's first
-`n_train` arm prints, not mid-cache-build. Both jobs above survive a client restart —
-they are SLURM jobs, not session children. Nothing is orphaned by restarting.
+**Restart guidance (INBOX 006):** a natural pause is after the DM sweep's `n_train=130` arms land.
+All four jobs survive a restart.
 
 ---
 
@@ -187,6 +189,17 @@ rollouts).
   1.37 Å); a stronger ANM only makes it deader.
 - **Propagator.** Calibration constant collapses to 1.07 ± 0.05 at corpus
   scale; joint ≈ independent, so §7 additivity holds operationally.
+- **Criterion-1 harness exists and is PROVEN to discriminate** (`scripts/armf_criterion1.py`).
+  Four discriminators on decoded trajectories in one reference-fitted basis: marginal std ratio,
+  **IAT per mode (the kinetic test)**, cross-mode coupling, 2D free-energy JS. Validated on a real
+  ATLAS system: identity **4/4**; **frames shuffled 3/4 — passing std/coupling/free-energy at 100%
+  and failing the kinetic test at 0%** (IAT 30.0 → 1.0 frames); variance collapse 2/4. Shuffling
+  preserves every marginal and the whole free-energy surface, so a harness that passed it would be
+  measuring distribution rather than dynamics. Ready the moment a codec arm lands.
+- **The DM-sweep LR sweep is load-bearing, not hygiene.** Optimal LR falls monotonically with width
+  (3e-3 at DM=16 → 3e-4 at DM=64/256). At DM=256, lr=1e-3 and 3e-3 collapse to a constant code while
+  lr=3e-4 is the **best arm in the sweep** (+0.1553). The mdCATH "wide arms collapse" conclusion was
+  an LR artifact. Collapse rate 0/3 seeds at the right LR vs 2/2 at the wrong one.
 - **Sparse ANM.** `eigsh` shift-invert on the sparse Hessian reproduces dense
   to 1.8e-10 with subspace overlap 1.000000 — same eigenproblem, not an
   approximation, so no N-dependent bias. Extends the peer baseline to the full
