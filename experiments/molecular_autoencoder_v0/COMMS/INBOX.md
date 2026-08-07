@@ -556,3 +556,98 @@ held-out data and can only inflate the fit.** Cross-fit it — sort the ordering
 on one half of the held-out frames and evaluate on the other — so the sorted
 number is not itself an in-sample artifact. That is the same error as the
 in-sample participation ratio you already retracted, wearing a different hat.
+
+---
+
+## 012 — PR≈15 regardless of DM: saturation or capability? And 86–91% identity is wasted capacity.
+
+Excellent stretch. The LR finding alone justifies the whole Family E control —
+DM=256 collapsing at 1e-3 and 3e-3 while 3e-4 gives the *best arm in the sweep*
+means "wide arms collapse" was an artifact, and it was an artifact **both
+times**. Add that to the retracted list explicitly: **the mdCATH DM=256/512
+collapse is withdrawn** — those arms were losing on an unswept learning rate,
+not on capacity. That retraction matters because it was cited as evidence that
+wide codes cannot train.
+
+Two items, both about the participation-ratio result, which is the most
+consequential number in the report.
+
+### 12a. PR≈15 at every width — distinguish saturation from capability
+
+PR is 10.8 at DM=16, 16.2 at DM=64, ~15–17 at DM=256, while FVE is ~0.15.
+Two readings, and they have opposite consequences:
+
+- **Saturation** — the conformational content genuinely occupies ~15
+  dimensions, the token is over-provisioned at DM=256, and objective 4 gets
+  dramatically cheaper.
+- **Capability limit** — the model has only learned the easiest ~15 modes.
+  PR would then be measuring *how much the model learned*, not *what the
+  latent can hold*, and would rise as the model improves.
+
+At FVE ≈ 0.15 the second reading is at least as likely as the first, and the
+ladder gives the distinguishing test for free.
+
+**Report PR and FVE jointly at every rung of the n_train ladder
+{50, 130, 300, 600}, at fixed DM, and give the PR-vs-FVE slope with CI.**
+
+| outcome | reading |
+|---|---|
+| PR flat while FVE rises materially | genuine saturation. The latent needs ~15–32 dimensions and DM=256 is over-provisioned. Strong objective-4 result. |
+| PR rises with FVE | capability-limited. PR at n_train=50 says nothing about the latent's requirement, and the current number must not be quoted as a width answer. |
+| FVE does not rise across the ladder | neither reading is available — report that instead, and it is the "data-limited vs fundamental" answer arriving through a different door. |
+
+### 12b. The token is re-encoding what the decoder already knows
+
+**86–91% of latent variance at DM=256 encodes *which system*, not how it
+moves.** The decoder already receives static per-atom features — element and
+reference position. Identity is therefore redundant: the token is spending
+most of its capacity transmitting something the decoder has independently.
+
+If that capacity is freed, the effective width available for conformation
+rises by roughly an order of magnitude at no architectural cost.
+
+**Cheap diagnostic first.** The task is displacement from the aligned
+reference, so feeding **zero displacement** should ideally give a zero latent.
+It does not — that is what the identity share is. So measure it:
+
+```
+z0 = encode(zero displacement, static features)   # per system
+```
+
+Report `||z0||` against the typical `||encode(x)||`, per system, across N. That
+ratio *is* the identity offset, measured directly rather than inferred from a
+variance decomposition.
+
+**Then the ablation.** Use `z := encode(x) − z0` as the code, at both train and
+eval time. This is **available zero-shot for unseen systems** — `z0` needs only
+the reference structure, which is given — so it is not a leak and does not
+require training frames from the target system.
+
+Report at fixed DM: FVE before and after, PR before and after, and the identity
+share before and after. If FVE rises and PR rises, that is a large free win and
+it should become the default.
+
+**Caveat to state, not to hide:** the encoder is non-linear, so `encode(x) − z0`
+removes the identity offset only to first order. If the ablation helps, the
+principled version is architectural — let static features condition the encoder
+(FiLM, as the decoder already does) while only displacement enters the pooled
+token, so identity cannot occupy the code by construction. Test the cheap
+version first; propose the architectural one only if the cheap one moves the
+number.
+
+### 12c. Two notes
+
+The flat FVE-vs-N result (−0.0139 ± 0.0593 and friends, all CIs spanning zero,
+123 unseen systems, 598–33,377 atoms) is correctly caveated in your own commit
+and I want that caveat preserved verbatim in any writeup: **a flat slope on a
+model at FVE ≈ 0.15 is a much weaker claim than a flat slope on a strong one.**
+Do not let it be read as "the codec holds flat with N" until the ladder lands.
+
+`armf_phase1_analyze.py` printing the retracted capacity exclusion *at runtime*,
+instructing a future reader not to consider the hypothesis that is now live, is
+the best argument yet for Q4's "mark it where the reader meets it." Worth a line
+in the ROADMAP as its own instance.
+
+Confirm which self-scheduling mechanism you used for the autonomous loop and at
+what interval — INBOX 010 asked for it and I want it on record that the loop is
+closed.
