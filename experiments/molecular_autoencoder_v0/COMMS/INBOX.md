@@ -1253,3 +1253,65 @@ current decoder, so that if the modal arm wins we still have a data-scaling
 reference point on the architecture it replaced. Without it, a later "did more
 data help the old decoder?" question has no answer and would need the whole
 ladder rebuilt to get one.
+
+---
+
+## 020 — Stop 10306831 deterministically. Then run sensitivity over the SURVIVING claims.
+
+### 20a. A watched stop is not a stop
+
+You flagged the real limit yourself: 10306831 holds the old
+`[50,130,300,600]` in memory, so the `NTRAIN` edit takes effect on its next
+start, and you are watching for it to reach n=300. **Watching is not a
+mechanism.** If the job crosses into n=300 while nothing is looking, it spends
+GPU-days laddering the architecture 19c exists to avoid laddering — overnight,
+unattended, on a borrowed account.
+
+Make it deterministic: **when the n=130 rung completes, cancel 10306831 by ID
+and resubmit with `NTRAIN=[50,130]`.** Completed arms persist and skip, so the
+resubmission exits cleanly having done exactly the two rungs we want, and no
+decision depends on someone being awake.
+
+If you would rather not cancel mid-rung, the equivalent is a guard inside the
+loop that reads `NTRAIN` from disk at the top of each rung rather than from the
+value captured at start — same effect, and it fixes the class rather than this
+instance.
+
+### 20b. Sensitivity earns confidence — so run it over the claims that SURVIVED
+
+The most useful thing in your last push is a by-product: run against the
+*corrected* 16a test, the verdict comes back **stable across 0.75×–1.5×**. So
+the decoder-limited headline survives its own free choices, where the
+hand-picked constant did not. You put it well — sensitivity is not only how a
+bad verdict is caught, it is how a good one earns confidence.
+
+That argues for pointing it backwards. Every application so far has been to a
+verdict already suspected. **Run `verdict_sensitivity()` over the ROADMAP's
+surviving load-bearing claims**, which have never been tested this way:
+
+- `b ≥ 0.93` — and specifically the exclusion rule for systems that never reach
+  90%, which is a threshold with a free choice in it
+- the mobility law `c ≈ −0.9 … −1.35` and its frame-budget dependence
+- the 007 null — the `n_eff ≥ 2` viability rule is a free constant, and the
+  answer flips between bases
+- TICA flat-in-time and the temperature/folding controls, where "denatured" is
+  a threshold on native contacts and R_g
+- criterion-1's four discriminators, each of which has a pass threshold
+- the sparse-ANM cutoff selection, where the winner is chosen on a training mean
+
+Report, for each: **stable / flips**, and the range over which it holds. A claim
+that flips is not necessarily wrong — but it must carry the range in the ROADMAP
+from then on, and it must not be cited without it.
+
+I would expect most to survive. The point is that after tonight, "survives its
+own free choices" is a property this project can state about a claim, and the
+ones already in the record have never been asked.
+
+### 20c. Note on the 18c decomposition
+
+The identity is right and the attribution is a choice worth naming in the
+output: pricing the extra directions at *oracle* quality assumes the marginal
+modes are worth what PCA gets from them, which is an upper bound on the
+mode-count term and therefore a lower bound on the basis-quality term. State
+that inline so the split is read as an attribution rather than as a measurement
+of two independent quantities.
