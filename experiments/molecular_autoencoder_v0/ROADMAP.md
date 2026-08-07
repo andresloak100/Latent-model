@@ -2797,6 +2797,35 @@ PCA-16 of ≈ 0.53, **a flat slope on a model this far from the achievable is co
 weakness, not with the architecture holding up.** INBOX 14b (job 10306939) is the direct test of which
 one it is.
 
+### THE PROCEDURE CHANGE MOVED THE OPTIMAL LEARNING RATE — WHICH IS WHY MIXING IS FATAL, NOT UNTIDY
+`atlas_dm.json` at the time of the INBOX 16c fix held 16 rows. Provenance is unambiguous: rows 0–12
+are the legacy 13 (flat 30,000-step cap), rows 13–15 come from job 10306831 under the current
+procedure — row 13 ran **47,500 steps**, which is only reachable through `maxsteps_for`.
+
+| arm | procedure | best LR found | all-123 FVE |
+|---|---|---|---|
+| n50 DM=256 | **legacy** | 3e-4 | **+0.1453 / +0.1553 / +0.1497** (3 seeds) |
+| n50 DM=256 | **current** | 3e-5 | **+0.1318** |
+| n50 DM=256 @ 3e-4 | current | — | tracked **+0.0515** vs legacy's tracked +0.0972 |
+
+**The procedure change did not simply shift performance — it moved where the LR optimum sits.** Under
+the legacy procedure DM=256 peaked at lr=3e-4 and *collapsed* at 1e-3/3e-3 (−0.0001, −0.0004). Under
+the current procedure the same width does well at **3e-5**, a rate the legacy grid could not even
+reach, while 3e-4 falls to roughly half its legacy tracked value.
+
+**So a table mixing the two does not compare two noisy estimates of one quantity — it compares
+different points on different LR curves.** The sweep picks "best LR per DM" by maximising over rows;
+with legacy rows supplying 3e-4/1e-3/3e-3 and current rows supplying 3e-5/1e-4, the winner is
+selected across a procedure boundary. That is Family E in its most damaging form, because the
+selected LR then propagates to every higher rung of the ladder.
+
+**Consequence for the fix:** "standardise the procedure" is not merely bookkeeping — **the entire LR
+grid must be re-swept under whichever procedure is kept**, since a winner inherited across the
+boundary is meaningless. Job 10307026 decides which procedure that should be at matched LR; note that
+if LEGACY wins, the correct action is *not* the retrain direction assumed so far — it would be to
+**revert or condition the warmup**, which was introduced only to rescue the 3e-5 grid edge and may
+have cost the main operating point to do it.
+
 ### INBOX 16a RESULT: THE DECODER'S OUTPUT SPANS ~6 DIRECTIONS. THE FUNCTION CLASS IS WHAT BINDS.
 Measured on the best available arm, 24 N-stratified held-out systems, 2,000 consecutive frames:
 
