@@ -1169,3 +1169,87 @@ Extend the Family A check accordingly:
 
 The general lesson matches the runtime-print finding from Q4: the dangerous
 instances are the ones outside the analysis, where nobody is looking for them.
+
+---
+
+## 019 — Verdict sensitivity. The A/B/C dichotomy is superseded. Don't ladder a diagnosed architecture.
+
+Withdrawing "the procedure moved the LR optimum" on your own control is the
+right call, and the reason is exactly right: it compared current rows against
+legacy rows that are unreproducible, so it was never a two-procedure
+comparison. Keeping CURRENT, skipping the HYBRID arm as a question nobody has,
+and still discarding the 13 arms on independent grounds are all correct.
+
+The AST-hash design in `armf_stamp.py` is better than what I asked for. I said
+"git SHA"; gating on repo HEAD would retrain on documentation commits and the
+gate would be off within a day. A normalised AST hash of `Codec` and `train`
+with docstrings stripped is the right invariant, and verifying it — comment
+rewrite hashes identically, `x+1` does not — rather than asserting it is the
+distinction that matters.
+
+### 19a. Family G needs a stronger fix than "name the metric"
+
+Your observation is sharper than the family as I wrote it:
+
+> *each was a verdict I automated to protect against my own bias, and the
+> automation moved the bias from the conclusion into the threshold, where it is
+> harder to see.*
+
+Record that as the family's actual statement. Naming the metric helps, but it
+does not close the hole, because the next instance will have a defensible metric
+and an arbitrary constant.
+
+**The fix is sensitivity, printed unconditionally.** Every automated verdict
+must report what it would have concluded across the plausible range of *every
+free choice it contains*:
+
+- the threshold at, say, 0.5×, 1×, and 2× its chosen value;
+- each candidate metric it could have decided on;
+- and the margin between the measured value and the decision boundary.
+
+**If the verdict flips anywhere in that range, it is not a verdict — it is a
+measurement plus an opinion, and it must print as such.** All three of tonight's
+instances would have failed that test on sight: 5.96-vs-6.0 flips at any nearby
+threshold, pooled-2.045-vs-2.0 flips per basis, and the procedure verdict flips
+between `best_track` and `full_fve`.
+
+This is cheap — the verdict block already has every number — and it converts
+"the numbers were right and the reading was wrong" from something caught by
+review into something the output cannot hide.
+
+### 19b. The original A/B/C dichotomy is superseded — retire it explicitly
+
+The learning curve was designed to separate **data-limited** from
+**fundamental**. 16a returned a third answer that the ladder cannot produce:
+**architecture-limited, and specifically decoder-limited** — realised rank 6
+against a data rank of 152, with the latent already holding ~15.
+
+Mark the A/B/C decision tree retired in the ROADMAP, with the reason. It was a
+good tree for the question as posed; the realised-rank measurement changed the
+question. A tree left standing gets applied, and applying it now would force a
+third outcome into two boxes.
+
+### 19c. Do not re-run the full ladder on an architecture already diagnosed
+
+With the 13 arms discarded, the ladder needs rebuilding — and rebuilding it on
+the current decoder spends the GPU measuring how a **function-class-limited**
+architecture responds to data. That is worth something, but not the several
+GPU-days it costs, and not before the modal comparison lands.
+
+**Sequencing:**
+
+1. Hold the expensive rungs (n_train 300, 600) until the modal-vs-attention
+   comparison settles which decoder is current-best.
+2. Keep **n_train=50 on both architectures**, since that is the rung the
+   comparison itself runs at and the two must be comparable.
+3. Then run the full ladder **once**, on the winner.
+
+If the modal arm loses, nothing is lost — the ladder runs on the current decoder
+a day later. If it wins, several GPU-days of ladder on a superseded architecture
+are saved. The asymmetry is large and it points one way.
+
+**One exception worth paying for:** a single mid rung (n_train=130) on the
+current decoder, so that if the modal arm wins we still have a data-scaling
+reference point on the architecture it replaced. Without it, a later "did more
+data help the old decoder?" question has no answer and would need the whole
+ladder rebuilt to get one.
