@@ -3017,7 +3017,7 @@ nothing so far has.
 > 65% of that gap is basis quality.** A flat slope on a model this far from achievable is consistent
 > with uniform weakness — and that context is now *measured*, not asserted.
 
-### ⬛ 14a RESULT (job 10307401, n=123 held-out): THE CODEC LOSES TO THE ZERO-SHOT PEER, EVERYWHERE
+### ⬛ 14a RESULT (job 10307401, n=123 held-out, **n_train = 50**): THE CODEC LOSES TO THE ZERO-SHOT PEER, EVERYWHERE
 The comparison the project exists to make, finally in an output. **ANM computable on 123/123 systems
 across all three N terciles — no Family A exclusion.** Cutoff 5 Å, swept on TRAINING systems only.
 
@@ -3079,7 +3079,7 @@ systems below it. That is not selective success with a bad tail; it is **uniform
 per-atom level**. The conclusion is the same and arrives by a simpler route than the table
 anticipated, and saying so is more accurate than forcing the observation into the row.
 
-### ⬛ 26a: MY √N MECHANISM IS REFUTED — and the controls found something I did not predict
+### ⬛ 26a **(at n_train = 50)**: MY √N MECHANISM IS REFUTED — and the controls found something I did not predict
 `log10(‖z‖/‖disp‖)` vs `log10(N)`, trained checkpoints, forward passes only, **123 held-out systems
 over 1.75 decades**:
 
@@ -3166,6 +3166,29 @@ Both remaining cells were also unbounded nulls. Routed through `null_verdict` ag
 `GAP_UNDER_TEST = 0.0350`, **all three rates are NOT RESOLVABLE** — every CI contains both zero and
 the gap being adjudicated. This *strengthens* 24c's own conclusion: the gap is not resolvable
 against training noise, and now no cell claims otherwise.
+
+### ⬛ 044: every checkpoint-derived result now carries its `n_train`, and atlas_dm's rung math
+
+**44b — the provenance the filenames now state, the headings now state too.** All 15 legacy
+checkpoints were renamed `_n50`; the three results computed *from* them are 28b, 29b/30 and 26a, and
+32c had attached "at n_train=50" only to the peer comparison. All now carry it in their heading. This
+is the specific failure mode behind 41a: a number joined across contexts because its scope was
+reconstructable rather than attached.
+
+**44a — the rung math, measured rather than hoped.** 47 arms in a 20:00:08 wall = **25.5 min/arm**.
+The log reached the bottleneck sweep (`DMOD=512`) and completed `dlat` 512/16/64, so n50 owes
+**~2 bottleneck arms + ~4 addressing arms ≈ 2.5 h**. n130's grid is *narrower* by construction —
+`grid = {winner, winner/3}` instead of all five rates — so ≈ 23 arms ≈ 9.8 h at the n50 rate.
+
+**But the n50 rate is the wrong rate for n130, and the ladder says so directly:** at n130 the tied
+ladder ran **3/3 arms to the step cap** while n50 plateaued at 57–70k. Arms that hit `maxsteps` cost
+3–5× one that plateaus early. So n130 could plausibly take 20 h+, not 9.8 h — 044's concern is real,
+though the mechanism is arm duration rather than rung order.
+
+**The mitigation is already in place:** the requeue was submitted as a **chain** (10314124 →
+10314125, `afterany`), giving 40 h, and the resume is per-arm from `atlas_dm.json`. So n130 completes
+across the two walls without a second writer. A separate n130 job is **not** launched — two processes
+appending to one `atlas_dm.json` is a lost-update race, which is worse than the problem it solves.
 
 ### ⬛ 22a RUNG 1 (modal_ctx, 10307539, COMPLETE): the pre-registered "flat" branch is REFUSED
 
@@ -3582,7 +3605,7 @@ design cannot separate the two.** The encoder decay therefore remains **open** �
 a contributor to `FVE⊥` nor excluded. The verdict branch in `armf_atlas_modes.py` now prints that,
 with the collinearity diagnostics beside it, so the reading cannot recur.
 
-### ⬛⬛⬛ 28b/29b/30: NO PEER WIN AT ANY N — and the tied N-collapse is a SCALE defect, removable zero-shot
+### ⬛⬛⬛ 28b/29b/30 **(all at n_train = 50)**: NO PEER WIN AT ANY N — and the tied N-collapse is a SCALE defect, removable zero-shot
 **Reported first, per 30c.** Tied vs zero-shot ANM-256, matched capacity, one pass, same frames,
 123 held-out systems:
 
