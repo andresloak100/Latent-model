@@ -3122,3 +3122,72 @@ pre-registered "flat → receptive field is the limit" branch because the design
 cannot support it is `null_verdict` doing exactly what it was built for, on a
 branch that was pre-registered by me and would have been convenient to take.
 Rung 2 stays unjustified rather than being justified by an underpowered null.
+
+---
+
+## 043 — URGENT, before 41c runs: the ladder's checkpoints and the peer script's read path do not match, and a stale file sits at the read path.
+
+Finding the *generator* of the repeated join — the ladder saved no checkpoints, so
+comparing an arm against ANM meant retraining it — is a better diagnosis than
+"be careful with files," and cancelling 12 minutes to buy ~80 per arm is obviously
+right arithmetic. Un-hardcoding the verdict header to `VARIANTS[0]` is the same
+generalisation applied to the thing that started this: *a header naming an
+architecture the run didn't train.*
+
+But the two paths are not the same path. Read from the branch source, not
+reconstructed:
+
+```
+armf_tied_ladder.py:183   WRITES  {kind}_dm{DM}_lr{lr:g}_s{sd}_n{NTR_}.pt
+                                  ->  tied_dm256_lr3e-05_s0_n300.pt
+armf_tied_peer.py:67      READS   tied_dm{DM}_lr{ARM_LR:g}_s{SEED}.pt
+                                  ->  tied_dm256_lr3e-05_s0.pt
+```
+
+The ladder correctly keys by `n_train` — without that the three rungs would
+overwrite each other. The peer script has no `_n` in its pattern, because when it
+was written there was only one `n_train` to read.
+
+### 43a. This fails silently, in the worst available direction
+
+`tied_dm256_lr3e-05_s0.pt` **already exists** at the read path — 1,862,320 bytes,
+written by `armf_modal_arm.py`, which trains at **n_train = 50**. `ARM_LR` is
+3e-5 and the ladder runs at 3e-5, so `DM`, `lr` and `SEED` all match. The only
+difference is the suffix the peer script does not look for.
+
+So 41c would not fail with a missing file. It would **load the n50 tied
+checkpoint, compare it against ANM, and report the result as the n300 peer
+re-run** — reproducing the number 32c said was a floor while claiming to have
+lifted it.
+
+That is the same defect as the mislabel, one file over: an assumption that was
+correct in the source (`modal_arm` has exactly one `n_train`) carried into a
+context that has three. And it is worse than the mislabel in one respect —
+the mislabel produced an arm that was real and mis-attributed, whereas this
+produces the *old* answer wearing the new run's label.
+
+### 43b. The fix, and the guard that makes it not recur
+
+Two lines, and the second matters more:
+
+1. `armf_tied_peer.py` takes `n_train` explicitly and reads
+   `..._s{SEED}_n{NTRAIN}.pt`.
+2. **Fail loudly if the file is absent.** Right now a missing checkpoint would
+   fall back to whatever `torch.load` finds; there must be no path where a
+   checkpoint the caller did not name gets loaded. The same shape as
+   `make()` raising on unknown variants — the fix for a silent fall-through is
+   making fall-through impossible, which is your own formulation from 42a.
+
+Worth also checking whether `armf_tied_mediator.py` and `armf_scale_test.py`
+read from `modal_arm_ckpt` with the same n-less pattern. They were written when
+`modal_arm` was the only producer; the ladder is now a second producer writing
+into the same directory with a different key. **One directory, two naming
+conventions, no discriminator** is the condition, and it will not announce
+itself.
+
+### 43c. Nothing else — and this one is worth interrupting for
+
+`atlas_dm`'s requeue and `modal_ctx`'s NOT-RESOLVABLE write-up are both real and
+both can wait. This cannot: 41c is the measurement that decides whether the peer
+loss is a finding or an artefact of under-training, and it is currently wired to
+answer with the under-trained model.
