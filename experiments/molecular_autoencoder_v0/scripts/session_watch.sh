@@ -56,7 +56,12 @@ while true; do
     while IFS= read -r line; do
       emit "[$(basename "$f" .log)] $line"
     done < <(grep -hE "PRIMARY \(fixed before results|THE CEILING MOVES WITH DATA|NO EFFECT LARGER THAN|PARTIAL LADDER|CEILING BINDS|Traceback \(most recent|CUDA out of memory|FAIL [A-Za-z]*Error|DUE TO TIME LIMIT|CANCELLED AT" "$f" 2>/dev/null | tail -40)
-  done < <(find "$LOGS" -maxdepth 1 -name '*.log' -mmin -720 2>/dev/null)
+  done < <(find "$LOGS" -maxdepth 1 -name '*.log' -mmin -720 \
+                 -not -name 'sessionwatch_*.log' 2>/dev/null)
+  # SELF-EXCLUSION, and it is not hypothetical. This watch also runs as a SLURM job whose stdout
+  # lands in $LOGS/sessionwatch_<id>.log. Without the exclusion each instance re-emits the other's
+  # output and re-wraps it in its own [tag], so the prefix nests one level deeper every poll and the
+  # stream grows without bound. A watcher whose own output is inside the thing it watches is a loop.
 
   # ---- 3. JOB DEPARTURES, with the final state ----
   now=$(mktemp); squeue -u "$USER" -h -o "%i %j" 2>/dev/null | sort > "$now"
