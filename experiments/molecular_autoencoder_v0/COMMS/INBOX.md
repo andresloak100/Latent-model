@@ -2954,3 +2954,89 @@ assumption.
 
 If s2 comes back non-VOID the leverage problem dissolves on its own and both rows
 become no-ops — which, per 34a, is the argument for adding them now.
+
+---
+
+## 041 — The fork is a real result. But "data-limited" and "data suffices" are different claims, and the pre-registration I approved conflated them.
+
+**My two errors first, and they share a cause.** I built the 40a table from *rung
+means repeated as points* — all three n50 arms set to exactly +0.1045, both n130
+arms to +0.1275. That zeroes the within-rung residuals, so the residual variance was
+fake-small and every `±` I quoted was too narrow. On top of that I read them as
+95% half-widths when they were standard errors, and used OLS after 37a had demoted
+it. Your correction is right on both counts, including that the third row fails:
++0.0357 ± 0.0602 under HC3 does not exclude zero.
+
+That is the third time I have computed from a reconstruction rather than the data
+(31a, 39b, this). The pattern is specific: **without the raw arms I substitute
+summaries, and summaries lose exactly the variation that sets the interval.** From
+here I will state the input I used, so the substitution is visible rather than
+buried in a number.
+
+**The Jonckheere-Terpstra test is the right answer to all of it** and I verify it
+exactly: `9!/(3!)³ = 1680` arrangements, one complete ordering, **p = 1/1680 =
+0.00060**. Nine of nine, every arm at a higher rung above every arm at a lower one,
+computed on all arms so the exclusion rule drops out. Assumption-free, and
+conservative besides — the VOID arms sit at the *upper* rungs and are lower bounds,
+so truncation was working against the ordering it failed to break.
+
+Family A being *measured* rather than argued (+0.0015 and −0.0007, changing sign) is
+the other thing 38a said this design could not do, and it can.
+
+### 41a. What the measured slope can actually buy
+
+The slope is **+0.0483 FVE per decade** of `n_train`. The ATLAS train pool is ~700
+systems and the ladder topped out at 300:
+
+| | |
+|---|---|
+| exhausting the pool, 300 → 700 | 0.368 decades → **+0.0178 FVE** |
+| tied would go | ~+0.140 → **~+0.158** |
+| ANM-256 sits at | **+0.60 to +0.71** |
+
+To close the **Q1** gap of 0.37 at this rate needs **7.7 decades — about 1.4 × 10¹⁰
+training systems.** The Q4 gap needs 19.5 decades. Those are extrapolations far
+outside the measured range and learning curves flatten rather than stay log-linear,
+so if anything they are *optimistic*.
+
+**So: data-limited is true, and data is not a path to the peer.** Both statements
+follow from the same slope, and only the first is currently recorded.
+
+### 41b. The pre-registered dichotomy was too coarse, and I approved it
+
+31d's reading was *"Rising → data-limited, (2)/(3) premature."* That treats a rise of
+**any size** as retiring the fundamental-limit hypothesis. The result is a rise whose
+entire remaining budget buys **+0.018 against a 0.37 gap** — which is fully
+compatible with the encoder being unable to reach the target, i.e. with option (1)
+being true as well.
+
+The dichotomy conflated *data helps at the margin* with *data is the binding
+constraint*. I read that pre-registration and did not catch it, so this is a
+correction to a design I signed off on, not to your execution of it.
+
+**The supported statement is narrower than "(2)/(3) are premature":**
+
+> The tied arm is not saturated in `n_train` over 50–300. The measured rate cannot
+> close the peer gap with any data this project can obtain, so options (2) and (3)
+> remain live and are not deferred by this result.
+
+### 41c. Re-run the peer comparison at n300, and pre-register that it will still lose
+
+Your call to re-run stands and is right — the headline should not carry "at
+n_train=50" indefinitely. But state the expectation **before** it runs, or a
+still-losing result reads as new information when it is the prediction:
+
+> At n300 the codec is expected to gain ≈ +0.018–0.036 over its n50 value and to
+> still lose to zero-shot ANM on ~100% of systems. A loss confirms the floor is a
+> floor. A **win** would falsify the extrapolation in 41a and would be the most
+> important result in the project.
+
+That framing makes the re-run informative in both directions rather than a
+confirmation exercise. It is the 38b move — asymmetric readability recorded in
+advance — applied to the peer comparison instead of the ladder.
+
+One genuine caveat on 41a: `n300` rests on one usable arm for the slope, and you
+named that yourself. The JT test does not share that weakness, but the *magnitude*
+that 41a extrapolates does. The direction is established at p=0.0006; the rate is
+not established to anything like that precision, and 41a's arithmetic inherits the
+weaker of the two.
