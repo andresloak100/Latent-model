@@ -174,6 +174,15 @@ if __name__ == "__main__":
                                    improving=improving, best_track=max(h[1] for h in hist),
                                    secs=time.time() - t0)
                         rows.append(rec); json.dump(rows, open(RES, "w")); done.add((kind, lr, sd))
+                        # Save the arm. Without this the ladder's models die with the job, and the ONLY
+                        # way to compare an arm against ANM on the SAME frames -- which is what 42b says
+                        # the join requires -- is to retrain it. armf_tied_peer.py reads this path.
+                        try:
+                            os.makedirs(f"{WR}/modal_arm_ckpt", exist_ok=True)
+                            torch.save(mdl.state_dict(),
+                                       f"{WR}/modal_arm_ckpt/{kind}_dm{DM}_lr{lr:g}_s{sd}_n{NTR_}.pt")
+                        except Exception as e:
+                            print(f"      [ckpt] save failed: {type(e).__name__}: {e}", flush=True)
                         print(f"    {kind} n{NTR_} lr{lr:g} s{sd}: FVE {rec['fve']:+.4f}  steps {used} "
                               f"({stopped}){'  *** VOID ***' if improving else ''}  "
                               f"[{time.time()-t0:.0f}s]", flush=True)
@@ -199,8 +208,23 @@ if __name__ == "__main__":
     # AND THE SD IS TAKEN FROM THIS LADDER'S OWN ARMS, not borrowed. 32a's point is that TIED's seed
     # spread was never measured; the control's varies 0.0071-0.0330 across rates, so borrowing it
     # would be a comparator measured on a different arm. Three seeds per rung measures it here.
-    print(f"\n=== 31d/32b: DOES THE TIED ARM'S CEILING MOVE WITH DATA? (discriminates option 1 only) ===",
+    print(f"\n=== 31d/32b: DOES THE {VARIANTS[0].upper()} ARM'S CEILING MOVE WITH DATA? "
+          f"(discriminates option 1 only) ===", flush=True)
+    # INBOX 42c, RECORDED BEFORE THIS RUN REPORTED. The tied ladder is NOT expected to reproduce the
+    # untied one, and a match is not the success condition. The two arms differ STRUCTURALLY in how
+    # they respond to system size -- tied collapses at Q4 through a scale defect that a zero-shot
+    # N-only correction removes (29b/30a), while untied is flat in N (+0.0875 -> +0.0854). There is no
+    # reason their n_train scaling should agree. A FLAT tied ladder is therefore a real result about
+    # the tied arm, not a contradiction of the untied one, and must not be read as a failed
+    # replication. Both outcomes stay interpretable under 38b, which was written before any of this
+    # and does not care which architecture it is applied to.
+    print(f"  42c PRE-REGISTERED, before this run reported: the tied arm is NOT expected to reproduce",
           flush=True)
+    print(f"  the untied ladder (slope +0.0483, JT 27/27). The arms differ structurally in N-response,", flush=True)
+    print(f"  so a FLAT result here is a real finding about tied, not a failed replication.", flush=True)
+    print(f"  MEASURED SEPARATELY, NOT JOINED (42b): the untied n300 mean and 14a's ANM come from", flush=True)
+    print(f"  different harnesses. Any codec-vs-ANM gap must be computed in ONE pass on the SAME", flush=True)
+    print(f"  frames, the way 28b was built -- checkpoints are now saved so that is possible.", flush=True)
     print(f"    {'n_train':>9}{'seeds':>7}{'mean FVE':>11}{'SD':>9}{'median FVE':>13}", flush=True)
     pts, sds, sd_ks = [], [], []
     rung_sd, rung_f = {}, {}

@@ -55,8 +55,16 @@ def make(kind):
     base = D.Codec
     if kind == "control":
         return lambda Fs, L, dm, dlat=None, sub_z0=False: base(Fs, L, dm, dlat=dlat, sub_z0=sub_z0)
+    # INBOX 42a. This hardcoded tie_encoder=False was inert ONLY because VARIANTS never contains
+    # "tied" -- luck, not protection. It is the line armf_tied_ladder.py was copied from, where the
+    # same luck ran out and cost 9 arms. Explicit map; an unknown variant RAISES rather than silently
+    # becoming untied.
+    if kind not in ("tied", "untied"):
+        raise ValueError(f"make(): unknown variant {kind!r} -- add it explicitly rather than "
+                         f"letting it fall through to a default architecture")
+    tie = (kind == "tied")
     return lambda Fs, L, dm, dlat=None, sub_z0=False: ModalCodec(
-        Fs, L, dm, dlat=dlat, sub_z0=sub_z0, tie_encoder=False)
+        Fs, L, dm, dlat=dlat, sub_z0=sub_z0, tie_encoder=tie)
 
 
 if __name__ == "__main__":
@@ -77,6 +85,7 @@ if __name__ == "__main__":
         print(f"  {len(TR)} train / {len(HOt)} tracked / {len(HO)} held-out", flush=True)
 
         ST = STAMP.stamp(dict(dm=DM, ntr=NTR, lrs=str(USABLE_LRS), seeds=str(SEEDS),
+                              variants=str(VARIANTS),
                               warmup=D.WARMUP, maxsteps=D.MAXSTEPS), ModalCodec, D.train)
         rows = json.load(open(RES)) if os.path.exists(RES) else []
         STAMP.report(rows, ST, "arms")
