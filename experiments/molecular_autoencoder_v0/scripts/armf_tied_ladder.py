@@ -225,12 +225,15 @@ if __name__ == "__main__":
     # The budget is CONSTANT across rungs, so compute is matched. What is not matched is how far that
     # budget gets each rung from convergence, and that distance grows with n_train -- the regressor of
     # the primary test. Two consequences, and neither was visible in the output:
-    #   FAMILY D  truncation understates FVE at high n, biasing the slope TOWARD ZERO. A bounded null
-    #             would then be partly a measurement of the step budget rather than of the data --
-    #             which is this file's own doctrine: "undertrained at a fixed budget ... manufactures
-    #             a flat curve" (armf_atlas_dm.py:33).
-    #   FAMILY A  VOID is "still improving at maxsteps", so the EXCLUSION RATE rises with n_train and
-    #             the surviving high-n arms are the fast-converging subset, not a random one.
+    #   FAMILY D  truncation -- high-n arms are cut off before convergence, so their FVE is
+    #             understated. Pushes the slope DOWN. Affects 3/3 arms at n130.
+    #   FAMILY A  VOID exclusion -- VOID *means* still improving, so the SLOW movers are dropped and
+    #             the plateaued subset survives, leaving the high-n mean above a random draw's.
+    #             Pushes the slope UP. Affects 1/3 arms at n130.
+    # INBOX 38a: these OPPOSE, and an earlier version of this comment claimed the net was "toward
+    # zero", which is stronger than the argument supports. Truncation touches three times as many
+    # arms and probably dominates, so the net is MOST LIKELY downward -- but that is not established,
+    # and a one-directional claim is what a reader leans on. Both directions therefore print.
     CEIL = D.maxsteps_for(USABLE_LRS[0])
     print(f"\n  --- STEP BUDGET BY RUNG (ceiling {CEIL}, constant across rungs) ---", flush=True)
     cfrac = {}
@@ -248,16 +251,19 @@ if __name__ == "__main__":
             CEILING = (f" [CEILING BINDS HARDER AT HIGH n: {cfrac[lo_n]:.2f} at n{lo_n} -> "
                        f"{cfrac[hi_n]:.2f} at n{hi_n}]")
             print(f"    !! {CEILING.strip(' []')}", flush=True)
-            print(f"       Family D: high-n arms are truncated further from convergence, which "
-                  f"understates their FVE and", flush=True)
-            print(f"       biases the slope TOWARD ZERO -- so a bounded null here partly measures the "
-                  f"step budget, not the data.", flush=True)
-            print(f"       Family A: VOID means 'still improving at the ceiling', so the exclusion "
-                  f"rate rises with n_train and", flush=True)
-            print(f"       the surviving high-n arms are the fast-converging subset. Raising the cap "
-                  f"MID-LADDER would not fix", flush=True)
-            print(f"       either -- it would make the rungs incomparable on budget, so the budget "
-                  f"stays fixed and this prints.", flush=True)
+            print(f"       Family D (slope DOWN, 3/3 arms at n130): high-n arms are cut off before "
+                  f"convergence, understating FVE.", flush=True)
+            print(f"       Family A (slope UP,   1/3 arms at n130): VOID *means* still improving, so "
+                  f"the SLOW movers are dropped", flush=True)
+            print(f"         and the plateaued subset survives, leaving the high-n mean above a "
+                  f"random draw's.", flush=True)
+            print(f"       THESE OPPOSE. Truncation touches 3x as many arms so the net is most likely "
+                  f"DOWNWARD, but that is", flush=True)
+            print(f"         NOT ESTABLISHED (INBOX 38a) -- both directions are live and neither is "
+                  f"quantified by this design.", flush=True)
+            print(f"       Raising the cap MID-LADDER would not fix either: it would make the rungs "
+                  f"incomparable on compute,", flush=True)
+            print(f"         so the budget stays fixed and this prints instead.", flush=True)
     short = [(nt, k_) for (nt, _, _, k_) in pts if k_ < len(SEEDS)]
     if short:
         print(f"     (also short of seeds, which costs PRECISION not lever arm and is already priced "
@@ -388,6 +394,14 @@ if __name__ == "__main__":
             print(f"     and the 0%-of-systems peer loss. It does not soften the n50 peer result; it")
             print(f"     means the headline carries 'at n_train=50' until the peer comparison is")
             print(f"     re-run at the best rung.", flush=True)
+            if CEILING:
+                print(f"\n     INBOX 38b -- THIS BRANCH IS FULLY INTERPRETABLE. The instrument is biased "
+                      f"AGAINST finding a rise", flush=True)
+                print(f"     (truncation dominates, 3/3 arms), so a rise measured THROUGH the confound "
+                      f"is CONSERVATIVE: the true", flush=True)
+                print(f"     effect is at least this large. 38c does not apply and no re-run is "
+                      f"triggered.", flush=True)
+
         elif sl is not None:
             bound = abs(hs * span)
             print(f"\n  => Across a {10**span:.1f}x range in n_train, NO EFFECT LARGER THAN "
@@ -397,6 +411,23 @@ if __name__ == "__main__":
             print(f"     OPTION (1) IS NOT RETIRED; effects below that size are not excluded here.")
             print(f"     Reporting this as 'not data-limited' would be Family C -- retiring the")
             print(f"     hypothesis the ladder exists to test.", flush=True)
+            if CEILING:
+                print(f"\n     INBOX 38b -- THIS BRANCH IS NOT INTERPRETABLE AS A NULL. Flat is "
+                      f"indistinguishable from the step", flush=True)
+                print(f"     budget: a bound here is partly a statement about 90000 steps, not about "
+                      f"data, so it CANNOT retire", flush=True)
+                print(f"     option (1) -- which is exactly what 32b and 33c established the ladder "
+                      f"must be able to do.", flush=True)
+                print(f"     INBOX 38c, COMMITTED BEFORE THE NUMBER EXISTED: a flat result TRIGGERS A "
+                      f"RE-RUN at the prescribed", flush=True)
+                print(f"     173205 steps (LADDER_MAXSTEPS=173205, ~2x compute over 9 arms) before "
+                      f"option (1) may be retired.", flush=True)
+                print(f"     Chosen over 'report as confounded and leave it open' because THAT is an "
+                      f"underpowered null wearing a", flush=True)
+                print(f"     result's clothes -- the thing 35a and null_verdict exist to refuse -- and "
+                      f"because 32c makes this fork", flush=True)
+                print(f"     decide whether the n50 peer loss is a finding or an artefact of "
+                      f"under-training.", flush=True)
 
     print(f"\n  SCOPE: architecture, objective and comparator held FIXED; only n_train varies, so this")
     print(f"  discriminates (1) alone and cannot separate (2) from (3). The N-only scale correction is")

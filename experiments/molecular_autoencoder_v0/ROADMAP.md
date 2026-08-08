@@ -3213,6 +3213,31 @@ and its `+0.1302` is a true lower bound that already exceeds every other arm in 
 That last point matters for the direction of the bias: the confound suppresses the rise it would have
 to manufacture to be dangerous. FVE by rung is n50 +0.1045, n130 +0.1276, n300 >= +0.1302.
 
+**038: the two biases OPPOSE, and the verdict is asymmetrically readable.**
+
+| | mechanism | arms at n130 | slope bias |
+|---|---|---|---|
+| Family D | truncation — high-n arms cut off before convergence, FVE understated | **3/3** | **down** |
+| Family A | VOID exclusion — VOID *means* still improving, so the *slow* movers are dropped and the plateaued subset survives | **1/3** | **up** |
+
+An earlier version of this section said the net was "toward zero". That is stronger than the argument
+supports: truncation touches 3× as many arms and probably dominates, but the net is **not
+established**, and neither direction is quantified by this design.
+
+The consequence is that **the ladder can confirm data-limitation but cannot refute it**:
+
+- **RISE** → measured *through* an instrument biased against rises, so it is **conservative** — the
+  true effect is at least as large. Fully interpretable; option (1) stands.
+- **FLAT** → indistinguishable from the step budget. A bound here is partly a statement about 90,000
+  steps, not about data, so it **cannot retire option (1)** — which is exactly what 32b and 33c
+  established the ladder must be able to do.
+
+**Decided before the number exists (38c): a flat result triggers a re-run at 173,205 steps**
+(`LADDER_MAXSTEPS=173205`, ~2× compute over 9 arms). The alternative — report it as confounded and
+leave the fork open — is an underpowered null wearing a result's clothes, which is precisely what 35a
+and `null_verdict` exist to refuse. And 32c makes this fork decide whether the n50 peer loss is a
+finding or an artefact of under-training, so it is worth the compute.
+
 **The budget is deliberately NOT being raised mid-ladder.** Doing so would make the rungs
 incomparable on compute — trading a visible confound for a hidden one. Instead the verdict now prints
 the per-rung step table and carries a `CEILING BINDS HARDER AT HIGH n` tag on the verdict line, beside
