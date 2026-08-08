@@ -3167,6 +3167,42 @@ Both remaining cells were also unbounded nulls. Routed through `null_verdict` ag
 the gap being adjudicated. This *strengthens* 24c's own conclusion: the gap is not resolvable
 against training noise, and now no cell claims otherwise.
 
+### ⚠ LIVE CONFOUND found at n130, before n300 lands: the step ceiling binds harder as n_train rises
+
+n130 s2 came back **VOID** (`maxsteps`, still improving). One lost arm is not the finding; the
+pattern behind it is:
+
+| rung | arms | mean steps | at the 90k ceiling | VOID |
+|---|---|---|---|---|
+| n50 | 3 | 65,000 | **0/3** | 0 |
+| n130 | 3 | 90,000 | **3/3** | 1 |
+
+`maxsteps_for(3e-5) = min(90000, 30000·√(1e-3/3e-5)) = min(90000, **173,205**) = 90000`. The **cap
+binds**, giving arms 48% less than this project's own √-scaling rule prescribes — and the ladder runs
+at 3e-5 *exclusively*, the rate [`armf_atlas_dm.py:100`](scripts/armf_atlas_dm.py#L100) already
+records as *"hit MAXSTEPS still improving and are flagged VOID … a Family D hole opened by the
+Family E repair."*
+
+The budget is **constant across rungs**, so compute is matched. What is not matched is how far that
+budget gets each rung from convergence, and that distance grows with `n_train` — the regressor of the
+primary test:
+
+- **Family D.** Truncation understates FVE at high n, biasing the slope **toward zero**. A bounded
+  null would then partly measure the step budget rather than the data — which is this project's own
+  doctrine verbatim: *"undertrained at a fixed budget … manufactures a flat curve."*
+- **Family A.** VOID *means* "still improving at the ceiling", so the **exclusion rate rises with the
+  regressor** and the surviving high-n arms are the fast-converging subset, not a random one.
+
+**The budget is deliberately NOT being raised mid-ladder.** Doing so would make the rungs
+incomparable on compute — trading a visible confound for a hidden one. Instead the verdict now prints
+the per-rung step table and carries a `CEILING BINDS HARDER AT HIGH n` tag on the verdict line, beside
+`PARTIAL`.
+
+**Risk this creates for the fork:** if n300 voids at a higher rate still, that rung may end with too
+few usable arms to enter `pts` at all. The monitor already handles it — its rung check counts
+*non-VOID* arms, so it will report `CHAIN ENDED with 2/3 rungs` rather than terminating on a
+two-rung verdict.
+
 ### ⬛ 037 PRE-REGISTERED, before n300 exists: the ladder reports Welch + HC3, unconditionally
 
 Pooling across rungs and the OLS slope both assume **equal variance across rungs**, which the ladder

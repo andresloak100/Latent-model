@@ -203,6 +203,48 @@ if __name__ == "__main__":
         print(f"     This is an EARLY READ, not the fork. Any bound below is measured over "
               f"{span_have:.1f}x and cannot be quoted as the answer to a {span_reg:.1f}x question.",
               flush=True)
+    # ---- STEP BUDGET BY RUNG. Family D and Family A, both live, neither previously printed. ----
+    # maxsteps_for(3e-5) = min(90000, 30000*sqrt(1e-3/3e-5)) = min(90000, 173205) = 90000: the CAP
+    # binds, giving 48% less than this project's own sqrt scaling prescribes, and the ladder runs at
+    # 3e-5 exclusively -- the rate armf_atlas_dm.py:100 already records as "hit MAXSTEPS still
+    # improving and are flagged VOID ... a Family D hole opened by the Family E repair".
+    #
+    # The budget is CONSTANT across rungs, so compute is matched. What is not matched is how far that
+    # budget gets each rung from convergence, and that distance grows with n_train -- the regressor of
+    # the primary test. Two consequences, and neither was visible in the output:
+    #   FAMILY D  truncation understates FVE at high n, biasing the slope TOWARD ZERO. A bounded null
+    #             would then be partly a measurement of the step budget rather than of the data --
+    #             which is this file's own doctrine: "undertrained at a fixed budget ... manufactures
+    #             a flat curve" (armf_atlas_dm.py:33).
+    #   FAMILY A  VOID is "still improving at maxsteps", so the EXCLUSION RATE rises with n_train and
+    #             the surviving high-n arms are the fast-converging subset, not a random one.
+    CEIL = D.maxsteps_for(USABLE_LRS[0])
+    print(f"\n  --- STEP BUDGET BY RUNG (ceiling {CEIL}, constant across rungs) ---", flush=True)
+    cfrac = {}
+    for nt in LADDER:
+        v = [r for r in rows if r.get("n_train") == nt]
+        if not v: continue
+        at = sum(1 for r in v if r["steps"] >= CEIL); vd = sum(1 for r in v if r["improving"])
+        cfrac[nt] = at / len(v)
+        print(f"    n{nt:<5} {len(v)} arms, mean {np.mean([r['steps'] for r in v]):.0f} steps, "
+              f"{at}/{len(v)} at the ceiling, {vd} VOID (excluded)", flush=True)
+    CEILING = ""
+    if len(cfrac) > 1:
+        lo_n, hi_n = min(cfrac), max(cfrac)
+        if cfrac[hi_n] > cfrac[lo_n]:
+            CEILING = (f" [CEILING BINDS HARDER AT HIGH n: {cfrac[lo_n]:.2f} at n{lo_n} -> "
+                       f"{cfrac[hi_n]:.2f} at n{hi_n}]")
+            print(f"    !! {CEILING.strip(' []')}", flush=True)
+            print(f"       Family D: high-n arms are truncated further from convergence, which "
+                  f"understates their FVE and", flush=True)
+            print(f"       biases the slope TOWARD ZERO -- so a bounded null here partly measures the "
+                  f"step budget, not the data.", flush=True)
+            print(f"       Family A: VOID means 'still improving at the ceiling', so the exclusion "
+                  f"rate rises with n_train and", flush=True)
+            print(f"       the surviving high-n arms are the fast-converging subset. Raising the cap "
+                  f"MID-LADDER would not fix", flush=True)
+            print(f"       either -- it would make the rungs incomparable on budget, so the budget "
+                  f"stays fixed and this prints.", flush=True)
     short = [(nt, k_) for (nt, _, _, k_) in pts if k_ < len(SEEDS)]
     if short:
         print(f"     (also short of seeds, which costs PRECISION not lever arm and is already priced "
@@ -323,7 +365,8 @@ if __name__ == "__main__":
             print(f"    WELCH: not computable (a rung has k<2 or zero spread)", flush=True)
 
         if moves and sl is not None:
-            print(f"\n  => THE CEILING MOVES WITH DATA.{PARTIAL} Slope {sl.slope:+.4f} +/- {hs:.4f} excludes")
+            print(f"\n  => THE CEILING MOVES WITH DATA.{PARTIAL}{CEILING} Slope {sl.slope:+.4f} "
+                  f"+/- {hs:.4f} excludes")
             print(f"     zero, so the tied arm is DATA-limited over this range: 31d-(1) is NOT the")
             print(f"     binding constraint and (2)/(3) are premature.")
             print(f"     INBOX 32c CONSEQUENCE, pre-registered: 14a, 17c, 25a and the ENTIRE peer")
@@ -335,7 +378,7 @@ if __name__ == "__main__":
         elif sl is not None:
             bound = abs(hs * span)
             print(f"\n  => Across a {10**span:.1f}x range in n_train, NO EFFECT LARGER THAN "
-                  f"{bound:.4f}{PARTIAL}")
+                  f"{bound:.4f}{PARTIAL}{CEILING}")
             print(f"     (t-interval on the slope, df={dfs}) -- which is {100*bound/CTRL_MEAN:.0f}% of")
             print(f"     the control's mean ({CTRL_MEAN:+.4f}; {CTRL_PROV}).")
             print(f"     OPTION (1) IS NOT RETIRED; effects below that size are not excluded here.")
