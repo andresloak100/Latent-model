@@ -4396,3 +4396,95 @@ enough that clearing it by 46× is not evidence of anything, and it fails in the
 would erase the finding.
 
 SMALL-PROTEIN is unaffected — it rests on RMSD, which has a null that behaves properly.
+
+---
+
+## 059 — the ladder's slope is a tail repair, and that changes what the project's one positive result means
+
+41c is the cleanest thing this project has produced: no extrapolation, no cross-harness join,
+same frames, pre-registered as expected to lose, and it lost. The chaining risk I raised did not
+materialise — 1:48 against a 6 h wall — and saying so plainly rather than claiming the warning
+was vindicated is the right record. 58b also worked exactly as intended: the rule went in at
+`65cf5b32` *before* the 9th arm was read, so the tightening is a result and not a choice.
+
+But the two results have to be read together, and together they say something neither says alone.
+
+### 59a. Q4 supplies more than all of the movement; the other three quartiles are negative
+
+Decomposing your own table between the rungs:
+
+    quartile   n50       n300      delta      gap to ANM at n300
+    Q1      +0.2956   +0.2538    -0.0418          +0.4374
+    Q2      +0.2622   +0.2633    +0.0011          +0.4515
+    Q3      +0.2030   +0.1698    -0.0332          +0.4344
+    Q4      -0.2791   +0.0292    +0.3083          +0.6498
+
+    Q4 alone      +0.3083  =  131.5% of the total movement
+    Q1+Q2+Q3      -0.0739  =  -31.5%
+
+**So "THE CEILING MOVES WITH DATA" is true of the tail and of nothing else.** Six times the
+training data left typical systems flat or slightly worse and repaired the catastrophic
+large-system failures. The ladder's slope (+0.1227 ± 0.0871) and JT 26/27 at p = 0.00179 are
+both real, but what they order is *arm means*, and the means rise because Q4 rises. The
+statement they support is "more data monotonically repairs the large-system tail", not "the
+codec improves with data".
+
+That is a **Family D finding about the ladder's own statistic**: mean FVE cannot distinguish
+"everything improved a little" from "the tail improved a lot while the rest declined", and only
+41c's quartile breakdown could. The ladder should carry quartiles alongside the mean, or the
+mean should print with a tail-dominated warning on the same line. This is the same class as
+047's mean-versus-median, one level up.
+
+Please restate the ROADMAP line accordingly. It is currently the project's only positive result
+and it is being read as broader than it is — I have read it that way myself in three separate
+items.
+
+### 59b. The one test that would settle Q1/Q3, and it needs no new compute
+
+Are the Q1 and Q3 declines real or noise? It matters a great deal: "more data does nothing for
+typical systems" and "more data actively degrades typical systems" are different findings, and
+the second would be the most important negative in the project.
+
+41c evaluated **the same systems on the same frames at both rungs**, so the paired per-system
+delta is available and is far more powerful than differencing two quartile summaries. Please
+report, per quartile: the mean paired delta, its CI, and the fraction of systems that got worse.
+The numbers already exist in the run output; this is a groupby, not a job.
+
+Until that lands I would describe Q1/Q3 as "no improvement detected" rather than "degraded".
+
+### 59c. State the negative with its bound, not as a bare 0%
+
+`0 of 123` invites the reply "so maybe with more systems". Close it with the arithmetic: by the
+rule of three, zero wins in 123 puts the **95% upper bound on the win rate at 3/123 = 2.4%**.
+So the claim is not "we have not seen a win" but "the win rate is below 2.4% with 95%
+confidence", at every cutoff, at the best rung the ladder can reach. That is a much stronger
+sentence and it is free.
+
+### 59d. Q4 was repaired from harmful to useless, not to good
+
+Worth being exact, because "+0.308 improvement" reads like a success:
+
+    Q4 at n50   -0.2791   worse than predicting nothing at all
+    Q4 at n300  +0.0292   approximately no signal
+    ANM on Q4   +0.6790   still +0.6498 ahead
+
+The worst-system move from −4.040 to −1.673 and sub−0.5 from 9% to 2% are the same story: the
+model stopped being actively wrong on large systems. It did not start being right about them.
+Please write it that way in the ROADMAP, since "repaired the catastrophic tail" will otherwise
+be read as the tail now working.
+
+### 59e. The oracle is now the only live branch — launch it
+
+With 41c in, the global-latent-alone path is measured and finished: no win at any rung, win rate
+bounded under 2.4%, and the improvement that does exist confined to making large systems
+un-catastrophic. Nothing further about that path needs measuring.
+
+The sparse event channel is the one component of §7 never built, and its oracle bound is scoped,
+falsifier-first, at 2–4 GPU-hours reusing the same-frames harness 41c just validated. It is now
+the only thing that could change the peer verdict, and it is cheap enough to answer this week.
+Please launch it ahead of anything else in the queue.
+
+One thing 41c makes newly interesting for it: the residual the channel would carry is now known
+to be **quartile-dependent** — the tail is where the model was catastrophic and where data
+helped. Report the oracle's gap closure per quartile, not pooled, or you will average a Q4
+effect over three quartiles that may not have one.
