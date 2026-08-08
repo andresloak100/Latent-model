@@ -543,8 +543,34 @@ if __name__ == "__main__":
         if moves and sl is not None:
             print(f"\n  => THE CEILING MOVES WITH DATA.{PARTIAL}{CEILING} Slope {sl.slope:+.4f} "
                   f"+/- {hs:.4f} excludes")
-            print(f"     zero, so the tied arm is DATA-limited over this range: 31d-(1) is NOT the")
-            print(f"     binding constraint and (2)/(3) are premature.")
+            print(f"     zero, so the tied arm is NOT SATURATED in n_train over this range.")
+            # INBOX 41b: 31d's pre-registered reading was "rising -> data-limited, (2)/(3) premature",
+            # which treats a rise of ANY SIZE as retiring the fundamental-limit hypothesis. It
+            # conflates "data helps at the margin" with "data is the binding constraint". The measured
+            # rate cannot close the peer gap with any obtainable data, so a rise this size is fully
+            # compatible with the encoder ALSO being unable to reach the target -- i.e. with option (1)
+            # being true as well. The supported claim is narrower than the one pre-registered.
+            POOL = 697          # ATLAS train systems cached (manifest 'train_ordered'), vs 300 reached
+            _dec = np.log10(POOL / max(nt_ for nt_ in rungs_have))
+            _buy = sl.slope * _dec
+            # Gap on the SAME statistic the ladder tracks: mean FVE over held-out systems, tied vs
+            # ANM-256, measured together per system in tied_peer.json at n50. Quartile MEDIANS give
+            # smaller gaps (Q1 +0.3956); the mean is the like-for-like one and it is the largest.
+            for _lab, _gap in (("Q1 median", 0.3956), ("median, all 123", 0.4629), ("MEAN", 0.6114)):
+                _need = _gap / sl.slope
+                print(f"     41a  gap to ANM-256 ({_lab}) {_gap:+.4f} -> {_need:.1f} decades -> "
+                      f"{max(rungs_have)*10**_need:.1e} systems", flush=True)
+            print(f"     41a  exhausting the pool ({max(rungs_have)} -> {POOL}, {_dec:.3f} decades) "
+                  f"buys {_buy:+.4f} FVE.", flush=True)
+            print(f"     => DATA-LIMITED IS TRUE, AND DATA IS NOT A PATH TO THE PEER. The supported")
+            print(f"     statement is NOT '(2)/(3) are premature' -- 31d's dichotomy conflated 'data")
+            print(f"     helps at the margin' with 'data is the binding constraint' (INBOX 41b). It is:")
+            print(f"       the tied arm is not saturated in n_train over 50-300; the measured rate")
+            print(f"       cannot close the peer gap with any data this project can obtain, so options")
+            print(f"       (2) and (3) REMAIN LIVE and are not deferred by this result.")
+            print(f"     CAVEAT: the DIRECTION is established at p=0.0006 (rank test, assumption-free);")
+            print(f"     the RATE rests on a top rung of one usable arm, and this extrapolation inherits")
+            print(f"     the weaker of the two. Learning curves also flatten, so it is optimistic.")
             print(f"     INBOX 32c CONSEQUENCE, pre-registered: 14a, 17c, 25a and the ENTIRE peer")
             print(f"     comparison were measured at n50, so a rise means each was measured on an")
             print(f"     UNDER-TRAINED model and is a FLOOR, not an estimate -- including FVE_perp ~ 0")

@@ -3206,6 +3206,40 @@ have converged — but each VOID FVE is a *lower bound* on it, and **n300 s2 rea
 still climbing**, the highest arm in the ladder. The suppression is real and it runs against the
 conclusion, which is why the conclusion survives it.
 
+**041: what the slope can actually buy — and why the fork licenses less than 31d said.**
+
+The measured rate is **+0.0483 FVE per decade** of `n_train`. Against the zero-shot peer, on the
+statistic the ladder tracks (mean FVE over held-out systems, tied vs ANM-256, measured together per
+system in `tied_peer.json`):
+
+| gap statistic | gap | decades to close | systems needed |
+|---|---|---|---|
+| Q1 median | +0.3956 | 8.2 | 4.7×10¹⁰ |
+| median, all 123 | +0.4629 | 9.6 | 1.2×10¹² |
+| **mean — like-for-like with the ladder** | **+0.6114** | **12.7** | **1.4×10¹⁵** |
+
+Exhausting the entire remaining ATLAS pool (300 → 697, 0.366 decades) buys **+0.0177 FVE**. The
+shortfall is 20–30× on every statistic, so the conclusion does not depend on which one is chosen.
+
+**41b — the pre-registered dichotomy was too coarse, and the verdict text has been narrowed.** 31d
+read *"rising → data-limited, (2)/(3) premature"*, which treats a rise of **any size** as retiring the
+fundamental-limit hypothesis. It conflates *data helps at the margin* with *data is the binding
+constraint*. What is supported:
+
+> The tied arm is **not saturated** in `n_train` over 50–300. The measured rate **cannot close the
+> peer gap with any data this project can obtain**, so options (2) and (3) **remain live** and are not
+> deferred by this result.
+
+The **direction** is established at p=0.0006 by the assumption-free rank test; the **rate** rests on a
+top rung of one usable arm, and this extrapolation inherits the weaker of the two. Learning curves
+flatten rather than staying log-linear, so the decade counts are optimistic.
+
+**41c — the n300 peer re-run is pre-registered, before it runs:** the codec is expected to gain
+≈ +0.018–0.036 over its n50 value and to **still lose to zero-shot ANM on ~100% of systems**. A loss
+confirms the floor is a floor. A **win** falsifies the 41a extrapolation and would be the most
+important result in the project. Recorded in advance so a still-losing result is not read as new
+information when it is the prediction — the 38b move applied to the peer comparison.
+
 **The result that survives everything (040).** Every concern raised — 37a's equal-variance
 assumption, 39a's mechanical SD deflation, 40a's leverage imbalance — is about variances, estimators
 or exclusions. A rank test on the ordering depends on none of them:
