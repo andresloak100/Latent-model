@@ -38,6 +38,7 @@ import numpy as np
 import torch
 from scipy import stats
 
+SPLITS_USED, PROCESSED_USED = [], []
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
@@ -85,8 +86,8 @@ def provenance(cfg, cfg_path, ckpt_path, model, arm, n_heldout):
         "encoder_type": getattr(cfg.model, "encoder_type", "?"),
         "model_class": type(model).__name__,
         "latent_scaling": _latent_scaling_kind(model),
-        "splits_file": str(getattr(cfg.data, "splits_file", "?")),
-        "processed_dir": str(getattr(cfg.data, "processed_dir", "?")),
+        "splits_file": str(SPLITS_USED[0] if SPLITS_USED else getattr(cfg.data, "splits_file", "?")),
+        "processed_dir": str(PROCESSED_USED[0] if PROCESSED_USED else getattr(cfg.data, "processed_dir", "?")),
         "n_heldout_evaluated": n_heldout,
         "config": str(cfg_path),
         "checkpoint": _file_id(Path(ckpt_path)),
@@ -211,9 +212,10 @@ def run_arm(args):
     device = torch.device(args.device)
     utils.set_seed(getattr(cfg.train, "seed", 0))
 
-    splits = utils.load_json(ROOT / cfg.data.splits_file)
+    sp_file = args.splits or cfg.data.splits_file
+    splits = utils.load_json(ROOT / sp_file)
     keys = list(splits.get("val") or splits.get("train") or [])
-    processed = ROOT / cfg.data.processed_dir
+    processed = ROOT / (args.processed or cfg.data.processed_dir)
     paths = [processed / f"{k}.npz" for k in keys if (processed / f"{k}.npz").exists()]
     if not paths:
         raise SystemExit(f"no held-out structures found under {processed}")
@@ -227,11 +229,18 @@ def run_arm(args):
     # caught a comparison made against an all-N median; picking the easy end is the same error.
     sizes = [(i, int(ds[i]["n_atoms"])) for i in range(len(ds))]
     sizes.sort(key=lambda t: t[1])
-    pick = sorted({int(round(x)) for x in np.linspace(0, len(sizes) - 1, min(args.n, len(sizes)))})
-    chosen = [sizes[i][0] for i in pick]
+    if args.all:
+        chosen = [i for i, _ in sizes]
+        if args.limit:
+            chosen = [sizes[j][0] for j in
+                      sorted({int(round(x)) for x in np.linspace(0, len(sizes) - 1, args.limit)})]
+    else:
+        pick = sorted({int(round(x)) for x in np.linspace(0, len(sizes) - 1, min(args.n, len(sizes)))})
+        chosen = [sizes[i][0] for i in pick]
 
     out = Path(args.out); (out / "structures").mkdir(parents=True, exist_ok=True)
     lim = posenc_limit(model)
+    SPLITS_USED.append(sp_file); PROCESSED_USED.append(args.processed or cfg.data.processed_dir)
     pv = provenance(cfg, args.config, args.ckpt, model, args.arm, len(ds))
     pv["checkpoint_key_remap"] = remapped or "none"
     pv["posenc_max_positions"] = lim
@@ -650,6 +659,13 @@ def main():
     ap.add_argument("--n", type=int, default=5); ap.add_argument("--device", default="cpu")
     ap.add_argument("--ensemble", default="")
     ap.add_argument("--report", default=None)
+    # INBOX 53a/48b: evaluate a DIFFERENT pool than the config's own split. The comparison then
+    # changes size AND distribution at once (48a's two-axis join), so the report must label which
+    # rows are in-distribution held-out and which are out-of-distribution extrapolation.
+    ap.add_argument("--splits", default=None, help="override cfg.data.splits_file")
+    ap.add_argument("--processed", default=None, help="override cfg.data.processed_dir")
+    ap.add_argument("--all", action="store_true", help="evaluate EVERY structure, not n illustrations")
+    ap.add_argument("--limit", type=int, default=0, help="cap --all at this many (0 = no cap)")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if a.selftest:

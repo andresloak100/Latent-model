@@ -3199,6 +3199,43 @@ though the mechanism is arm duration rather than rung order.
 across the two walls without a second writer. A separate n130 job is **not** launched — two processes
 appending to one `atlas_dm.json` is a lost-update race, which is worse than the problem it solves.
 
+### ⏳ 48b PRE-REGISTERED (INBOX 53a) — recorded BEFORE the run, committed before it launched
+
+**The claim under test.** Is **0.79 Å a property of the architecture, or of small proteins?** The
+direct per-residue codec has only ever been evaluated on 20–109 residues. Nothing else is being asked.
+
+**Reference — in-distribution held-out** (`splits_small_n2272`, n=758, 20–109 residues), from the
+recorded evaluation:
+
+| | value |
+|---|---|
+| all-atom median | **0.8357 Å** (mean 0.7917) |
+| contact F1 median | **0.9639** |
+| clashes/1000 atoms median | **11.9** (q75 19.1) |
+
+**Evaluation pool:** `data/processed_big` — 4,976 structures, **35–383 residues**, median 180. This
+changes **size and distribution at once** (48a's two-axis join), so rows ≤109 residues are labelled
+**in-distribution held-out** and rows >109 are labelled **out-of-distribution extrapolation**, in the
+table, not in prose.
+
+**Verdict rule, fixed now.** Comparing the top band (≥300 residues) against the reference:
+
+- **ARCHITECTURE PROPERTY** — all-atom median ≤ **2×** reference (≤1.67 Å) **and** contact F1 ≥ **0.90**
+  **and** clashes ≤ **2×** reference (≤24/1k).
+- **SMALL-PROTEIN PROPERTY** — *any* of: all-atom median > **3×** reference (>2.51 Å), contact F1 <
+  **0.75**, or clashes > **5×** reference (>60/1k).
+- **GRADED** — anything between. Report the band at which each of the three crosses, separately.
+
+All three metrics are reported per band with n, because 49b established that all-atom RMSD alone can
+look respectable while the structure is unusable (1BYZ: 2.23 Å with ~2 clashes per atom). If RMSD
+degrades gracefully while contact F1 collapses, **that is the finding**, and only the second metric
+expresses it.
+
+**Family A, stated in advance.** `max_positions = 1024` refuses any structure above it — and *the
+exclusion criterion is the regressor*. The excluded count and residue range print per band **even when
+zero** (47b's pattern). If anything is excluded, the curve is reported as **right-censored** at that
+point, not as a measurement of its top band.
+
 ### ⬛ 052 AUDIT: the collision class is 61 runs wide, but the 3m ladder is clean
 
 `outputs/cluster` holds **64 runs; 3 have `final.pt`, 61 do not.** Where there are no weights there is
