@@ -1,6 +1,6 @@
 # Atom-to-atom reconstruction — direct per-residue codec
 
-Generated 2026-08-08 10:54 · every number below carries the provenance of the run that produced it.
+Generated 2026-08-08 11:16 · every number below carries the provenance of the run that produced it.
 
 > **These are different arms and are reported at different scales.** They are in separate sections
 > because they are not comparable; a number from one section does not describe the other.
@@ -15,15 +15,15 @@ Generated 2026-08-08 10:54 · every number below carries the provenance of the r
 | data | `data/processed_complex` |
 | held-out pool | 186 structures |
 | checkpoint | `final.pt` sha256 `ca197bea6e912acb` (2026-07-31T22:42:56) |
-| code | git `35354cad`, torch 2.13.0+cu130 |
+| code | git `67acdef5-dirty`, torch 2.13.0+cu130 |
 | checkpoint shim | **1 key(s) remapped** to load under current code (`decoder.res_pos_emb.weight -> decoder.res_pos_emb.table.weight`); exact for structures within max_positions=1024, which is asserted per structure |
 
-| structure | atoms | res | all-atom Å | backbone Å | chirality | contact F1 | latent floats | ×compression |
-|---|---|---|---|---|---|---|---|---|
-| `1BYZ` | 408 | 52 | **2.23** | 2.17 | 0.0000 | 0.959 | 416 | 2.94× |
-| `3DS4` | 1281 | 164 | **6.06** | 6.03 | 0.0000 | 0.482 | 1312 | 2.93× |
-| `8HJY` | 1821 | 233 | **7.47** | 7.46 | 0.0000 | 0.286 | 1864 | 2.93× |
-| `5S3D` | 2529 | 334 | **15.54** | 15.43 | 0.0000 | 0.073 | 2672 | 2.84× |
+| structure | atoms | res | all-atom Å | backbone Å | chirality | clashes/1k | contact F1 | latent floats | ×compression |
+|---|---|---|---|---|---|---|---|---|---|
+| `1BYZ` | 408 | 52 | **2.23** | 2.17 | 0.0000 | 1,906.9 | 0.959 | 416 | 2.94× |
+| `3DS4` | 1281 | 164 | **6.06** | 6.03 | 0.0000 | 1,831.4 | 0.482 | 1312 | 2.93× |
+| `8HJY` | 1821 | 233 | **7.47** | 7.46 | 0.0000 | 2,298.7 | 0.286 | 1864 | 2.93× |
+| `5S3D` | 2529 | 334 | **15.54** | 15.43 | 0.0000 | 8,378.8 | 0.073 | 2672 | 2.84× |
 
 ### Headline — the full held-out set (n=186)
 
@@ -38,7 +38,20 @@ Generated 2026-08-08 10:54 · every number below carries the provenance of the r
 
 That set is **52–334 residues**. The headline describes structures of that size, not proteins in general.
 
-The commonly quoted **5.88 Å is the mean**; the median is **2.49 Å**. The distribution is left-skewed, so the mean sits below the median — quoting one without the other overstates the typical case.
+The commonly quoted **5.88 Å is the mean**; the median is **2.49 Å**. The mean sits **2.4× the median**, so the distribution is **right-skewed** with a long tail and quoting the mean alone **overstates** the typical error. Quote both.
+
+
+**Size regimes (49c).** One median over the whole set describes neither end of it:
+
+| residues | n | median all-atom Å | median clashes/1k |
+|---|---|---|---|
+| 50–100 | 20 | 2.22 | 1,740 |
+| 100–150 | 35 | 2.29 | 1,744 |
+| 150–200 | 34 | 5.60 | 1,954 |
+| 200–300 | 89 | 6.08 | 2,132 |
+| 300–334 | 8 | 15.46 | 6,538 |
+
+Rolling median crosses **2 Å** at ≥52 residues and **5 Å** at ≥122 residues; Spearman(residues, RMSD) = **0.499**.
 
 The 4 structures below are chosen to **span the size range**, not drawn at random, so their median (6.76 Å) is an illustration and not an estimate of the set's.
 
@@ -56,17 +69,17 @@ Latent is **per-residue (scales with residue count)** — 8.0 floats per residue
 | data | `data/processed_small` |
 | held-out pool | 758 structures |
 | checkpoint | `final.pt` sha256 `662cf35e8a1b5a17` (2026-07-30T19:10:01) |
-| code | git `35354cad`, torch 2.13.0+cu130 |
+| code | git `67acdef5-dirty`, torch 2.13.0+cu130 |
 | checkpoint shim | **1 key(s) remapped** to load under current code (`decoder.res_pos_emb.weight -> decoder.res_pos_emb.table.weight`); exact for structures within max_positions=1024, which is asserted per structure |
 | vocabulary | **3 embedding(s) extended** since training; new rows are randomly initialised, so any structure indexing them is refused rather than reported |
 
-| structure | atoms | res | all-atom Å | backbone Å | chirality | contact F1 | latent floats | ×compression |
-|---|---|---|---|---|---|---|---|---|
-| `1O06` | 157 | 20 | **1.26** | 0.91 | 0.0000 | 0.889 | 160 | 2.94× |
-| `2PPX` | 493 | 61 | **0.97** | 0.65 | 0.0000 | 0.971 | 488 | 3.03× |
-| `2QKU` | 635 | 83 | **0.91** | 0.61 | 0.0000 | 0.957 | 664 | 2.87× |
-| `2DYJ` | 734 | 91 | **0.99** | 0.66 | 0.0000 | 0.944 | 728 | 3.02× |
-| `8ZXJ` | 799 | 96 | **0.64** | 0.33 | 0.0000 | 0.977 | 768 | 3.12× |
+| structure | atoms | res | all-atom Å | backbone Å | chirality | clashes/1k | contact F1 | latent floats | ×compression |
+|---|---|---|---|---|---|---|---|---|---|
+| `1O06` | 157 | 20 | **1.26** | 0.91 | 0.0000 | 38.2 | 0.889 | 160 | 2.94× |
+| `2PPX` | 493 | 61 | **0.97** | 0.65 | 0.0000 | 77.1 | 0.971 | 488 | 3.03× |
+| `2QKU` | 635 | 83 | **0.91** | 0.61 | 0.0000 | 12.6 | 0.957 | 664 | 2.87× |
+| `2DYJ` | 734 | 91 | **0.99** | 0.66 | 0.0000 | 17.7 | 0.944 | 728 | 3.02× |
+| `8ZXJ` | 799 | 96 | **0.64** | 0.33 | 0.0000 | 5.0 | 0.977 | 768 | 3.12× |
 
 ### Headline — the full held-out set (n=758)
 
@@ -81,7 +94,18 @@ Latent is **per-residue (scales with residue count)** — 8.0 floats per residue
 
 That set is **20–109 residues**. The headline describes structures of that size, not proteins in general.
 
-The commonly quoted **0.79 Å is the mean**; the median is **0.84 Å**. The distribution is left-skewed, so the mean sits below the median — quoting one without the other overstates the typical case.
+The commonly quoted **0.79 Å is the mean**; the median is **0.84 Å**. The mean sits **below** the median, so the distribution is **left-skewed** and quoting the mean alone **understates** the typical error. Quote both.
+
+
+**Size regimes (49c).** One median over the whole set describes neither end of it:
+
+| residues | n | median all-atom Å | median clashes/1k |
+|---|---|---|---|
+| 0–50 | 57 | 0.89 | 20 |
+| 50–100 | 613 | 0.84 | 12 |
+| 100–109 | 88 | 0.77 | 9 |
+
+Rolling median crosses **2 Å** at ≥None residues and **5 Å** at ≥None residues; Spearman(residues, RMSD) = **0.011**.
 
 The 5 structures below are chosen to **span the size range**, not drawn at random, so their median (0.97 Å) is an illustration and not an estimate of the set's.
 

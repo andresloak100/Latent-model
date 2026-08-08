@@ -36,6 +36,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from scipy import stats
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -239,6 +240,32 @@ def run_arm(args):
                         "residues_min": None if not np.isfinite(nr).any() else int(np.nanmin(nr)),
                         "residues_max": None if not np.isfinite(nr).any() else int(np.nanmax(nr)),
                         "source": str(mpath)}
+                # INBOX 49c: one median over what may be two regimes describes neither. Band by
+                # residue count and report where the rolling median crosses 2 A and 5 A. Computed
+                # from the recorded full evaluation, so this is a summary and not a new inference.
+                cl_ = np.array([m.get("clashes_per_1000_atoms", np.nan) for m in ps], float)
+                okm = np.isfinite(nr) & np.isfinite(aa)
+                if okm.sum() > 8:
+                    nr_, aa_, cl2 = nr[okm], aa[okm], cl_[okm]
+                    order = np.argsort(nr_); nr_, aa_, cl2 = nr_[order], aa_[order], cl2[order]
+                    bands, edges = [], [0, 50, 100, 150, 200, 300, 500, 10 ** 9]
+                    for a_, b_ in zip(edges[:-1], edges[1:]):
+                        mb = (nr_ >= a_) & (nr_ < b_)
+                        if mb.sum():
+                            bands.append({"lo": int(a_), "hi": int(min(b_, nr_.max())),
+                                          "n": int(mb.sum()),
+                                          "median_rmsd": round(float(np.median(aa_[mb])), 2),
+                                          "median_clashes": (None if not np.isfinite(cl2[mb]).any()
+                                                             else round(float(np.nanmedian(cl2[mb])), 1))})
+                    def _cross(th):
+                        for i_ in range(len(nr_)):
+                            if np.median(aa_[i_:]) > th:
+                                return int(nr_[i_])
+                        return None
+                    full["bands"] = bands
+                    full["cross_2A"] = _cross(2.0)
+                    full["cross_5A"] = _cross(5.0)
+                    full["spearman_res_rmsd"] = round(float(stats.spearmanr(nr_, aa_).statistic), 3)
                 print(f"[demo] full held-out set (recorded): n={full['n']} mean {full['mean']} "
                       f"median {full['median']} sd {full['sd']}", flush=True)
         except Exception as e:
@@ -384,12 +411,19 @@ def build_report(out: Path):
                       f"are randomly initialised, so any structure indexing them is refused rather "
                       f"than reported |"]
             L += [""]
-            L += ["| structure | atoms | res | all-atom Å | backbone Å | chirality | contact F1 | "
-                  "latent floats | ×compression |", "|---|---|---|---|---|---|---|---|---|"]
+            # INBOX 49b: clashes/1000 atoms is computed and stored and was in NEITHER table, and it
+            # is the column that says whether a structure is physically usable. chirality 0.0000 sat
+            # on every row including one at 15.5 A, so a reader saw a stereochemistry check passing
+            # and reasonably inferred sound geometry. Chirality survives the bottleneck; validity
+            # does not.
+            L += ["| structure | atoms | res | all-atom Å | backbone Å | chirality | clashes/1k | "
+                  "contact F1 | latent floats | ×compression |",
+                  "|---|---|---|---|---|---|---|---|---|---|"]
             for m in rows:
                 L.append(f"| `{m['pdb_id']}` | {m['n_atoms']} | {m['n_residues']} | "
                          f"**{m['all_atom_rmsd']:.2f}** | {m['backbone_rmsd']:.2f} | "
                          f"{m.get('chirality_violation_rate', float('nan')):.4f} | "
+                         f"{m.get('clashes_per_1000_atoms', float('nan')):,.1f} | "
                          f"{m.get('contact_f1', float('nan')):.3f} | {m['latent_floats']} | "
                          f"{m['compression_x']}× |")
             aa = [m["all_atom_rmsd"] for m in rows]
@@ -407,10 +441,34 @@ def build_report(out: Path):
                 if fu.get("residues_min") is not None:
                     L += [f"That set is **{fu['residues_min']}–{fu['residues_max']} residues**. The "
                           f"headline describes structures of that size, not proteins in general.", ""]
+                # INBOX 49a: this sentence was boilerplate emitted per arm, true for single-chain
+                # (0.79 < 0.84) and FALSE for complex (5.88 vs 2.49). It asserted "left-skewed, mean
+                # below median" while its own table two lines up said otherwise, and contradicted the
+                # Scope block at the foot. Derive the direction from the two numbers; the consequence
+                # for a reader flips with it.
+                below = fu["mean"] < fu["median"]
                 L += [f"The commonly quoted **{fu['mean']:.2f} Å is the mean**; the median is "
-                      f"**{fu['median']:.2f} Å**. The distribution is left-skewed, so the mean sits "
-                      f"below the median — quoting one without the other overstates the typical case.",
-                      ""]
+                      f"**{fu['median']:.2f} Å**. The mean sits "
+                      + (f"**below** the median, so the distribution is **left-skewed** and quoting "
+                         f"the mean alone **understates** the typical error."
+                         if below else
+                         f"**{fu['mean']/max(fu['median'],1e-9):.1f}× the median**, so the "
+                         f"distribution is **right-skewed** with a long tail and quoting the mean "
+                         f"alone **overstates** the typical error.") + " Quote both.", ""]
+                bd = fu.get("bands")
+                if bd:
+                    L += ["", f"**Size regimes (49c).** One median over the whole set describes "
+                              f"neither end of it:", "",
+                          "| residues | n | median all-atom Å | median clashes/1k |",
+                          "|---|---|---|---|"]
+                    for b_ in bd:
+                        L.append(f"| {b_['lo']}–{b_['hi']} | {b_['n']} | {b_['median_rmsd']:.2f} | "
+                                 + (f"{b_['median_clashes']:,.0f} |" if b_["median_clashes"] is not None
+                                    else "— |"))
+                    c2, c5 = fu.get("cross_2A"), fu.get("cross_5A")
+                    L += ["", f"Rolling median crosses **2 Å** at ≥{c2} residues and **5 Å** at "
+                              f"≥{c5} residues; Spearman(residues, RMSD) = "
+                              f"**{fu.get('spearman_res_rmsd')}**.", ""]
                 L += [f"The {len(aa)} structures below are chosen to **span the size range**, not "
                       f"drawn at random, so their median ({np.median(aa):.2f} Å) is an illustration "
                       f"and not an estimate of the set's.", ""]

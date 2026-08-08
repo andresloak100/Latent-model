@@ -15,7 +15,7 @@
       "mtime": "2026-07-31T22:42:56",
       "sha256": "ca197bea6e912acb"
     },
-    "git": "35354cad",
+    "git": "67acdef5-dirty",
     "torch": "2.13.0+cu130",
     "checkpoint_key_remap": [
       "decoder.res_pos_emb.weight -> decoder.res_pos_emb.table.weight"
@@ -45,7 +45,7 @@
       "n_residues": 52,
       "floats_per_residue": 8.0,
       "compression_x": 2.94,
-      "infer_s": 0.022
+      "infer_s": 0.023
     },
     {
       "all_atom_rmsd": 6.057779860751597,
@@ -68,7 +68,7 @@
       "n_residues": 164,
       "floats_per_residue": 8.0,
       "compression_x": 2.93,
-      "infer_s": 0.008
+      "infer_s": 0.009
     },
     {
       "all_atom_rmsd": 7.4716486514561105,
@@ -91,7 +91,7 @@
       "n_residues": 233,
       "floats_per_residue": 8.0,
       "compression_x": 2.93,
-      "infer_s": 0.01
+      "infer_s": 0.009
     },
     {
       "all_atom_rmsd": 15.537137087390677,
@@ -114,7 +114,7 @@
       "n_residues": 334,
       "floats_per_residue": 8.0,
       "compression_x": 2.84,
-      "infer_s": 0.014
+      "infer_s": 0.015
     }
   ],
   "full_heldout": {
@@ -130,7 +130,47 @@
     "n_above_2A": 185,
     "residues_min": 52,
     "residues_max": 334,
-    "source": "/network/scratch/j/jacob-junqi.tian/latent-model-workspace/results/complex_d8/metrics.json"
+    "source": "/network/scratch/j/jacob-junqi.tian/latent-model-workspace/results/complex_d8/metrics.json",
+    "bands": [
+      {
+        "lo": 50,
+        "hi": 100,
+        "n": 20,
+        "median_rmsd": 2.22,
+        "median_clashes": 1739.7
+      },
+      {
+        "lo": 100,
+        "hi": 150,
+        "n": 35,
+        "median_rmsd": 2.29,
+        "median_clashes": 1744.3
+      },
+      {
+        "lo": 150,
+        "hi": 200,
+        "n": 34,
+        "median_rmsd": 5.6,
+        "median_clashes": 1954.4
+      },
+      {
+        "lo": 200,
+        "hi": 300,
+        "n": 89,
+        "median_rmsd": 6.08,
+        "median_clashes": 2131.8
+      },
+      {
+        "lo": 300,
+        "hi": 334,
+        "n": 8,
+        "median_rmsd": 15.46,
+        "median_clashes": 6538.2
+      }
+    ],
+    "cross_2A": 52,
+    "cross_5A": 122,
+    "spearman_res_rmsd": 0.499
   },
   "excluded_over_max_positions": []
 }

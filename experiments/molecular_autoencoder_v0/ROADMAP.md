@@ -3199,6 +3199,41 @@ though the mechanism is arm duration rather than rung order.
 across the two walls without a second writer. A separate n130 job is **not** launched — two processes
 appending to one `atlas_dm.json` is a lost-update race, which is worse than the problem it solves.
 
+### ⬛ 049: the complex arm reconstructs to a number, not to a usable structure
+
+`clashes_per_1000_atoms` was computed and stored for every structure and printed in no table. It is
+the column that decides whether a reconstruction is physically real, and the two arms do not overlap
+on it:
+
+| arm | all-atom Å | clashes / 1000 atoms |
+|---|---|---|
+| single-chain | 0.64 – 1.26 | **5.0 – 77.1** |
+| complex | 2.23 – 15.54 | **1,831 – 8,379** |
+
+`1BYZ` is the complex arm's **best** case at 2.23 Å — a number that reads as a good reconstruction —
+while carrying roughly **1.9 steric clashes per atom**. Across the full 186 the median clash rate never
+falls below **1,740 per 1,000 atoms** in any size band. And `chirality 0.0000` sits on every row
+including one at 15.5 Å, so a reader saw a stereochemistry check passing and reasonably inferred sound
+geometry. **Chirality survives the bottleneck; physical validity does not.**
+
+**Two regimes, not one median** (from the recorded evaluation, n=186):
+
+| residues | n | median all-atom Å | median clashes/1k |
+|---|---|---|---|
+| 50–100 | 20 | 2.22 | 1,740 |
+| 100–150 | 35 | 2.29 | 1,744 |
+| 150–200 | 34 | **5.60** | 1,954 |
+| 200–300 | 89 | 6.08 | 2,132 |
+| 300–334 | 8 | **15.46** | 6,538 |
+
+Rolling median crosses 2 Å at ≥52 residues and **5 Å at ≥122**; Spearman(residues, RMSD) **0.499**.
+Contact F1 collapses alongside: 0.959 → 0.482 → 0.286 → 0.073.
+
+**This bounds 48b without answering it.** That curve is `complex_d8` on `processed_complex`; 48b asks
+about `ladder_direct3m_n2272` on single chains — different checkpoint, different training
+distribution. What it establishes is that *a* per-residue codec of this design degrades steeply with
+size rather than holding. 48b still needs its own evaluation above 109 residues.
+
 ### ⬛ 048: the project's success and its failure sit on almost disjoint domains — stated positively
 
 The unaided reading of this repo is that "0.79 Å reconstruction" and "loses to zero-shot ANM on 100%

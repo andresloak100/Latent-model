@@ -15,7 +15,7 @@
       "mtime": "2026-07-30T19:10:01",
       "sha256": "662cf35e8a1b5a17"
     },
-    "git": "35354cad",
+    "git": "67acdef5-dirty",
     "torch": "2.13.0+cu130",
     "checkpoint_key_remap": [
       "decoder.res_pos_emb.weight -> decoder.res_pos_emb.table.weight"
@@ -49,7 +49,7 @@
       "n_residues": 20,
       "floats_per_residue": 8.0,
       "compression_x": 2.94,
-      "infer_s": 0.03
+      "infer_s": 0.041
     },
     {
       "all_atom_rmsd": 0.9685163221156949,
@@ -72,7 +72,7 @@
       "n_residues": 61,
       "floats_per_residue": 8.0,
       "compression_x": 3.03,
-      "infer_s": 0.008
+      "infer_s": 0.007
     },
     {
       "all_atom_rmsd": 0.912745969638294,
@@ -118,7 +118,7 @@
       "n_residues": 91,
       "floats_per_residue": 8.0,
       "compression_x": 3.02,
-      "infer_s": 0.009
+      "infer_s": 0.012
     },
     {
       "all_atom_rmsd": 0.6423237658529858,
@@ -141,7 +141,7 @@
       "n_residues": 96,
       "floats_per_residue": 8.0,
       "compression_x": 3.12,
-      "infer_s": 0.01
+      "infer_s": 0.011
     }
   ],
   "full_heldout": {
@@ -157,7 +157,33 @@
     "n_above_2A": 1,
     "residues_min": 20,
     "residues_max": 109,
-    "source": "/network/scratch/j/jacob-junqi.tian/latent-model-workspace/results/ladder_direct3m_n2272/metrics.json"
+    "source": "/network/scratch/j/jacob-junqi.tian/latent-model-workspace/results/ladder_direct3m_n2272/metrics.json",
+    "bands": [
+      {
+        "lo": 0,
+        "hi": 50,
+        "n": 57,
+        "median_rmsd": 0.89,
+        "median_clashes": 20.3
+      },
+      {
+        "lo": 50,
+        "hi": 100,
+        "n": 613,
+        "median_rmsd": 0.84,
+        "median_clashes": 11.9
+      },
+      {
+        "lo": 100,
+        "hi": 109,
+        "n": 88,
+        "median_rmsd": 0.77,
+        "median_clashes": 9.1
+      }
+    ],
+    "cross_2A": null,
+    "cross_5A": null,
+    "spearman_res_rmsd": 0.011
   },
   "excluded_over_max_positions": []
 }
