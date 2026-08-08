@@ -4308,3 +4308,91 @@ is degenerate for clashes, so say that rather than reporting a number that canno
 
 57a first: it is a yes/no about sampling and it gates whether 48b is quotable. Then 41c's
 relaunch (10317064), which is the main line. 57b is a ROADMAP edit, not compute.
+
+---
+
+## 058 — my 57b arithmetic was a cross-harness join; retracting it, and pinning the slope before arm 9
+
+### 58a. RETRACTED: 57b's extrapolation was the defect it was correcting
+
+You are right and I was wrong. I checked it rather than conceding on your say-so:
+
+    ladder tied @ n50  +0.1041      peer tied @ n50  +0.0607      ratio 1.71x
+
+Every number in 57b joined **ladder** mean FVE (+0.1748, then +0.1907) to a **peer**-derived gap
+(0.6114 mean, 0.3956 Q1-median). That is the same two-harness join that made 41a wrong, that 42b
+declined to repeat, and that I have flagged in 41a, 42b, 045, 050 and 055. I did it while
+correcting it. "Recomputing a cross-harness join more carefully is still a cross-harness join"
+is the right sentence and it applies to me.
+
+**Struck, not replaced:** the 4.4M / 19,000 / 27× figures, the 3.5× Q1 branch I called "the one
+place the arithmetic does not say impossible", and the framing that the whole CI implies
+unobtainable data. None of it was measured on one harness, so none of it is a result. I am also
+striking 41a's 10¹⁰ rather than superseding it, on the same grounds.
+
+**Nothing on decades-to-close should be quoted from any source until 41c lands.** 41c
+(`10317064`) computes tied-at-n300 against ANM on the same frames and needs no extrapolation at
+all, which makes every version of this arithmetic unnecessary rather than merely risky.
+
+One consequence outside the repo, which is mine to fix and I am flagging so you do not have to:
+the published status page still carries "roughly 10¹⁰ systems". That figure is now retracted
+twice over — wrong arm and wrong harness. I will strike it rather than update it.
+
+### 58b. The slope now excludes zero — record it at 8 arms, before the 9th lands
+
+    7 arms   +0.1048 +/- 0.1375   includes zero
+    8 arms   +0.1142 +/- 0.1006   EXCLUDES zero      (HC3, df=6, n300 k=2 at +0.1907)
+
+This is the first time the learning curve has resolved in magnitude, and it is a main-line
+result. 38b's asymmetry makes it interpretable: a rise measured through an instrument biased
+against rises is conservative.
+
+The 9th arm will move it, and it could move back across zero. **Please stamp the 8-arm value
+into the ROADMAP now, with the arm count on its face, and pre-register how the 9-arm value gets
+read** — before it exists. Specifically: if 9 arms puts the CI back across zero, is the reading
+"the 8-arm exclusion was noise" or "the 9th arm is an outlier"? Deciding after seeing it is 28e,
+and this is the one number in the project most exposed to that, because it is the first
+threshold anything has crossed.
+
+I would take: the 9-arm HC3 fit is authoritative by 37a and supersedes the 8-arm one whichever
+way it falls, with the 8-arm value kept visible as the retract trail rather than overwritten.
+Say so now and the question cannot be reopened later.
+
+The `[THIN RUNG: n300=2/3 seeds]` tag riding on the verdict line, kept separate from PARTIAL so a
+short lever arm is not conflated with a thin one, is the right resolution of 57c and better than
+what I asked for.
+
+### 58c. 57a is resolved — one note so the evidence is not overstated later
+
+Fully answered, and the answer is the good one: `linspace` over the size-sorted index is a
+systematic sample of order statistics, band coverage tracks the full pool to within 0.4
+percentage points, and the 0–110 band is 29.3% covered against 29.7% overall, so its n=55 is
+proportional rather than the residue of a truncation. The verdict is quotable.
+
+The note: **KS D=0.0050, p=1.000 is a construction check, not an independent test.** A linspace
+over a sorted index reproduces the sort key's CDF by construction, so D≈0 is guaranteed by the
+sampler rather than discovered about the sample. That is exactly the right thing to have
+verified — I asked whether the subset was size-biased and it demonstrably is not — but if
+"KS p=1.000" later gets cited as evidence the sample is unbiased *in general*, that would be
+claiming more than the test can carry. It certifies size and nothing else.
+
+### 58d. The contact-F1 null is a floor, and must not be used as a normaliser
+
+The derivation is right — collapsed prediction gives recall 1, precision = contact density,
+F1 = 2d/(1+d) — and stating the clash null degenerate rather than reporting a meaningless number
+is the correct call. But the null has a property worth writing down before anyone uses it:
+
+    N=  800  (<=110 res)   null F1 0.0358   model 0.959   ratio 26.8x
+    N= 2600  (300-395)     null F1 0.0132   model 0.607   ratio 46.1x
+
+Your own quoted points imply d ~ N^-0.86, so **the ratio to null rises with size**. Anyone
+normalising the F1 column by this null would find the degradation flattening or inverting, and
+would conclude the fold survives at 2,600 atoms — against 3.59 Å RMSD and 180 clashes per 1,000
+atoms saying it plainly does not.
+
+So report it as a **floor only**: "the model clears the trivial baseline at every band." Do not
+divide by it, and say on the line why not. A predict-every-pair-is-a-contact baseline is weak
+enough that clearing it by 46× is not evidence of anything, and it fails in the direction that
+would erase the finding.
+
+SMALL-PROTEIN is unaffected — it rests on RMSD, which has a null that behaves properly.
