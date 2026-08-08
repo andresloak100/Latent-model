@@ -4133,3 +4133,81 @@ the reach statement in 54b is complete as written.
 
 Either way this does not block the run. It determines one sentence in the verdict, and I
 would rather that sentence be written now than negotiated after the number exists.
+
+---
+
+## 056 — the main line has gone five items unreported, and the handoff cannot be restarted from
+
+055 is fully accepted and 55d answered the right way — by measuring `processed_big`
+(22–385 residues, 170–2,977 atoms, zero above 3,000) rather than assuming. Declining to read
+the 260-structure run before the pool fix, on the grounds that reading it first would make the
+re-run's reading post-hoc, is 28e applied to your own work unprompted. That is the standard.
+
+Now the thing I should have raised two items ago.
+
+### 56a. Status of the primary, please — I have spent five items on a secondary
+
+052 through 055 are all 48b and oracle hygiene. They were worth doing and the defects were
+real. But the project's central thesis does not run through either of them, and I have not
+asked about it since 044. Nothing in the recent commits reports it.
+
+What I need, briefly, no analysis required:
+
+- **Tied ladder** (`10314117` → `118` → `119`). Which arms have landed, which rung each sits
+  in, and whether the verdict line currently prints `PARTIAL LADDER — k of n rungs`. 042c
+  pre-registered that a flat tied ladder is a real result rather than a failed replication, so
+  a flat reading is reportable now and does not need the full grid.
+- **`atlas_dm`** (requeued as the `afterany` chain). Which rungs landed. 044 flagged that n130
+  could take 20 h+ because 3/3 arms hit the step cap there against 0/3 at n50 — did n130 get
+  its arms this time, or has it missed again?
+- **41c**, the n300 peer re-run. Still blocked on the ladder producing a checkpoint, or
+  runnable now?
+- **The primary itself.** Any movement on codec-vs-ANM on the same held-out frames, or does
+  "0 of 123 at every cutoff" stand unchanged?
+
+If the honest answer is "the ladder is still grinding and nothing has moved", that is a
+complete answer and I would rather have it than infer it from silence.
+
+### 56b. `SESSION_HANDOFF.md`'s LIVE JOBS section is stale by a whole generation
+
+006 requires it kept current "on every push where the answer would change". It is not:
+
+    handoff LIVE JOBS:  10301859 ... 10308336
+    recent commits:     10311656  10314088  10314117  10314466  10314473
+
+The only ID in both is **10307413**, and you reported that one as hitting its TIME LIMIT and
+being requeued. So every job the handoff describes as RUNNING is finished, cancelled or
+superseded, and none of the five jobs actually in flight appears.
+
+This is not bookkeeping. 226a63b8 established that nothing available to you survives a session
+restart, which makes this file the thing a fresh session reads to learn what is in flight. A
+LIVE JOBS section describing a superseded era means a restart either orphans running work or
+re-runs finished work — the exact failure 006 created the section to prevent.
+
+The same file still carries **"AUTONOMOUS LOOP — RECREATE IT AFTER ANY RESTART"** describing a
+`CronCreate` job as the work cycle. You subsequently established that `CronCreate`'s own
+contract makes it session-only and its durable flag inert, and replaced it with the SLURM
+watch. So the restart instructions tell a fresh session to recreate a mechanism you have proved
+does not work, instead of pointing at `$WR/.watch_jobid`. Please bring both sections to current
+state in the same pass.
+
+### 56c. The 3,000-atom cap is a project-level scope limit, not a 48b footnote
+
+55d found the cap on `processed_big`; `manifest.json` records the same `max_atoms 3000` on the
+complex corpus. So **every static-path corpus in this project is capped at 3,000 atoms**, and
+that bound is invisible from inside any single experiment.
+
+Against ATLAS's own quartiles as recorded in the ROADMAP (**1,434 / 3,249 / 7,406**, n=123,
+max 33,377), the cap of 2,977 atoms sits between Q1 and the median. So strictly:
+
+    more than 25% and fewer than 50% of ATLAS systems fall below the cap
+    -> between ~31 and ~61 of 123
+
+You have the per-system atom counts — you computed 10/123 for the §5 range in 48a — so please
+replace that bound with the exact count and put it in the ROADMAP as a standing scope line, not
+only in 48b's verdict. Every present and future claim of the form "the static path scales" is
+bounded by it, including the sparse-channel work if it ever runs on these corpora, and a limit
+that lives in one experiment's verdict will be re-derived or forgotten.
+
+Not a criticism of the corpora: capping at 3,000 atoms was a reasonable construction choice.
+The defect would be leaving it implicit.
