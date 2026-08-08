@@ -3265,6 +3265,50 @@ part worth carrying forward.
 **This also makes every decades-to-close extrapolation unnecessary**, not merely risky: 41c is the
 same-harness measurement those were approximating.
 
+### ⬛ ORACLE RESULT — the falsifier does not fire, and the channel still is not a path to a peer win
+
+`10318365`, 123/123 systems, tied arm at n300. **Family B ceiling passed: K=all median FVE
++1.000000**, and K=0 reproduces `fve_model` to 0.000e+00 — so every intermediate K is readable.
+
+| quartile | n | K=0 | **K=74** | ANM | K=74 closes | K₁₀₀ | K₁₀₀ as %N |
+|---|---|---|---|---|---|---|---|
+| Q1 (598–1429) | 31 | +0.2538 | +0.6038 | +0.6912 | **80.0%** | 256 | **27.2%** |
+| Q2 (1440–3126) | 30 | +0.2633 | +0.5364 | +0.7148 | **60.5%** | 256 | 11.8% |
+| Q3 (3249–7297) | 31 | +0.1698 | +0.4060 | +0.6042 | **54.4%** | 1024 | 21.3% |
+| Q4 (7516–33377) | 31 | +0.0292 | +0.1437 | +0.6790 | **17.6% → REFUSED** | >1024 | >9% |
+
+**Pooled, the form the falsifier was pre-registered in: 60.5% closure at K=74 — NOT REFUSED.** By
+53b's asymmetry that means *the branch stays alive and nothing more.*
+
+**But the falsifier measured the wrong sufficient statistic, and the run shows it.** Gap closure in
+median FVE is not "would it win":
+
+| | Q1 | Q2 | Q3 | Q4 | ALL |
+|---|---|---|---|---|---|
+| beats ANM at **K=74** | 19.4% | 3.3% | 0.0% | 0.0% | **5.7%** |
+| beats ANM at K=256 | 80.6% | 53.3% | 35.5% | 0.0% | 42.3% |
+| beats ANM at K=1024 | 100% | 100% | 90.3% | 25.8% | 78.9% |
+
+**Closing 60.5% of the gap still loses to ANM on 94.3% of systems.** 54e half-anticipated this by
+adding K₁₀₀; the lesson is sharper than that — I should have pre-registered the **win rate**, not the
+gap fraction, and 53b's own text says as much ("closing 25% or 50% still loses to ANM, so neither is
+a peer win") while the threshold it then fixed was a gap fraction. Family D **about the falsifier**.
+
+**And K₁₀₀ says it is not sparse.** To stop losing, the channel needs **256 atoms on Q1 = 27.2% of the
+structure**, 11.8% on Q2, 21.3% on Q3, and **more than 1024 on Q4**. A channel transmitting a fifth to
+a quarter of all atoms every frame is not a sparse event channel, and the constant-per-step cost
+argument dies with it — which is exactly the outcome 54e said would be more decisive than the 25%
+rule, arriving through the number it added.
+
+**Verdict.** The pre-registered falsifier does not fire, so the item does not close by its own rule.
+But the honest summary is narrower than "alive": at a budget-matched 74 atoms the *oracle* — a strict
+upper bound, told exactly which atoms matter and how they move — wins on **5.7%** of systems, and Q4
+refuses outright. What survives is a weaker claim: **a sparse channel could close most of the gap on
+small systems, at a budget where it still loses to ANM on 4 of 5 of them.**
+
+Scope, unchanged from 53b: this is representational sufficiency. It says nothing about whether such
+events could be **generated** at sampling time, and FVE cannot express that.
+
 ### ⬛ 061: Q2's slope was one system; Q4's survives. Plus a submission guard and two pre-registrations.
 
 **61a — leverage settles it, and the suspicion was right.** Per-point leverage on the delta-on-mean
