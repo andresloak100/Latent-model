@@ -3265,6 +3265,62 @@ part worth carrying forward.
 **This also makes every decades-to-close extrapolation unnecessary**, not merely risky: 41c is the
 same-harness measurement those were approximating.
 
+### ⬛ 060: the two statistics both hold, the RTM control survives its own artefact, and the question had a missing branch
+
+**60a — both tests, each on its own statistic.** They are not in conflict:
+
+| statistic | value | its own test |
+|---|---|---|
+| mean paired Δ | **+0.1141** [+0.0315, +0.1967] | paired t, **p = 0.0072** → more data helps |
+| systems worse | **83/123 = 67%** | sign test z = **+3.88**, exact binomial **p = 0.000132** → more data hurts |
+
+The sign test is **54× stronger in p**, and it is what the headline rests on. The mean is positive
+because a minority moves far; the sign test is negative because the majority moves the other way.
+Stated twice it is more convincing than either alone. Sign test rather than Wilcoxon, as 060 asked —
+it assumes nothing about the shape of the Δ distribution, which matters given Q2.
+
+**60b — the control was run, and it needed a correction of its own.** Regressing Δ = c300 − c50 on
+**c50** puts the same noisy quantity on both sides, forcing a negative slope even with no real effect
+(Oldham's fallacy). The tell is Q2 at **−0.9605**, near the −1.0 that pure coupling predicts. Regressing
+on the **mean** of the two removes the coupling:
+
+| band | slope on baseline | slope on mean | p (on mean) |
+|---|---|---|---|
+| **Q4** | −0.5924 | **−0.7751** | <10⁻⁵ |
+| Q1 | −0.1775 | −0.1359 | 0.048 |
+| Q2 | −0.9605 | −1.5594 | <10⁻⁵ |
+| Q3 | −0.1375 | +0.0544 | 0.64 |
+
+**Q4's baseline-dependence survives the artefact correction.** What it cannot separate is
+*measurement-noise* regression to the mean from *real headroom* — the systems that were worst had the
+most room. That needs replicate measurements at one rung, and the peer runs are single-seed, so it
+stays bounded rather than settled. Q4's repair is concentrated in the systems that were worst, which
+is what "repairing the tail" means; whether its magnitude is inflated is open.
+
+**60c — the third branch, added to the question.** The two-branch design cannot express what was
+measured: *data-limited* predicts systems improve (67% got worse); *fundamental* predicts nothing
+moves (Q4 moved +0.4474, p=0.0003). **Capacity competition** — a fixed DM=256 latent asked to cover
+6× more systems, reallocating budget rather than learning more — is a third hypothesis, fits both
+observations, and is actionable where neither other is. Recorded as a branch of the question.
+
+**It is NOT tested by `atlas_dm`, and the test I ran says so.** The cross exists (DM 16/64/256 have
+both rungs, `per` carries all 123 per-system FVEs) but:
+
+- it is the **attention/control arm over 50→130**, while the paired result is the **tied arm over
+  50→300** — different arm *and* different rung pair;
+- the Q1 deltas are **non-monotonic** (+0.0136, +0.0650, +0.0171) and the slope on log₂(DM) is
+  **+0.0009, p = 0.961** on three points. My own script printed "CONSISTENT with capacity
+  competition" from `slope > 0` without testing resolution — a Family C read, and it is wrong. The
+  honest verdict is **NOT RESOLVABLE**.
+
+**60d — Q2 gets no direction.** CI [−0.1070, +0.3287], width 0.436, **eleven times Q1's 0.039**.
+Through `null_verdict` against a relevance bound of 0.0755 it returns **NOT RESOLVABLE** — the CI
+contains both zero and an effect that would matter. It is rendered as such, not as a positive.
+
+**60e — oracle launched:** `10318365 → 10318366` (afterany chain). Harness validated first: K=0
+reproduces `fve_model` to **0.000e+00**, K=all reaches exactly 1.0 with residual SSE 0 (Family B
+ceiling), monotone in K.
+
 ### ⬛ 059: six times the data made **67% of systems worse**. The slope is a tail repair.
 
 The ladder's rise and 41c's quartiles are one result, and the paired per-system test settles it.
