@@ -436,13 +436,53 @@ def build_report(out: Path):
                       f"{c['spread_recon_A']} Å**, ratio {c['ratio']} — "
                       f"**{c['spread_lost_pct']}% of the spread is lost** through the round trip. "
                       f"Conformers do not collapse; they are not preserved intact either.", ""]
+    # The NMR result comes from latent_suitability.py, the canonical script for it -- reimplementing
+    # ensemble parsing here would be a second implementation of a measured quantity. Ingest its JSON
+    # instead, and carry the entry/conformer COUNT beside the ratio: the ratio is sample-dependent
+    # (0.831 on 3 entries vs 0.9324 on 11), and a ratio without its n is how the 3-entry read got
+    # published as a finding.
+    nm = sorted(out.glob("nmr_suitability*.json"))
+    if nm:
+        best, bd = None, -1
+        for q in nm:
+            try:
+                dd = json.loads(q.read_text())
+                if int(dd.get("n_entries", 0)) > bd:
+                    bd, best = int(dd.get("n_entries", 0)), (dd, q)
+            except Exception:
+                pass
+        if best:
+            dd, q = best
+            st_, sr_ = dd["mean_spread_true_conformers"], dd["mean_spread_reconstructions"]
+            rr, re_ = dd["mean_resolution_ratio"], dd["mean_recon_rmsd"]
+            L += ["---", "", "## Conformers (NMR ensembles)", "",
+                  f"Source `{q.name}` — **{dd['n_entries']} entries, {dd['n_conformers']} "
+                  f"conformers**.", "",
+                  "| | |", "|---|---|",
+                  f"| true conformational spread | **{st_:.3f} Å** |",
+                  f"| spread after the round trip | **{sr_:.3f} Å** |",
+                  f"| ratio | **{rr:.3f}** — {100*(1-rr):.1f}% of the spread is lost |",
+                  f"| mean reconstruction error | {re_:.3f} Å |", "",
+                  f"Conformers **do not collapse**: {100*(1-rr):.1f}% of the spread is lost, not all "
+                  f"of it. And the reconstruction error ({re_:.2f} Å) is "
+                  + (f"**well below** the true spread ({st_:.2f} Å), so the codec resolves "
+                     f"conformers rather than blurring them together."
+                     if re_ < st_ else
+                     f"**larger** than the true spread ({st_:.2f} Å) — on this sample the codec "
+                     f"cannot tell conformers apart, which is the condition that matters more than "
+                     f"the ratio.") , "",
+                  f"The ratio is **sample-dependent** — it is {rr:.3f} here and 0.868 in §5 on a "
+                  f"different entry count — so it is quoted with its n, never alone.", ""]
     L += ["---", "", "## Scope", "",
           "- The latent **scales with residue count**. This is not the fixed-size compression the "
           "project is about.",
           "- No claim is made about **dynamics**. On the ATLAS line the fixed-size codec loses to "
           "zero-shot ANM on **100% of 123 systems**.",
           "- Numbers from different arms appear in **separate sections at their own scales** and are "
-          "not comparable.", ""]
+          "not comparable.",
+          "- Both headline means hide their distributions: the single-chain mean sits *below* its "
+          "median (left skew), the complex mean is *2.4x* its median (long right tail). Medians and "
+          "ranges are given above; quote both.", ""]
     (out / "REPORT.md").write_text("\n".join(L))
     print(f"[demo] wrote {out}/REPORT.md  ({len(groups)} provenance group(s), {len(runs)} run(s))")
 
