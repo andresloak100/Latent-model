@@ -3199,6 +3199,40 @@ though the mechanism is arm duration rather than rung order.
 across the two walls without a second writer. A separate n130 job is **not** launched — two processes
 appending to one `atlas_dm.json` is a lost-update race, which is worse than the problem it solves.
 
+### ⬛ 052 AUDIT: the collision class is 61 runs wide, but the 3m ladder is clean
+
+`outputs/cluster` holds **64 runs; 3 have `final.pt`, 61 do not.** Where there are no weights there is
+no sha256, so a collision is undetectable from the record alone. Comparing `train_log.json`
+(epochs, steps, wall, final train RMSD) between each committed run and the `$WR/results` run of the
+same name:
+
+**62 of 64 identical; 2 differ** — `complex_d8` and `ladder_direct_n2272`.
+
+| ladder rung | weights | committed vs `$WR` |
+|---|---|---|
+| `ladder_direct3m_n2272` | Y | match |
+| `ladder_direct3m_n450` | N | match |
+| `ladder_direct3m_n878` | N | match |
+| `ladder_direct_n2272` | Y | **DIFFER** (wall 37434/36239, rmsd 0.5838/0.5035; same 1703 ep, same 241968 steps) |
+| `ladder_direct_n450` | N | match |
+| `ladder_direct_n878` | N | match |
+
+**The 3m ladder — the one behind §5 — is clean on all three rungs**, so its learning-curve slope is
+not computed across two models. `ladder_direct_n2272` is a genuine but milder collision: identical
+epochs and steps, differing only in wall time and final train RMSD, i.e. a re-run of one config.
+
+**RETRACTED: "the longer training is worse."** `train_log`'s `rmsd` is `quick_rmsd` — an aligned RMSD
+over the **first 4 batches of the *training* loader**, averaged over structures. `metrics.json`'s
+`all_atom_rmsd` is per-structure over the full held-out set. Different population *and* a 4-batch
+subsample, so 4.799 vs 6.722 was never a comparison, and train-RMSD-above-held-out-median is not an
+anomaly — it is two different quantities. The three metrics also disagree in direction (train and
+mean favour the short run, held-out **median** favours the long one), and 047 established the median
+as the statistic describing the typical case.
+
+**Guard added:** the report now warns when a `metrics.json` declares a checkpoint that does not exist
+beside it. `outputs/cluster/complex_d8/metrics.json` declares `"final.pt"` against an absent file and
+reported anyway — a provenance block naming a file it never opened.
+
 ### ⚠ NAME COLLISION: `complex_d8` is two different trainings, and it produced a false defect report
 
 Two evaluations of "the same" checkpoint on the same 186 structures disagreed (mean 5.5844 vs 5.8843,

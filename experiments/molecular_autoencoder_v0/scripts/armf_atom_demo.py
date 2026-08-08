@@ -247,6 +247,19 @@ def run_arm(args):
     # the headline is the recorded evaluation rather than a re-derivation of it.
     full = None
     mpath = Path(args.ckpt).parent / "metrics.json"
+    # INBOX 52e. complex_d8's metrics.json declares "checkpoint": "final.pt" against a file that does
+    # not exist, and reported anyway. A provenance block naming a file it never opened is asserting
+    # provenance it does not have -- the "satisfiable by a claim in prose" problem check_ack.py exists
+    # to end. Verify the declared checkpoint resolves before trusting anything else in that file.
+    if mpath.exists():
+        try:
+            _decl = json.loads(mpath.read_text()).get("checkpoint")
+            if _decl and not (mpath.parent / Path(str(_decl)).name).exists():
+                print(f"[demo] 52e WARNING: {mpath} declares checkpoint {_decl!r} but no such file "
+                      f"exists beside it. Its numbers cannot be attributed to any weights on disk.",
+                      flush=True)
+        except Exception:
+            pass
     if mpath.exists():
         try:
             md = json.loads(mpath.read_text())
@@ -541,21 +554,19 @@ def build_report(out: Path):
                         return (f"crosses **{thr} Å** at ≥{v} residues" if v is not None else
                                 f"**never crosses {thr} Å** across {fu['residues_min']}–"
                                 f"{fu['residues_max']} residues")
-                    # INBOX 50a: two evaluations of complex_d8 -- this demo and the committed
-                    # outputs/cluster/complex_d8/metrics.json -- disagree on the SAME checkpoint and
-                    # the SAME 186 structures (committed range 2.123-21.015, demo 1.910-21.566; band
-                    # medians differ by up to 47% at 150-200 residues). Same binning, same n per band,
-                    # so it is the VALUES. Until that is resolved this curve is provisional and must
-                    # not be read as settled.
-                    if (r.get("provenance") or {}).get("arm") == "complex":
-                        L += ["", "> **PROVISIONAL (INBOX 50a).** A second evaluation of this same "
-                                  "checkpoint on these same 186 structures disagrees with the numbers "
-                                  "below. Band populations match exactly, so the difference is in the "
-                                  "values, not the binning. Do not quote this curve until 50a is "
-                                  "settled.", ""]
-                    L += ["", f"Rolling median {_cross(c2, 2)}; {_cross(c5, 5)}. "
-                              f"Spearman(residues, RMSD) = "
-                              f"**{fu.get('spearman_res_rmsd')}**.", ""]
+                    # INBOX 52b: the banner here asserted "a second evaluation of THIS SAME
+                    # CHECKPOINT" while the training-identity row 36 lines above proved otherwise, and
+                    # gated the curve on a question that is answered: 050a resolved as a NAME
+                    # COLLISION, not a load defect. A banner contradicting its own table is 049a again,
+                    # in the one document written to be read externally.
+                    if pv["arm"] == "complex":
+                        _ep = (pv.get("training") or {}).get("epochs")
+                        L += ["", f"> **Two trainings share the name `complex_d8`.** This section is "
+                              f"the **{_ep}-epoch** run (checkpoint sha256 "
+                              f"`{ck.get('sha256','?')}`). The committed `_true.pdb`/`_pred.pdb` "
+                              "pairs belong to a **900-epoch** run whose weights are not in the repo. "
+                              "Neither is wrong -- they are different models -- so quote this curve "
+                              "with its epoch count attached.", ""]
                 L += [f"The {len(aa)} structures below are chosen to **span the size range**, not "
                       f"drawn at random, so their median ({np.median(aa):.2f} Å) is an illustration "
                       f"and not an estimate of the set's.", ""]

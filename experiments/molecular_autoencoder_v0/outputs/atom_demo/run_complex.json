@@ -15,7 +15,7 @@
       "mtime": "2026-07-31T22:42:56",
       "sha256": "ca197bea6e912acb"
     },
-    "git": "fe118744-dirty",
+    "git": "94df5b54-dirty",
     "torch": "2.13.0+cu130",
     "training": {
       "epochs": 3456,
@@ -75,7 +75,7 @@
       "n_residues": 164,
       "floats_per_residue": 8.0,
       "compression_x": 2.93,
-      "infer_s": 0.01
+      "infer_s": 0.008
     },
     {
       "all_atom_rmsd": 7.4716486514561105,
@@ -121,7 +121,7 @@
       "n_residues": 334,
       "floats_per_residue": 8.0,
       "compression_x": 2.84,
-      "infer_s": 0.014
+      "infer_s": 0.016
     }
   ],
   "full_heldout": {

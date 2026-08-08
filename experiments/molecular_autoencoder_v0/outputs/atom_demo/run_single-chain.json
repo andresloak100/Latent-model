@@ -15,7 +15,7 @@
       "mtime": "2026-07-30T19:10:01",
       "sha256": "662cf35e8a1b5a17"
     },
-    "git": "fe118744-dirty",
+    "git": "94df5b54-dirty",
     "torch": "2.13.0+cu130",
     "training": {
       "epochs": 1703,
@@ -79,7 +79,7 @@
       "n_residues": 61,
       "floats_per_residue": 8.0,
       "compression_x": 3.03,
-      "infer_s": 0.008
+      "infer_s": 0.009
     },
     {
       "all_atom_rmsd": 0.912745969638294,
@@ -102,7 +102,7 @@
       "n_residues": 83,
       "floats_per_residue": 8.0,
       "compression_x": 2.87,
-      "infer_s": 0.012
+      "infer_s": 0.01
     },
     {
       "all_atom_rmsd": 0.9887671622545731,
@@ -125,7 +125,7 @@
       "n_residues": 91,
       "floats_per_residue": 8.0,
       "compression_x": 3.02,
-      "infer_s": 0.012
+      "infer_s": 0.011
     },
     {
       "all_atom_rmsd": 0.6423237658529858,
@@ -148,7 +148,7 @@
       "n_residues": 96,
       "floats_per_residue": 8.0,
       "compression_x": 3.12,
-      "infer_s": 0.011
+      "infer_s": 0.009
     }
   ],
   "full_heldout": {
