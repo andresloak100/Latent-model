@@ -547,7 +547,7 @@ def build_report(out: Path):
                     # medians differ by up to 47% at 150-200 residues). Same binning, same n per band,
                     # so it is the VALUES. Until that is resolved this curve is provisional and must
                     # not be read as settled.
-                    if r.get("arm") == "complex":
+                    if (r.get("provenance") or {}).get("arm") == "complex":
                         L += ["", "> **PROVISIONAL (INBOX 50a).** A second evaluation of this same "
                                   "checkpoint on these same 186 structures disagrees with the numbers "
                                   "below. Band populations match exactly, so the difference is in the "

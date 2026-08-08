@@ -52,6 +52,9 @@ The commonly quoted **5.88 Å is the mean**; the median is **2.49 Å**. The mean
 | 200–300 | 89 | 6.08 | 2,132 |
 | 300–334 | 8 | 15.46 | 6,538 |
 
+> **PROVISIONAL (INBOX 50a).** A second evaluation of this same checkpoint on these same 186 structures disagrees with the numbers below. Band populations match exactly, so the difference is in the values, not the binning. Do not quote this curve until 50a is settled.
+
+
 Rolling median crosses **2 Å** at ≥52 residues; crosses **5 Å** at ≥122 residues. Spearman(residues, RMSD) = **0.499**.
 
 The 4 structures below are chosen to **span the size range**, not drawn at random, so their median (6.76 Å) is an illustration and not an estimate of the set's.
