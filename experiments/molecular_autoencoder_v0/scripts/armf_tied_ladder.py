@@ -263,10 +263,22 @@ if __name__ == "__main__":
                   f"the SLOW movers are dropped", flush=True)
             print(f"         and the plateaued subset survives, leaving the high-n mean above a "
                   f"random draw's.", flush=True)
-            print(f"       THESE OPPOSE. Truncation touches 3x as many arms so the net is most likely "
-                  f"DOWNWARD, but that is", flush=True)
-            print(f"         NOT ESTABLISHED (INBOX 38a) -- both directions are live and neither is "
-                  f"quantified by this design.", flush=True)
+            print(f"       THESE OPPOSE. Truncation touches more arms, so the net is most likely "
+                  f"DOWNWARD (INBOX 38a).", flush=True)
+            # 38a said neither direction was quantified. Family A now IS: the VOID arms have measured
+            # FVEs, so how far the exclusion moved each rung mean is arithmetic, not conjecture.
+            # Family D stays unquantified -- nobody knows where a truncated arm would have converged --
+            # but each VOID arm's FVE is a LOWER BOUND on it, which bounds the suppression from below.
+            for nt in LADDER:
+                v = [r for r in rows if r.get("n_train") == nt]
+                ok = [r["fve"] for r in v if not r["improving"]]
+                vd = [r["fve"] for r in v if r["improving"]]
+                if ok and vd:
+                    shift = float(np.mean(ok)) - float(np.mean(ok + vd))
+                    print(f"         FAMILY A, MEASURED at n{nt}: excluding {len(vd)} VOID arm(s) moved "
+                          f"the rung mean by {shift:+.4f}", flush=True)
+                    print(f"           (usable {np.mean(ok):+.4f} vs all-arms {np.mean(ok+vd):+.4f}; "
+                          f"VOID FVEs are themselves lower bounds)", flush=True)
             print(f"       Raising the cap MID-LADDER would not fix either: it would make the rungs "
                   f"incomparable on compute,", flush=True)
             print(f"         so the budget stays fixed and this prints instead.", flush=True)

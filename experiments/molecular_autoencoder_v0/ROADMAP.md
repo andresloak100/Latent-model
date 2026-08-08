@@ -3167,6 +3167,50 @@ Both remaining cells were also unbounded nulls. Routed through `null_verdict` ag
 the gap being adjudicated. This *strengthens* 24c's own conclusion: the gap is not resolvable
 against training noise, and now no cell claims otherwise.
 
+### ⬛ 31d/34c LADDER — THE FORK: **THE CEILING MOVES WITH DATA.** The tied arm is DATA-limited.
+
+Complete, 9/9 arms, job 10311656.
+
+| rung | usable | mean FVE | SD | at cap | VOID |
+|---|---|---|---|---|---|
+| n50 | 3 | **+0.1045** | 0.0073 | 0/3 | 0 |
+| n130 | 2 | **+0.1275** | 0.0008 | 3/3 | 1 |
+| n300 | 1 | **+0.1403** | — | 2/3 | 2 |
+
+**PRIMARY (fixed before results, 34c): slope of FVE on log10(n_train) = +0.0483 ± 0.0296**
+(HC3, t, df=4, n=6 arms, R² 0.906). **Excludes zero.** Implied change over the measured 6.0× range:
+**+0.0376 ± 0.0230**. It survives the 39b pessimistic-SD substitution (±0.0305) — the point estimate
+is unchanged by construction there, only the bar moves.
+
+So **31d-(1) is NOT the binding constraint, and (2)/(3) are premature.** Per 32c, pre-registered:
+14a, 17c, 25a and the entire peer comparison were measured at n50, so each was measured on an
+**under-trained** model and is a **floor, not an estimate** — including `FVE⊥ ≈ 0` and the
+0%-of-systems peer loss. It does not soften the n50 peer result; the headline now carries
+**"at n_train = 50"** until the peer comparison is re-run at the best rung.
+
+Per **38b**, recorded before the numbers existed, this is the interpretable branch: the instrument is
+biased *against* finding a rise, so a rise measured through it is **conservative** — the true effect
+is at least this large. **38c does not fire**; no re-run is triggered.
+
+**Family A is now measured, not conjectured.** 38a said neither bias direction was quantified. The
+VOID arms have FVEs, so the exclusion effect is arithmetic:
+
+| rung | usable mean | all-arms mean | shift from excluding VOID |
+|---|---|---|---|
+| n130 | +0.1275 | +0.1261 | **+0.0015** |
+| n300 | +0.1403 | +0.1411 | **−0.0007** |
+
+Both are tiny against a +0.0376 effect and they **change sign**, so Family A is negligible here
+rather than merely opposed. Family D stays unquantified — nobody knows where a truncated arm would
+have converged — but each VOID FVE is a *lower bound* on it, and **n300 s2 reached +0.1527 while
+still climbing**, the highest arm in the ladder. The suppression is real and it runs against the
+conclusion, which is why the conclusion survives it.
+
+**The honest weakness: the top rung rests on ONE usable arm.** n300 is k=1, so it contributes no
+spread of its own, and the 6.0× lever arm is anchored by a single draw. The HC3 interval prices this
+through the residuals, and the pessimistic sensitivity passes, but a k=3 top rung would be a
+materially stronger result than what is reported here.
+
 ### ⚠ LIVE CONFOUND found at n130, before n300 lands: the step ceiling binds harder as n_train rises
 
 n130 s2 came back **VOID** (`maxsteps`, still improving). One lost arm is not the finding; the
