@@ -3941,3 +3941,115 @@ What I want in the note, before any implementation:
 53a first — it is cheap, unblocked and gates existing claims. 53b in parallel, since it is
 writing rather than compute and does not contend for the GPU. 41c stays queued behind the
 ladder checkpoint.
+
+---
+
+## 054 — the 48b pool contains the training set, and the oracle's budget is 15% over
+
+Both pre-registrations are the right shape and I am not asking for either to be rewritten.
+Committing 48b's reading as its own commit so the timestamp is checkable against the run's is
+better than what 38c asked for. Two defects, one in each, both found before the runs produce
+numbers, which is the only useful time to find them.
+
+### 54a. 261 structures in the 48b pool were trained on, and every one is at the small end
+
+I checked the split files rather than assuming:
+
+    splits_small_n2272   train 2272   val 758
+    splits_big           train 3726   val 1250   -> 4976 distinct structures
+
+    big ∩ small-TRAIN  =  261    structures the checkpoint was FITTED on
+    big ∩ small-VAL    =   80    genuinely held out
+    big only           = 4635    never seen
+
+**5.2% of the 48b pool is training data.** `splits_big`'s own `split_method: exact,
+sim_threshold: 0.4` governs its internal train/val split and says nothing about overlap with
+a *different* pool's training set, which is why this is invisible from inside the file.
+
+**This is Family A, and the correlation is perfect rather than partial.** `processed_small` is
+20–109 residues, so all 261 contaminated structures sit at the small end and none can appear
+above 109. Contamination is therefore a deterministic function of the regressor. Please confirm
+the exact residue distribution of the 261 from the processed data — I can only infer it from
+the pool definition.
+
+**Direction of the bias, since it decides whether this matters.** The headline verdict rule
+survives: it compares the ≥300 band (clean) against the `splits_small_n2272` val reference
+(clean, n=758). But the pre-registration also asks for *"the band where each of the three
+crosses"*, and GRADED is the likely outcome. That curve has an inflated small end and a clean
+large end, so **the measured degradation with size is exaggerated** and the crossing bands move
+too early. The graded reading is the one this defect corrupts.
+
+**A second, separable problem in the same place: the label.** The pre-registration calls the
+≤109 rows "in-distribution held-out". That row is three populations wearing one name — 261
+trained-on, 80 true held-out, and the remainder never-seen-but-in-range. Only the middle group
+is held out. This is the same one-name-two-things failure as `complex_d8`, `ladder_direct_n2272`
+and `rmsd`, now four in four items.
+
+Fix I would take: drop the 261, print the excluded count and residue range per band even at
+zero on 47b's pattern, and report the curve **both ways** as a sensitivity so the size of the
+effect is visible rather than assumed small.
+
+### 54b. State 48b's reach, because it does not reach ATLAS
+
+`processed_big` tops out at **383 residues**. At the ~7.3 atoms/residue of this corpus that is
+roughly 2,800 atoms, against ATLAS quartiles of **1,434 / 3,249 / 7,406** and a maximum of
+**33,377**. So 48b tests up to about the ATLAS *median* system and says nothing about the upper
+half.
+
+That is still worth running — it is a 3.5× extension of a range that currently stops at 109
+residues. But "the static path scales" is a claim about the ATLAS range, and a clean
+ARCHITECTURE verdict here would license it only to ~2,800 atoms. Put the reach in the verdict
+line itself, not the discussion, or the result will be read as covering a range it never saw.
+
+### 54c. The thresholds are absolute, across a 10× size range, and are not size-calibrated
+
+The verdict rule fixes `≤1.67 Å`, `F1 ≥0.90`, `≤24 clashes/1k` — all derived from the 20–109
+residue reference and applied unchanged at 300–383. That assumes the three metrics are
+size-invariant, which is untested and is unlikely to hold for at least contact F1, where the
+contact count and the compounding of coordinate error both grow with N.
+
+There is already a free control for this. `metrics.json` carries
+`trivial_all_atom_baselines`: `centroid_all_atom_rmsd = 12.165` at the reference size — a
+predict-the-centroid null that **grows with radius of gyration**, hence with N. Report the
+trivial baseline per band beside the learned number. Then a threshold crossing can be read as
+"the model got worse" or "the task got harder", which the absolute thresholds alone cannot
+distinguish. Without it, a SMALL-PROTEIN verdict is not separable from a metric that simply
+gets harder with size — **Family D applied to the verdict rule rather than to a measurement.**
+
+### 54d. The oracle's budget-matched K ignores the index cost, and 85 is over budget
+
+`3K ≈ 256 = DM` gives K = 85.3. But a sparse channel must transmit **which** atoms as well as
+how they move, and only the displacements are being charged. At 32-bit floats:
+
+    N        index bits   float-equiv   per-atom   K_budget
+      598       9.22         0.288        3.288      77.9
+    3,249      11.67         0.365        3.365      76.1
+   33,377      15.03         0.470        3.470      73.8
+
+So budget-matched K is **74–78, not 85** — the sweep is **15% over budget at ATLAS scale**.
+Direction matters here: over-budget makes the oracle *easier* to pass, so the falsifier is
+weaker than intended, which is the wrong way for a falsifier to err. Add K=74 to the sweep
+and evaluate the 25% rule there.
+
+Also worth recording rather than fixing: **K_budget falls as N grows** (77.9 → 73.8). The cost
+argument requires the per-step channel to be constant in atoms-per-molecule, and a
+budget-matched event channel is mildly *sub*-constant. Small, but it is the kind of N-dependence
+§7 exists to avoid, and better noted now than discovered at 1M atoms.
+
+### 54e. Sweep past the budget, and add the ceiling check
+
+Two additions, both nearly free on a sweep that already exists:
+
+1. **Report K₁₀₀ — the K at which the oracle closes 100% of the gap.** Closing 25% or 50% still
+   loses to ANM, so neither is a peer win; the decision-relevant number is how sparse the
+   channel would have to be *not* to lose, and whether that K is affordable. If K₁₀₀ lands in
+   the thousands the channel is not sparse and the cost argument dies with it — a far more
+   decisive outcome than the 25% rule can produce, obtained from the same loop.
+2. **Include K = all atoms as a harness check.** A full oracle must recover essentially all of
+   the residual by construction. If it does not, the harness is wrong and every smaller K is
+   uninterpretable — **Family B**: confirm the measurement can reach its own ceiling before
+   reading anything below it.
+
+The strict-upper-bound framing and the refusal to let a positive result claim learnability are
+both right, and the Family D note on generation versus representation is the correct scope
+limit. Keep those exactly as written.
