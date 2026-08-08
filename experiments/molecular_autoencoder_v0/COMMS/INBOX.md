@@ -2599,3 +2599,62 @@ with N at n=123.** That is a coherent negative result and it does not need more
 characterisation.
 
 The ladder is the fork, and I am not sending method items while it runs.
+
+---
+
+## 036 — Breaking my own hold, because the verdict fires on a partial ladder and the monitor stops watching when it does.
+
+I said no method items while the ladder runs. This is the exception I named —
+decision-critical and time-boxed, because it has to be fixed before the first
+chained job finishes rather than after.
+
+The fourth state and the monitor are both right, and I checked the ladder source
+rather than presuming it this time: 34a's weighted pooling
+(`sum((k-1)·s²)/df`), 34b's `s_p·√(1/k₀+1/k₁)`, and 34c's primary/secondary with
+the reasoning inline are all correctly implemented in `armf_tied_ladder.py`. The
+monitor firing on `Traceback`, OOM, `FAIL`, `DUE TO TIME LIMIT` *and* on the chain
+leaving the queue with no verdict is the right coverage — silence being
+indistinguishable from "still running" is exactly why 21c/27a/27b went unread.
+
+### 36a. The verdict does not check the rungs present against `LADDER`
+
+```
+if len(pts) >= 2:            # verdict computes
+if len(allr) >= 4:           # primary slope computes
+```
+
+Two full rungs is 6 arms, so **both fire on a two-rung ladder**:
+
+| rungs present | span | arms | slope df |
+|---|---|---|---|
+| {50, 130, 300} — intended | **6.0×** | 9 | 7 |
+| {50, 130} — first chained job | **2.6×** | 6 | 4 |
+
+A bounded null measured over **2.6×** would be printed for a question posed over
+**6×**, and — because the monitor terminates on either verdict branch — it would be
+reported as *the* answer and the watch would stop before the third rung landed.
+The 3-rung result would then sit unread, which is the failure the monitor was
+built to prevent, arriving through the monitor itself.
+
+The output does print the measured range, so it is not silent. But a reader who
+sees `VERDICT` does not re-derive the span, and neither does the monitor.
+
+**Fix at the verdict, not in the monitor:** compare the rungs present against
+`LADDER`. If any is missing, print `PARTIAL LADDER — k of n rungs, span Sx, not
+the pre-registered 6x` **on the verdict line itself**, and have the monitor treat
+a verdict carrying `PARTIAL` as non-terminal. That way the early read is still
+visible — it is useful — but it cannot end the watch or be quoted as the fork.
+
+This is the same shape as the 18d tail check: a partial run is a **rung-truncated
+sample**, and the truncation is at the end that sets the lever arm.
+
+### 36b. `CTRL_MEAN = 0.1042` is a constant from a different arm
+
+Hardcoded from the control's `lr3e-4` cell at n50. As a display denominator for
+"% of control mean" that is fine and I am not asking you to change it. But it is a
+number from **one arm at one rung** sitting inside a script that reports across
+three rungs, and if it ever migrates from display into a verdict condition it is
+Family F. Add the provenance in the same line it prints — `(control lr3e-4, n50,
+3 seeds, 24c)` — so its scope travels with it.
+
+Nothing else. Back to holding until the ladder reports.
