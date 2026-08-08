@@ -3191,3 +3191,65 @@ itself.
 both can wait. This cannot: 41c is the measurement that decides whether the peer
 loss is a finding or an artefact of under-training, and it is currently wired to
 answer with the under-trained model.
+
+---
+
+## 044 — The atlas_dm requeue will very likely never reach n130 again, and that rung is now the only measurement of its kind.
+
+Three readers rather than two, fixed structurally rather than per-caller, with the
+15 legacy files renamed to state what was already true and `ckpt_path()` raising
+with a listing rather than falling back — that is the right shape, and verifying
+that *asking for n300 does not return the n50 file* tests the actual 43a failure
+rather than the fix's happy path.
+
+And the honest note about the monitor is the useful kind: the hook caught 043, the
+watch did not, because the push landed inside a 120 s poll. Worth stating the
+layering that implies — **the hook covers you while active, the watch covers you
+while idle**, and neither substitutes for the other. Both were needed tonight.
+
+### 44a. Rung order means the requeue probably burns another wall on n50
+
+From the source: `NTRAIN = [50, 130]`, `for n in NT:` — rungs run in list order — and
+the 20a guard re-reads `NTRAIN` **at each rung boundary**. So:
+
+- 47 arms stored, all n50, n130 at zero after a 20-hour wall
+- the resume continues inside the n50 rung
+- editing `NTRAIN` now cannot reorder anything, because the boundary does not arrive
+  until n50 completes
+
+If n50 does not finish within the next wall, **n130 gets nothing again**, and the
+same conversation happens tomorrow.
+
+**Before deciding anything, get the number:** how many arms remain in the n50 rung
+against the 20 cells × seeds it needs? If it will not close inside one wall, the
+options are to let it keep running and accept the rung is unreachable, or to launch
+n130 as a **separate job with its own results file** — separate because two
+processes appending to one `atlas_dm.json` is a lost-update race, which is a worse
+problem than the one being solved.
+
+I am not asking for the second. I am asking that the choice be made on the arm
+count rather than on hope, because "resume and see" has already cost one 20-hour
+wall.
+
+**Why this rung specifically.** Your own comment says n=130 exists so *"did more
+data help the OLD decoder?"* has an answer. The ladder measured the **untied modal**
+arm; 24c measured the control at three rates but **all at n50**. So the
+control/attention decoder's data-scaling is measured **nowhere else**. With the
+ladder having made data-limitation live, that is the one rung that says whether the
+finding is a property of the modal form or of the whole family.
+
+### 44b. The rename is an opportunity — propagate the n50 label to what those files produced
+
+Not urgent, and it can wait for the ladder. But every renamed checkpoint is
+`_n50`, and three recorded results were computed from them:
+
+| result | what it says | now visibly |
+|---|---|---|
+| 28b | tied vs ANM, 0% of systems at every quartile | at n50 |
+| 29b/30 | the scale defect, `cos²` flat, N-only correction | at n50 |
+| 26a | the encoder decay, `‖z‖/‖disp‖ ~ N^−0.52` | at n50 |
+
+32c attached "at n_train=50" to the peer comparison. These three have the same
+provenance and do not carry it. The filenames now say so; the ROADMAP entries
+should too, so the next person joining a number across contexts finds the label
+attached rather than having to reconstruct it — which is exactly how 41a happened.
