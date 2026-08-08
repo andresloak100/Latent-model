@@ -3419,6 +3419,32 @@ the finding.
 seeds per ctx would cost 6 more arms and would make either branch readable. Also note this was
 measured at **n_train=50**, which the ladder has now shown to be a floor for the untied arm.
 
+### ⬛ 52d AUDIT COMPLETE: **2** name collisions in 64 committed runs, and one has weights
+
+`complex_d8` was not alone. `scripts/armf_run_collision_audit.py` compares the **final training row**
+of every `outputs/cluster/<run>/train_log.json` against `$WR/results/<run>` of the same name — no
+weights needed, which is the point: **61 of 64 committed runs have no `final.pt`**, so a sha256 can
+never detect a collision in them.
+
+| run | committed (epoch / steps / s / rmsd) | `$WR` | `final.pt` committed |
+|---|---|---|---|
+| `complex_d8` | 899 / 63,000 / 9,473 / **4.799** | 3456 / 241,990 / 25,134 / **6.722** | no |
+| **`ladder_direct_n2272`** | 1703 / 241,968 / 37,434 / **0.584** | 1703 / 241,968 / 36,239 / **0.504** | **yes** |
+
+The second is new and differs in kind. **Identical epoch and steps, different wall time and different
+final train RMSD (0.584 vs 0.504)** — the same schedule run twice, not a longer run. A sha256 *would*
+have caught this one, since the weights are committed; nobody had compared them. It already had an
+outstanding control against it (ROADMAP L269), which now has a second reason.
+
+**What the audit clears.** `ladder_direct3m_n2272` — the headline single-chain arm, 0.79 Å — does
+**not** collide, and neither do the other ladder rungs. The learning-curve slope is computed on one
+training per rung and is safe to quote.
+
+**Why reproducibility tracked weight availability.** The single-chain arm agreed across both
+evaluations *and* is one of only three runs with committed weights; `complex_d8` diverged and has
+none. That correlation was the visible signal, but the cause is name reuse, and the audit is what
+converts "one detected collision" into "two, out of a bounded 64".
+
 ### ⬛ 048: THE SUCCESS AND THE FAILURE ARE ON ALMOST DISJOINT DOMAINS — stated positively
 
 A reader who meets *"the codec reconstructs at 0.79 Å"* and *"the codec loses to a zero-cost baseline
