@@ -23,9 +23,26 @@ help even with perfect information, because that can be answered with **inferenc
 2. Compute the residual `E = true − decoded` per frame.
 3. Pick the top-K atoms by residual magnitude and hand the decoder **their exact displacements** —
    this is the maximum information any sparse channel of budget K could carry.
-4. Recompute FVE. Sweep **K = 1, 4, 16, 64, 85** atoms per frame.
+4. Recompute FVE. Sweep **K = 1, 4, 16, 64, 74, 256, 1024, and ALL atoms**.
 
-K=85 is the budget-matched point: 3K ≈ 256 = DM, so the channel costs what the global latent costs.
+**Budget (corrected, INBOX 54d).** `3K ≈ 256` charges only the displacements. A sparse channel must
+also transmit **which** atoms, at `log2(N)` bits each:
+
+| N | index bits | float-equiv | per-atom cost | K_budget |
+|---|---|---|---|---|
+| 598 | 9.22 | 0.288 | 3.288 | **77.9** |
+| 3,249 | 11.67 | 0.365 | 3.365 | **76.1** |
+| 33,377 | 15.03 | 0.470 | 3.470 | **73.8** |
+
+So budget-matched K is **74–78, not 85** — K=85 is ~15% over budget at ATLAS scale. The direction
+matters: over-budget makes the oracle *easier* to pass, so the falsifier would have been weaker than
+intended, which is the wrong way for a falsifier to err. **The sweep therefore includes K=74 and the
+25% rule is evaluated there.**
+
+Worth recording rather than fixing: **K_budget falls as N grows** (77.9 → 73.8). The cost argument
+requires the per-step channel to be constant in atoms-per-molecule, and a budget-matched event channel
+is mildly *sub*-constant. Small, but it is the N-dependence §7 exists to avoid, and better noted now
+than at 1M atoms.
 
 **Why an oracle and not a trained channel.** A learned channel cannot beat one that is told exactly
 which atoms matter and exactly how they move. So the oracle is a **strict upper bound**, and that
@@ -39,7 +56,7 @@ makes the negative result decisive while costing no training.
 
 ## Pre-registered falsifier
 
-> At **K = 85** atoms per frame (budget-matched to DM = 256), if the oracle sparse channel recovers
+> At **K = 74** atoms per frame (budget-matched to DM = 256, index cost included), if the oracle sparse channel recovers
 > **less than 25%** of the codec-to-ANM gap on the held-out set, the sparse event channel is refused
 > as a path to a peer win, and this item closes.
 
@@ -47,7 +64,18 @@ The gap is 0.6114 (mean) / 0.3956 (Q1 median), so 25% is ~0.15 / ~0.10 FVE. Repo
 never pooled, and with the same guards as everything else: median, mean and failure fraction
 together, not a mean alone.
 
-If the oracle at K=85 lands between 25% and full closure, that is **GRADED** — report the K at which
+**Two additions (INBOX 54e), nearly free on a sweep that already exists:**
+
+- **Report K₁₀₀ — the K at which the oracle closes 100% of the gap.** Closing 25% or 50% still loses
+  to ANM, so neither is a peer win. The decision-relevant number is how sparse the channel would have
+  to be *not to lose*, and whether that K is affordable. **If K₁₀₀ lands in the thousands the channel
+  is not sparse and the cost argument dies with it** — a more decisive outcome than the 25% rule can
+  produce, from the same loop.
+- **K = all atoms, as a harness check.** A full oracle must recover essentially all of the residual by
+  construction. If it does not, the harness is wrong and **every smaller K is uninterpretable** —
+  Family B: confirm the measurement reaches its own ceiling before reading anything below it.
+
+If the oracle at K=74 lands between 25% and full closure, that is **GRADED** — report the K at which
 it crosses 25% and 50%, and the item stays open with the cost of the next step stated.
 
 ## Cost, and what it reuses

@@ -334,6 +334,18 @@ def run_arm(args):
           + (f" (residues {min(x[1] for x in skipped)}-{max(x[1] for x in skipped)})" if skipped
              else " -- the exclusion is EMPTY, so it cannot bias the reported numbers"), flush=True)
 
+    # 54a: "in-distribution held-out" was three populations under one name -- fitted-on, truly
+    # held-out, and never-seen-but-in-range. Only the middle is held out.
+    cls_map = {}
+    if args.train_split:
+        rs = utils.load_json(ROOT / args.train_split)
+        tr_, va_ = set(rs.get("train", [])), set(rs.get("val", []))
+        for k_ in keys:
+            cls_map[k_] = "fitted" if k_ in tr_ else ("heldout" if k_ in va_ else "unseen")
+        from collections import Counter
+        print("[demo] 54a provenance classes: " + "  ".join(
+            f"{a_}={b_}" for a_, b_ in sorted(Counter(cls_map.values()).items())), flush=True)
+
     rows = []
     with torch.no_grad():
         for idx in chosen:
@@ -366,7 +378,12 @@ def run_arm(args):
                     f"old result's label.")
             lf = latent_floats_for(model, na, n_res, getattr(model, "latent_floats", 0))
             m = compute_all_metrics(pred, targ, topo, latent_floats=lf)
-            m.update(pdb_id=s["pdb_id"], n_atoms=na, n_residues=n_res,
+            # 54c: predict-the-centroid null. It grows with radius of gyration, hence with N, so a
+            # threshold crossing separates "the model got worse" from "the task got harder" -- which
+            # absolute thresholds cannot do. Family D applied to the verdict rule.
+            cen = float(np.sqrt(((targ - targ.mean(0)) ** 2).sum(1).mean()))
+            m.update(centroid_rmsd=round(cen, 4), pclass=cls_map.get(s["pdb_id"], "unknown"),
+                     pdb_id=s["pdb_id"], n_atoms=na, n_residues=n_res,
                      latent_floats=lf, floats_per_residue=round(lf / max(n_res, 1), 3),
                      compression_x=round((na * 3) / max(lf, 1), 2), infer_s=round(dt, 3))
             rows.append(m)
@@ -667,6 +684,12 @@ def main():
     ap.add_argument("--processed", default=None, help="override cfg.data.processed_dir")
     ap.add_argument("--all", action="store_true", help="evaluate EVERY structure, not n illustrations")
     ap.add_argument("--limit", type=int, default=0, help="cap --all at this many (0 = no cap)")
+    # INBOX 54a: the evaluation pool may overlap the checkpoint's TRAINING set. A split file's own
+    # split_method governs its INTERNAL division and says nothing about a different pool's train set,
+    # so the overlap is invisible from inside the file. Tag every structure by provenance CLASS so the
+    # curve reads both ways from one pass instead of two runs.
+    ap.add_argument("--train-split", default=None,
+                    help="split file whose train[] was FITTED ON; those structures are tagged fitted")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if a.selftest:

@@ -3213,10 +3213,37 @@ recorded evaluation:
 | contact F1 median | **0.9639** |
 | clashes/1000 atoms median | **11.9** (q75 19.1) |
 
-**Evaluation pool:** `data/processed_big` — 4,976 structures, **35–383 residues**, median 180. This
-changes **size and distribution at once** (48a's two-axis join), so rows ≤109 residues are labelled
-**in-distribution held-out** and rows >109 are labelled **out-of-distribution extrapolation**, in the
-table, not in prose.
+**Evaluation pool:** `data/processed_big`. **CONTAMINATED, and the contamination is a deterministic
+function of the regressor (INBOX 54a).** Measured, not inferred:
+
+| | count |
+|---|---|
+| `big ∩ small-TRAIN` — **fitted on** | **261** |
+| `big ∩ small-VAL` — genuinely held out | 80 |
+| `big` only — never seen | 4,635 |
+
+**5.2% of the pool is training data, and all 261 sit at 21–107 residues — zero above 109.** So the
+small end is inflated by memorisation and the large end is clean, which *exaggerates* the measured
+degradation with size and moves the crossing bands too early. The headline verdict survives (top band
+clean vs a clean reference), but the GRADED reading — the likely outcome — is exactly what this
+corrupts.
+
+Every structure is therefore tagged **fitted / heldout / unseen** and the curve is reported **both
+ways from one pass**. "In-distribution held-out" was three populations under one name; only the middle
+is held out. That is the fourth one-name-two-things failure in four items, after `complex_d8`,
+`ladder_direct_n2272` and `rmsd`.
+
+**Reach (54b).** `processed_big` tops out at **383 residues ≈ 2,800 atoms**, against ATLAS quartiles
+1,434 / 3,249 / 7,406 and a maximum of **33,377**. So 48b reaches about the ATLAS **median** system
+and says nothing about the upper half. A clean ARCHITECTURE verdict here licenses "the static path
+scales" only to ~2,800 atoms — stated **in the verdict line**, not the discussion.
+
+**Size-calibration control (54c).** The thresholds are absolute and derived at 20–109 residues, which
+assumes size-invariance that is untested and unlikely for contact F1. The predict-the-centroid null
+(`centroid_rmsd`, 12.165 Å at reference size) grows with radius of gyration, hence with N, and is now
+computed per structure. Reported per band beside the learned number, so a crossing separates "the
+model got worse" from "the task got harder" — otherwise a SMALL-PROTEIN verdict is not separable from
+a metric that simply gets harder, which is Family D applied to the verdict rule.
 
 **Verdict rule, fixed now.** Comparing the top band (≥300 residues) against the reference:
 
