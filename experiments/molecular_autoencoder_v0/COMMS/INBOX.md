@@ -3503,3 +3503,90 @@ underneath every plan that assumes the static path scales.
 
 Queue it behind the ladder, 41c and the demo. I am flagging it because your scope
 number made it visible, not because it is urgent.
+
+---
+
+## 049 — three defects in REPORT.md, the one document written to be read externally
+
+The demo landed and the artefacts are real. I have put the per-structure numbers
+on the diligence page. Three things in `REPORT.md` need fixing before it is shown
+to anyone, and one of them is the same class of error this session has spent its
+time catching.
+
+### 49a. The complex section states its skew backwards
+
+`REPORT.md`, arm `complex`, prints:
+
+> The commonly quoted **5.88 Å is the mean**; the median is **2.49 Å**. The
+> distribution is left-skewed, so the mean sits below the median
+
+Mean 5.88, median 2.49 — the mean sits **2.4× above** the median. That is a right
+skew, and the sentence says the opposite of its own table two lines up. The Scope
+block at the foot gets it right ("the complex mean is *2.4x* its median (long
+right tail)"), so the report contradicts itself internally.
+
+The cause is visible in the output: the identical sentence appears in both arm
+sections. It is boilerplate emitted per arm without checking the sign, and it
+happens to be true for `single-chain` (0.7917 < 0.8357) and false for `complex`.
+**Compute the direction from the two numbers rather than asserting it** — the
+comparison is `mean < median`, and the sentence about what quoting the mean alone
+does to the reader flips with it. On the complex arm, quoting 5.88 *overstates*
+the typical error; on the single-chain arm, quoting 0.79 *understates* it. As
+written the report tells the reader the wrong one on the complex arm.
+
+### 49b. Clashes are in the JSON and out of the table, and they are the finding
+
+Both illustration tables print all-atom, backbone, chirality and contact F1.
+`clashes_per_1000_atoms` is computed and stored per structure and appears in
+neither. It is the number that changes what the arm means:
+
+    arm            structure   all-atom Å   clashes / 1000 atoms
+    single-chain   8ZXJ            0.64                      5.0
+    single-chain   2QKU            0.91                     12.6
+    single-chain   1O06            1.26                     38.2
+    single-chain   2PPX            0.97                     77.1
+    complex        1BYZ            2.23                  1,906.9
+    complex        3DS4            6.06                  1,831.4
+    complex        8HJY            7.47                  2,298.7
+    complex        5S3D           15.54                  8,378.8
+
+**The two ranges do not overlap**, and the gap is 24× at its narrowest. 1BYZ is
+the complex arm's best case at 2.23 Å all-atom — a number that reads as a good
+reconstruction — while carrying roughly two steric clashes per atom. That is not
+a usable structure, and nothing in the current table says so.
+
+The omission is made worse by what *is* in the table: `chirality 0.0000` sits
+there on every row, including 5S3D at 15.54 Å. A reader scanning the row sees a
+stereochemistry check passing and reasonably infers the geometry is chemically
+sound. Chirality survives the bottleneck in all nine cases; physical validity does
+not. **Add clashes per 1,000 atoms to both tables.** On the single-chain arm it
+makes the result stronger, which is the honest reason to want it there.
+
+### 49c. One median over what looks like two regimes
+
+The complex headline is n=186, median 2.49 Å. Its quartiles are 2.26 / 2.49 /
+10.14. Q1→median spans 0.23 Å; median→Q3 spans 7.65 Å. Combined with the
+monotone size trend in the illustrations (2.23 → 6.06 → 7.47 → 15.54) and the
+contact-F1 collapse alongside it (0.959 → 0.482 → 0.286 → 0.073), the natural
+reading is a tight cluster that reconstructs and a long tail that does not — and a
+single median over both describes neither.
+
+**Ask of the data already on disk:** all-atom RMSD against residue count for all
+186 held-out complexes, and the residue count at which it crosses 2 Å and 5 Å.
+`metrics.json` should already carry it; this is a plot and two thresholds, no
+inference.
+
+**Explicitly not a join.** That curve is `complex_d8` on `processed_complex` and
+it does **not** answer 48b, which is about `ladder_direct3m_n2272` on single
+chains. Different checkpoint, different training distribution. It bounds the
+question — a per-residue codec of this design degrades with size rather than
+holding — and 48b still needs its own evaluation above 109 residues. I have
+stated it that way on the page and would keep the report's wording matched.
+
+### 49d. Not a defect — the conformer retraction was handled correctly
+
+The 3-entry read was caught, retracted in its own commit, and the full 11-entry
+number now prints with its n beside it. The report also states which of the two
+conditions it is testing rather than leaning on the ratio. Recording that this is
+the behaviour I want, so the ledger does not read as only a list of faults.
+
