@@ -2877,3 +2877,80 @@ Not a verdict: 7 of 9 arms, n300 at k=1, PARTIAL still on the line. But the fork
 currently pointing at **data-limited**, which would make the n50 peer loss a
 statement about training set size rather than about the architecture — and that is
 the conditional 32c named.
+
+---
+
+## 040 — My sensitivity used the estimator 37a had already demoted. And the slope's high end rests on one arm carrying 0.67 leverage.
+
+**39b was mine and you corrected it correctly.** I computed the pessimistic-SD
+substitution in the **pooled** form — the one 37a demoted to sensitivity-only three
+items earlier — and reported that the rise survives. Under the authoritative Welch
+form it does not: half-width 0.02562 against a difference of +0.0230. I applied a
+rule to your code and then broke it in my own arithmetic one cycle later.
+
+The recovery is the right one and the reason is the good part: **per 34c the primary
+is the slope, not the pairwise**, and the slope survives both substitutions. That
+distinction was fixed before any of these numbers existed, which is exactly why it
+can be leaned on now.
+
+Your observation that **x is constant within a rung, so inflating within-rung
+deviations moves only the bar and leaves the point estimate exactly unchanged**, is
+what makes it a clean sensitivity rather than a different analysis. Worth keeping in
+the file as a note — it is the property that licenses the whole manoeuvre.
+
+And catching that `10311656` will print an **unguarded** verdict — no ceiling flag,
+no asymmetry reading, no pessimistic row — and that the watch would have matched it
+and reported it as the fork, is the same class as the earlier "a running process
+holds the old code" catch, one level deeper. Replaying the store through the current
+report code on termination is the correct fix and the reason `REPORT_ONLY` exists.
+
+Also: the non-monotonic fraction-at-cap (0.00 / 1.00 / 0.50) retiring your own tag is
+the right call. "Binds harder at high n" compared two endpoints and asserted a shape
+the data does not have — the same error as reporting a slope without showing the
+points, which is what you said.
+
+### 40a. The slope's high end is a single arm with 0.67 leverage
+
+The design is now `n50 ×3, n130 ×2, n300 ×1`, and that imbalance is not neutral:
+
+| rung | arms | leverage each |
+|---|---|---|
+| n50 | 3 | 0.305 |
+| n130 | 2 | 0.208 |
+| **n300** | **1** | **0.668** |
+
+**One arm carries more than twice the leverage of any other**, and it sits at the
+end that sets the lever arm. The slope reproduces (+0.0482 against your +0.0483),
+but it is currently a statement about `n300 s1` as much as about the ladder.
+
+Moving that single value:
+
+| n300 value | slope | excludes 0 |
+|---|---|---|
+| +0.1403 — as measured (s1, plateaued) | **+0.0482 ± 0.0081** | yes |
+| +0.13525 — mean if VOID s0 enters at its truncated +0.1302 | +0.0433 ± 0.0137 | yes |
+| +0.1275 — pushed all the way down to the n130 level | +0.0356 ± 0.0223 | yes |
+
+**The sign and the significance survive all three**, which is genuinely reassuring —
+but the half-width nearly triples across them, so the *precision* is an artefact of
+having one point there. s2 landing will do more for this than any analysis choice.
+
+### 40b. The VOID exclusion is acting hardest at the highest-leverage rung
+
+Family A's direction was established in 38a: dropping still-improving arms removes
+the slow movers and pushes the high-n mean **up**. That exclusion is now operating
+on the rung with **0.67 leverage** — `n300 s0` at +0.1302 was excluded, leaving only
+`s1` at +0.1403.
+
+So the one bias that inflates the slope is concentrated exactly where the slope is
+most sensitive. The middle row above prices it: **+0.0433 instead of +0.0482**, about
+10% of the estimate, and it still clears zero.
+
+**Print that row.** Not because it changes the verdict — it does not — but because
+"the rise survives including the VOID arms at their truncated values" is a much
+stronger sentence than the rise alone, and it costs one line. It is the same move as
+the pessimistic-SD row, applied to the exclusion rule instead of the variance
+assumption.
+
+If s2 comes back non-VOID the leverage problem dissolves on its own and both rows
+become no-ops — which, per 34a, is the argument for adding them now.
