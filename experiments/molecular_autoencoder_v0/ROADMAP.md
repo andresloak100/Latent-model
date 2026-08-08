@@ -3193,6 +3193,26 @@ primary test:
 - **Family A.** VOID *means* "still improving at the ceiling", so the **exclusion rate rises with the
   regressor** and the surviving high-n arms are the fast-converging subset, not a random one.
 
+**n300 s0 confirms it, and the VOID calls are NOT noise.** The plateau/VOID discriminator is
+`max(last 4 evals) > 1.01 x max(all earlier)`, and it separates cleanly:
+
+| arm | ratio | call | at ceiling? |
+|---|---|---|---|
+| n50 s1 | 0.9326 | kept | no (70k) |
+| n50 s2 | 0.9863 | kept | no (57.5k) |
+| n130 s0 | 0.9927 | kept | yes |
+| n130 s1 | 0.9883 | kept | yes |
+| n130 s2 | **1.0550** | VOID | yes |
+| n300 s0 | **1.1407** | VOID | yes |
+
+Every kept arm is <= 0.993, every VOID arm >= 1.055, with the 1.01 threshold in the gap. A ratio
+below 1.0 means the recent window peaked *below* the earlier max, so n130 s0/s1 had genuinely stopped
+climbing. **n300 s0 was still climbing 14% at the ceiling** -- the budget is really too small there,
+and its `+0.1302` is a true lower bound that already exceeds every other arm in the ladder.
+
+That last point matters for the direction of the bias: the confound suppresses the rise it would have
+to manufacture to be dangerous. FVE by rung is n50 +0.1045, n130 +0.1276, n300 >= +0.1302.
+
 **The budget is deliberately NOT being raised mid-ladder.** Doing so would make the rungs
 incomparable on compute — trading a visible confound for a hidden one. Instead the verdict now prints
 the per-rung step table and carries a `CEILING BINDS HARDER AT HIGH n` tag on the verdict line, beside

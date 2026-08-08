@@ -112,9 +112,22 @@ if __name__ == "__main__":
         TR = [x for x in (sysdata(store, have[p]) for p in tr_ids[:NTR]) if x is not None]
         print(f"  {len(TR)} train / {len(HOt)} tracked / {len(HO)} held-out", flush=True)
 
-        ST = STAMP.stamp(dict(dm=DM, lrs=str(USABLE_LRS),   # NOT seeds/ladder: they select WHICH draws and
-                              # WHICH rungs, not how any arm is computed (27b's NSYS lesson)
-                              warmup=D.WARMUP, maxsteps=D.MAXSTEPS), ModalCodec, D.train)
+        # LADDER_MAXSTEPS raises the step cap. INERT unless set, and the default stamp stays BYTE
+        # IDENTICAL so the six arms already on disk are not invalidated. When it IS set, the cap enters
+        # the stamp explicitly -- D.train's AST is unchanged by a monkeypatch of maxsteps_for, so without
+        # this key re-run arms would silently pool with 90k arms, which is Family F inside the resume.
+        _cfg = dict(dm=DM, lrs=str(USABLE_LRS),            # NOT seeds/ladder: they select WHICH draws and
+                                  # WHICH rungs, not how any arm is computed (27b's NSYS lesson)
+                                  warmup=D.WARMUP, maxsteps=D.MAXSTEPS)
+        _cap = os.environ.get("LADDER_MAXSTEPS", "")
+        if _cap:
+            _capi = int(_cap); _base = D.maxsteps_for
+            D.maxsteps_for = lambda lr, _b=_base, _c=_capi: min(_c, max(_b(lr), 1))
+            _cfg["cap"] = _capi
+            print(f"  LADDER_MAXSTEPS={_capi}: cap raised from {_base(USABLE_LRS[0])} to "
+                  f"{D.maxsteps_for(USABLE_LRS[0])}. Stamp changed, so 90k arms are NOT reused.",
+                  flush=True)
+        ST = STAMP.stamp(_cfg, ModalCodec, D.train)
         rows = json.load(open(RES)) if os.path.exists(RES) else []
         STAMP.report(rows, ST, "arms")
         rows = [r for r in rows if STAMP.same_stamp(r, ST)]
