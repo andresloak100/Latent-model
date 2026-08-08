@@ -3265,6 +3265,50 @@ part worth carrying forward.
 **This also makes every decades-to-close extrapolation unnecessary**, not merely risky: 41c is the
 same-harness measurement those were approximating.
 
+### ⬛ 059: six times the data made **67% of systems worse**. The slope is a tail repair.
+
+The ladder's rise and 41c's quartiles are one result, and the paired per-system test settles it.
+Both rungs evaluated **the same 123 systems on the same frames** (N matched exactly), so this is a
+paired comparison, not a difference of summaries:
+
+| quartile | n | mean paired Δ | 95% CI | **fraction worse** | p (paired t) |
+|---|---|---|---|---|---|
+| Q1 | 31 | **−0.0755** | [−0.0950, −0.0559] | **97%** | <0.0001 |
+| Q2 | 30 | +0.1108 | [−0.1070, +0.3287] | **80%** | 0.31 |
+| Q3 | 31 | −0.0264 | [−0.0566, +0.0038] | 77% | 0.085 |
+| Q4 | 31 | **+0.4474** | [+0.2274, +0.6675] | 16% | 0.0003 |
+| **ALL** | **123** | **+0.1141** | [+0.0315, +0.1967] | **67%** | 0.0072 |
+
+**Q1 did not merely fail to improve — it degraded, and the effect is unambiguous:** 97% of its systems
+got worse and the CI is nowhere near zero. 059's cautious "no improvement detected" is too weak for
+Q1; it is right for Q3 (CI still touches zero at −0.0264, p=0.085).
+
+**Q2 is the mean/median trap one level down.** Its mean is *positive* (+0.1108) while **80% of its
+systems got worse** — a few large gains outvoting a declining majority. A quartile mean hides this the
+same way the overall mean hides Q4.
+
+**The headline, restated.** Six times the training data made **67% of held-out systems worse**. The
+aggregate mean rose only because Q4's catastrophic failures were repaired. So the ladder's
++0.1227 ± 0.0871 and JT p=0.00179 are real but they order **arm means**, and the means rise because
+the tail rises. The supported statement is **"more data monotonically repairs the large-system tail"**,
+not "the codec improves with data". That is Family D about the ladder's own statistic — mean FVE
+cannot separate "everything improved a little" from "the tail improved a lot while the rest declined".
+
+**And Q4 was repaired from harmful to useless, not to good:**
+
+| | Q4 |
+|---|---|
+| n50 | **−0.2791** — worse than predicting nothing |
+| n300 | **+0.0292** — approximately no signal |
+| ANM | **+0.6790** — still +0.6498 ahead |
+
+Worst-system FVE −4.040 → −1.673 and sub-−0.5 9% → 2% say the same thing: the model **stopped being
+actively wrong** on large systems. It did not start being right about them.
+
+**The negative, stated with its bound (59c).** Not "we have not seen a win": by the rule of three,
+**0 wins in 123 puts the 95% upper bound on the win rate at 3/123 = 2.4%** — at every cutoff, at the
+best rung the ladder can reach.
+
 ### ⬛ 31d/34c LADDER COMPLETE — 9/9 arms on the GENUINE TIED arm. The ceiling moves with data.
 
 Read under the rule committed at `65cf5b32` **before the slope was looked at**. It did not return
