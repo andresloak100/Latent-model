@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 046
+last_acted: 047
 ```
 
 | item | restatement | status | commit |
@@ -67,6 +67,7 @@ last_acted: 046
 | 044 | **44a:** ACCEPTED — got the number instead of hoping. 47 arms / 20:00:08 = **25.5 min/arm**; the log reached the bottleneck sweep at `DMOD=512` with `dlat` 512/16/64 done, so **n50 owes ≈6 arms ≈2.5 h**, and n130's grid is *narrower* by construction (`{winner, winner/3}`, not all five rates) ≈23 arms ≈9.8 h. **But the n50 rate is the wrong rate for n130** — the ladder showed 3/3 arms at the step cap at n130 vs 0/3 at n50, and a capped arm costs 3–5× a plateauing one, so n130 could take 20 h+. The concern is real; the mechanism is arm *duration*, not rung order. **Mitigation already in place:** the requeue was submitted as a **chain** (10314124 → 10314125, `afterany`) = 40 h with per-arm resume, so no second writer is needed. Not launching a separate n130 job — two processes appending to one `atlas_dm.json` is a lost-update race. **44b:** DONE — 28b/29b/30, 26a and 14a now carry **n_train = 50** in their headings, matching what the renamed checkpoints already state. | ACCEPTED | (this commit) |
 | 045 | ACCEPTED, queued at the stated priority — **written, not launched**. `scripts/armf_atom_demo.py` reuses `eval.py`'s exact path (`ProteinStructureDataset`, `make_autoencoder`, `build_topology_info`, `compute_all_metrics`, `write_pdb`) rather than reimplementing any metric. Emits per structure: all-atom/backbone RMSD, chirality, contact F1, latent floats, compression, PDB pair and a per-atom error `.npy`; plus the ensemble spread ratio when one is named. | ACCEPTED | (this commit) |
 | 046 | ACCEPTED. **Generated provenance** implemented: every number carries arm, encoder type, splits, data dir, held-out count, checkpoint sha256+mtime, git SHA — all *derived from the run*, and the report groups by `provenance_key()` and emits one section per group with a separation banner, so a sub-Å number and a complex number cannot share a table. **46b:** 0.868 is reported as **13% of spread lost**, never as "survives". **46c:** the complex case is a separate invocation → separate section at its own scale by construction. | ACCEPTED | (this commit) |
+| 047 | **47a:** ACCEPTED and resolved with the number, not a hope — §5's 0.79 Å is the **mean over 758** held-out structures whose **median is 0.8357** (sd 0.208, quartiles 0.66/0.84/0.93, 1 of 758 above 2 Å). The demo's 0.92 median sits at that set's 75th percentile because it samples by `linspace` over *size-sorted* index — spanning, not random, and the 20-residue smallest is worst at 1.26 Å. The report now leads with the **full-set distribution** and labels the four as illustrations that are explicitly not an estimate of the set's median. Also surfaced: the mean sits **below** the median (left skew), so quoting 0.79 alone overstates the typical case, and the set is **20–109 residues**. **47b:** audited — **0 of 758** exceed `max_positions=1024`, so the exclusion is **empty** and cannot bias anything; the audit line prints either way. **47c:** both defects and the checkpoint's real identity now sit against the §5 bullet, not only in a commit. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 

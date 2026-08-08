@@ -214,6 +214,51 @@ def run_arm(args):
     print(f"[demo] held-out pool {len(ds)}; evaluating {len(chosen)} spanning "
           f"{sizes[pick[0]][1]}-{sizes[pick[-1]][1]} atoms", flush=True)
 
+    # INBOX 47a. The demo's structures are chosen to SPAN the size range, not drawn at random, so
+    # their median is NOT an estimate of the set's median -- it over-weights both extremes and the
+    # small end reconstructs worst. The headline must therefore be the FULL held-out distribution,
+    # with these as illustrations beneath it. Read from the run's own metrics.json when present, so
+    # the headline is the recorded evaluation rather than a re-derivation of it.
+    full = None
+    mpath = Path(args.ckpt).parent / "metrics.json"
+    if mpath.exists():
+        try:
+            md = json.loads(mpath.read_text())
+            ps = md.get("per_structure") or md.get("structures") or []
+            aa = np.array([m["all_atom_rmsd"] for m in ps], float)
+            nr = np.array([m.get("n_residues", np.nan) for m in ps], float)
+            if aa.size:
+                full = {"n": int(aa.size), "mean": round(float(aa.mean()), 4),
+                        "median": round(float(np.median(aa)), 4),
+                        "sd": round(float(aa.std(ddof=1)), 4),
+                        "min": round(float(aa.min()), 3), "max": round(float(aa.max()), 3),
+                        "q25": round(float(np.percentile(aa, 25)), 3),
+                        "q75": round(float(np.percentile(aa, 75)), 3),
+                        "frac_above_2A": round(float((aa > 2).mean()), 4),
+                        "n_above_2A": int((aa > 2).sum()),
+                        "residues_min": None if not np.isfinite(nr).any() else int(np.nanmin(nr)),
+                        "residues_max": None if not np.isfinite(nr).any() else int(np.nanmax(nr)),
+                        "source": str(mpath)}
+                print(f"[demo] full held-out set (recorded): n={full['n']} mean {full['mean']} "
+                      f"median {full['median']} sd {full['sd']}", flush=True)
+        except Exception as e:
+            print(f"[demo] could not read {mpath}: {type(e).__name__}: {e}", flush=True)
+
+    # INBOX 47b. The clamp guard excludes on RESIDUE COUNT, the same axis the metric varies along, so
+    # the excluded set is not random with respect to what is reported -- Family A in a demo, where
+    # there are no error bars to be suspicious of. Count it and print it whether or not it is zero:
+    # "none were skipped" closes the question permanently and costs one line.
+    skipped = []
+    if lim is not None:
+        for i in range(len(ds)):
+            nr_i = int(ds[i]["res_pos"].numpy().max()) + 1
+            if nr_i > lim:
+                skipped.append((ds[i]["pdb_id"], nr_i))
+    print(f"[demo] 47b exclusion audit: {len(skipped)} of {len(ds)} held-out structures exceed "
+          f"max_positions={lim}"
+          + (f" (residues {min(x[1] for x in skipped)}-{max(x[1] for x in skipped)})" if skipped
+             else " -- the exclusion is EMPTY, so it cannot bias the reported numbers"), flush=True)
+
     rows = []
     with torch.no_grad():
         for idx in chosen:
@@ -264,7 +309,8 @@ def run_arm(args):
                   f"all-atom {m['all_atom_rmsd']:.3f} A  backbone {m['backbone_rmsd']:.3f} A  "
                   f"latent {lf} floats ({m['compression_x']}x)", flush=True)
 
-    payload = {"provenance": pv, "structures": rows}
+    payload = {"provenance": pv, "structures": rows, "full_heldout": full,
+               "excluded_over_max_positions": [{"pdb_id": a_, "n_residues": b_} for a_, b_ in skipped]}
 
     # --- conformational spread through the round trip, if an ensemble was named ---
     if args.ensemble:
@@ -347,9 +393,39 @@ def build_report(out: Path):
                          f"{m.get('contact_f1', float('nan')):.3f} | {m['latent_floats']} | "
                          f"{m['compression_x']}× |")
             aa = [m["all_atom_rmsd"] for m in rows]
-            L += ["", f"Median all-atom **{np.median(aa):.2f} Å**, mean {np.mean(aa):.2f} Å, "
-                      f"worst {max(aa):.2f} Å over {len(aa)} structures "
-                      f"({sum(1 for v in aa if v > 2.0)} above 2 Å).", ""]
+            fu = r.get("full_heldout")
+            if fu:
+                L += ["", f"### Headline — the full held-out set (n={fu['n']})", "",
+                      f"| | all-atom Å |", "|---|---|",
+                      f"| mean | **{fu['mean']:.2f}** |",
+                      f"| median | **{fu['median']:.2f}** |",
+                      f"| sd | {fu['sd']:.2f} |",
+                      f"| quartiles | {fu['q25']:.2f} / {fu['median']:.2f} / {fu['q75']:.2f} |",
+                      f"| range | {fu['min']:.2f} – {fu['max']:.2f} |",
+                      f"| above 2 Å | {fu['n_above_2A']} of {fu['n']} ({100*fu['frac_above_2A']:.1f}%) |",
+                      ""]
+                if fu.get("residues_min") is not None:
+                    L += [f"That set is **{fu['residues_min']}–{fu['residues_max']} residues**. The "
+                          f"headline describes structures of that size, not proteins in general.", ""]
+                L += [f"The commonly quoted **{fu['mean']:.2f} Å is the mean**; the median is "
+                      f"**{fu['median']:.2f} Å**. The distribution is left-skewed, so the mean sits "
+                      f"below the median — quoting one without the other overstates the typical case.",
+                      ""]
+                L += [f"The {len(aa)} structures below are chosen to **span the size range**, not "
+                      f"drawn at random, so their median ({np.median(aa):.2f} Å) is an illustration "
+                      f"and not an estimate of the set's.", ""]
+            else:
+                L += ["", f"Median all-atom **{np.median(aa):.2f} Å**, mean {np.mean(aa):.2f} Å, "
+                          f"worst {max(aa):.2f} Å over {len(aa)} structures "
+                          f"({sum(1 for v in aa if v > 2.0)} above 2 Å).", ""]
+            ex = r.get("excluded_over_max_positions", [])
+            L += [f"**Exclusion audit (47b):** {len(ex)} structure(s) skipped for exceeding "
+                  f"`max_positions`"
+                  + ("" if not ex else f" — residues {min(e['n_residues'] for e in ex)}–"
+                                       f"{max(e['n_residues'] for e in ex)}")
+                  + (". The exclusion is empty, so it cannot bias these numbers." if not ex
+                     else ". This exclusion is on the size axis and is **not** random with respect to "
+                          "the reported metric."), ""]
             L += [f"Latent is **{pv['latent_scaling']}** — "
                   f"{rows[0]['floats_per_residue']} floats per residue, so it grows with the "
                   f"structure. This is **not** the fixed-size codec.", ""]

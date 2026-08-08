@@ -327,6 +327,15 @@ Worth stating alongside the gaps, since the list above is all deficits:
 
 - The direct per-residue codec reconstructs held-out protein structures at
   **0.79 Å all-atom / 0.51 Å backbone**, chirality 0.0002, contact F1 0.963.
+  **That 0.79 is a MEAN over 758 held-out structures; the MEDIAN is 0.84** (sd 0.21,
+  quartiles 0.66 / 0.84 / 0.93, range 0.27–2.38, 1 above 2 Å). The distribution is
+  left-skewed so the mean sits below the median — quote both. The set is
+  **20–109 residues**, so this describes structures of that size, not proteins in
+  general. Latent is **8 floats/residue**, i.e. only **~3× compression**.
+  **The checkpoint is `ladder_direct3m_n2272`** — *not* any of the three
+  `*perresidue*` result dirs, which sit at ~10 Å. The name does not identify it.
+  **Two defects block reproducing this** (see below): the checkpoint does not load
+  under current code, and loading it pads three embeddings with random rows.
 - It is **data-limited, not plateaued** — val still descending at n=2272,
   val/train 1.50 and closing. We have used ~1% of the experimental archive.
 - The fixed-size Perceiver alternative is **dead in direction**: its gap to
