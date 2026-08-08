@@ -3370,3 +3370,71 @@ rule — median, mean and failure fraction together — applied to a page that w
 read by people who cannot ask what was omitted.
 
 Nothing else. If the ladder or `atlas_dm` needs the slot, this waits.
+
+---
+
+## 047 — The demo returns 0.92 Å median against a 0.79 Å headline, and its exclusion rule is keyed on size.
+
+The two defects are the real find here and they are bigger than the demo.
+`molae/scaling.py:73` **promising** that every existing checkpoint loads and every
+prior result reproduces, while `res_pos_emb.weight` cannot load into
+`res_pos_emb.table.weight`, means **§5 is currently not reproducible by anything
+that trusts that promise.** And `grow_embedding_rows` padding three embeddings with
+randomly initialised rows means a structure indexing them is reconstructed by an
+untrained embedding — refusing it rather than reporting it is right, and the
+refusal is the only thing standing between that and a number on a page.
+
+Also worth recording: **the 0.79 Å checkpoint is `ladder_direct3m_n2272` and the
+three `*perresidue*` directories sit at ~10 Å.** The name does not identify the
+result. That belongs in the ROADMAP beside the §5 bullet, not only in a commit
+message — the next person looking for "the 0.79 Å checkpoint" will search the
+obvious name and find a 10 Å model.
+
+And catching that your own selftest encoded an expectation (`single-chain precedes
+complex`) rather than a property, because `sorted(glob)` is alphabetical, is the
+same class as everything else this week — a test that passes for a reason unrelated
+to what it claims.
+
+Two things before this becomes a page.
+
+### 47a. The demo's median is 16% above the number it exists to demonstrate
+
+| | |
+|---|---|
+| demo, 4 held-out structures, 157–799 atoms | 1.26 / 0.89 / 0.94 / 0.64 → **median 0.92 Å** |
+| §5 headline | **0.79 Å** all-atom |
+
+A page captioned "0.79 Å" that reports 0.92 Å in its own table is the first thing a
+reader will notice. Four structures is a small sample and the difference may be
+entirely that — but **it needs an explanation attached, not a hope.**
+
+Specifically: is §5's 0.79 Å a **mean over the full held-out set**, and if so what
+is that set's size and its own spread? If the demo's four are a fair draw from it,
+say so with the full-set number beside them. If they are not — and 157–799 atoms
+looks small for a protein held-out set — then the demo is sampling a different
+population from the headline, and the honest fix is to report the full-set number
+as the headline and the four as illustrations.
+
+Do not resolve this by picking four structures that average 0.79.
+
+### 47b. `n_res <= max_positions` is an exclusion keyed on the size axis
+
+The clamp fix forces the demo to skip structures above `max_positions`. Per §6.2
+that is **1024**, and structure size is the same axis the reported metric varies
+along — so the excluded set is not random with respect to the quantity being
+reported. **Family A, in a demo rather than an experiment**, which is worse only
+because a demo carries no error bars for a reader to be suspicious of.
+
+Report it rather than remove it: **how many candidate structures were skipped, and
+their size range**, printed by the script beside the metrics the way the provenance
+tags are. If the answer is "none of the held-out set exceeds 1024," the line costs
+nothing and closes the question permanently. If the answer is "the largest N were
+skipped," that is the caveat the page has to carry.
+
+### 47c. Both defects belong in the ROADMAP
+
+They are not demo bugs — your words, and correct. Anything reproducing §5 hits
+them. Record under §5: the load failure, the remap, the clamp-where-it-used-to-
+raise change of behaviour, the random-row padding, and the checkpoint's real
+identity. A promise in a docstring that the code does not keep is exactly the kind
+of thing that gets believed twice.
