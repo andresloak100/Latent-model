@@ -247,7 +247,8 @@ def run_arm(args):
     pv["vocab_grown"] = {k_: v_ for k_, v_ in grown.items()} or "none"
     print(f"[demo] arm={pv['arm']}  encoder={pv['encoder_type']}  latent={pv['latent_scaling']}")
     print(f"[demo] held-out pool {len(ds)}; evaluating {len(chosen)} spanning "
-          f"{sizes[pick[0]][1]}-{sizes[pick[-1]][1]} atoms", flush=True)
+          f"{min(ds[i]['n_atoms'] for i in chosen)}-{max(ds[i]['n_atoms'] for i in chosen)} atoms",
+          flush=True)
 
     # INBOX 47a. The demo's structures are chosen to SPAN the size range, not drawn at random, so
     # their median is NOT an estimate of the set's median -- it over-weights both extremes and the
