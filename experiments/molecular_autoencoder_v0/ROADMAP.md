@@ -3265,6 +3265,39 @@ part worth carrying forward.
 **This also makes every decades-to-close extrapolation unnecessary**, not merely risky: 41c is the
 same-harness measurement those were approximating.
 
+### ⬛ 31d/34c LADDER COMPLETE — 9/9 arms on the GENUINE TIED arm. The ceiling moves with data.
+
+Read under the rule committed at `65cf5b32` **before the slope was looked at**. It did not return
+across zero; it tightened.
+
+| rung | k | mean FVE | SD | at step ceiling | VOID |
+|---|---|---|---|---|---|
+| n50 | 3 | +0.1041 | 0.0372 | 0/3 | 0 |
+| n130 | 3 | +0.1616 | 0.0148 | 0/3 | 0 |
+| n300 | 3 | **+0.1993** | 0.0218 | 0/3 | 0 |
+
+| arms | slope (HC3) | zero |
+|---|---|---|
+| 7 | +0.1048 ± 0.1375 | includes |
+| 8 | +0.1142 ± 0.1006 | excludes |
+| **9 — authoritative** | **+0.1227 ± 0.0871** (df=7, R² 0.763) | **EXCLUDES** |
+
+**Assumption-free: Jonckheere–Terpstra 26 of 27, exact one-sided p = 3/1680 = 0.00179.**
+
+**This is the cleanest run in the project.** All three rungs at k=3, **zero VOID arms**, **nothing at
+the step ceiling** (0/3, 0/3, 0/3) — so none of the Family D truncation, Family A exclusion or 39a
+SD-deflation effects that qualified the untied ladder apply here. No `PARTIAL` and no `THIN RUNG` tag
+fires: the ladder is the one that was posed.
+
+**Per 42c, tied did not reproduce untied and was not expected to.** Tied sits higher at every rung
+(+0.1041/+0.1616/+0.1993 against +0.1045/+0.1275/+0.1403) and converges without ever hitting the cap.
+
+**What it establishes, and what it does not.** The tied arm is **not saturated in `n_train` over
+50–300** — direction at p=0.0018, magnitude resolved at +0.1227 ± 0.0871. It does **not** establish
+that data is a path to the peer: **41c measured that directly at n300 and the arm still loses on 0%
+of systems at every quartile.** Those two facts are now both same-harness measurements, so the
+conclusion needs no extrapolation and none should be quoted.
+
 ### ⏳ PRE-REGISTERED: how the 9-arm ladder slope is read, written before it was looked at
 
 The learning curve has resolved in magnitude for the first time:
