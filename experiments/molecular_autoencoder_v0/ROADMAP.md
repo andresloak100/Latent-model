@@ -3214,6 +3214,32 @@ though the mechanism is arm duration rather than rung order.
 across the two walls without a second writer. A separate n130 job is **not** launched — two processes
 appending to one `atlas_dm.json` is a lost-update race, which is worse than the problem it solves.
 
+### ⚠ 41c FIRST ATTEMPT REPORTED n50 NUMBERS UNDER AN n300 HEADING — 043's defect one layer up
+
+Job `10317061` finished in **3:34** — far too fast for 123 ANM eigensolves. It had:
+
+    loading tied arm trained at n_train=300: tied_dm256_lr3e-05_s0_n300.pt   <- checkpoint CORRECT
+    [stamp] all 123 stored systems match the current stamp                   <- computed NOTHING
+
+and reprinted the n50 quartile table (Q1 +0.2956 vs ANM +0.6912, 0%) as though it were the re-run.
+
+**Cause.** The peer stamp keyed on `dm/lr/seed/cutoff/arm` and **not on `n_train`**, so an n300 run is
+indistinguishable from an n50 one and every stored system "matches". 043 fixed the **checkpoint path**
+so an n300 run could not load n50 *weights*; it did not fix the **results key**, so the same run
+happily reused n50 *results*. Moving a guard one level down is not the same as installing it.
+
+Second contributing error, mine: the sbatch set `LADDER_RES`, which is the **ladder's** variable and
+was never read by the peer script, so the intended separate output file was never in effect.
+
+**Fixed:** `n_train` is now in the peer stamp **and** in the results filename, so two rungs can share
+neither. Verified: with the key added, **0 of 123** stored n50 systems match an n300 stamp — it must
+recompute. Cost, stated: the completed n50 results are now stamp-orphaned for *resume* purposes. They
+are intact as data and already reported, and correctness beats resume convenience — the same trade
+taken for `modal_seeds` under 42a.
+
+**The n50 peer result is undamaged** — `tied_peer.json`'s mtime never changed. Relaunched as
+`10317064`, which will compute all 123.
+
 ### ⬛ 48b RESULT — **SMALL-PROTEIN PROPERTY.** The 0.79 Å does not survive size.
 
 Run on all of `splits_big` minus the 261 fitted (4,715 clean), 1,400 evaluated, residues 25–395.

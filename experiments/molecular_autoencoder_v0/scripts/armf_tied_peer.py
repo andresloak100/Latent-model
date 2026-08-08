@@ -55,7 +55,9 @@ def ckpt_path(kind, dm, lr, seed, n_train):
             f"{sorted(os.listdir(CKPT)) if os.path.isdir(CKPT) else '<no dir>'}")
     return p
 
-RES = f"{WR}/tied_peer.json"
+# results are keyed by n_train too, so two rungs cannot share a file even if the stamp were wrong
+RES = f"{WR}/tied_peer.json" if int(os.environ.get("PEER_NTRAIN", "50")) == 50 \
+      else f"{WR}/tied_peer_n{int(os.environ['PEER_NTRAIN'])}.json"
 DM, SEED = 256, 0
 ARM_LR = 3e-5          # the tied arm with the best Q1 median (+0.2956), per 28a
 CUTOFF = 5.0           # selected on TRAINING systems by armf_atlas_peer.py
@@ -88,7 +90,12 @@ if __name__ == "__main__":
     mdl = ModalCodec(FS, 1, DM, tie_encoder=True).to(dev)
     mdl.load_state_dict(torch.load(cp, map_location=dev)); mdl.eval()
 
-    ST = STAMP.stamp(dict(dm=DM, lr=ARM_LR, seed=SEED, cutoff=CUTOFF, arm="tied"),
+    # INBOX 043 ONE LAYER UP. 043 stopped an n300 run loading the n50 CHECKPOINT. This stamp then let
+    # an n300 run reuse the n50 RESULTS: it keyed on dm/lr/seed/cutoff/arm and NOT on n_train, so job
+    # 10317061 loaded tied_..._n300.pt correctly, matched all 123 stored n50 systems, computed nothing,
+    # and reprinted the n50 numbers under an n300 heading. The checkpoint path and the results key have
+    # to carry the same identity or the guard only moves the failure.
+    ST = STAMP.stamp(dict(dm=DM, lr=ARM_LR, seed=SEED, cutoff=CUTOFF, arm="tied", n_train=NTRAIN),
                      ModalCodec, D.fve_model)
     res = json.load(open(RES)) if os.path.exists(RES) else {}
     STAMP.report(list(res.values()), ST, "systems")
