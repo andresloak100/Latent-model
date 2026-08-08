@@ -63,6 +63,14 @@ while true; do
      | grep -qv "PARTIAL LADDER"; then
     if [ "${NR:-0}" -ge 3 ]; then
       echo "LADDER VERDICT COMPLETE -- untagged verdict AND all 3 rungs on disk. This is the fork."
+      # The job that printed it may hold PRE-GUARD code: 10311656 started before 36a/37a/38b/39b
+      # landed, so ITS verdict block has no ceiling flag, no asymmetry reading and no pessimistic-SD
+      # sensitivity. Reporting that as the result would report the unguarded number. Replay the store
+      # through the CURRENT code and emit that instead -- which is what REPORT_ONLY was added for.
+      echo "--- replaying the store through the CURRENT (guarded) report code ---"
+      LADDER_REPORT_ONLY=1 "$WR/venv/bin/python" \
+        "$(dirname "$0")/armf_tied_ladder.py" 2>/dev/null \
+        | sed -n '/STEP BUDGET BY RUNG/,/^  SCOPE/p' | grep -v '^$'
       exit 0
     fi
     echo "EARLY READ ONLY: an untagged verdict printed but the store holds ${NR}/3 rungs -- that is the"
@@ -72,7 +80,9 @@ while true; do
   if ! squeue -j "$JOBS" -h -o "%T" 2>/dev/null | grep -qE "RUNNING|PENDING"; then
     echo "LADDER CHAIN ENDED with ${NR}/3 rungs and no complete verdict -- preemption, time limit, or"
     echo "all n300 arms VOID. Check \$WR/logs/tiedladder_*.log; replay the store with"
-    echo "  LADDER_REPORT_ONLY=1 \$WR/venv/bin/python armf_tied_ladder.py"
+      echo "--- replaying the store through the CURRENT (guarded) report code ---"
+    LADDER_REPORT_ONLY=1 "$WR/venv/bin/python" "$(dirname "$0")/armf_tied_ladder.py" 2>/dev/null \
+      | sed -n '/STEP BUDGET BY RUNG/,/^  SCOPE/p' | grep -v '^$' 
     exit 0
   fi
   sleep 120

@@ -3213,6 +3213,35 @@ and its `+0.1302` is a true lower bound that already exceeds every other arm in 
 That last point matters for the direction of the bias: the confound suppresses the rise it would have
 to manufacture to be dangerous. FVE by rung is n50 +0.1045, n130 +0.1276, n300 >= +0.1302.
 
+**039: a THIRD ceiling effect, pointing the other way.** A rung whose arms all stop at the *same*
+step loses the stopping-point component of variance. n130's arms all ran to exactly 90,000, so its
+SD of **0.0008** is at least partly **mechanical** — and the consequence runs opposite to the other
+two: a deflated SD **narrows the interval and makes a rise easier to declare**.
+
+| effect | arms | direction on the verdict |
+|---|---|---|
+| truncation (Family D) | 3/3 at n130 | suppresses the rise |
+| VOID exclusion (Family A) | 1/3 at n130 | inflates the high-n mean |
+| **SD deflation at ceiling-bound rungs** | 3/3 at n130 | **makes a rise easier to declare** |
+
+This reframes 37a: the SD ratio is evidence about *which rungs hit the cap*, not about the data.
+HC3 remains right — it is robust either way.
+
+**The pessimistic sensitivity, and where it bites.** Substituting the widest cap-free rung's SD
+(n50's 0.0073) into every ceiling-bound rung:
+
+| test | as measured | pessimistic | excludes 0? |
+|---|---|---|---|
+| pairwise n50→n130, pooled *[sensitivity]* | ±0.01737 | ±0.02121 | yes |
+| pairwise n50→n130, **Welch** *[authoritative]* | ±0.01771 | **±0.02562** | **NO** |
+| **PRIMARY: slope, HC3** | ±0.0296 | **±0.0305** | **yes** |
+
+The pairwise survives under pooled but **not** under Welch — 37a's own demotion of the pooled form
+biting. Per 34c the primary is the *slope*, so this does not decide the fork, and the primary does
+survive. Both sensitivity rows now print. Because `x` is constant within a rung, the slope depends
+only on the rung means, so inflating within-rung deviations leaves the point estimate **exactly**
+unchanged and moves only the bar.
+
 **038: the two biases OPPOSE, and the verdict is asymmetrically readable.**
 
 | | mechanism | arms at n130 | slope bias |

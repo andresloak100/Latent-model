@@ -333,8 +333,15 @@ if __name__ == "__main__":
         print(f"    per-rung SD: " + "   ".join(
               f"n{nt}={rung_sd.get(nt, float('nan')):.4f} (k={k_})" for (nt, _, _, k_) in pts),
               flush=True)
-        print(f"    max/min ratio {sd_ratio:.2f}. The ROBUST pair below is authoritative regardless "
-              f"of this number:", flush=True)
+        print(f"    max/min ratio {sd_ratio:.2f}. INBOX 39a: read this as evidence about WHICH RUNGS "
+              f"HIT THE CAP, not", flush=True)
+        print(f"    about the data. A rung whose arms all stop at the SAME step loses the "
+              f"stopping-point component of", flush=True)
+        print(f"    variance, so its SD is deflated MECHANICALLY -- which narrows its interval and "
+              f"makes a rise EASIER to", flush=True)
+        print(f"    declare. That is a third ceiling effect, and it opposes the other two. The ROBUST "
+              f"pair is authoritative", flush=True)
+        print(f"    regardless of this number:", flush=True)
         print(f"    at k=3, under TRUE equal variance, P(ratio>4)=0.24 and the median ratio is 2.52, "
               f"so a", flush=True)
         print(f"    threshold switch would pick the estimator by noise. Pooled/OLS is a SENSITIVITY "
@@ -370,6 +377,34 @@ if __name__ == "__main__":
             print(f"    implied change over the measured {10**span:.1f}x range: "
                   f"{sl.slope*span:+.4f} +/- {hs*span:.4f}", flush=True)
             moves = abs(sl.slope) > hs
+            # INBOX 39a/39b APPLIED TO THE PRIMARY, which needs it more than the secondary does.
+            # x is CONSTANT WITHIN A RUNG, so the slope depends only on the rung MEANS: inflating
+            # within-rung deviations leaves the point estimate EXACTLY unchanged and moves only the
+            # SE. Same number, different bar -- which is what a sensitivity should be.
+            _nts = np.array([r["n_train"] for r in allr])
+            _free = [rung_sd[k_] for k_ in rung_sd
+                     if cfrac.get(k_, 0) == 0 and np.isfinite(rung_sd.get(k_, float("nan")))]
+            if _free:
+                _sref = max(_free); _e2 = e.copy(); _touched = []
+                for k_ in sorted(set(_nts.tolist())):
+                    m_ = _nts == k_; sdk = rung_sd.get(k_, float("nan"))
+                    if cfrac.get(k_, 0) > 0 and np.isfinite(sdk) and 0 < sdk < _sref and m_.sum() > 1:
+                        dev = y[m_] - y[m_].mean()
+                        _e2[m_] = dev * (_sref / sdk) + (e[m_] - dev)   # rung-level residual kept
+                        _touched.append(f"n{k_} {sdk:.4f}->{_sref:.4f}")
+                if _touched:
+                    se_p = float(np.sqrt((((x - xb) ** 2) * (_e2 / (1.0 - h)) ** 2).sum() / Sxx ** 2))
+                    hs_p = float(stats.t.ppf(0.975, dfs)) * se_p
+                    print(f"    39b PESSIMISTIC (ceiling-deflated SDs restored: {', '.join(_touched)}): "
+                          f"slope {sl.slope:+.4f} +/- {hs_p:.4f}", flush=True)
+                    print(f"       -> {'STILL excludes zero' if abs(sl.slope) > hs_p else 'NO LONGER excludes zero'}"
+                          f". Point estimate is unchanged by construction; only the bar moved.",
+                          flush=True)
+                    if moves and abs(sl.slope) <= hs_p:
+                        print(f"       THE PRIMARY VERDICT DOES NOT SURVIVE THE PESSIMISTIC SD. The "
+                              f"rise below rests on rungs whose", flush=True)
+                        print(f"       spread was compressed by the cap, so it is NOT safe to read as "
+                              f"a rise (INBOX 39a).", flush=True)
         else:
             moves = False; sl = None
             print(f"    only {len(allr)} arms -- primary test not yet computable", flush=True)
@@ -388,6 +423,36 @@ if __name__ == "__main__":
                   f"95% half-width {hw_w:.4f}   <- AUTHORITATIVE", flush=True)
         else:
             print(f"    WELCH: not computable (a rung has k<2 or zero spread)", flush=True)
+        # INBOX 39b: assume the deflation is ENTIRELY mechanical -- substitute the widest
+        # non-ceiling-bound rung's SD into every ceiling-bound rung and re-run. Pessimistic by
+        # construction; a no-op when no rung is ceiling-bound.
+        free = [rung_sd[k_] for k_ in rung_sd
+                if cfrac.get(k_, 0) == 0 and np.isfinite(rung_sd.get(k_, float("nan")))]
+        if free and np.isfinite(s0) and np.isfinite(s1) and k0 > 1 and k1 > 1:
+            sref = max(free)
+            p0 = sref if cfrac.get(n0, 0) > 0 and s0 < sref else s0
+            p1 = sref if cfrac.get(n1, 0) > 0 and s1 < sref else s1
+            if (p0, p1) != (s0, s1):
+                vnp = (k0 - 1) * p0 ** 2 + (k1 - 1) * p1 ** 2; dfp = (k0 - 1) + (k1 - 1)
+                spp = float(np.sqrt(vnp / dfp))
+                hwp = float(stats.t.ppf(0.975, dfp)) * spp * np.sqrt(1.0 / k0 + 1.0 / k1)
+                ap_, bp_ = p0 ** 2 / k0, p1 ** 2 / k1
+                sew = float(np.sqrt(ap_ + bp_))
+                dfw2 = (ap_ + bp_) ** 2 / (ap_ ** 2 / (k0 - 1) + bp_ ** 2 / (k1 - 1))
+                hwpw = float(stats.t.ppf(0.975, max(dfw2, 1e-9))) * sew
+                print(f"    39b PESSIMISTIC (ceiling-bound rung SDs := {sref:.4f}, the widest "
+                      f"cap-free rung):", flush=True)
+                print(f"       pooled half-width {hwp:.4f} -> excludes 0: "
+                      f"{'YES' if abs(d_mean) > hwp else 'NO'}   [sensitivity only]", flush=True)
+                print(f"       WELCH  half-width {hwpw:.4f} (df {dfw2:.2f}) -> excludes 0: "
+                      f"{'YES' if abs(d_mean) > hwpw else 'NO'}   <- the authoritative form",
+                      flush=True)
+                if abs(d_mean) > hwp and abs(d_mean) <= hwpw:
+                    print(f"       NOTE: the pairwise survives the pessimistic SD under POOLED but "
+                          f"NOT under Welch. Per 34c the", flush=True)
+                    print(f"       PRIMARY test is the slope, not this pairwise, so this does not "
+                          f"decide the fork -- but it is the", flush=True)
+                    print(f"       reason the pooled row is labelled sensitivity only.", flush=True)
 
         if moves and sl is not None:
             print(f"\n  => THE CEILING MOVES WITH DATA.{PARTIAL}{CEILING} Slope {sl.slope:+.4f} "
