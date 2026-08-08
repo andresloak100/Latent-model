@@ -4488,3 +4488,95 @@ One thing 41c makes newly interesting for it: the residual the channel would car
 to be **quartile-dependent** — the tail is where the model was catastrophic and where data
 helped. Report the oracle's gap closure per quartile, not pooled, or you will average a Q4
 effect over three quartiles that may not have one.
+
+---
+
+## 060 — the ALL row holds two significant results pointing opposite ways, and the dichotomy has a missing third branch
+
+The paired test is the right instrument and the Q1 finding is the most important negative this
+project has produced. 97% of its systems worse with a CI nowhere near zero is not "no improvement
+detected" — you are right that my cautious wording was too weak for Q1 and correct for Q3, and
+catching that Q2 is the mean/median trap one level down (mean +0.1108 while 80% of systems
+declined) is the same defect class recursing, which is worth naming as such.
+
+Three things before this goes into the ROADMAP.
+
+### 60a. Report the sign test — it is stronger than the mean, and it is what the headline rests on
+
+The ALL row currently pairs a descriptive fraction with a p-value computed on the other
+statistic, and the two disagree:
+
+    mean paired delta  +0.1141   CI [+0.0315, +0.1967]   p = 0.0072      -> more data HELPS
+    systems worse        82/123 = 67%   sign test z = 3.70, p = 0.00022  -> more data HURTS
+
+Both are significant, and **the sign test is the stronger of the two by a factor of thirty in
+p**. As written, "six times the data made 67% of systems worse" is carried by an untested
+fraction while the only quoted p-value supports the opposite reading. A reader checking the
+arithmetic finds the headline's own row appearing to contradict it.
+
+Please print both with their own tests on the same line, and say plainly that they are not in
+conflict: the mean is positive because a minority moves far, the sign test is negative because
+the majority moves the other way. That is the finding, stated twice, and it is more convincing
+with both numbers than with either.
+
+I would use the sign test rather than Wilcoxon for the headline — it assumes nothing about the
+shape of the delta distribution, which matters when Q2's spread is what it is.
+
+### 60b. One control the Q4 result needs, and it is free
+
+I verified the grouping before raising this: the ATLAS quartiles are **atom-count** quartiles
+(1,434 / 3,249 / 7,406 over 598–33,377). The grouping variable is size, measured independently
+of FVE, so quartile-level regression to the mean is **not** an explanation and I am not
+suggesting it is.
+
+What is not excluded is system-level regression to the mean *inside* Q4. The systems that were
+most catastrophic at n50 have the most room to move, and any noise in the n50 read inflates the
+apparent gain. Q4 is the entire positive result — +0.4474 against a −0.0755 in Q1 — so it is
+worth one control.
+
+**Regress the paired delta on the n50 value.** A steeply negative slope means part of Q4's
+repair is the n50 measurement's own noise unwinding; a flat one means the repair is real. Same
+data, one regression, no new compute. If it comes back flat, Q4 is stronger than it currently
+reads, so this is as likely to help as to hurt.
+
+### 60c. "Data-limited or fundamental" has no branch for what you measured
+
+The live experiment was set up to separate two hypotheses. The result fits neither:
+
+- **data-limited** predicts systems improve with data. 67% got worse.
+- **fundamental** predicts nothing moves. Q4 moved +0.4474 with p = 0.0003.
+
+Both rungs draw from the same 697-system pool, so the training distribution's *shape* is
+unchanged between them — there is simply more of it. A fixed-width latent (DM=256) asked to
+cover six times as many systems, improving on the tail while degrading the majority, is the
+signature of **capacity competition**: the model is reallocating a fixed budget, not learning
+more. That is a third hypothesis, it is neither of the two on offer, and unlike both of them it
+is actionable — it points at conditioning or per-size capacity rather than at more data or at
+giving up.
+
+This is **Family D at the level of the research question**: the two-branch design cannot express
+capacity-limited, so whichever branch had come back, the answer would have been mis-assigned.
+The same shape as 53b's note about FVE and generation, one level up.
+
+**It is testable against data already on disk.** `atlas_dm` sweeps DM at `NTRAIN=[50,130]`, which
+is exactly the cross needed: compute the per-quartile paired delta at each DM. If Q1's
+degradation shrinks as DM grows, it is capacity competition and the fixed-width assumption is
+the binding constraint. If it is flat in DM, it is not, and the hypothesis dies cheaply. Either
+way it is a groupby over completed arms.
+
+Please add the third branch to the ROADMAP's statement of the question before recording the
+answer, so the record does not show a two-way question answered by a third thing.
+
+### 60d. Q2 should not be given a direction
+
+Q2's CI is [−0.1070, +0.3287], width 0.436 — **eleven times Q1's 0.039**. It is uninterpretable
+and you correctly reported p = 0.31. Make sure the ROADMAP does not render its +0.1108 as a
+positive in a table that a reader will scan by sign. "Not resolvable" is the honest cell, per
+`null_verdict`'s own four states.
+
+### 60e. Oracle status
+
+59e asked for the sparse-channel oracle to be launched ahead of the queue and this report does
+not mention it. Launched, queued, or superseded by the paired-test work? With the global-latent
+path now measured and closed, it remains the only branch that could change the verdict, and
+60c's capacity hypothesis is the only other live lead. A one-line status is enough.
