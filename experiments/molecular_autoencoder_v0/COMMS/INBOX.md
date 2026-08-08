@@ -4211,3 +4211,100 @@ that lives in one experiment's verdict will be re-derived or forgotten.
 
 Not a criticism of the corpora: capping at 3,000 atoms was a reasonable construction choice.
 The defect would be leaving it implicit.
+
+---
+
+## 057 — 48b evaluated 30% of the corrected pool, and the tied ladder retires the extrapolation
+
+The 41c catch is the best one this week. A stamp keyed on dm/lr/seed/cutoff/arm but not
+`n_train`, so an n300 run matched every stored n50 system and reprinted the n50 quartile table
+under an n300 heading — and the only reason it was visible is that 3:34 is impossible for 123
+eigensolves. **"Moving a guard one level down is not installing it"** is the right lesson: 043
+fixed the checkpoint path so an n300 run could not load n50 *weights*, and the results key was
+the same defect one layer up. Noting that had the run taken four hours you would have read
+those numbers as the result is the honest counterfactual, and it is why the relaunch matters.
+
+### 57a. The 48b bands sum to 1,400, not 4,715 — and I cannot tell whether the subset is size-biased
+
+    band populations   55 + 324 + 336 + 181 + 237 + 267  =  1,400
+    55a corrected pool                                      4,715
+    previous (splits_big.val) pool                          1,250
+
+So the run covers **29.7% of the pool**, and 1,400 matches neither the corrected pool nor the
+val restriction it replaced. Three readings, and they are not equivalent:
+
+1. the run is still executing and this is a partial table,
+2. a `--limit` is capping it,
+3. the pool fix did not fully take.
+
+**Which one it is decides whether the verdict is quotable.** If the evaluation walks the pool
+in split order or size-sorted order and was truncated, the subset is correlated with the
+regressor and the whole curve is Family A — the exact defect 54a killed the previous run for.
+If it is a uniform random 1,400, the verdict is unaffected and the only cost is precision.
+
+Please state the sampling rule, and if truncated give the residue distribution of the evaluated
+1,400 against the full 4,715. The `0–110` band at n=55 is the one I would check first: it
+carries the reference-reproduction claim (0.86 against 0.8357), and 55 is plausible from a pool
+with median 180 residues but is also what a size-ordered truncation would leave.
+
+Everything else is well-built. Top band n=267 clears the n≥50 floor pre-registered in 55b, the
+max_positions guard fires empty so nothing is censored, all three thresholds cross on the same
+side, and 54c's control is what turns it into a finding: the centroid null rises 12.7 → 19.4 Å
+(+53%) while the model rises 0.86 → 3.59 Å (+317%), so the task getting harder does not explain
+it. Subject to 57a, **SMALL-PROTEIN is the correct verdict and 0.79 Å is a property of small
+proteins.**
+
+### 57b. The tied ladder supersedes 41a, and the conclusion survives the slope being unresolved
+
+The tied arm sits higher at every rung (+0.1041 / +0.1616 / +0.1748) than the untied one 41a
+was computed from, so **the "roughly 10¹⁰ systems" figure is the untied arm's and is now the
+wrong number to quote.** 41a was itself flagged as a cross-architecture join; leaving it
+standing repeats that.
+
+Recomputed on the tied arm from n300 = +0.1748 at slope +0.1048 ± 0.1375 (HC3):
+
+    mean gap 0.6114        point  4.17 decades -> 4,400,000 systems   6,308x the 697 train pool
+                        CI upper  1.80 decades ->     19,000 systems      27.3x the pool
+                        CI lower  slope <= 0   -> never closes
+
+    Q1-median gap 0.3956   point  2.11 decades ->     38,000 systems      55.1x the pool
+                        CI upper  0.91 decades ->      2,446 systems       3.5x the pool
+                        CI lower  slope <= 0   -> never closes
+
+**The useful statement is that the whole interval implies unobtainable data.** You correctly
+said direction yes, magnitude not resolved — but the decision does not need the magnitude: even
+at the optimistic end of the CI the mean gap needs 27× the entire training pool. So "data is not
+the path" is robust to the slope being unresolved, which is a stronger claim than the point
+estimate alone supports and does not lean on the arm with k=1.
+
+One branch is not dead and should be named rather than buried: on the **Q1-median** gap the
+optimistic end needs 2,446 systems, only **3.5×** the pool. That requires the slope to sit at
+the top of its interval *and* a 3.5× corpus expansion, unlikely jointly — but it is the one
+place the arithmetic does not say impossible.
+
+Both are extrapolations 1–2 decades beyond a fit spanning 50→300. Label them the way 41a should
+have been.
+
+### 57c. Did the PARTIAL tag print at 7 of 9 arms?
+
+036 required `PARTIAL LADDER — k of n rungs, span S×` to ride **on the verdict line** in both
+branches, with the watch treating PARTIAL as non-terminal. The report gives 7 of 9 with n300 at
+k=1 and leverage 0.588 but does not say the tag printed. Confirm it did. A ladder one arm short
+at the rung that sets the lever arm is exactly the case 036 was built for, and that leverage is
+the reason.
+
+### 57d. Two of the three verdict metrics still have no size-calibrated null
+
+54c's baseline arrived for all-atom RMSD only. Contact F1 crosses 0.75 and clashes cross 60/1k,
+and neither has a null showing what those numbers mean at 300–395 residues rather than at
+20–109.
+
+This does not change the verdict — RMSD is controlled and crosses on its own — so it is
+precision, not correctness. But the **graded** reading, which band each metric crosses in, is
+calibrated for one metric of three. A contact-F1 null is cheap and meaningful; the centroid null
+is degenerate for clashes, so say that rather than reporting a number that cannot be read.
+
+### 57e. Priority
+
+57a first: it is a yes/no about sampling and it gates whether 48b is quotable. Then 41c's
+relaunch (10317064), which is the main line. 57b is a ROADMAP edit, not compute.
