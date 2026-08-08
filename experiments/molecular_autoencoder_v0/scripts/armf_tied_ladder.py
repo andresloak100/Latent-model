@@ -170,6 +170,7 @@ if __name__ == "__main__":
           flush=True)
     print(f"    {'n_train':>9}{'seeds':>7}{'mean FVE':>11}{'SD':>9}{'median FVE':>13}", flush=True)
     pts, sds, sd_ks = [], [], []
+    rung_sd, rung_f = {}, {}
     for nt in LADDER:
         v = [r for r in rows if r.get("n_train") == nt and not r["improving"]]
         if not v: continue
@@ -177,6 +178,7 @@ if __name__ == "__main__":
         m = np.array([r.get("med", np.nan) for r in v], float)
         sd = float(np.std(f, ddof=1)) if len(f) > 1 else float("nan")
         if np.isfinite(sd): sds.append(sd); sd_ks.append(len(f))
+        rung_sd[nt] = sd; rung_f[nt] = f          # INBOX 37a: kept for the Welch/HC3 pair
         pts.append((nt, float(f.mean()), float(np.nanmean(m)), len(f)))
         print(f"    {nt:>9}{len(f):>7}{f.mean():>+11.4f}{sd:>9.4f}{np.nanmean(m):>+13.4f}", flush=True)
     # ---- INBOX 36a: IS THIS THE LADDER THAT WAS POSED? ----
@@ -228,6 +230,49 @@ if __name__ == "__main__":
         # INBOX 36b: a constant from ONE arm at ONE rung, living in a script that reports across
         # three. Fine as a display denominator; it would be Family F the moment it entered a verdict
         # CONDITION, so its scope prints wherever it does.
+        # ---- INBOX 37a: EQUAL VARIANCE ACROSS RUNGS is what pooling and OLS both assume ----
+        # It was untested and silent. Printing the per-rung SDs and their max/min ratio makes it
+        # visible -- the same move as printing df.
+        #
+        # 37a asked for a switch to Welch/HC3 above ~4x. I am recording a STRICTER rule instead, and
+        # the reason is a number: at k=3 the ratio barely carries information. Simulating 400k draws
+        # of three rungs under TRUE equal variance, P(max/min SD ratio > 4) = 0.24 and the MEDIAN
+        # ratio is 2.52. A 4x switch therefore fires a quarter of the time when the assumption holds
+        # perfectly, so which estimator reports the verdict would be decided by noise -- which is 28e
+        # arriving through the mechanism built to prevent it.
+        #
+        # PRE-REGISTERED, FIXED BEFORE n300 EXISTS: the ROBUST pair -- Welch for the pairwise, HC3
+        # for the slope -- is authoritative UNCONDITIONALLY. Pooled/OLS prints beside it as a
+        # sensitivity check, never as an alternative verdict. This removes the estimator choice from
+        # the data entirely rather than making it a coin flip. It is 34a's standard again: Welch and
+        # HC3 are valid under BOTH regimes and collapse to the pooled answer when the spreads match,
+        # so the correction is a no-op in the common case and correct when the unusual one arrives.
+        #
+        # The price is MEASURED on this exact design (3 rungs x 3 seeds, x = log10(50,130,300)),
+        # 200k simulations per row, not asserted:
+        #     true variances      OLS coverage   HC3 coverage   HC3/OLS width
+        #     equal                  0.952          0.960           1.16
+        #     unequal (extreme)      0.868          0.947           1.47
+        #     n130 tight only        0.970          0.937           0.96
+        # HC3 costs 16% width when the assumption holds. When it does not, OLS's nominal 95%
+        # interval is really 87% -- an under-covering interval on the PRIMARY test is exactly what
+        # manufactures a false "THE CEILING MOVES WITH DATA". Honest caveat: in the one-tight-rung
+        # pattern the early data hints at, HC3 itself under-covers slightly (0.937). Neither is
+        # exact at n=9; HC3 is closer to nominal in both non-equal cases, which is why it reports.
+        fs = {k_: v_ for k_, v_ in rung_sd.items() if np.isfinite(v_) and v_ > 0}
+        sd_ratio = (max(fs.values()) / min(fs.values())) if len(fs) > 1 else float("nan")
+        print(f"\n  --- 37a: EQUAL VARIANCE ACROSS RUNGS (the assumption behind pooling and OLS) ---",
+              flush=True)
+        print(f"    per-rung SD: " + "   ".join(
+              f"n{nt}={rung_sd.get(nt, float('nan')):.4f} (k={k_})" for (nt, _, _, k_) in pts),
+              flush=True)
+        print(f"    max/min ratio {sd_ratio:.2f}. The ROBUST pair below is authoritative regardless "
+              f"of this number:", flush=True)
+        print(f"    at k=3, under TRUE equal variance, P(ratio>4)=0.24 and the median ratio is 2.52, "
+              f"so a", flush=True)
+        print(f"    threshold switch would pick the estimator by noise. Pooled/OLS is a SENSITIVITY "
+              f"CHECK, not a verdict.", flush=True)
+
         CTRL_MEAN = 0.1042; CTRL_PROV = "control lr3e-4, n50, 3 seeds, 24c"
 
         # ---- INBOX 34c: THE PRIMARY TEST IS FIXED HERE, BEFORE THE NUMBERS ----
@@ -242,10 +287,19 @@ if __name__ == "__main__":
         if len(allr) >= 4:
             x = np.log10([r["n_train"] for r in allr]); y = np.array([r["fve"] for r in allr])
             sl = stats.linregress(x, y); dfs = len(x) - 2
-            hs = float(stats.t.ppf(0.975, dfs)) * sl.stderr
+            hs_ols = float(stats.t.ppf(0.975, dfs)) * sl.stderr
             span = np.log10(max(x_ for x_ in 10 ** x) / min(x_ for x_ in 10 ** x))
-            print(f"    slope {sl.slope:+.4f} +/- {hs:.4f}  (t, df={dfs}, n={len(x)} arms)  "
-                  f"R^2 {sl.rvalue**2:.3f}", flush=True)
+            # HC3 sandwich for a simple regression. e_i/(1-h_i) inflates each residual by its own
+            # leverage, which is the small-sample variant; at n=9 it is deliberately conservative.
+            xb = x.mean(); Sxx = float(((x - xb) ** 2).sum())
+            e = y - (sl.intercept + sl.slope * x)
+            h = 1.0 / len(x) + (x - xb) ** 2 / Sxx
+            se_hc3 = float(np.sqrt((((x - xb) ** 2) * (e / (1.0 - h)) ** 2).sum() / Sxx ** 2))
+            hs = float(stats.t.ppf(0.975, dfs)) * se_hc3          # AUTHORITATIVE (37a)
+            print(f"    slope {sl.slope:+.4f} +/- {hs:.4f}  (HC3, t df={dfs}, n={len(x)} arms)  "
+                  f"R^2 {sl.rvalue**2:.3f}   <- AUTHORITATIVE", flush=True)
+            print(f"    slope {sl.slope:+.4f} +/- {hs_ols:.4f}  (OLS, assumes equal variance)"
+                  f"          [sensitivity only]", flush=True)
             print(f"    implied change over the measured {10**span:.1f}x range: "
                   f"{sl.slope*span:+.4f} +/- {hs*span:.4f}", flush=True)
             moves = abs(sl.slope) > hs
@@ -255,7 +309,18 @@ if __name__ == "__main__":
 
         print(f"\n  --- SECONDARY (descriptive): pairwise n{n0} vs n{n1} ---", flush=True)
         print(f"    difference {d_mean:+.4f};  pooled SD_arm {sd_arm:.4f} (df={dfree}, "
-              f"k={k0}/{k1});  SE {se:.4f};  t {tq:.3f};  95% half-width {hw:.4f}", flush=True)
+              f"k={k0}/{k1});  SE {se:.4f};  t {tq:.3f};  95% half-width {hw:.4f}"
+              f"   [sensitivity only]", flush=True)
+        s0, s1 = rung_sd.get(n0, float("nan")), rung_sd.get(n1, float("nan"))
+        if np.isfinite(s0) and np.isfinite(s1) and k0 > 1 and k1 > 1 and (s0 > 0 or s1 > 0):
+            se_w = float(np.sqrt(s0 ** 2 / k0 + s1 ** 2 / k1))
+            df_w = ((s0 ** 2 / k0 + s1 ** 2 / k1) ** 2 /
+                    ((s0 ** 2 / k0) ** 2 / (k0 - 1) + (s1 ** 2 / k1) ** 2 / (k1 - 1)))
+            hw_w = float(stats.t.ppf(0.975, max(df_w, 1e-9))) * se_w
+            print(f"    WELCH (no equal-variance assumption): SE {se_w:.4f};  df {df_w:.2f};  "
+                  f"95% half-width {hw_w:.4f}   <- AUTHORITATIVE", flush=True)
+        else:
+            print(f"    WELCH: not computable (a rung has k<2 or zero spread)", flush=True)
 
         if moves and sl is not None:
             print(f"\n  => THE CEILING MOVES WITH DATA.{PARTIAL} Slope {sl.slope:+.4f} +/- {hs:.4f} excludes")

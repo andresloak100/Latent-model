@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 036
+last_acted: 037
 ```
 
 | item | restatement | status | commit |
@@ -57,6 +57,7 @@ last_acted: 036
 | 034 | **34a:** `df = Σ(kᵢ−1)` anticipates unequal seed counts but RMS pooling ignores `kᵢ` entirely, so the two are inconsistent — use `s_p² = Σ((kᵢ−1)sᵢ²)/Σ(kᵢ−1)`. **34b:** `SD_arm·√(2/k)` carries the same equal-`k` assumption; the general form is `s_p·√(1/kᵢ + 1/kⱼ)`. Both are one-line fixes and no-ops when the rungs come back full. **34c:** choose NOW whether the verdict is pairwise n50-vs-n300 or the slope of FVE on `log n_train` (all 9 points, df=7), and record which — choosing after seeing both is the post-hoc statistic choice 28e caught. | ACCEPTED | (this commit) |
 | 035 | **35a:** the 27b "refutation" is an **underpowered null**, not a refutation — partial `log(z_ratio)` is −0.3103 ± 0.3375, ratio **0.92** (below one by 24c's own standard), point estimate **larger** than N's, CI reaching −0.648; and the imprecision is **structural** (corr −0.933, VIF 7.7, only 13% of `z_ratio` variance orthogonal to N) so no further systems fix it. The honest form is "at n=123 the residual encoder decay is not distinguishable from zero, and this design cannot separate the two", not "they are separate". Flagged as the arguer's own hypothesis, so weigh the numbers; QUESTIONED with a reason is valid. **35b:** mark the n=24 `FVE⊥` value SUPERSEDED rather than leaving it beside the n=123 one. **35c:** nothing further while the ladder runs. | ACCEPTED | (this commit) |
 | 036 | **36a:** the verdict fires at `len(pts)>=2` and the primary at `len(allr)>=4`, so TWO full rungs trips both and would print a bound measured over **2.6×** (n50→n130) for a question posed over **6.0×** — and because the monitor terminated on either verdict branch, that early read would have ended the watch before n300 landed, the exact failure the monitor was built to prevent arriving *through* it. Rungs present are now compared against `LADDER` and the `PARTIAL LADDER — k of n rungs, span S×` tag rides **on the verdict line** in both branches; the watch treats PARTIAL as non-terminal. Seeds short *within* a present rung is a separate, non-terminal note — it costs precision, not lever arm, and 34a/34b's unequal-k pooling already prices it. **36b:** `CTRL_MEAN` now prints its scope beside it (`+0.1042; control lr3e-4, n50, 3 seeds, 24c`) so it cannot migrate from display into a verdict condition unlabelled. | ACCEPTED | (this commit) |
+| 037 | **37a:** pooled SD and the OLS slope both assume **equal variance across rungs** — untested and silent. Now prints per-rung SDs and their max/min ratio (live partial store: **9.11**). Accepted the requirement to pre-register the estimator; **questioned the ~4× threshold**: at k=3 under *true* equal variance `P(ratio>4)=0.24`, median ratio 2.52, so a threshold switch picks the estimator by noise — 28e through the back door. Recorded instead, before n300 exists: **Welch + HC3 authoritative unconditionally**, pooled/OLS as sensitivity only. Cost measured on the exact design (200k sims): HC3 1.16× wider when the assumption holds, OLS covers only **0.868** when it fails. **37b:** agreed. | ACCEPTED (37a.1) / QUESTIONED (37a.2, threshold) | (this commit) |
 
 ## Notes on 035
 

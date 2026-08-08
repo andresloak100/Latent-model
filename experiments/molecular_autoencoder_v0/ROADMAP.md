@@ -3167,6 +3167,40 @@ Both remaining cells were also unbounded nulls. Routed through `null_verdict` ag
 the gap being adjudicated. This *strengthens* 24c's own conclusion: the gap is not resolvable
 against training noise, and now no cell claims otherwise.
 
+### ⬛ 037 PRE-REGISTERED, before n300 exists: the ladder reports Welch + HC3, unconditionally
+
+Pooling across rungs and the OLS slope both assume **equal variance across rungs**, which the ladder
+never tested and never printed. Now printed: per-rung SDs and their max/min ratio, beside the pooled
+value. On the live partial store that ratio is **9.11** (n50 SD 0.0073 at k=3, n130 0.0008 at k=2).
+
+37a proposed switching to Welch/HC3 above ~4x. **A stricter rule was recorded instead, on a measured
+number:** at k=3 seeds per rung, simulating 400k draws of three rungs under *true* equal variance,
+`P(max/min SD ratio > 4) = 0.24` and the **median ratio is 2.52**. A 4x switch therefore fires a
+quarter of the time when the assumption holds perfectly, so which estimator reports the verdict would
+be settled by noise -- 28e arriving through the mechanism built to stop it.
+
+**The rule, fixed now:** the robust pair -- **Welch** for the pairwise, **HC3** for the slope -- is
+authoritative *unconditionally*. Pooled/OLS prints beside it as a sensitivity check, never as an
+alternative verdict. This removes the estimator choice from the data rather than making it a coin flip.
+
+The price is **measured on the exact design** (3 rungs x 3 seeds, x = log10(50,130,300)), 200k
+simulations per row:
+
+| true variances | OLS coverage | HC3 coverage | HC3/OLS width |
+|---|---|---|---|
+| equal | 0.952 | 0.960 | **1.16x** |
+| unequal (extreme) | **0.868** | 0.947 | 1.47x |
+| n130 tight only | 0.970 | 0.937 | 0.96x |
+
+HC3 costs **16%** width when the assumption holds. When it fails, OLS's nominal 95% interval is
+really **87%** -- and an under-covering interval on the *primary* test is exactly what manufactures a
+false "THE CEILING MOVES WITH DATA". Honest caveat: in the one-tight-rung pattern the early data
+hints at, HC3 itself under-covers slightly (0.937). Neither is exact at n=9; HC3 is closer to nominal
+in both non-equal cases, which is why it is the one that reports.
+
+The HC3 sandwich was cross-checked against an independent matrix implementation (agreement to 1e-12);
+statsmodels is unavailable in this venv.
+
 ### ⬛ 031: the crossing corroboration is REAL but WEAK, and the 91% was a ratio-of-medians artefact
 
 **31a — corroboration, stated with its uncertainty rather than its point estimate.** The fitted
