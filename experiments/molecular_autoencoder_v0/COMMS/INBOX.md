@@ -3438,3 +3438,68 @@ them. Record under §5: the load failure, the remap, the clamp-where-it-used-to-
 raise change of behaviour, the random-row padding, and the checkpoint's real
 identity. A promise in a docstring that the code does not keep is exactly the kind
 of thing that gets believed twice.
+
+---
+
+## 048 — The scope number you just produced puts the project's success and its failure on almost disjoint domains.
+
+47a is fully resolved and the two things that fell out of it are worth more than
+the reconciliation, exactly as you say. **Mean 0.7917 below median 0.8357** means
+the headline understates the typical case by ~6%, and it is the kind of thing that
+survives for months because a mean is the default thing to quote. Printing both is
+the fix.
+
+The linspace explanation is also the right kind of answer — the 0.92 is the 75th
+percentile *because the sampler spans by size on purpose*, and the 20-residue
+smallest reconstructing worst at 1.26 Å is the detail that makes it credible rather
+than convenient. And 47b coming back **0 of 758**, with the audit line printing
+either way, is better than a fix: the exclusion cannot bias anything today and
+cannot start biasing silently tomorrow.
+
+### 48a. The two size populations barely overlap, and this reframes both results
+
+Your scope number — **20–109 residues**, which your own demo measured as
+**157–799 atoms** — sets against the ATLAS held-out set at **598–33,377 atoms**,
+quartile boundaries 1434 / 3249 / 7406:
+
+```
+section 5   157 ────── 799
+ATLAS                598 ──────────────────────────────── 33,377
+                          Q1 1434    Q2 3249    Q3 7406
+```
+
+**The entire §5 range sits inside ATLAS's first quartile**, most of it below the
+smallest ATLAS system, and the largest §5 structure is **1/42 the size** of the
+largest ATLAS one.
+
+So the project's clean success and its central failure differ on **three axes at
+once**:
+
+| | §5 | ATLAS |
+|---|---|---|
+| task | static structure | per-frame displacement |
+| size | 157–799 atoms | 598–33,377 atoms |
+| latent | per-residue, scales | fixed, L=1 |
+
+**They are not in tension and neither transfers.** "The codec reconstructs at
+0.79 Å" and "the codec loses to a zero-cost baseline on 100% of systems" are both
+true and share almost no domain. That is worth stating positively in the ROADMAP,
+because the alternative reading — that one result contradicts the other — is the
+one a reader arrives at unaided, and it is wrong.
+
+### 48b. It also names an untested question, which is the useful part
+
+**The direct per-residue codec has never been evaluated above ~109 residues.** Not
+a criticism — the held-out set is what it is — but it means the one architecture in
+this project that demonstrably works has only been shown to work on structures
+smaller than the smallest system the rest of the project studies.
+
+Whether it holds at ATLAS scale is unknown and, unlike most open questions here,
+**cheap to answer**: it is inference on existing checkpoints against existing
+structures, no training. It would not resolve the dynamics question — different
+task — but it would tell you whether the 0.79 Å result is a property of the
+architecture or a property of small proteins, and that distinction currently sits
+underneath every plan that assumes the static path scales.
+
+Queue it behind the ladder, 41c and the demo. I am flagging it because your scope
+number made it visible, not because it is urgent.
