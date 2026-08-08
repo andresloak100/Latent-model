@@ -3040,3 +3040,85 @@ named that yourself. The JT test does not share that weakness, but the *magnitud
 that 41a extrapolates does. The direction is established at p=0.0006; the rate is
 not established to anything like that precision, and 41a's arithmetic inherits the
 weaker of the two.
+
+---
+
+## 042 — 41a was mine and it was a cross-architecture join. The ancestor of the defect is still unprotected.
+
+**Finding this while writing a different script, and proving it to ten decimals
+rather than reporting a suspicion, is the catch of the session.** Three arms
+reproducing 24c's untied cell exactly — same FVEs, same step counts — is not
+evidence that they might be the same model; it is the same model.
+
+And the diagnosis of the mechanism is the useful half: `make()` came across
+unchanged from a file whose `VARIANTS` never contained `"tied"`, so its
+else-branch was correct there and silently wrong here. Making fall-through
+impossible, rather than fixing the branch, is the right fix. Putting `variants`
+in the stamp — because unlike `seeds` and `rungs` it changes *how* an arm is
+computed — is the same distinction you drew for `NSYS`, applied correctly again.
+
+**41a is mine and you are right about what it was.** I took a slope you had
+labelled `tied` and joined it to the tied arm's peer gap. Even with correct
+labels that would have been a join across two files; with the labels wrong it
+was a cross-architecture conclusion. Family F at the level of the claim, which
+is the level I have spent this session flagging in your code.
+
+### 42a. The ancestor still hardcodes the branch that caused this
+
+The sweep across every `ModalCodec` construction site comes back clean except
+one:
+
+| site | how it sets `tie_encoder` | |
+|---|---|---|
+| `armf_tied_ladder.py:108` | `tie_encoder=tie` | **fixed** |
+| `armf_modal_arm.py:59` | `tie_encoder=tie` | correct |
+| `armf_scale_test.py:54`, `armf_tied_mediator.py:56` | `(kind == "tied")` | correct |
+| `armf_tied_peer.py:70` | `True` | correct |
+| **`armf_modal_seeds.py:59`** | **`tie_encoder=False`, hardcoded** | **unprotected** |
+
+It is inert **only because `VARIANTS = ["control", "untied"]`** — which is
+verbatim the standard you applied to yourself on the Welch block: *"inert today
+only because `VARIANTS=['tied']` leaves the control cell empty, which is luck,
+not protection."* This is the file the defect was copied *from*, so it is the
+one most likely to be copied from again. Same two-line fix.
+
+### 42b. Redo 41a on the arm that was actually measured — the conclusion strengthens
+
+| join | codec | ANM | gap | decades to close |
+|---|---|---|---|---|
+| what I used — tied Q1 vs ANM Q1 | +0.2956 | +0.6912 | 0.3956 | 8.2 |
+| **untied n300 vs ANM-256 (14a)** | **+0.1403** | **+0.6720** | **0.5317** | **11.0** |
+
+So the corrected version says data is a *worse* path than I claimed, not a
+better one — the untied arm sits further from the peer than the tied arm did.
+
+**But I am not asserting that number, because it is the same mistake one step
+smaller:** the ladder's FVE and 14a's ANM come from different files and
+different harnesses. Compute it in one pass on the same frames, the way 28b was
+built, or state it as two measurements that have not been joined. Given that I
+have now made this error twice in three items, treat my table as the hypothesis
+and your harness as the test.
+
+### 42c. Do not expect the tied ladder to reproduce the untied one
+
+Worth recording before `10314088` reports, so the result is not read as a
+confirmation:
+
+The two arms differ **structurally** in how they respond to system size — tied
+collapses at Q4 through a scale defect that an N-only correction removes, while
+untied is flat in N (+0.0875 → +0.0854). Their `n_train` scaling has no reason
+to match either. The tied ladder is a genuinely new measurement, and if it comes
+back flat that is a real result about the tied arm rather than a contradiction
+of the untied one.
+
+Both outcomes stay interpretable under 38b, which was written before any of
+this and does not care which architecture it is applied to.
+
+### 42d. On `modal_ctx` — the refusal is the right one
+
+`ctx 2/4/8 → 0.0914 / 0.0913 / 0.0814` with one seed per cell, CI
+[−0.0415, +0.0615] containing both zero and the 0.0350 gap. Declining the
+pre-registered "flat → receptive field is the limit" branch because the design
+cannot support it is `null_verdict` doing exactly what it was built for, on a
+branch that was pre-registered by me and would have been convenient to take.
+Rung 2 stays unjustified rather than being justified by an underpowered null.
