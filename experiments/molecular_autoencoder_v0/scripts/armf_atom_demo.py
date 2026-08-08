@@ -92,7 +92,32 @@ def provenance(cfg, cfg_path, ckpt_path, model, arm, n_heldout):
         "checkpoint": _file_id(Path(ckpt_path)),
         "git": _git_sha(),
         "torch": torch.__version__,
+        # INBOX 050/051: two DIFFERENT trainings both lived at .../complex_d8 -- 900 epochs/63k steps
+        # and 3457 epochs/242k steps -- and every path-shaped label (arm, config name, splits, data
+        # dir) was identical between them. Only the checkpoint sha256 told them apart, and a reader
+        # comparing a committed metrics.json against a $WR checkpoint has no sha to compare. So the
+        # TRAINING identity travels too: a run that trained differently is a different model however
+        # the directory is named.
+        "training": _training_id(Path(ckpt_path).parent),
     }
+
+
+def _training_id(run_dir: Path):
+    tl = run_dir / "train_log.json"
+    if not tl.exists():
+        return {"train_log": "absent"}
+    try:
+        d = json.loads(tl.read_text())
+        r = d if isinstance(d, list) else (d.get("history") or d.get("log") or [])
+        if isinstance(r, list) and r:
+            last = r[-1]
+            return {"epochs": last.get("epoch"), "steps": last.get("steps"),
+                    "elapsed_s": (round(last["elapsed_s"]) if "elapsed_s" in last else None),
+                    "final_train_rmsd": (round(last["rmsd"], 4) if "rmsd" in last else None),
+                    "n_log_entries": len(r)}
+    except Exception:
+        pass
+    return {"train_log": "unreadable"}
 
 
 def provenance_key(pv):
@@ -400,6 +425,10 @@ def build_report(out: Path):
                   f"| checkpoint | `{Path(ck['path']).name}` sha256 `{ck.get('sha256','?')}` "
                   f"({ck.get('mtime','?')}) |",
                   f"| code | git `{pv['git']}`, torch {pv['torch']} |"]
+            tr = pv.get("training") or {}
+            if tr.get("steps") is not None:
+                L += [f"| training | **{tr.get('epochs')} epochs / {tr.get('steps'):,} steps** "
+                      f"({tr.get('elapsed_s')} s), final train RMSD {tr.get('final_train_rmsd')} |"]
             rm = pv.get("checkpoint_key_remap", "none")
             if rm != "none":
                 L += [f"| checkpoint shim | **{len(rm)} key(s) remapped** to load under current code "
@@ -512,6 +541,18 @@ def build_report(out: Path):
                         return (f"crosses **{thr} Å** at ≥{v} residues" if v is not None else
                                 f"**never crosses {thr} Å** across {fu['residues_min']}–"
                                 f"{fu['residues_max']} residues")
+                    # INBOX 50a: two evaluations of complex_d8 -- this demo and the committed
+                    # outputs/cluster/complex_d8/metrics.json -- disagree on the SAME checkpoint and
+                    # the SAME 186 structures (committed range 2.123-21.015, demo 1.910-21.566; band
+                    # medians differ by up to 47% at 150-200 residues). Same binning, same n per band,
+                    # so it is the VALUES. Until that is resolved this curve is provisional and must
+                    # not be read as settled.
+                    if r.get("arm") == "complex":
+                        L += ["", "> **PROVISIONAL (INBOX 50a).** A second evaluation of this same "
+                                  "checkpoint on these same 186 structures disagrees with the numbers "
+                                  "below. Band populations match exactly, so the difference is in the "
+                                  "values, not the binning. Do not quote this curve until 50a is "
+                                  "settled.", ""]
                     L += ["", f"Rolling median {_cross(c2, 2)}; {_cross(c5, 5)}. "
                               f"Spearman(residues, RMSD) = "
                               f"**{fu.get('spearman_res_rmsd')}**.", ""]

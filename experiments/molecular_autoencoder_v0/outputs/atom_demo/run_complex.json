@@ -15,8 +15,15 @@
       "mtime": "2026-07-31T22:42:56",
       "sha256": "ca197bea6e912acb"
     },
-    "git": "67acdef5-dirty",
+    "git": "fe118744-dirty",
     "torch": "2.13.0+cu130",
+    "training": {
+      "epochs": 3456,
+      "steps": 241990,
+      "elapsed_s": 25134,
+      "final_train_rmsd": 6.7222,
+      "n_log_entries": 141
+    },
     "checkpoint_key_remap": [
       "decoder.res_pos_emb.weight -> decoder.res_pos_emb.table.weight"
     ],
@@ -45,7 +52,7 @@
       "n_residues": 52,
       "floats_per_residue": 8.0,
       "compression_x": 2.94,
-      "infer_s": 0.023
+      "infer_s": 0.022
     },
     {
       "all_atom_rmsd": 6.057779860751597,
@@ -68,7 +75,7 @@
       "n_residues": 164,
       "floats_per_residue": 8.0,
       "compression_x": 2.93,
-      "infer_s": 0.009
+      "infer_s": 0.01
     },
     {
       "all_atom_rmsd": 7.4716486514561105,
@@ -91,7 +98,7 @@
       "n_residues": 233,
       "floats_per_residue": 8.0,
       "compression_x": 2.93,
-      "infer_s": 0.009
+      "infer_s": 0.01
     },
     {
       "all_atom_rmsd": 15.537137087390677,
@@ -114,7 +121,7 @@
       "n_residues": 334,
       "floats_per_residue": 8.0,
       "compression_x": 2.84,
-      "infer_s": 0.015
+      "infer_s": 0.014
     }
   ],
   "full_heldout": {

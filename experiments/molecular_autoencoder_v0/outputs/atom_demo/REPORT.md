@@ -1,6 +1,6 @@
 # Atom-to-atom reconstruction — direct per-residue codec
 
-Generated 2026-08-08 11:20 · every number below carries the provenance of the run that produced it.
+Generated 2026-08-08 11:39 · every number below carries the provenance of the run that produced it.
 
 > **These are different arms and are reported at different scales.** They are in separate sections
 > because they are not comparable; a number from one section does not describe the other.
@@ -15,7 +15,8 @@ Generated 2026-08-08 11:20 · every number below carries the provenance of the r
 | data | `data/processed_complex` |
 | held-out pool | 186 structures |
 | checkpoint | `final.pt` sha256 `ca197bea6e912acb` (2026-07-31T22:42:56) |
-| code | git `67acdef5-dirty`, torch 2.13.0+cu130 |
+| code | git `fe118744-dirty`, torch 2.13.0+cu130 |
+| training | **3456 epochs / 241,990 steps** (25134 s), final train RMSD 6.7222 |
 | checkpoint shim | **1 key(s) remapped** to load under current code (`decoder.res_pos_emb.weight -> decoder.res_pos_emb.table.weight`); exact for structures within max_positions=1024, which is asserted per structure |
 
 | structure | atoms | res | all-atom Å | backbone Å | chirality | clashes/1k | contact F1 | latent floats | ×compression |
@@ -69,7 +70,8 @@ Latent is **per-residue (scales with residue count)** — 8.0 floats per residue
 | data | `data/processed_small` |
 | held-out pool | 758 structures |
 | checkpoint | `final.pt` sha256 `662cf35e8a1b5a17` (2026-07-30T19:10:01) |
-| code | git `67acdef5-dirty`, torch 2.13.0+cu130 |
+| code | git `fe118744-dirty`, torch 2.13.0+cu130 |
+| training | **1703 epochs / 241,968 steps** (36300 s), final train RMSD 0.2834 |
 | checkpoint shim | **1 key(s) remapped** to load under current code (`decoder.res_pos_emb.weight -> decoder.res_pos_emb.table.weight`); exact for structures within max_positions=1024, which is asserted per structure |
 | vocabulary | **3 embedding(s) extended** since training; new rows are randomly initialised, so any structure indexing them is refused rather than reported |
 

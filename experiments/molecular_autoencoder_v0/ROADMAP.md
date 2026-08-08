@@ -3199,6 +3199,38 @@ though the mechanism is arm duration rather than rung order.
 across the two walls without a second writer. A separate n130 job is **not** launched — two processes
 appending to one `atlas_dm.json` is a lost-update race, which is worse than the problem it solves.
 
+### ⚠ NAME COLLISION: `complex_d8` is two different trainings, and it produced a false defect report
+
+Two evaluations of "the same" checkpoint on the same 186 structures disagreed (mean 5.5844 vs 5.8843,
+one structure by 16%). The hypothesis was the `res_pos_emb` load shim. **It is not.**
+
+- The positional table is **(1024, 128) in checkpoint and model** — no growth, and the largest complex
+  is 334 residues, so the clamp never fires.
+- The demo is **deterministic run-to-run** (identical to 6 dp), so the difference is systematic.
+
+The cause is that **`complex_d8` names two different trainings**:
+
+| | epochs | steps | wall | final train RMSD | weights present |
+|---|---|---|---|---|---|
+| `outputs/cluster/complex_d8` | **900** | 63,000 | 9,473 s | 4.799 | **no `final.pt`** |
+| `$WR/results/complex_d8` | **3457** | 241,990 | 25,134 s | 6.722 | yes |
+
+Every path-shaped label was identical — arm, config basename, splits file, processed dir. Only the
+checkpoint sha256 distinguished them, and a record with no weights has no sha to compare. **Neither
+run is wrong.** The 049c band table came from `$WR/results`; the independent one came from
+`outputs/cluster`; each is internally consistent with its own file on medians, range *and* Spearman.
+
+**Fix:** provenance now carries the **training identity** (epochs, steps, wall, final train RMSD)
+read from `train_log.json`, so two runs of the same name are visibly different in the report rather
+than distinguishable only by hashing weights that may not exist.
+
+**Consequences.** 48b is **not** blocked — the load path is sound. For any externally published page,
+quote the **committed** run, because its `_true.pdb`/`_pred.pdb` pairs are the coordinates being drawn.
+
+Note also, for the record: the longer training is **worse** (final train RMSD 6.72 at 3457 epochs vs
+4.80 at 900). Different configs, so not a controlled comparison — but it is not the direction anyone
+would assume from the names.
+
 ### ⬛ 049: the complex arm reconstructs to a number, not to a usable structure
 
 `clashes_per_1000_atoms` was computed and stored for every structure and printed in no table. It is
