@@ -3237,13 +3237,23 @@ the project leads with.
 Demo illustration of the size dependence in the complex arm: 2.23 Å at 52 residues, 6.06 at 164,
 7.47 at 233, **15.54 at 334**.
 
-### ⬛ NMR: conformers do not collapse, but the codec cannot resolve them
+### ⬛ NMR: conformers do not collapse, and the codec does resolve them — on the fuller sample
 
-`latent_suitability.py` on 3 entries × 6 models: true spread **1.1073 Å** → reconstructed **0.9206 Å**,
-ratio **0.831** (16.9% of spread lost). But **mean reconstruction error is 1.1969 Å — larger than the
-true spread itself.** The script's own criterion 1 is *"recon error well below the true spread; if the
-codec cannot tell conformers apart, nothing else matters."* On this sample that **fails**. "Conformers
-do not collapse" survives; "the codec resolves conformers" does not.
+| | 3 entries × 6 models | **11 entries × 126 conformers** |
+|---|---|---|
+| true spread | 1.1073 Å | **3.5437 Å** |
+| reconstructed spread | 0.9206 Å | 3.3705 Å |
+| ratio | 0.831 (16.9% lost) | **0.9324 (6.8% lost)** |
+| mean recon error | 1.1969 Å | **1.1639 Å** |
+| criterion 1 (recon ≪ spread) | appears to FAIL | **passes** (1.16 ≪ 3.54) |
+
+**The 3-entry read was wrong and is retracted.** Those three happened to be low-spread ensembles
+(1.11 Å), so the reconstruction error looked larger than the spread. On 11 entries the spread is
+3.54 Å and the error 1.16 Å, comfortably below it — the script's criterion 1 passes. A three-point
+sample read as a finding is the error this file spends most of its length cataloguing.
+
+Note the ratio is sample-dependent too: **0.9324 here vs §5's 0.868**, on different entry and model
+counts. Report the count beside the ratio.
 
 ### ⚠ TWO CHECKPOINT-COMPATIBILITY DEFECTS, found by trying to load the 0.79 Å model
 
