@@ -2798,3 +2798,82 @@ is convenient when the number lands.
 
 Nothing else — and if the ladder comes back **rising**, none of 38c applies and the
 result stands on its own.
+
+---
+
+## 039 — A third effect the ceiling has, pointing the other way: it deflates the within-rung SD where it binds.
+
+Checking the VOID discriminator rather than speculating about it is the right
+order, and the separation is decisive — every kept arm ≤ 0.993, every VOID ≥ 1.055,
+threshold 1.01 sitting in the gap with nothing near it. That does soften Family A:
+the exclusion is tracking real non-convergence.
+
+And the stamp catch is the subtle one. **A monkeypatch leaves `D.train`'s AST
+unchanged**, so raised-budget arms would have pooled silently with 90k arms inside
+the resume path — Family F where 18d's ancestor lived. Verifying 7/7 byte-identical
+by default and 0/7 with the cap set, *before* pushing onto the code `10311657`
+starts from, is the check that made it safe rather than lucky.
+
+38c is decided the way I would have decided it, and your first reason is the better
+one: "report as confounded and leave option (1) open" is an underpowered null
+wearing a result's clothes, which is 35a at the level of the experiment.
+
+### 39a. The ceiling does a third thing, and it points toward declaring a rise
+
+Compare how the arms *stopped*:
+
+| rung | stopping steps | varies? | SD |
+|---|---|---|---|
+| n50 | 57,500 / 70,000 / … (mean 65,000) | **yes** | 0.0073 |
+| n130 | 90,000 / 90,000 / 90,000 | **no — all at the cap** | 0.0008 |
+
+A rung whose arms all stop at the *same* step loses the stopping-point component of
+variance. So the 9.11 SD ratio 37a surfaced is **at least partly mechanical**, not a
+property of the data — and the consequence runs opposite to the other two:
+
+| effect | direction on the verdict |
+|---|---|
+| truncation (Family D, 3/3 arms) | suppresses the rise |
+| VOID exclusion (Family A, 1/3 arms) | inflates the high-n mean |
+| **SD deflation at ceiling-bound rungs** | **narrows the interval → makes a rise easier to declare** |
+
+The first two you have. The third means the pooled SD is drawn down by rungs whose
+spread was compressed by the design, so intervals at those rungs are **too narrow**.
+It does not touch the point estimates; it touches whether they clear their bar.
+
+This also reframes 37a: the heteroscedasticity is not evidence about the data, it is
+evidence about which rungs hit the cap. HC3 remains the right choice — it is robust
+either way — but the *interpretation* of the SD ratio should say "the cap binds at
+this rung," not "this rung is intrinsically tighter."
+
+### 39b. The current rise survives the conservative version, and that should be printed
+
+Substituting n50's SD for n130's — i.e. assuming the deflation is entirely
+mechanical:
+
+| n130 SD used | pooled s_p | half-width | difference | excludes 0 |
+|---|---|---|---|---|
+| 0.0008, as measured | 0.00598 | 0.01737 | **+0.0231** | yes |
+| 0.0073, set equal to n50 | 0.00730 | 0.02121 | **+0.0231** | **yes, but only just** |
+
+So the n50→n130 rise holds under the pessimistic assumption. **Print that as a
+sensitivity row beside the pooled/OLS one** — same role, same reason: it makes an
+assumption visible instead of implicit, and it is a no-op if the rungs come back
+with comparable spreads.
+
+### 39c. The trend so far, and why its direction matters more than its size
+
+n50 **+0.1045** → n130 **+0.1276** → n300 **≥ +0.1302**, with n300's value a lower
+bound from an arm still climbing 14% at the cap.
+
+Per 38b this is the **interpretable** branch: the instrument is biased against
+finding a rise and a rise is showing anyway, so the true effect is at least this
+large. Your line — *the confound suppresses the rise it would have to manufacture to
+be dangerous* — is exactly right, and it is worth stating that the asymmetry
+recorded in 38b before the numbers existed is now the reason these numbers can be
+read at all.
+
+Not a verdict: 7 of 9 arms, n300 at k=1, PARTIAL still on the line. But the fork is
+currently pointing at **data-limited**, which would make the n50 peer loss a
+statement about training set size rather than about the architecture — and that is
+the conditional 32c named.
