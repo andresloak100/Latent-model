@@ -150,7 +150,16 @@ if __name__ == "__main__":
         ST = STAMP.stamp(_cfg, ModalCodec, D.train)
         rows = json.load(open(RES)) if os.path.exists(RES) else []
         STAMP.report(rows, ST, "arms")
-        rows = [r for r in rows if STAMP.same_stamp(r, ST)]
+        # HISTORY IS NOT THE WORKING SET. Filtering in place and then dumping the filtered list back
+        # DESTROYS every arm under a previous stamp: the 042 variant fix changed the stamp, and the
+        # first save of the corrected run cut tied_ladder.json from 9 untied arms to 1. Nothing was
+        # lost only because those 9 had been copied to untied_ladder_measured.json first -- and that
+        # copy was made for LABELLING reasons, not this one, so the protection was luck.
+        # armf_atlas_dm.py:596 already does this correctly, filtering at REPORT time under the comment
+        # "Legacy rows stay in the JSON (they are history, and the retract trail matters)". Same
+        # project, opposite behaviour, and the ladder had the unsafe one.
+        all_rows = list(rows)                                   # everything ever written; never culled
+        rows = [r for r in rows if STAMP.same_stamp(r, ST)]     # the working set for THIS stamp
         done = {(r["variant"], r["lr"], r["seed"], r.get("n_train")) for r in rows}
         orig = D.Codec
 
@@ -173,7 +182,9 @@ if __name__ == "__main__":
                                    steps=used, stopped=stopped,
                                    improving=improving, best_track=max(h[1] for h in hist),
                                    secs=time.time() - t0)
-                        rows.append(rec); json.dump(rows, open(RES, "w")); done.add((kind, lr, sd))
+                        rows.append(rec); all_rows.append(rec)
+                        json.dump(all_rows, open(RES, "w"))         # write HISTORY, not the working set
+                        done.add((kind, lr, sd))
                         # Save the arm. Without this the ladder's models die with the job, and the ONLY
                         # way to compare an arm against ANM on the SAME frames -- which is what 42b says
                         # the join requires -- is to retrain it. armf_tied_peer.py reads this path.
@@ -192,6 +203,7 @@ if __name__ == "__main__":
                         D.Codec = orig
     else:
         rows = json.load(open(RES)) if os.path.exists(RES) else []
+        all_rows = list(rows)
         print(f"  [REPORT-ONLY] replaying {len(rows)} stored arms from {RES} "
               f"-- no training, no stamp filter", flush=True)
 
