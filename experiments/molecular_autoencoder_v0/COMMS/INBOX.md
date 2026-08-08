@@ -3590,3 +3590,87 @@ number now prints with its n beside it. The report also states which of the two
 conditions it is testing rather than leaning on the ratio. Recording that this is
 the behaviour I want, so the ledger does not read as only a list of faults.
 
+
+---
+
+## 050 — two evaluations of `complex_d8` disagree, and the pattern points at the load shim
+
+Supersedes the "ask for a plot" part of 049c: I computed it myself from data already
+in the repo, and in doing so hit something bigger.
+
+### 50a. The same checkpoint, the same 186 structures, different numbers
+
+`outputs/cluster/complex_d8/metrics.json` (committed, with its `_true.pdb`/`_pred.pdb`
+pairs) and the demo's `outputs/atom_demo/run_complex.json` both report n=186 on
+`splits_complex.json`. Atom counts match per structure exactly, so the inputs are the
+same. The outputs are not:
+
+    structure  atoms |  committed rmsd  clash/1k     F1 |   demo rmsd  clash/1k     F1
+    1BYZ         408 |        2.2390     1622.5  0.9442 |     2.2260    1906.9  0.9588
+    3DS4        1281 |        5.2179     1918.0  0.5628 |     6.0578    1831.4  0.4816
+    8HJY        1821 |        7.2655     2376.2  0.3074 |     7.4716    2298.7  0.2862
+    5S3D        2529 |       14.9996     6485.7  0.0872 |    15.5371    8378.8  0.0726
+
+    set level  |  committed  mean 5.5844  median 2.6767  q75  8.272  max 21.015
+               |  demo       mean 5.8843  median 2.4907  q75 10.137  max 21.566
+
+3DS4 moves 16%, 5S3D's clash count moves 29%. That is not float nondeterminism.
+
+**The single-chain arm reproduces exactly.** I checked all eight summary statistics of
+`ladder_direct3m_n2272/metrics.json` against `run_single-chain.json`: n 758, mean 0.7917,
+median 0.8357, sd 0.208, min 0.265, max 2.381, q25 0.663, q75 0.932 — every one identical.
+So whatever this is, it is specific to the complex arm.
+
+**The hypothesis I would test first.** Both runs load through the same shim,
+`decoder.res_pos_emb.weight -> decoder.res_pos_emb.table.weight`. Single chains are
+20–109 residues and reproduce; complexes are 52–334 and do not. If the new `table` module
+indexes or wraps positions differently from the old flat tensor, the two would agree
+wherever the position index stays small and diverge as it grows — which is the pattern.
+1BYZ at 52 residues is the closest match of the four.
+
+That is checkable without a training run: load the checkpoint both ways on one structure
+and diff the decoder's positional embedding tensor row by row, then diff the output
+coordinates. If it is the shim, the fix belongs in `molae/utils.load_checkpoint`, where the
+remap now lives, and **every number produced through that path since it landed is affected**
+— including the ones in `REPORT.md`.
+
+It also touches 48b directly. "The direct codec has never been evaluated above ~109
+residues" is the exact boundary this hypothesis puts the defect behind, so the 48b run
+should not be launched until the load path is settled, or it will measure the shim.
+
+### 50b. 049c answered from the committed data, and it is not two regimes
+
+I said the quartiles looked bimodal. Over all 186 they are not — the response is graded:
+
+    residues     n   median A   mean A   frac >2 A   frac >5 A
+     52-100     20      2.26     2.28       1.00        0.00
+    100-150     35      2.34     3.41       1.00        0.09
+    150-200     34      3.80     5.59       1.00        0.44
+    200-250     60      2.96     5.32       1.00        0.43
+    250-334     37     11.47     9.84       1.00        0.73
+
+    Spearman rho(residues, all-atom RMSD) = 0.542
+
+Two corrections to what I wrote in 049c. There is **no 2 A crossing point** — 186 of 186
+are above 2 A, so 1BYZ at 2.23 A is the best end of a set that fails that bar everywhere,
+not a good absolute result. And the 5 A fraction rises 0.00 → 0.09 → 0.44 → 0.43 → 0.73,
+so degradation sets in around 150 residues and is gradual, with large within-bin spread.
+"A tight cluster and a long tail" was my reading of the quartiles and it is wrong; the
+quartile gap comes from a size gradient, not two populations.
+
+All of this is from the committed file, so if 50a resolves in favour of the demo run these
+numbers move with it. I would not put the size curve in `REPORT.md` until 50a is settled.
+
+### 50c. What is externally visible right now
+
+Two pages are published from this data, so you know what is out there and can correct it:
+a technical status page, and an interactive viewer built from the committed
+`_true.pdb`/`_pred.pdb` pairs for 12LO / 1AJJ / 1A32 and 1BYZ / 1D4T / 1C5E. Both arms are
+labelled with their checkpoint, held separately, and stated as non-comparable. The viewer
+uses the **committed** numbers, because those are the run that wrote the coordinates it
+draws, and it states the 50a disagreement on its face rather than picking a side. I verified
+my Kabsch superposition reproduces each structure's reported all-atom RMSD before drawing
+anything, so the picture and the metric agree.
+
+Nothing is published that is not measured. If 50a lands, tell me which run is correct and
+I will update both.
