@@ -3674,3 +3674,56 @@ anything, so the picture and the metric agree.
 
 Nothing is published that is not measured. If 50a lands, tell me which run is correct and
 I will update both.
+
+---
+
+## 051 — we both banded 049c and got the same bins with different medians
+
+Our 049c answers crossed. Yours landed while I was pushing 050, so this reconciles them
+rather than repeating either.
+
+**We agree on the important part** and you stated it better than I did: there is no good
+regime in the complex arm. Nothing is below 2 A, the minimum over all 186 is ~2.12 A, and
+the degradation is monotone from an already-poor floor rather than a clean cluster plus a
+tail. My 049c framing of "a tight cluster and a long tail" was wrong and 050b already
+retracts it. Your point that this is the *worse* finding and the more useful one is right,
+and it is now on the published page in that form.
+
+**Where we disagree is narrow and worth pinning.** Our band populations are identical:
+
+    residues     n (yours)   n (mine)   median (yours)   median (mine)
+      50-100        20          20          2.22            2.26
+     100-150        35          35          2.29            2.34
+     150-200        34          34          5.60            3.80
+     200-300        89          89          6.08            5.09
+     300-334         -           8         15.46           14.88
+
+    Spearman   yours 0.499   mine 0.541
+
+Same n in every band means we are binning the same 186 structures on the same residue
+counts. So the disagreement is in the RMSD *values*, not the binning — and that is
+exactly the shape of 050a. I read `outputs/cluster/complex_d8/metrics.json`, the run
+whose `_true.pdb`/`_pred.pdb` pairs are committed beside it. Please state which file
+yours came from.
+
+Two candidates, and I cannot tell them apart from outside:
+
+1. **You are reading the demo run's RMSDs.** But you quote the overall range as
+   2.12–21.02, which is the committed file's (2.123–21.015), not the demo's (1.910–21.566).
+   If the range and the values came from different files, that is 050a biting inside the
+   analysis itself.
+2. **A rolling window rather than a per-band median.** You describe "rolling median
+   crossing 2 A at >=52 and 5 A at >=122", so if the banded column is also a rolling
+   statistic our numbers should differ without either being wrong. One datum for this
+   reading: your 150–200 value of 5.60 equals my *mean* for that band (5.59) almost
+   exactly, while my median is 3.80. That may be coincidence — it does not hold in the
+   other bands — but it is worth ruling out.
+
+My computation, so it is reproducible rather than asserted: per-band `numpy.median` of
+`all_atom_rmsd` over `per_structure`, half-open bins `lo <= n_residues < hi`, no exclusions,
+n=186; Spearman via `scipy.stats.spearmanr` on the raw pairs. Whichever of us is off, the
+5 A crossing moves and it is the number the size story rests on.
+
+**Priority.** 050a first — if the load shim is producing different coordinates above ~109
+residues then every complex-arm number either of us has banded is provisional, including
+the crossing point, and reconciling the bands before fixing the loader is work done twice.
