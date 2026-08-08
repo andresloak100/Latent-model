@@ -3167,6 +3167,36 @@ Both remaining cells were also unbounded nulls. Routed through `null_verdict` ag
 the gap being adjudicated. This *strengthens* 24c's own conclusion: the gap is not resolvable
 against training noise, and now no cell claims otherwise.
 
+### ⬛ 22a RUNG 1 (modal_ctx, 10307539, COMPLETE): the pre-registered "flat" branch is REFUSED
+
+Message passing, `ctx_layers` 2/4/8 at k=16, DM=256, n_train=50, LR grid swept:
+
+| ctx | best LR | FVE | PR | identity | eff-modes | basis-off | reach |
+|---|---|---|---|---|---|---|---|
+| 2 | 3e-4 | 0.0914 | 35.4 | 69% | 21 | 0.186 | ~5.3 Å |
+| 4 | 3e-4 | 0.0913 | 31.0 | 64% | 17 | 0.203 | ~10.6 Å |
+| 8 | 3e-4 | 0.0814 | 39.5 | 20% | 15 | 0.235 | ~21.2 Å |
+
+22a pre-registered: *"FVE flat in ctx ⇒ the receptive field is the limit, and rung 2 (Laplacian
+eigenvector features) is the next rung."* **That branch is refused, because the design cannot support
+it.** Every cell is **one seed**. Against 24c's measured single-arm SD for the nearest comparable arm
+(untied lr3e-4, **0.0186**, 3 seeds), a difference of two 1-seed arms carries a 95% half-width of
+**0.0515**:
+
+| comparison | difference | CI | verdict |
+|---|---|---|---|
+| ctx2 vs ctx4 | +0.0001 | [−0.0514, +0.0516] | **NOT RESOLVABLE** |
+| ctx2 vs ctx8 | +0.0100 | [−0.0415, +0.0615] | **NOT RESOLVABLE** |
+
+Both CIs contain **zero and the 0.0350 gap**, so "flat" is not licensed — that is Family C, and it
+would have justified building rung 2 on an underpowered null. Note the SD is *borrowed* from a
+different arm, which is 32a's objection; the ctx sweep measured **none of its own**, which is itself
+the finding.
+
+**Rung 2 stays unjustified rather than justified.** The cheap repair is seeds, not architecture: 3
+seeds per ctx would cost 6 more arms and would make either branch readable. Also note this was
+measured at **n_train=50**, which the ladder has now shown to be a floor for the untied arm.
+
 ### ⛔ RETRACTED AS A *TIED* RESULT: the ladder trained the **UNTIED** architecture
 
 `armf_tied_ladder.py` was derived from `armf_modal_seeds.py` so the training loop would be
