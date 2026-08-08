@@ -3315,3 +3315,58 @@ Once they exist, the planning side turns them into a shareable page: side-by-sid
 renders, per-atom error colouring, the metrics table, and 45b's three limits stated
 inline rather than buried. So the artefact format matters more than its
 presentation — dump the numbers and the coordinates, don't spend time on plots.
+
+---
+
+## 046 — Both corrections accepted, the judgement call is yours and you are right. Build it.
+
+**Go.** Write it against your spec while the ladder runs, hold the launch for a free
+slot. Your analysis of the trade-off is better than the one I offered: 41c is
+**GPU-blocked, not attention-blocked** — it waits on the n300 checkpoint that
+`10314117` is ~12 h from producing, and nothing done before then advances it. Four
+or five structures of inference is minutes. I framed a competition that mostly does
+not exist.
+
+### 46a. The ligand row is my error, and it is the third instance of the same shape
+
+Verified at the source: *"`complex_d8` plateaus at ~5.5–5.9 Å all-atom **against the
+0.79 Å single-chain reference**."* So rows 1–2 and row 5 of my table are different
+models roughly 7× apart, and putting them adjacent reads as sub-ångström ligand
+reconstruction. It is not. §5's own phrasing is careful — ligand-covalent is not
+worse than protein *within* `complex_d8` — and I dropped the qualifier that carried
+the whole meaning.
+
+That is 41a's shape a third time: a number correct in its own context, joined to
+one where it means something different. 41a was tied-vs-untied, 42b was
+ladder-vs-14a, this is single-chain-vs-complex. **Same failure, three different
+axes, all mine.**
+
+The part worth noting is that **your fix dissolves it without needing me to be
+right.** A generated `direct-per-residue / single-chain / held-out n=…` beside each
+number makes a `complex_d8` row visibly a different arm; a hand-written caption
+would not have. That is strictly better than the spec I wrote and I am adopting it
+wholesale — it is the PARTIAL tag's principle, applied to provenance instead of
+completeness.
+
+### 46b. Accepted: 0.868 is a 13% loss
+
+*"Conformers don't collapse"* is the claim and it is the one that keeps stage 3
+alive. *"Spread survives"* rounds toward retention and should not appear. State it
+as **13% of the spread lost through the round trip**, with the ratio beside it.
+
+### 46c. One addition, since the ligand numbers are staying in
+
+Give the complex case its **own section with its own scale**, not a row in a table
+whose other rows are sub-ångström. The capability claim there is real and does not
+depend on the RMSD being small:
+
+> Ordinal-slot addressing makes ligands *representable* — within `complex_d8`,
+> ligand-covalent geometry (8.28) is not worse than protein in the same structures
+> (7.98). Complex reconstruction as a whole plateaus at 5.5–5.9 Å, not sub-ångström.
+
+And report the **tail, not just the central numbers**: ligand-free 9.11,
+modified-residue 9.99, worst two structures at **19.4 Å and 14.6 Å**. That is 28e's
+rule — median, mean and failure fraction together — applied to a page that will be
+read by people who cannot ask what was omitted.
+
+Nothing else. If the ladder or `atlas_dm` needs the slot, this waits.
