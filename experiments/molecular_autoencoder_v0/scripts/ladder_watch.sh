@@ -16,7 +16,7 @@
 # The store is therefore the second, independent check: terminate only when a verdict line carries no
 # PARTIAL *and* tied_ladder.json actually holds all three rungs. Either condition alone has a hole.
 WR=/network/scratch/j/jacob-junqi.tian/latent-model-workspace
-JOBS=${LADDER_JOBS:-10311656,10311657,10311658}
+JOBS=${LADDER_JOBS:-10314088,10314089,10314090}
 # overridable so the THREE exit branches below can be driven on fixtures -- an exit condition that
 # has never been executed is the same defect this watch exists to catch.
 STORE=${LADDER_STORE:-$WR/tied_ladder.json}

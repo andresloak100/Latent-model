@@ -3167,7 +3167,42 @@ Both remaining cells were also unbounded nulls. Routed through `null_verdict` ag
 the gap being adjudicated. This *strengthens* 24c's own conclusion: the gap is not resolvable
 against training noise, and now no cell claims otherwise.
 
-### ⬛ 31d/34c LADDER — THE FORK: **THE CEILING MOVES WITH DATA.** The tied arm is DATA-limited.
+### ⛔ RETRACTED AS A *TIED* RESULT: the ladder trained the **UNTIED** architecture
+
+`armf_tied_ladder.py` was derived from `armf_modal_seeds.py` so the training loop would be
+bit-identical. `make()` came across **unchanged** — and `modal_seeds` only ever passes `"control"` or
+`"untied"`, so its else-branch **hardcodes `tie_encoder=False`**. Setting `VARIANTS = ["tied"]` here
+therefore built the untied architecture and stamped every record `variant="tied"`.
+
+**Proof, not suspicion.** The ladder's three n50 arms reproduce 24c's *untied* lr3e-5 cell to ten
+decimal places with identical step counts:
+
+| seed | 24c untied | ladder "tied" | steps |
+|---|---|---|---|
+| 0 | +0.0996116863 | +0.0996116863 | 67,500 both |
+| 1 | +0.1128945779 | +0.1128945779 | 70,000 both |
+| 2 | +0.1009773579 | +0.1009773579 | 57,500 both |
+
+`tie_encoder=True` is the tied arm — `armf_modal_decoder.py:207` and `armf_tied_peer.py`, which builds
+`tie_encoder=True`. So the convention is unambiguous and the label was wrong.
+
+**What survives, re-scoped to the untied arm:** the rise is real and the rank test still holds —
+untied is **not saturated** in `n_train` over 50–300, JT 27/27, p = 0.00060, slope +0.0483 ± 0.0296.
+Nothing about the *measurement* was wrong; only the architecture it was attributed to.
+
+**What does not survive:** every sentence naming the tied arm. **The tied arm's data-scaling is
+unmeasured.** And 41a joined the untied slope to the *tied* arm's peer gap — a cross-architecture
+join, which is Family F at the level of the conclusion.
+
+**Fixes.** `make()` now maps every variant explicitly and **raises** on an unknown one rather than
+defaulting to an architecture. `variants` is now in the stamp — it changes *how* an arm is computed,
+unlike seeds and rungs — so the 9 untied arms match the corrected stamp **0/9** and cannot resume as
+tied. That hole is the same one the `LADDER_MAXSTEPS` cap had, arriving through a different door. The
+untied arms are preserved at `untied_ladder_measured.json`.
+
+**Re-running: 10314088 → 10314089 → 10314090**, the genuine tied ladder.
+
+### ⬛ 31d/34c LADDER (**UNTIED ARM** — see the retraction above): THE CEILING MOVES WITH DATA
 
 Complete, 9/9 arms, job 10311656.
 

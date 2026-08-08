@@ -85,11 +85,27 @@ dev = D.dev
 
 
 def make(kind):
+    """DEFECT, FOUND AFTER THE FIRST 9 ARMS RAN. This file was derived from armf_modal_seeds.py so the
+    training loop would be bit-identical, and make() came across UNCHANGED -- but modal_seeds only ever
+    passes "control" or "untied", so its else-branch hardcodes tie_encoder=False. Setting
+    VARIANTS=["tied"] here therefore built the UNTIED architecture and labelled every record
+    variant="tied".
+
+    Proof, not suspicion: the ladder's three n50 arms reproduce 24c's UNTIED lr3e-5 cell to ten
+    decimals with identical step counts (+0.0996116863/67500, +0.1128945779/70000, +0.1009773579/57500).
+
+    tie_encoder=True is the tied arm -- armf_modal_decoder.py:207 ("analysis is linear in disp -- which
+    is the point") and armf_tied_peer.py, which builds tie_encoder=True. The map is now explicit for
+    every kind, so a new variant name fails loudly instead of silently becoming untied."""
     base = D.Codec
     if kind == "control":
         return lambda Fs, L, dm, dlat=None, sub_z0=False: base(Fs, L, dm, dlat=dlat, sub_z0=sub_z0)
+    if kind not in ("tied", "untied"):
+        raise ValueError(f"make(): unknown variant {kind!r} -- add it explicitly rather than "
+                         f"letting it fall through to a default architecture")
+    tie = (kind == "tied")
     return lambda Fs, L, dm, dlat=None, sub_z0=False: ModalCodec(
-        Fs, L, dm, dlat=dlat, sub_z0=sub_z0, tie_encoder=False)
+        Fs, L, dm, dlat=dlat, sub_z0=sub_z0, tie_encoder=tie)
 
 
 if __name__ == "__main__":
@@ -116,7 +132,11 @@ if __name__ == "__main__":
         # IDENTICAL so the six arms already on disk are not invalidated. When it IS set, the cap enters
         # the stamp explicitly -- D.train's AST is unchanged by a monkeypatch of maxsteps_for, so without
         # this key re-run arms would silently pool with 90k arms, which is Family F inside the resume.
-        _cfg = dict(dm=DM, lrs=str(USABLE_LRS),            # NOT seeds/ladder: they select WHICH draws and
+        # variant MUST be in the stamp. It changes HOW an arm is computed, unlike seeds and rungs which
+        # only select which draws. Without it the 9 untied arms already on disk would match the fixed
+        # code's stamp and be reused as though they were tied -- the same resume-poisoning hole the
+        # LADDER_MAXSTEPS cap had, arriving through a different door.
+        _cfg = dict(dm=DM, lrs=str(USABLE_LRS), variants=str(VARIANTS),
                                   # WHICH rungs, not how any arm is computed (27b's NSYS lesson)
                                   warmup=D.WARMUP, maxsteps=D.MAXSTEPS)
         _cap = os.environ.get("LADDER_MAXSTEPS", "")
