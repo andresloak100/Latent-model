@@ -168,7 +168,7 @@ if __name__ == "__main__":
                     rec["eff_modes"] = float(np.median(ems))
                 rows.append(rec); json.dump(rows, open(RES, "w")); done.add((kind, lr))
                 os.makedirs(CKPT, exist_ok=True)
-                torch.save(mdl.state_dict(), f"{CKPT}/{kind}_dm{DM}_lr{lr:g}_s{SEED}.pt")
+                torch.save(mdl.state_dict(), f"{CKPT}/{kind}_dm{DM}_lr{lr:g}_s{SEED}_n{NTR}.pt")
                 extra = ("" if kind == "control" else
                          f"  basis-off {rec['basis_off']:.3f}  eff-modes {rec['eff_modes']:.0f}/{DM}")
                 print(f"    {kind} lr{lr:g}: FVE {fve:+.4f}  PR {p['pr']:.1f}/{DM}  "
@@ -224,7 +224,7 @@ if __name__ == "__main__":
         for k in VARIANTS:
             if k not in best: continue
             b = best[k]
-            cp = f"{CKPT}/{k}_dm{DM}_lr{b['lr']:g}_s{SEED}.pt"
+            cp = f"{CKPT}/{k}_dm{DM}_lr{b['lr']:g}_s{SEED}_n{NTR}.pt"
             if not os.path.exists(cp):
                 print(f"    {k:>9}: no checkpoint -- re-run this script to score it.", flush=True)
                 continue

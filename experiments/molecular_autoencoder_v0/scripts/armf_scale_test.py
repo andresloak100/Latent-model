@@ -37,6 +37,25 @@ from armf_modal_decoder import ModalCodec
 
 WR = D.WR
 CKPT = f"{WR}/modal_arm_ckpt"
+# n_train of the checkpoints this script reads. Explicit because the directory now
+# holds several (INBOX 43a); override to point at another rung.
+NTRAIN = int(os.environ.get("PEER_NTRAIN", "50"))
+
+def ckpt_path(kind, dm, lr, seed, n_train):
+    """INBOX 43a/43b. One directory, two naming conventions, no discriminator -- armf_modal_arm.py
+    wrote {kind}_dm_lr_s.pt at n_train=50 and the ladder writes ..._n{N}.pt for three rungs. The peer
+    script read the n-less name, and a REAL n50 file sat at that path, so the n300 re-run would have
+    loaded the n50 model and reported it as the lifted result: the old answer wearing the new run's
+    label. Every checkpoint now names its n_train, and a caller that asks for one it cannot have gets
+    an exception rather than a neighbour."""
+    p = f"{CKPT}/{kind}_dm{dm}_lr{lr:g}_s{seed}_n{n_train}.pt"
+    if not os.path.exists(p):
+        raise FileNotFoundError(
+            f"no checkpoint at {p}. Refusing to fall back to any other file -- a checkpoint the "
+            f"caller did not name must never be loaded (INBOX 43b). Available: "
+            f"{sorted(os.listdir(CKPT)) if os.path.isdir(CKPT) else '<no dir>'}")
+    return p
+
 RES = f"{WR}/scale_test.json"
 DM, SEED = 256, 0
 ARMS = [("tied", 3e-5), ("control", 3e-4), ("untied", 3e-4)]
@@ -104,7 +123,7 @@ if __name__ == "__main__":
         if res else {}
 
     for kind, lr in ARMS:
-        cp = f"{CKPT}/{kind}_dm{DM}_lr{lr:g}_s{SEED}.pt"
+        cp = ckpt_path(kind, DM, lr, SEED, NTRAIN)
         if not os.path.exists(cp):
             print(f"  {kind} lr{lr:g}: no checkpoint -- skipped", flush=True); continue
         if len(res.get(kind, {})) >= len(HO): continue

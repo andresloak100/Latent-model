@@ -36,6 +36,25 @@ from armf_modal_decoder import ModalCodec
 
 WR = D.WR
 CKPT = f"{WR}/modal_arm_ckpt"
+# n_train of the checkpoints this script reads. Explicit because the directory now
+# holds several (INBOX 43a); override to point at another rung.
+NTRAIN = int(os.environ.get("PEER_NTRAIN", "50"))
+
+def ckpt_path(kind, dm, lr, seed, n_train):
+    """INBOX 43a/43b. One directory, two naming conventions, no discriminator -- armf_modal_arm.py
+    wrote {kind}_dm_lr_s.pt at n_train=50 and the ladder writes ..._n{N}.pt for three rungs. The peer
+    script read the n-less name, and a REAL n50 file sat at that path, so the n300 re-run would have
+    loaded the n50 model and reported it as the lifted result: the old answer wearing the new run's
+    label. Every checkpoint now names its n_train, and a caller that asks for one it cannot have gets
+    an exception rather than a neighbour."""
+    p = f"{CKPT}/{kind}_dm{dm}_lr{lr:g}_s{seed}_n{n_train}.pt"
+    if not os.path.exists(p):
+        raise FileNotFoundError(
+            f"no checkpoint at {p}. Refusing to fall back to any other file -- a checkpoint the "
+            f"caller did not name must never be loaded (INBOX 43b). Available: "
+            f"{sorted(os.listdir(CKPT)) if os.path.isdir(CKPT) else '<no dir>'}")
+    return p
+
 RES = f"{WR}/tied_peer.json"
 DM, SEED = 256, 0
 ARM_LR = 3e-5          # the tied arm with the best Q1 median (+0.2956), per 28a
@@ -64,9 +83,8 @@ if __name__ == "__main__":
     FS = HO[0]["stat"].shape[1]
     print(f"  {len(HO)} held-out systems, N {HO[0]['N']}-{HO[-1]['N']}", flush=True)
 
-    cp = f"{CKPT}/tied_dm{DM}_lr{ARM_LR:g}_s{SEED}.pt"
-    if not os.path.exists(cp):
-        print(f"  no tied checkpoint at {cp}"); raise SystemExit
+    cp = ckpt_path("tied", DM, ARM_LR, SEED, NTRAIN)
+    print(f"  loading tied arm trained at n_train={NTRAIN}: {os.path.basename(cp)}", flush=True)
     mdl = ModalCodec(FS, 1, DM, tie_encoder=True).to(dev)
     mdl.load_state_dict(torch.load(cp, map_location=dev)); mdl.eval()
 
