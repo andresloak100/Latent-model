@@ -214,7 +214,13 @@ def run_arm(args):
 
     sp_file = args.splits or cfg.data.splits_file
     splits = utils.load_json(ROOT / sp_file)
-    keys = list(splits.get("val") or splits.get("train") or [])
+    # INBOX 55a: a split file's val half holds data out from a model trained on THAT pool. The
+    # checkpoint under test was trained on a DIFFERENT pool, so its train half is equally unseen and
+    # restricting to val discards ~3/4 of the legitimately evaluable structures for a reason that
+    # does not apply here. --use-all-keys takes train+val; --train-split still removes what was
+    # actually fitted on.
+    keys = (list(splits.get("train", [])) + list(splits.get("val", []))) if args.use_all_keys \
+        else list(splits.get("val") or splits.get("train") or [])
     processed = ROOT / (args.processed or cfg.data.processed_dir)
     paths = [processed / f"{k}.npz" for k in keys if (processed / f"{k}.npz").exists()]
     if not paths:
@@ -345,6 +351,18 @@ def run_arm(args):
         from collections import Counter
         print("[demo] 54a provenance classes: " + "  ".join(
             f"{a_}={b_}" for a_, b_ in sorted(Counter(cls_map.values()).items())), flush=True)
+        if args.drop_fitted:
+            drop = {k_ for k_, v_ in cls_map.items() if v_ == "fitted"}
+            before = len(ds)
+            keep_paths = [processed / f"{k}.npz" for k in keys
+                          if k not in drop and (processed / f"{k}.npz").exists()]
+            ds = ProteinStructureDataset(keep_paths)
+            print(f"[demo] 55a/54a: dropped {before - len(ds)} FITTED structures; "
+                  f"{len(ds)} clean remain", flush=True)
+            sizes = sorted(((i, int(ds[i]["n_atoms"])) for i in range(len(ds))), key=lambda t: t[1])
+            chosen = ([i for i, _ in sizes] if not args.limit else
+                      [sizes[j][0] for j in sorted({int(round(x)) for x in
+                                                    np.linspace(0, len(sizes) - 1, args.limit)})])
 
     rows = []
     with torch.no_grad():
@@ -688,6 +706,10 @@ def main():
     # split_method governs its INTERNAL division and says nothing about a different pool's train set,
     # so the overlap is invisible from inside the file. Tag every structure by provenance CLASS so the
     # curve reads both ways from one pass instead of two runs.
+    ap.add_argument("--use-all-keys", action="store_true",
+                    help="take train+val from --splits (correct when the checkpoint trained elsewhere)")
+    ap.add_argument("--drop-fitted", action="store_true",
+                    help="exclude structures tagged fitted, and report how many were dropped")
     ap.add_argument("--train-split", default=None,
                     help="split file whose train[] was FITTED ON; those structures are tagged fitted")
     ap.add_argument("--selftest", action="store_true")

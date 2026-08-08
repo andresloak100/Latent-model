@@ -3245,6 +3245,28 @@ computed per structure. Reported per band beside the learned number, so a crossi
 model got worse" from "the task got harder" — otherwise a SMALL-PROTEIN verdict is not separable from
 a metric that simply gets harder, which is Family D applied to the verdict rule.
 
+**Minimum n, pre-registered before band populations were known (INBOX 55b).** The threshold rule
+never fixed how many structures the deciding band must hold, so a median over a thin top band could
+cross 1.67 Å or 0.90 F1 on sampling noise and be reported as an architectural conclusion — Family C
+waiting to happen. Fixed now:
+
+> **n ≥ 50 in the ≥300-residue band.** Below that the verdict prints **UNDERPOWERED** with the n,
+> and does **not** choose between ARCHITECTURE and SMALL-PROTEIN. Per-band n prints beside every
+> threshold crossing, so a crossing in a thin band is visible as one.
+
+**Pool corrected (55a).** The first relaunch used `splits_big.val` — but that boundary holds data out
+from a model trained on `splits_big`, and the checkpoint under test trained on `splits_small_n2272`,
+so `splits_big.train` is equally unseen. Restricting to val used **1,191 of 4,715** clean structures
+and discarded 3,524 for a reason that does not apply. Now: **all of `splits_big`, minus the 261
+fitted-on** — ~4× the sample at no additional risk, and it matters most in the ≥300 band, which is
+both the smallest and the one the verdict reads.
+
+**Reach is a CAP, not a data limit (55d).** `processed_big` has no manifest, so measured directly:
+residues **22–385**, atoms **170–2,977**, with **zero above 3,000 atoms**. The atom maximum sitting
+just under 3,000 is a `max_atoms 3000` processing cap — the same cap `manifest.json` records. So going
+higher is a **re-processing job, not a data problem**, and a clean ARCHITECTURE verdict must read
+*"to the ~2,980-atom cap"*, not *"the static path scales"*.
+
 **Verdict rule, fixed now.** Comparing the top band (≥300 residues) against the reference:
 
 - **ARCHITECTURE PROPERTY** — all-atom median ≤ **2×** reference (≤1.67 Å) **and** contact F1 ≥ **0.90**
@@ -3328,6 +3350,25 @@ quote the **committed** run, because its `_true.pdb`/`_pred.pdb` pairs are the c
 Note also, for the record: the longer training is **worse** (final train RMSD 6.72 at 3457 epochs vs
 4.80 at 900). Different configs, so not a controlled comparison — but it is not the direction anyone
 would assume from the names.
+
+### ⚠ The complex size curve is RIGHT-CENSORED by a corpus filter (INBOX 55c)
+
+Checked before attributing, because this is the cross-corpus join that keeps going wrong:
+`data/manifest.json` maps **742 of 742** onto `splits_complex` and only **955 of 4,976** onto
+`splits_big` — it is the **complex** manifest, so this applies to `complex_d8` alone.
+
+    filters: min_residues 20, max_residues 400, max_atoms 3000, multi_chain, keep_ligands
+    kept 5,880 | rejected 2,120
+      residues_out_of_band  1,932   (401–4,802 residues, median 594)
+      too_many_atoms          188
+
+So the complex arm's 52–334 residue span is **where the filter cuts, not where the data runs out**.
+1,932 real structures between 401 and 4,802 residues were refused at corpus construction, and
+`max_atoms 3000` is tighter still — it sits **below the ATLAS median of 3,249 atoms**.
+
+The 49c/50b trend *inside* the window stands. The window is not a property of the molecules, and the
+size curve is right-censored at its top by an exclusion whose criterion is the regressor — the same
+Family A statement 48b's pre-registration makes about `max_positions`.
 
 ### ⬛ 049: the complex arm reconstructs to a number, not to a usable structure
 
