@@ -248,9 +248,15 @@ if __name__ == "__main__":
     if len(cfrac) > 1:
         lo_n, hi_n = min(cfrac), max(cfrac)
         if cfrac[hi_n] > cfrac[lo_n]:
-            CEILING = (f" [CEILING BINDS HARDER AT HIGH n: {cfrac[lo_n]:.2f} at n{lo_n} -> "
-                       f"{cfrac[hi_n]:.2f} at n{hi_n}]")
-            print(f"    !! {CEILING.strip(' []')}", flush=True)
+            # Report EVERY rung's fraction, not just the endpoints. The observed pattern is
+            # 0.00 / 1.00 / 0.50 at n50 / n130 / n300 -- the MIDDLE rung binds hardest, and an
+            # endpoint-only tag reading "binds harder at high n" would assert a monotonicity the data
+            # does not have. My own extrapolation from n130 (that n300 would be worse) was wrong:
+            # n300 s1 plateaued at 80000, below the cap.
+            CEILING = (" [CEILING BINDS UNEVENLY, fraction at cap: "
+                       + " ".join(f"n{k_}={cfrac[k_]:.2f}" for k_ in sorted(cfrac)) + "]")
+            print(f"    !! {CEILING.strip(' []')}  (not monotonic in n -- see per-rung table above)",
+                  flush=True)
             print(f"       Family D (slope DOWN, 3/3 arms at n130): high-n arms are cut off before "
                   f"convergence, understating FVE.", flush=True)
             print(f"       Family A (slope UP,   1/3 arms at n130): VOID *means* still improving, so "
@@ -397,8 +403,10 @@ if __name__ == "__main__":
             if CEILING:
                 print(f"\n     INBOX 38b -- THIS BRANCH IS FULLY INTERPRETABLE. The instrument is biased "
                       f"AGAINST finding a rise", flush=True)
-                print(f"     (truncation dominates, 3/3 arms), so a rise measured THROUGH the confound "
-                      f"is CONSERVATIVE: the true", flush=True)
+                _worst = max(cfrac, key=lambda k_: cfrac[k_])
+                print(f"     (truncation dominates -- n{_worst} runs {cfrac[_worst]:.0%} at the cap), "
+                      f"so a rise measured THROUGH the", flush=True)
+                print(f"     confound is CONSERVATIVE: the true", flush=True)
                 print(f"     effect is at least this large. 38c does not apply and no re-run is "
                       f"triggered.", flush=True)
 
