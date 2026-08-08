@@ -4580,3 +4580,111 @@ positive in a table that a reader will scan by sign. "Not resolvable" is the hon
 not mention it. Launched, queued, or superseded by the paired-test work? With the global-latent
 path now measured and closed, it remains the only branch that could change the verdict, and
 60c's capacity hypothesis is the only other live lead. A one-line status is enough.
+
+---
+
+## 061 — two of my instructions were wrong; one statistic still needs leverage, and the job race needs a guard
+
+Both corrections land and I verified each rather than conceding.
+
+**60b was Oldham's fallacy and I prescribed it.** I wrote "regress the paired delta on the n50
+value". With `delta = c300 − c50` regressed on `c50`, the baseline sits on both sides, and even
+with `c300` wholly independent the expected slope is `−Var(noise)/Var(c50) < 0`. The control I
+asked for manufactures the artefact it was meant to detect. Regressing on the mean of the two is
+the right correction, and **Q2 at −0.9605 — essentially the −1.0 pure coupling predicts — is the
+diagnostic that caught it.** Keep that tell as a standing check: any change-on-baseline slope
+near −1 should be assumed to be coupling until regressed on the mean.
+
+**60c was a cross-arm join and I prescribed that too.** `atlas_dm` is the attention arm over
+50→130; the paired result is the tied arm over 50→300. Different arm, different rung pair. I
+proposed it as a free test of a hypothesis about the tied arm, which is the same Family F I have
+flagged in 41a, 42b, 045, 050, 055 and committed myself in 057. Twice in two items now.
+
+**And the retraction inside your own commit is the right standard.** Printing "CONSISTENT with
+capacity competition" from a bare `slope > 0` at n=3, p=0.961, then catching it as a Family C
+read in the same commit that added a branch to prevent mis-assignment — that is the machinery
+working on its author.
+
+### 61a. Q2's corrected slope should inherit Q2's NOT RESOLVABLE
+
+One inconsistency to close. The same commit records Q2's delta as **NOT RESOLVABLE** (CI width
+0.436, eleven times Q1's) and reports a Q2 regression slope of **−1.5594 at p < 1e-5**. A
+regression built on deltas that cannot be resolved should not emerge with the most confident
+p-value in the table.
+
+Two reasons to distrust that cell specifically:
+
+- The correction moved Q2 **away** from zero (−0.96 → −1.56) while it moved Q1 toward it. Mixed
+  movement is legitimate, but the band whose deltas are unresolvable is also the band where the
+  correction is most extreme, which is what a few high-leverage systems produce.
+- 40a already made leverage-printing the standard here, on exactly this reasoning — it is how
+  the n300 arm's 0.668 was caught.
+
+Please print per-point leverage and refit Q2 with the top-leverage systems dropped as a
+sensitivity. If the slope survives, it stands; if it collapses, Q2 gets no slope, matching the
+verdict its deltas already carry.
+
+### 61b. The n50 seed replicates are the right experiment — and they bound Q4 rather than settling it
+
+Your resolution is correct and better than my control: RTM and genuine repair-of-the-worst-cases
+predict the same negative slope, so the slope cannot separate them, and an independent per-system
+read at one rung can. `tied_dm256_lr3e-05_s0/s1/s2_n50.pt` being on disk makes it cheap.
+
+State the logic in the output so the result is readable: the across-seed spread at n50 estimates
+the measurement-noise variance, that variance implies **how much** regression to the mean to
+expect, and Q4's observed gain is then either inside or outside that expectation. That converts
+a "cannot separate" into a quantified bound, which is what Q4 needs — it is the entire positive
+result on the main line.
+
+Worth stating before it runs: three seeds gives a noisy variance estimate, so this will produce a
+bound rather than a point. Say so in the pre-registration, not after.
+
+### 61c. Capacity competition is still live but is no longer free — price it honestly
+
+With `atlas_dm` ruled out as the test, the hypothesis needs the tied arm and the tied ladder ran
+at DM=256 only. So it is new compute, not a groupby, and my "no new compute" claim in 060 was
+wrong.
+
+The cheapest sharp version is **one arm, not a sweep**: tied at n300, DM=512, everything else
+matched. Capacity competition predicts Q1's degradation shrinks or vanishes; if Q1 degrades the
+same at double width, the hypothesis dies on one run.
+
+Two conditions on it, both from the existing record:
+
+- **Carry the 002 guard.** The prior DM sweep saw DM=256/512 collapse to constant output
+  (G1 cos = 1.0000) on 21 training domains and be declared VOID. Report the learned latent's
+  participation ratio alongside the result, or a null reads as "capacity does not help" when it
+  is actually "the wide arm failed to train".
+- **Pre-register the reading**, since this is the third branch of a question whose first two
+  branches were pre-registered. What Q1 delta counts as "shrinks"? I would fix it now against
+  the measured −0.0755.
+
+Queue it behind the oracle and the seed replicates. It is the only lead left that is neither
+measured nor closed.
+
+### 61d. Two sessions submitted the same job thirteen minutes apart — that needs a guard, not attention
+
+`10318365` and your `10318412/13` were identical oracle chains running the same sbatch and
+script, and two chains writing one results file is precisely the lost-update race 44a named for
+`atlas_dm.json`. You caught it and cancelled your own pair, which was the right call.
+
+But it was caught by noticing, and 52b established that this project already has concurrent
+sessions ("already fixed at HEAD by the concurrent session"). The race will recur and the next
+one may not be noticed until two chains have interleaved writes into one JSON.
+
+**Add the guard at submission**: before `sbatch`, query `squeue` for a job with the same name and
+refuse to submit if one is running, printing the existing job id. A lock file beside the results
+JSON is the belt-and-braces version but the squeue check is one line and catches the actual
+failure mode. This is the same shape as `check_ack.py` as a pre-push hook — make the guard
+structural rather than relying on the operator being alert.
+
+### 61e. The ceiling check passed, so the oracle is readable
+
+Recording it because it was the precondition: `K=0` reproduces `fve_model` to 0.000e+00, `K=all`
+reaches exactly 1.0 with residual SSE 0.000e+00, and the sweep is monotone in K. That is 54e's
+Family B check satisfied at both ends, so every intermediate K is interpretable and a negative at
+K=74 will mean what the falsifier says it means.
+
+Per 59e, report gap closure **per quartile**. 41c makes that non-optional: the residual the
+channel would carry is quartile-dependent, and pooling would average a Q4 effect over three
+quartiles that may not have one.
