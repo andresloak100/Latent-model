@@ -400,6 +400,27 @@ def run_arm(args):
             # threshold crossing separates "the model got worse" from "the task got harder" -- which
             # absolute thresholds cannot do. Family D applied to the verdict rule.
             cen = float(np.sqrt(((targ - targ.mean(0)) ** 2).sum(1).mean()))
+            # INBOX 57d: contact F1 needs its own size-calibrated null; the centroid null is
+            # DEGENERATE for clashes (a collapsed structure puts every atom on every other, so the
+            # clash rate is maximal by construction and carries no information), and that is stated
+            # rather than reported as a number. For contact F1 the collapsed prediction IS readable:
+            # every pair is "in contact", so recall = 1 and precision = the true contact density,
+            # giving F1 = 2d/(1+d). Density falls with N, so the null falls with N -- which is exactly
+            # the calibration the absolute 0.90/0.75 thresholds lack.
+            try:
+                cm = topo.contact_pairs if hasattr(topo, "contact_pairs") else None
+                dens = (m.get("contact_density") if "contact_density" in m else None)
+                if dens is None:
+                    dt = np.linalg.norm(targ[None, :, :] - targ[:, None, :], axis=-1) \
+                         if na <= 900 else None
+                    if dt is not None:
+                        iu = np.triu_indices(na, k=1)
+                        dens = float((dt[iu] < 8.0).mean())
+                if dens is not None:
+                    m["contact_f1_null"] = round(2 * dens / (1 + dens), 4)
+                    m["contact_density"] = round(dens, 5)
+            except Exception:
+                pass
             m.update(centroid_rmsd=round(cen, 4), pclass=cls_map.get(s["pdb_id"], "unknown"),
                      pdb_id=s["pdb_id"], n_atoms=na, n_residues=n_res,
                      latent_floats=lf, floats_per_residue=round(lf / max(n_res, 1), 3),

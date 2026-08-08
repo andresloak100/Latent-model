@@ -338,7 +338,14 @@ if __name__ == "__main__":
             print(f"       Raising the cap MID-LADDER would not fix either: it would make the rungs "
                   f"incomparable on compute,", flush=True)
             print(f"         so the budget stays fixed and this prints instead.", flush=True)
+    # INBOX 57c. PARTIAL keys on MISSING RUNGS and correctly did not fire at 8 of 9 arms -- all three
+    # rungs are present. But 036's principle is that the flag RIDES ON THE VERDICT LINE, and a rung
+    # that is present-but-thin at the end setting the lever arm was warned about only ABOVE the line,
+    # where a reader who sees "=>" does not look. Same reasoning, different defect, so it gets its own
+    # tag on the same line rather than being folded into PARTIAL, which would confuse two things.
     short = [(nt, k_) for (nt, _, _, k_) in pts if k_ < len(SEEDS)]
+    THIN = (" [THIN RUNG: " + ", ".join(f"n{nt}={k_}/{len(SEEDS)} seeds" for nt, k_ in short) + "]"
+            if short else "")
     if short:
         print(f"     (also short of seeds, which costs PRECISION not lever arm and is already priced "
               f"by the df below: {', '.join(f'n{nt}={k_}/{len(SEEDS)}' for nt, k_ in short)})",
@@ -597,8 +604,8 @@ if __name__ == "__main__":
                     print(f"       reason the pooled row is labelled sensitivity only.", flush=True)
 
         if moves and sl is not None:
-            print(f"\n  => THE CEILING MOVES WITH DATA.{PARTIAL}{CEILING} Slope {sl.slope:+.4f} "
-                  f"+/- {hs:.4f} excludes")
+            print(f"\n  => THE CEILING MOVES WITH DATA.{PARTIAL}{THIN}{CEILING} "
+                  f"Slope {sl.slope:+.4f} +/- {hs:.4f} excludes")
             print(f"     zero, so the tied arm is NOT SATURATED in n_train over this range.")
             # INBOX 41b: 31d's pre-registered reading was "rising -> data-limited, (2)/(3) premature",
             # which treats a rise of ANY SIZE as retiring the fundamental-limit hypothesis. It
@@ -646,7 +653,7 @@ if __name__ == "__main__":
         elif sl is not None:
             bound = abs(hs * span)
             print(f"\n  => Across a {10**span:.1f}x range in n_train, NO EFFECT LARGER THAN "
-                  f"{bound:.4f}{PARTIAL}{CEILING}")
+                  f"{bound:.4f}{PARTIAL}{THIN}{CEILING}")
             print(f"     (t-interval on the slope, df={dfs}) -- which is {100*bound/CTRL_MEAN:.0f}% of")
             print(f"     the control's mean ({CTRL_MEAN:+.4f}; {CTRL_PROV}).")
             print(f"     OPTION (1) IS NOT RETIRED; effects below that size are not excluded here.")

@@ -3240,6 +3240,53 @@ taken for `modal_seeds` under 42a.
 **The n50 peer result is undamaged** — `tied_peer.json`'s mtime never changed. Relaunched as
 `10317064`, which will compute all 123.
 
+### ⬛ 057: the 48b sample is size-representative, and 41a's extrapolation is RETIRED not recomputed
+
+**57a — the verdict is quotable.** `--limit 1400` capped the run; the rule is `linspace` over the
+**size-sorted index**, a systematic sample of order statistics, so it spans the range rather than
+truncating it. Against the full 4,715 clean pool:
+
+| band | full % | eval % | full n | eval n |
+|---|---|---|---|---|
+| 0–110 | 4.0% | 3.9% | 188 | 55 |
+| 110–150 | 22.8% | 23.1% | 1,076 | 324 |
+| 150–200 | 24.4% | 24.0% | 1,152 | 336 |
+| 200–250 | 13.0% | 12.9% | 611 | 181 |
+| 250–300 | 16.6% | 16.9% | 783 | 237 |
+| 300–395 | 19.2% | 19.1% | 905 | 267 |
+
+**KS D = 0.0050, p = 1.000.** The 0–110 band is 29.3% covered against 29.7% overall, so its n=55 is
+proportional and not the residue of a size-ordered truncation. Cost is precision only.
+
+**57b — the extrapolation is retired, not recomputed.** The ladder has since reached **8 arms**
+(n300 now k=2, +0.1907; slope **+0.1142 ± 0.1006**, HC3 df=6, which now **excludes zero**). Rerunning
+41a's arithmetic on it gives mean-gap closure at 4.2 decades (~7,000× the pool) and, at the optimistic
+CI end, **74.9×** the pool — so 057's surviving Q1 branch (3.5× the pool) **closes**: on the tighter
+8-arm CI the same branch needs **92×**.
+
+But every one of those numbers joins the **ladder's mean FVE** to a **peer quartile median from a
+different harness**, which is precisely what made 41a wrong and what 42b refused. The ladder's n50 is
++0.1041 while the peer's n50 codec mean is +0.0607 — the same arm, two harnesses. So no version of
+this extrapolation is quotable, including the ones above, and they are recorded only to show the
+direction is unchanged. **41c (`10317064`, running) computes tied-at-n300 against ANM on the same
+frames; that is the number, and it needs no extrapolation.**
+
+**57c — PARTIAL correctly did not fire, and that exposed a gap.** All three rungs are present, so
+`missing` is empty and the tag keys on missing *rungs*. But 036's principle is that the flag **rides on
+the verdict line**, and a rung that is present-but-thin at the end setting the lever arm was warned
+about only *above* the line. Added as its own tag rather than folded into PARTIAL, which would conflate
+two different defects:
+
+    => THE CEILING MOVES WITH DATA. [THIN RUNG: n300=2/3 seeds] Slope +0.1142 +/- 0.1006 excludes
+
+**57d — contact-F1 null implemented; the clash null is degenerate and is stated as such.** A collapsed
+prediction puts every atom on every other, so its clash rate is maximal by construction and carries no
+information — that is said rather than reported as a number. For contact F1 the same prediction *is*
+readable: recall = 1, precision = true contact density, F1 = 2d/(1+d), which **falls with N** (0.113 at
+N=200 → 0.012 at N=2,900) and supplies exactly the calibration the absolute 0.90/0.75 thresholds lack.
+The current 48b run predates it; per 057 this is precision, not correctness, and the SMALL-PROTEIN
+verdict rests on RMSD, which is controlled and crosses on its own.
+
 ### ⬛ 48b RESULT — **SMALL-PROTEIN PROPERTY.** The 0.79 Å does not survive size.
 
 Run on all of `splits_big` minus the 261 fitted (4,715 clean), 1,400 evaluated, residues 25–395.
