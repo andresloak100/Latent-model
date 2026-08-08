@@ -3265,6 +3265,63 @@ part worth carrying forward.
 **This also makes every decades-to-close extrapolation unnecessary**, not merely risky: 41c is the
 same-harness measurement those were approximating.
 
+### ⬛ 061: Q2's slope was one system; Q4's survives. Plus a submission guard and two pre-registrations.
+
+**61a — leverage settles it, and the suspicion was right.** Per-point leverage on the delta-on-mean
+regression, refit with the top-3 leverage points dropped:
+
+| band | max leverage | full slope | p | drop top-3 | p | |
+|---|---|---|---|---|---|---|
+| **Q2** | **0.705 (10.6× mean)** | −1.5594 | 7×10⁻⁹ | **−0.6264** | **0.056** | **COLLAPSES** |
+| **Q4** | 0.485 (7.5×) | −0.7751 | 1×10⁻¹⁰ | **−1.2391** | 2×10⁻⁶ | **SURVIVES** |
+| Q1 | 0.156 (2.4×) | −0.1359 | 0.048 | −0.1285 | 0.135 | collapses |
+| Q3 | 0.285 (4.4×) | +0.0544 | 0.64 | −0.2480 | 0.015 | **sign flips** |
+
+**Q2's slope was a single system** — `4tsh_A`, delta **+2.935**, leverage 0.705. So Q2 gets **no
+slope**, matching the NOT RESOLVABLE its deltas already carry. Q1's was marginal and does not survive;
+Q3's *flips sign* and becomes significant, so it is not determined either. **Only Q4's is robust**, and
+it strengthens when the high-leverage points are removed — so Q4's baseline-dependence is a property
+of the band, not of three systems.
+
+**61d — submission guard, structural.** `scripts/armf_submit.sh` refuses to `sbatch` a job whose
+`--job-name` is already in the queue, printing the existing ids, with `ARMF_FORCE=1` for a deliberate
+second chain. Driven both ways: it refuses `oracle_ch` (correctly listing 10318365/66) and passes a
+name that is absent.
+
+*Correction to the record:* 061 credits me with catching and cancelling the duplicate. I did not —
+I submitted **10318365/66**; **10318412/13** appeared 13 minutes later and were cancelled by another
+actor at 0:00 elapsed. I noticed them only afterwards, in a monitor event. That strengthens 61d's
+point rather than weakening it: the race was resolved by luck, not by anyone's alertness.
+
+### ⏳ PRE-REGISTERED (61b): the n50 seed replicates, and what they can and cannot settle
+
+RTM-from-noise and genuine repair-of-the-worst predict the **same** negative slope, so no regression
+separates them. An independent per-system read at one rung can, and
+`tied_dm256_lr3e-05_s{0,1,2}_n50.pt` are on disk.
+
+> **Logic, stated before the run:** the across-seed spread at n50 estimates the measurement-noise
+> variance; that variance implies **how much** regression to the mean to expect; Q4's observed
+> +0.4474 is then inside or outside that expectation.
+>
+> **Three seeds gives a noisy variance estimate, so this produces a BOUND, not a point.** Said now
+> rather than after, per 061's own condition.
+
+### ⏳ PRE-REGISTERED (61c): capacity competition costs one arm, and it is not free
+
+`atlas_dm` is ruled out as the test (wrong arm, wrong rung pair), and the tied ladder ran at DM=256
+only — so this is **new compute, not a groupby**. Cheapest sharp version: **one arm — tied, n300,
+DM=512**, everything else matched.
+
+> **Reading, fixed now.** Q1's degradation at DM=256 is **−0.0755** [−0.0950, −0.0559].
+> **SHRINKS** = Q1 delta at DM=512 above **−0.0378** (half the magnitude) *and* its CI excluding
+> −0.0755. **DIES** = Q1 delta within the DM=256 CI. Between = NOT RESOLVABLE by one arm.
+>
+> **Carries the 002 guard:** report the learned latent's **participation ratio** alongside. The prior
+> DM sweep saw DM=256/512 collapse to constant output (G1 cos = 1.0000) on 21 domains and be declared
+> VOID — without PR a null reads as "capacity does not help" when it is "the wide arm failed to train".
+
+Queued behind the oracle and the seed replicates.
+
 ### ⬛ 060: the two statistics both hold, the RTM control survives its own artefact, and the question had a missing branch
 
 **60a — both tests, each on its own statistic.** They are not in conflict:
