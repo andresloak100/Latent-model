@@ -3190,6 +3190,34 @@ though the mechanism is arm duration rather than rung order.
 across the two walls without a second writer. A separate n130 job is **not** launched — two processes
 appending to one `atlas_dm.json` is a lost-update race, which is worse than the problem it solves.
 
+### ⚠ TWO CHECKPOINT-COMPATIBILITY DEFECTS, found by trying to load the 0.79 Å model
+
+Building the atom-level demo (045/046) required loading the checkpoint behind §5's headline. It is
+**`ladder_direct3m_n2272`** — all-atom **0.7917**, backbone **0.5103**, chirality **0.0002261**,
+contact F1 **0.9629**, matching §5's four numbers exactly. Note it is *not* any of the three
+`*perresidue*` result dirs, which sit at ~10 Å; the naming does not identify it.
+
+**1. `PositionEncoding`'s backward-compatibility promise is broken.** `molae/scaling.py:73` states
+*"Default stays learned so every existing checkpoint loads and every prior result reproduces."* It
+does not: the refactor wrapped a bare `nn.Embedding` as `self.table`, so a checkpoint holding
+`decoder.res_pos_emb.weight` cannot load into `decoder.res_pos_emb.table.weight`. **Every direct
+checkpoint predating that refactor fails to load**, including this one. The remap is exact *within*
+`max_positions`; beyond it the new path `clamp`s where the old raised, so the demo asserts
+`n_res <= max_positions` per structure rather than assuming it.
+
+**2. `grow_embedding_rows` silently substitutes untrained weights.** Loading grew three embeddings
+(elements 16→21, residues 22→23, res-type 22→23) with **randomly initialised** new rows. Any
+structure indexing into them is being reconstructed with untrained embeddings, so its number is not
+that checkpoint's result. The demo **refuses** such a structure rather than reporting it.
+
+Neither is a demo bug — both are live for any script loading a pre-refactor checkpoint, which
+includes anything reproducing §5.
+
+**Verified end-to-end on CPU, 4 held-out structures spanning 157–799 atoms:** all-atom
+1.26 / 0.89 / 0.94 / 0.64 Å, median **0.92 Å**, chirality 0.0000 throughout, contact F1 0.889–0.977,
+latent **8 floats/residue** giving only **~3× compression**. Not launched; held for a free slot per
+045's stated priority.
+
 ### ⬛ 22a RUNG 1 (modal_ctx, 10307539, COMPLETE): the pre-registered "flat" branch is REFUSED
 
 Message passing, `ctx_layers` 2/4/8 at k=16, DM=256, n_train=50, LR grid swept:

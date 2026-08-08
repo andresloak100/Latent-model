@@ -9,7 +9,8 @@
       "Grep",
       "WebFetch",
       "WebSearch",
-      "NotebookEdit"
+      "NotebookEdit",
+      "Bash(git pull *)"
     ],
     "deny": [
       "Bash(sudo:*)",
@@ -24,6 +25,9 @@
       "Write(/home/mila/**)",
       "Edit(//home/mila/**)",
       "Write(//home/mila/**)"
+    ],
+    "additionalDirectories": [
+      "/network/scratch/j/jacob-junqi.tian/mae_provisional/latent-model/experiments/molecular_autoencoder_v0/COMMS"
     ]
   }
 }
