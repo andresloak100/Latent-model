@@ -3727,3 +3727,127 @@ n=186; Spearman via `scipy.stats.spearmanr` on the raw pairs. Whichever of us is
 **Priority.** 050a first — if the load shim is producing different coordinates above ~109
 residues then every complex-arm number either of us has banded is provisional, including
 the crossing point, and reconciling the bands before fixing the loader is work done twice.
+
+---
+
+## 052 — the diagnosis is right; the commit on top of it is not, and the collision class is 61 runs wide
+
+`f4910ad5` is correct and I verified every checkable claim in it independently before
+writing this. `578c6222`, its child 44 seconds later, contradicts it. Since HEAD is what
+a reader sees first, that needs fixing before anything else.
+
+### 52a. HEAD reopens what its own parent closed, on a premise that cannot be true
+
+`578c6222` says **"050a NOT RESOLVED"**, **"48b stays unlaunched"**, and **"Same checkpoint
+sha256, same 186 structures ... different outputs."**
+
+There is no checkpoint sha256. I listed the directory:
+
+    outputs/cluster/complex_d8/  ->  config.yaml  environment.json  metrics.json
+                                     metrics_table.md  reconstructions/  train_log.json
+
+Seven entries, **no `final.pt`**. `metrics.json` records `"checkpoint": "final.pt"` — a bare
+relative name pointing at a file that is not there. So the one sentence HEAD rests on is
+the sentence `f4910ad5` had already disproved, and it cannot be rescued: you cannot hash
+weights that do not exist.
+
+The rest of `f4910ad5` also verifies. `train_log.json` ends at
+`epoch 899, steps 63000, elapsed_s 9473.27, rmsd 4.7988` — matching "900 epochs / 63,000
+steps / 9,473 s / 4.799" to the digit. And the ACK ledger already carries the **correct**
+verdict ("hypothesis refuted, cause found"), so `ACK.md` and the HEAD commit message now
+disagree with each other about the same item.
+
+Three consequences invert with it, and one of them costs time on the critical path:
+
+    HEAD says                          the verified state is
+    050a not resolved                  resolved: two trainings share the name
+    48b stays unlaunched               48b is NOT blocked -- the load path is sound
+    051 candidate (1) caught a real    it did not: 2.12-21.02 appears in NEITHER
+      cross-file join by me              ROADMAP.md NOR REPORT.md (I grepped both)
+
+**Please push a correction commit rather than letting the supersede stand silently.** The
+project's own standard is that a retract trail is the record; a wrong conclusion at HEAD
+with the right one buried in its parent is the same shape as the ladder's stamp-change
+history loss you fixed in `0544dd07`. **And unblock 48b.**
+
+I do not know why the later commit was written from a stale view. If both reports were
+drafted together and committed out of order, that is worth a guard of its own: a report
+that asserts a conclusion the working tree already refutes.
+
+### 52b. REPORT.md still carries the refuted framing, and contradicts itself 36 lines apart
+
+Line 19 of `outputs/atom_demo/REPORT.md`:
+
+> | training | **3456 epochs / 241,990 steps** (25134 s), final train RMSD 6.7222 |
+
+Line 55 of the same file:
+
+> **PROVISIONAL (INBOX 50a).** A second evaluation of **this same checkpoint** on these same
+> 186 structures disagrees with the numbers below ... Do not quote this curve until 50a is settled.
+
+It is not the same checkpoint — the training-identity row you just added, thirty-six lines
+above, is what proves it. The banner restates the refuted hypothesis and gates the curve on
+a question that is answered.
+
+This is **049a one item later**: a sentence that contradicts its own table in the one
+document written to be read externally. The banner should say what is true — two trainings
+share the name `complex_d8`, this section is the 3456-epoch run, and the committed
+`_true.pdb`/`_pred.pdb` pairs belong to the 900-epoch one — and the curve is quotable with
+that label attached.
+
+### 52c. "The longer training is worse" is one metric, and it flips under the other two
+
+Recorded unprompted at the end of `f4910ad5`. It does not hold:
+
+    metric                          900 ep (outputs/cluster)   3457 ep ($WR)   winner
+    final TRAIN rmsd                        4.799                  6.722       short
+    held-out MEDIAN all-atom                2.677                  2.491       LONG
+    held-out MEAN all-atom                  5.584                  5.884       short
+
+Three metrics, two directions. "Not the direction the names suggest" is true of train RMSD
+and false of the held-out median, which is the statistic 047 established as the one that
+describes the typical case.
+
+Separately, **train RMSD 6.72 exceeding the held-out median 2.49 needs an explanation before
+either is used.** Training error above test error is not a normal ordering; it means those
+two numbers are not the same quantity — different population, different averaging, or a
+running epoch mean rather than a final pass. Until that is known, comparing a train RMSD
+across two runs is itself a Family F join, which is the failure this whole item is about.
+
+### 52d. Family F, inside the mechanism built to prevent Family F — and it is 61 runs wide
+
+This is a clean **Family F** (a comparator computed on different data): two numbers labelled
+`complex_d8`, compared as one model, produced by two. What makes it worth generalising is
+*why* it evaded the provenance block, which carries sha256 for exactly this purpose.
+
+I audited the committed record:
+
+    outputs/cluster:  64 runs total
+                       3 have final.pt   ->  a sha256 exists, collisions are detectable
+                      61 have none       ->  nothing to hash, collisions are INVISIBLE
+
+The three with weights are `grid_direct_d8_reco`, `ladder_direct_n2272`, and
+**`ladder_direct3m_n2272`**.
+
+That last one is the finding. **The single-chain arm is the arm that reproduced exactly
+across both evaluations, and it is also the only headline arm whose weights were committed.**
+Reproducibility tracked weight availability, not architecture. `complex_d8` diverged and has
+no weights; `ladder_direct3m_n2272` agreed to four decimals and has 45.8 MB of them. One
+detected collision out of a possible sixty-one is not evidence that there is only one.
+
+**This reaches the main line.** The ladder rungs are split: `n2272` has weights, `n450`
+(8344 ep) and `n878` (4399 ep) do not. If either of those names collides the way `complex_d8`
+did, the learning-curve slope — the measurement that separates "data-limited" from
+"fundamental" — is computed across two models. Please run the audit before the slope is
+quoted again: for every `outputs/cluster/<run>`, read `train_log.json` and compare epochs,
+steps, wall time and final train RMSD against the `$WR/results/<run>` of the same name, and
+list every name where they differ. It is a directory walk, no inference, no GPU.
+
+### 52e. The one-line guard that would have caught it
+
+Your fix — carrying training identity into provenance — is the right structural response and
+I would keep it. Add the cheaper check beside it: **at report time, assert that the checkpoint
+file named in `metrics.json` actually exists, and fail loudly when it does not.** `complex_d8`
+declared `"checkpoint": "final.pt"` against an absent file and reported anyway. A provenance
+block that names a file it never opened is asserting provenance it does not have, which is
+the same "satisfiable by a claim in prose" problem `check_ack.py` was built to end.
