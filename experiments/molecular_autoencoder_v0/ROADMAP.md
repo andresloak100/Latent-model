@@ -3206,6 +3206,37 @@ have converged — but each VOID FVE is a *lower bound* on it, and **n300 s2 rea
 still climbing**, the highest arm in the ladder. The suppression is real and it runs against the
 conclusion, which is why the conclusion survives it.
 
+**The result that survives everything (040).** Every concern raised — 37a's equal-variance
+assumption, 39a's mechanical SD deflation, 40a's leverage imbalance — is about variances, estimators
+or exclusions. A rank test on the ordering depends on none of them:
+
+| rung | arms, sorted |
+|---|---|
+| n50 | +0.0996 +0.1010 +0.1129 |
+| n130 | +0.1231 +0.1270 +0.1281 |
+| n300 | +0.1302 +0.1403 +0.1527 |
+
+**The ordering is complete** — every arm at a higher rung exceeds every arm at a lower one, all nine.
+Exact Jonckheere–Terpstra **27 of 27**, one-sided **p = 1/1680 = 0.00060**, computed on *all* arms so
+the exclusion rule drops out too. This is the most robust form of the result and the weakest in effect
+size: it establishes the **direction**, not the magnitude.
+
+**Sensitivities, all printed:**
+
+| variant | slope | HC3 half-width | excludes 0 |
+|---|---|---|---|
+| pre-registered (usable arms, n=6) | +0.0483 | ±0.0296 | yes |
+| 39b pessimistic SD | +0.0483 | ±0.0305 | yes |
+| **40b all 9 arms, VOID at truncated FVE** | **+0.0471** | **±0.0263** | **yes** |
+| 40a counterfactual: n300 forced to the n130 level | +0.0357 | ±0.0602 | **no** |
+
+The last row is a counterfactual, not a reading of the data — and the data contradicts its premise,
+since the *lowest* n300 arm (+0.1302) exceeds the *highest* n130 arm (+0.1281). But it is the honest
+statement of what the result rests on: n300 being genuinely above n130.
+
+**Leverage (40a):** n50 h=0.305 each, n130 h=0.208 each, **n300 h=0.668** — one arm carrying more than
+twice any other, at the end that sets the lever arm.
+
 **The honest weakness: the top rung rests on ONE usable arm.** n300 is k=1, so it contributes no
 spread of its own, and the 6.0× lever arm is anchored by a single draw. The HC3 interval prices this
 through the residuals, and the pessimistic sensitivity passes, but a k=3 top rung would be a

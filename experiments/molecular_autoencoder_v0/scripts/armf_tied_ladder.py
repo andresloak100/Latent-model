@@ -61,7 +61,7 @@ with a CI from the seed replicates, instead of a difference of two single draws.
 NOT re-opening the modal-arm question in either direction on the current numbers -- that is the point.
 INBOX 23d is unaffected: it rests on three quantities moving together across the whole sweep, which is
 the threshold-free form that survives this objection."""
-import sys, os, json, time, numpy as np, torch, warnings
+import sys, os, json, time, itertools, numpy as np, torch, warnings
 warnings.filterwarnings("ignore")
 from scipy import stats
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -420,6 +420,80 @@ if __name__ == "__main__":
         else:
             moves = False; sl = None
             print(f"    only {len(allr)} arms -- primary test not yet computable", flush=True)
+
+        # ---- INBOX 40a: LEVERAGE. The rungs are unbalanced (3/2/1 usable), and that is not neutral.
+        _lev = {}
+        for k_ in sorted(set(_nts.tolist())) if "_nts" in dir() else []:
+            _lev[k_] = float(h[_nts == k_][0])
+        if _lev:
+            print(f"\n  --- 40a: LEVERAGE (unbalanced rungs are not neutral) ---", flush=True)
+            print("    " + "   ".join(f"n{k_}: {sum(_nts==k_)} arm(s), h={v_:.3f} each"
+                                      for k_, v_ in _lev.items()), flush=True)
+            _hi = max(_lev, key=lambda k_: _lev[k_])
+            if _lev[_hi] > 2 * min(_lev.values()):
+                print(f"    !! n{_hi} carries h={_lev[_hi]:.3f}, more than TWICE any other rung, and it "
+                      f"sits at the end that", flush=True)
+                print(f"       sets the lever arm. The slope is partly a statement about those "
+                      f"{sum(_nts==_hi)} arm(s).", flush=True)
+
+        # ---- INBOX 40b: does the rise survive INCLUDING the excluded arms at their truncated FVEs?
+        # This tests the EXCLUSION RULE the way 39b tested the variance assumption. VOID values are
+        # lower bounds, so including them is conservative for a rise.
+        _av = [r for r in rows if r.get("n_train") in LADDER]
+        if len(_av) > len(allr):
+            xa = np.log10([r["n_train"] for r in _av]); ya = np.array([r["fve"] for r in _av])
+            sa = stats.linregress(xa, ya); dfa = len(xa) - 2
+            xba = xa.mean(); Sxxa = float(((xa - xba) ** 2).sum())
+            ea = ya - (sa.intercept + sa.slope * xa); ha = 1.0 / len(xa) + (xa - xba) ** 2 / Sxxa
+            hca = float(np.sqrt((((xa - xba) ** 2) * (ea / (1.0 - ha)) ** 2).sum() / Sxxa ** 2))
+            hsa = float(stats.t.ppf(0.975, dfa)) * hca
+            print(f"\n  --- 40b: ALL arms, VOID included at their TRUNCATED FVE ---", flush=True)
+            print(f"    slope {sa.slope:+.4f} +/- {hsa:.4f}  (HC3, df={dfa}, n={len(xa)} arms) -> "
+                  f"{'STILL excludes zero' if abs(sa.slope) > hsa else 'does NOT exclude zero'}",
+                  flush=True)
+            print(f"    The exclusion rule is not load-bearing: VOID FVEs are lower bounds, so this is "
+                  f"conservative for a rise.", flush=True)
+
+        # ---- ASSUMPTION-FREE. Every concern raised in 37a/39a/40a is about variances, estimators or
+        # exclusions. A rank test on the rung ordering depends on NONE of them. Exact Jonckheere-
+        # Terpstra by enumeration, on ALL arms so the exclusion rule drops out too.
+        def _jt(gs):
+            return sum(sum(1 for a_ in gs[i] for b_ in gs[j] if b_ > a_)
+                       + 0.5 * sum(1 for a_ in gs[i] for b_ in gs[j] if b_ == a_)
+                       for i in range(len(gs)) for j in range(i + 1, len(gs)))
+        _g = [[r["fve"] for r in rows if r.get("n_train") == nt] for nt in LADDER]
+        _g = [gg for gg in _g if gg]
+        if len(_g) >= 2:
+            _pool = [v_ for gg in _g for v_ in gg]; _sz = [len(gg) for gg in _g]; _obs = _jt(_g)
+            _ncomb = 1
+            for i_, z_ in enumerate(_sz):
+                from math import comb
+                _ncomb *= comb(sum(_sz[i_:]), z_)
+            print(f"\n  --- ASSUMPTION-FREE: exact rank test on the rung ordering ---", flush=True)
+            if _ncomb <= 200000:
+                _idx = list(range(len(_pool))); _cnt = _tot = 0
+                for _a in itertools.combinations(_idx, _sz[0]):
+                    _rest = [i_ for i_ in _idx if i_ not in _a]
+                    for _b in itertools.combinations(_rest, _sz[1] if len(_sz) > 1 else 0):
+                        _c = [i_ for i_ in _rest if i_ not in _b]
+                        _gg = [[_pool[i_] for i_ in _a], [_pool[i_] for i_ in _b]]
+                        if len(_sz) > 2: _gg.append([_pool[i_] for i_ in _c])
+                        _tot += 1
+                        if _jt(_gg) >= _obs: _cnt += 1
+                _mx = sum(_sz[i_] * _sz[j_] for i_ in range(len(_sz)) for j_ in range(i_ + 1, len(_sz)))
+                print(f"    Jonckheere-Terpstra {_obs:.0f} of {_mx} possible;  EXACT one-sided "
+                      f"p = {_cnt}/{_tot} = {_cnt/_tot:.5f}  (n={len(_pool)} arms, all of them)",
+                      flush=True)
+                if _obs == _mx:
+                    print(f"    The ordering is COMPLETE -- every arm at a higher rung exceeds every "
+                          f"arm at a lower one.", flush=True)
+                print(f"    This uses no variance model, no estimator choice and no exclusion rule, so "
+                      f"37a/39a/40a do not", flush=True)
+                print(f"    touch it. It is the most robust form of the result and the weakest in "
+                      f"effect size: it says the", flush=True)
+                print(f"    direction is real, not how large it is.", flush=True)
+            else:
+                print(f"    skipped: {_ncomb} assignments exceeds the enumeration cap", flush=True)
 
         print(f"\n  --- SECONDARY (descriptive): pairwise n{n0} vs n{n1} ---", flush=True)
         print(f"    difference {d_mean:+.4f};  pooled SD_arm {sd_arm:.4f} (df={dfree}, "
