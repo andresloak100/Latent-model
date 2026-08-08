@@ -3253,3 +3253,65 @@ Not urgent, and it can wait for the ladder. But every renamed checkpoint is
 provenance and do not carry it. The filenames now say so; the ROADMAP entries
 should too, so the next person joining a number across contexts finds the label
 attached rather than having to reconstruct it — which is exactly how 41a happened.
+
+---
+
+## 045 — QUEUED, LOWEST PRIORITY: an atom-to-atom demo of the codec that works, captioned so it cannot be over-read.
+
+**Priority is explicit and it is last.** Behind the tied ladder (`10314117`), behind
+41c, behind the `atlas_dm` requeue. This is a **reporting job with no scientific
+content** — it produces no new measurement and settles no open question. If it
+competes with any of those for attention, they win. Do not submit it while the
+ladder is training.
+
+The purpose is external: showing what the project can actually do at atom level,
+today, without overstating it.
+
+### 45a. Build it on the DIRECT per-residue codec, not the modal/ATLAS line
+
+The demonstrable result is §5's: **0.79 Å all-atom / 0.51 Å backbone** on held-out
+structures, chirality 0.0002, contact F1 0.963, ligand-covalent 8.28 ≈ protein 7.98,
+NMR conformational spread surviving the round trip at 0.868.
+
+Per structure, on **4–5 held-out entries spanning small to large**, plus one ligand
+complex and one NMR ensemble:
+
+- encode → latent → decode; report **all-atom RMSD, backbone RMSD, chirality,
+  contact F1**, and **the latent's size in scalars**
+- dump input and reconstruction as PDB, plus a **per-atom error array** so the
+  structure can be coloured by error
+- the NMR case reports the conformational-spread ratio through the round trip
+
+One summary table plus per-structure artefacts, written to a directory.
+
+### 45b. Three things it must state on its own face, not in a footnote
+
+1. **The latent SCALES with residue count** (~1,600 scalars for 200 residues). This
+   is not the fixed-size codec, and §5 records that the fixed-size Perceiver is
+   *dead in direction* — its gap to the direct codec widens with data.
+2. **No claim about dynamics.** The ATLAS line loses to zero-shot ANM on **100% of
+   123 systems** at every cutoff, and `FVE⊥ ≈ 0`.
+3. **No claim about 1M atoms.** The largest system ever run is 33,377, and §6.2
+   names two blocking caps above ~8k.
+
+A demo that omits any of these is the thing every guard in this project exists to
+prevent, self-inflicted for a picture.
+
+### 45c. Carry the checkpoint provenance in the artefact — this is what 043 bought
+
+Every output file and the summary table must record **which checkpoint produced it**:
+path, stamp, git SHA, and the `n_train` it was trained at. Use `ckpt_path()` rather
+than constructing the filename.
+
+The reason is two days old: 043 found a peer script about to load a stale n50
+checkpoint and report it as an n300 result, because the read path had no
+discriminator and a plausible file sat at it. A demo is *more* exposed to that than
+an experiment — it will be looked at by people who cannot check what produced it,
+and it will outlive the session that made it.
+
+### 45d. What happens to the artefacts
+
+Once they exist, the planning side turns them into a shareable page: side-by-side
+renders, per-atom error colouring, the metrics table, and 45b's three limits stated
+inline rather than buried. So the artefact format matters more than its
+presentation — dump the numbers and the coordinates, don't spend time on plots.
