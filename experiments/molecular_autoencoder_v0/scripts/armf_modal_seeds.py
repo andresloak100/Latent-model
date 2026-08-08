@@ -40,7 +40,8 @@ import armf_stamp as STAMP
 from armf_modal_decoder import ModalCodec
 
 WR = D.WR
-RES = f"{WR}/modal_seeds.json"
+RES = os.environ.get("LADDER_RES", f"{WR}/modal_seeds.json")
+REPORT_ONLY = bool(os.environ.get("LADDER_REPORT_ONLY", ""))
 DM, NTR = 256, 50
 USABLE_LRS = [3e-5, 1e-4, 3e-4]      # the three that do not collapse to a constant code
 SEEDS = [0, 1, 2]
@@ -62,48 +63,55 @@ if __name__ == "__main__":
     print(f"[modal-seeds] INBOX 24c: is the LR sweep resolvable? {VARIANTS} x {USABLE_LRS} x "
           f"{len(SEEDS)} seeds. Between-rate scatter {BETWEEN_RATE_SCATTER:.4f}, gap under test "
           f"{GAP_UNDER_TEST:.4f}.", flush=True)
-    man = json.load(open(D.MAN)); store = AtlasStore(f"{WR}/atlas_cache")
-    have = {m["pdb"]: i for i, m in enumerate(store.meta)}
-    ho_ids = [p for p in man["heldout"] if p in have]
-    tr_ids = [p for p in man["train_ordered"] if p in have]
-    HO = [x for x in (sysdata(store, have[p]) for p in ho_ids) if x is not None]
-    _ord = sorted(range(len(HO)), key=lambda i: HO[i]["N"])
-    HOt = [HO[_ord[i]] for i in np.linspace(0, len(HO) - 1, min(D.NHO_TRACK, len(HO))).astype(int)]
-    TR = [x for x in (sysdata(store, have[p]) for p in tr_ids[:NTR]) if x is not None]
-    print(f"  {len(TR)} train / {len(HOt)} tracked / {len(HO)} held-out", flush=True)
+    # Same replay path as armf_tied_ladder (INBOX 36a): the report is otherwise reachable only
+    # by a 14 h GPU job, so a fix to it cannot be exercised before it ships.
+    if not REPORT_ONLY:
+        man = json.load(open(D.MAN)); store = AtlasStore(f"{WR}/atlas_cache")
+        have = {m["pdb"]: i for i, m in enumerate(store.meta)}
+        ho_ids = [p for p in man["heldout"] if p in have]
+        tr_ids = [p for p in man["train_ordered"] if p in have]
+        HO = [x for x in (sysdata(store, have[p]) for p in ho_ids) if x is not None]
+        _ord = sorted(range(len(HO)), key=lambda i: HO[i]["N"])
+        HOt = [HO[_ord[i]] for i in np.linspace(0, len(HO) - 1, min(D.NHO_TRACK, len(HO))).astype(int)]
+        TR = [x for x in (sysdata(store, have[p]) for p in tr_ids[:NTR]) if x is not None]
+        print(f"  {len(TR)} train / {len(HOt)} tracked / {len(HO)} held-out", flush=True)
 
-    ST = STAMP.stamp(dict(dm=DM, ntr=NTR, lrs=str(USABLE_LRS), seeds=str(SEEDS),
-                          warmup=D.WARMUP, maxsteps=D.MAXSTEPS), ModalCodec, D.train)
-    rows = json.load(open(RES)) if os.path.exists(RES) else []
-    STAMP.report(rows, ST, "arms")
-    rows = [r for r in rows if STAMP.same_stamp(r, ST)]
-    done = {(r["variant"], r["lr"], r["seed"]) for r in rows}
-    orig = D.Codec
+        ST = STAMP.stamp(dict(dm=DM, ntr=NTR, lrs=str(USABLE_LRS), seeds=str(SEEDS),
+                              warmup=D.WARMUP, maxsteps=D.MAXSTEPS), ModalCodec, D.train)
+        rows = json.load(open(RES)) if os.path.exists(RES) else []
+        STAMP.report(rows, ST, "arms")
+        rows = [r for r in rows if STAMP.same_stamp(r, ST)]
+        done = {(r["variant"], r["lr"], r["seed"]) for r in rows}
+        orig = D.Codec
 
-    for kind in VARIANTS:
-        for lr in USABLE_LRS:
-            for sd in SEEDS:
-                if (kind, lr, sd) in done: continue
-                D.Codec = make(kind)
-                try:
-                    torch.manual_seed(sd); np.random.seed(sd + 1)
-                    t0 = time.time()
-                    mdl, hist, used, stopped, improving = D.train(
-                        TR, HOt, DM, lr, f"{kind} lr{lr:g} s{sd}", 1)
-                    mdl.eval()
-                    per = [D.fve_model(mdl, x) for x in HO]
-                    rec = dict(variant=kind, lr=lr, seed=sd, dm=DM, n_train=NTR, stamp=ST,
-                               fve=float(np.mean(per)), steps=used, stopped=stopped,
-                               improving=improving, best_track=max(h[1] for h in hist),
-                               secs=time.time() - t0)
-                    rows.append(rec); json.dump(rows, open(RES, "w")); done.add((kind, lr, sd))
-                    print(f"    {kind} lr{lr:g} s{sd}: FVE {rec['fve']:+.4f}  steps {used} "
-                          f"({stopped}){'  *** VOID ***' if improving else ''}  "
-                          f"[{time.time()-t0:.0f}s]", flush=True)
-                except Exception as e:
-                    print(f"    {kind} lr{lr:g} s{sd}: FAIL {type(e).__name__}: {e}", flush=True)
-                finally:
-                    D.Codec = orig
+        for kind in VARIANTS:
+            for lr in USABLE_LRS:
+                for sd in SEEDS:
+                    if (kind, lr, sd) in done: continue
+                    D.Codec = make(kind)
+                    try:
+                        torch.manual_seed(sd); np.random.seed(sd + 1)
+                        t0 = time.time()
+                        mdl, hist, used, stopped, improving = D.train(
+                            TR, HOt, DM, lr, f"{kind} lr{lr:g} s{sd}", 1)
+                        mdl.eval()
+                        per = [D.fve_model(mdl, x) for x in HO]
+                        rec = dict(variant=kind, lr=lr, seed=sd, dm=DM, n_train=NTR, stamp=ST,
+                                   fve=float(np.mean(per)), steps=used, stopped=stopped,
+                                   improving=improving, best_track=max(h[1] for h in hist),
+                                   secs=time.time() - t0)
+                        rows.append(rec); json.dump(rows, open(RES, "w")); done.add((kind, lr, sd))
+                        print(f"    {kind} lr{lr:g} s{sd}: FVE {rec['fve']:+.4f}  steps {used} "
+                              f"({stopped}){'  *** VOID ***' if improving else ''}  "
+                              f"[{time.time()-t0:.0f}s]", flush=True)
+                    except Exception as e:
+                        print(f"    {kind} lr{lr:g} s{sd}: FAIL {type(e).__name__}: {e}", flush=True)
+                    finally:
+                        D.Codec = orig
+    else:
+        rows = json.load(open(RES)) if os.path.exists(RES) else []
+        print(f"  [REPORT-ONLY] replaying {len(rows)} stored arms from {RES} "
+              f"-- no training, no stamp filter", flush=True)
 
     if not rows: raise SystemExit
     # ---------------- REPORT ----------------
@@ -144,14 +152,25 @@ if __name__ == "__main__":
     for lr in USABLE_LRS:
         a, b = cell.get(("control", lr)), cell.get(("untied", lr))
         if a is None or b is None or len(a) < 2 or len(b) < 2: continue
+        # The p-value is WELCH (equal_var=False) but the half-width used t.ppf(.975, na+nb-2) --
+        # the POOLED df. Welch SE with a Student quantile is two different distributions on the same
+        # line, and it made the interval TOO NARROW: at lr1e-4 it printed +0.0381 +/- 0.0364, a CI
+        # excluding zero, beside p=0.080. A 95% CI that excludes zero cannot sit next to p>0.05.
+        # Welch-Satterthwaite df there is 2.44, not 4; the correct half-width is 0.0478 and the CI
+        # [-0.0097, +0.0858] contains zero. "control ahead" was an artifact of the mismatch, and it
+        # was the ONLY non-null cell in the table. This is 33a one level down: right statistic, wrong
+        # distribution for it.
         t, p = stats.ttest_ind(a, b, equal_var=False)
         d = a.mean() - b.mean()
-        se = np.sqrt(a.var(ddof=1) / len(a) + b.var(ddof=1) / len(b))
-        hw = stats.t.ppf(0.975, max(len(a) + len(b) - 2, 1)) * se
+        va, vb, na, nb = a.var(ddof=1), b.var(ddof=1), len(a), len(b)
+        se = np.sqrt(va / na + vb / nb)
+        dfw = (va / na + vb / nb) ** 2 / ((va / na) ** 2 / (na - 1) + (vb / nb) ** 2 / (nb - 1))
+        hw = stats.t.ppf(0.975, max(dfw, 1e-9)) * se
         print(f"    lr{lr:g}: control {a.mean():+.4f} - untied {b.mean():+.4f} = {d:+.4f} "
-              f"+/- {hw:.4f}  (p={p:.3f})  -> "
-              f"{'control ahead' if d - hw > 0 else ('untied ahead' if d + hw < 0 else 'INDISTINGUISHABLE')}",
-              flush=True)
+              f"+/- {hw:.4f}  (Welch df={dfw:.2f}, p={p:.3f})", flush=True)
+        # And "INDISTINGUISHABLE" is an underpowered null unless it is BOUNDED. The number that makes
+        # it mean something is GAP_UNDER_TEST -- the very gap this test exists to adjudicate.
+        STAMP.null_report(d, hw, GAP_UNDER_TEST, f"      control - untied @ lr{lr:g}")
     print(f"\n  Whatever this says, INBOX 23d is UNAFFECTED: it rests on three quantities moving")
     print(f"  together across the whole sweep (PR up, identity down, FVE down), which is the")
     print(f"  threshold-free form that survives an objection about resolution at any single rate.",

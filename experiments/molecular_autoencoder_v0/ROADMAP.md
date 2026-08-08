@@ -3123,7 +3123,7 @@ each rung by the 3-seed ladder (10311078).
 gap of **0.396 — 12× the measured single-arm SD.** No plausible seed draw closes it.
 **"No architecture beats zero-shot ANM at any N" survives the seed finding intact.**
 
-### ⚠ IN PROGRESS (24c, job 10307865): the control's "+0.1346" is the TOP of a 3-seed range
+### ⬛ SETTLED (24c, job 10307865, COMPLETE 18/18 arms): the control's "+0.1346" is the TOP of a 3-seed range
 
 | lr | seeds | mean | spread |
 |---|---|---|---|
@@ -3140,7 +3140,32 @@ as.)*
 **24c's objection is being borne out:** at lr3e-4 the between-**seed** spread (0.0656) exceeds both
 the between-**rate** scatter (0.0433) and the gap the sweep adjudicated (0.0350). Median seed spread
 0.0239 — a ratio of **0.55**, above the 0.5 line pre-registered for "the LR sweep never had the
-resolution". Partial (10 of 18 arms), so the verdict waits.
+resolution".
+
+**FINAL, all 18 arms.** Median between-seed spread **0.0353** against between-rate scatter 0.0433 —
+a ratio of **0.82**. *The LR sweep never had the resolution, and the non-monotonicity was noise.*
+"The modal arm is not losing on an unswept hyperparameter" is **WITHDRAWN as unsupported** — not
+refuted, unsupported. This is Family E dismissed on evidence that could not carry it.
+
+**And the gap table had a defect that changed a verdict word.** As first printed:
+
+| lr | difference | as printed | Welch df | corrected half-width | corrected |
+|---|---|---|---|---|---|
+| 3e-5 | +0.0114 | ± 0.0298 → INDISTINGUISHABLE | 2.70 | ± 0.0364 | NOT RESOLVABLE |
+| **1e-4** | **+0.0381** | **± 0.0364 → "control ahead"** | **2.44** | **± 0.0478** | **NOT RESOLVABLE** |
+| 3e-4 | +0.0230 | ± 0.0608 → INDISTINGUISHABLE | 3.15 | ± 0.0678 | NOT RESOLVABLE |
+
+The p-value was **Welch** (`equal_var=False`) but the half-width multiplied the Welch SE by a
+**Student** quantile, `t.ppf(.975, nₐ+n_b−2)` = df 4. Two distributions on one line. It printed
+`+0.0381 ± 0.0364` — a CI *excluding zero* — beside **p=0.080**, which is impossible; the true Welch
+df is **2.44**, the half-width 0.0478, and the CI [−0.0097, +0.0858] contains zero. **"control ahead"
+was the only non-null cell in the table and it was an artifact of the mismatch.** This is
+[33a](#) one level down: the right statistic with the wrong distribution for it.
+
+Both remaining cells were also unbounded nulls. Routed through `null_verdict` against
+`GAP_UNDER_TEST = 0.0350`, **all three rates are NOT RESOLVABLE** — every CI contains both zero and
+the gap being adjudicated. This *strengthens* 24c's own conclusion: the gap is not resolvable
+against training noise, and now no cell claims otherwise.
 
 ### ⬛ 031: the crossing corroboration is REAL but WEAK, and the 91% was a ratio-of-medians artefact
 

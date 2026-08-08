@@ -167,7 +167,7 @@ diagnosis.
 | **10307661** → **10307662** `atlas_peer` | **14a/17c/21c** at **every** ANM cutoff {5,7,10} Å — 21c: the 2.9% selection margin must not decide the headline | RUNNING, resumed at **107/123**. The `afterany` chain fired on its own when 10307514 hit its wall — the remaining systems are the largest. |
 | **10307029** `modal_arm` | 015/17b/18c control vs untied vs tied | RUNNING, tied sweep. control best **+0.1346**, untied best **+0.0996**; tied lr1e-4 mid-training at **+0.1078**, well above tied lr3e-5's +0.0607 |
 | **10307539** `modal_ctx` | 22a rung 1 + **23a mechanism test** (basis quality vs reach/diameter, N controlled) | RUNNING. ctx=2: lr3e-5 **+0.0714**, lr1e-4 **+0.0848** — both below the ctx=0 untied best so far |
-| **10307865** `modal_seeds` | **24c** 3 rates × 3 seeds × both variants — does the LR sweep have the resolution to rule out Family E? | RUNNING |
+| ~~**10307865** `modal_seeds`~~ | **24c** — **COMPLETE, 18/18 arms, 13:52:19, exit 0.** Seed spread **0.82×** the between-rate scatter: the sweep never had the resolution, Family E dismissal WITHDRAWN as unsupported. Gap table corrected (Welch-df mismatch turned one cell into a false "control ahead"); all three rates NOT RESOLVABLE against the 0.0350 gap. | **DONE** |
 | **10307413** `atlas_dm` | DM sweep under the **20a ladder guard** + **18a stamp**, `NTRAIN=[50,130]` | RUNNING, n50 rung |
 
 **Finished tonight:** `atlas_b` (841 systems, 12:24:51) · `sens_audit` (chained, fired automatically)

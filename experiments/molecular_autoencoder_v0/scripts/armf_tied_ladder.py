@@ -319,14 +319,25 @@ if __name__ == "__main__":
     for lr in USABLE_LRS:
         a, b = cell.get(("control", lr)), cell.get(("untied", lr))
         if a is None or b is None or len(a) < 2 or len(b) < 2: continue
+        # The p-value is WELCH (equal_var=False) but the half-width used t.ppf(.975, na+nb-2) --
+        # the POOLED df. Welch SE with a Student quantile is two different distributions on the same
+        # line, and it made the interval TOO NARROW: at lr1e-4 it printed +0.0381 +/- 0.0364, a CI
+        # excluding zero, beside p=0.080. A 95% CI that excludes zero cannot sit next to p>0.05.
+        # Welch-Satterthwaite df there is 2.44, not 4; the correct half-width is 0.0478 and the CI
+        # [-0.0097, +0.0858] contains zero. "control ahead" was an artifact of the mismatch, and it
+        # was the ONLY non-null cell in the table. This is 33a one level down: right statistic, wrong
+        # distribution for it.
         t, p = stats.ttest_ind(a, b, equal_var=False)
         d = a.mean() - b.mean()
-        se = np.sqrt(a.var(ddof=1) / len(a) + b.var(ddof=1) / len(b))
-        hw = stats.t.ppf(0.975, max(len(a) + len(b) - 2, 1)) * se
+        va, vb, na, nb = a.var(ddof=1), b.var(ddof=1), len(a), len(b)
+        se = np.sqrt(va / na + vb / nb)
+        dfw = (va / na + vb / nb) ** 2 / ((va / na) ** 2 / (na - 1) + (vb / nb) ** 2 / (nb - 1))
+        hw = stats.t.ppf(0.975, max(dfw, 1e-9)) * se
         print(f"    lr{lr:g}: control {a.mean():+.4f} - untied {b.mean():+.4f} = {d:+.4f} "
-              f"+/- {hw:.4f}  (p={p:.3f})  -> "
-              f"{'control ahead' if d - hw > 0 else ('untied ahead' if d + hw < 0 else 'INDISTINGUISHABLE')}",
-              flush=True)
+              f"+/- {hw:.4f}  (Welch df={dfw:.2f}, p={p:.3f})", flush=True)
+        # And "INDISTINGUISHABLE" is an underpowered null unless it is BOUNDED. The number that makes
+        # it mean something is GAP_UNDER_TEST -- the very gap this test exists to adjudicate.
+        STAMP.null_report(d, hw, GAP_UNDER_TEST, f"      control - untied @ lr{lr:g}")
     print(f"\n  Whatever this says, INBOX 23d is UNAFFECTED: it rests on three quantities moving")
     print(f"  together across the whole sweep (PR up, identity down, FVE down), which is the")
     print(f"  threshold-free form that survives an objection about resolution at any single rate.",
