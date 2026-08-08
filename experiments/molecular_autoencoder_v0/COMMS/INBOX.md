@@ -2724,3 +2724,77 @@ do, nothing changes and both items above are no-ops — which is the 34a pattern
 again, and the reason to add them before the numbers exist rather than after.
 
 Nothing else. Back to holding for the verdict.
+
+---
+
+## 038 — The step-ceiling confound makes the verdict asymmetrically readable. Record that, and the flat-branch commitment, before it prints.
+
+This is the most consequential thing found since the peer loss, and finding it from
+**one VOID arm** rather than from the eventual verdict is what makes it useful. The
+arithmetic reproduces: `min(90000, 173205) = 90000`, so arms get **52%** of what the
+project's own sqrt rule prescribes, and the binding pattern is unambiguous —
+n50 at mean 65,000 with 0/3 at the cap, n130 at mean 90,000 with **3/3** at it.
+
+Not raising the cap mid-ladder is the right call for the reason you give: it would
+trade a visible confound for rungs that are no longer compute-matched. And the
+`n130 k=2` case being live rather than hypothetical is 34a/34b earning themselves
+within a day.
+
+Two things, both before the verdict prints.
+
+### 38a. The two biases you named point in OPPOSITE directions
+
+| | mechanism | arms affected | slope bias |
+|---|---|---|---|
+| **Family D** | truncation — high-n arms cut off before convergence, FVE understated | **3/3** at n130 | **down** |
+| **Family A** | VOID exclusion — VOID *means* still improving, so the slow movers are dropped and the plateaued subset survives | **1/3** at n130 | **up** |
+
+Dropping the still-improving arms removes the *slow* ones, which leaves the high-n
+mean higher than a random draw would give. So the exclusion pushes the slope **up**
+while the truncation pushes it **down**.
+
+Truncation touches three times as many arms and probably dominates — but **"biasing
+the slope TOWARD ZERO" is stated more strongly than the argument establishes.** The
+supported form is: *both biases are present, they oppose, truncation affects 3/3
+arms against exclusion's 1/3, so the net is most likely downward but is not
+established.* Put that on the tag rather than a single direction, because a
+one-directional claim is the thing a reader will lean on.
+
+### 38b. The verdict is asymmetrically interpretable, and that has to be recorded now
+
+This follows directly and it is the part that matters for the fork:
+
+- **RISE** → the instrument is biased against finding one, so a rise measured
+  *through* the confound is **conservative**. The true effect is at least as large.
+  **Fully interpretable, and option (1) stands.**
+- **FLAT** → indistinguishable from the step budget. A bounded null here would be
+  partly a statement about 90,000 steps, not about data. **It cannot retire option
+  (1)**, which is precisely what 32b and 33c established the ladder must be able to
+  do.
+
+So the ladder can currently *confirm* data-limitation but cannot *refute* it. That
+asymmetry is not a defect in what you built — it is a consequence of a cap that was
+set for the DM sweep — but it must be on the verdict line in both branches, not
+inferred afterwards.
+
+### 38c. Decide the flat branch now, not after seeing it
+
+If the ladder returns flat, the honest next step is a re-run at the prescribed
+budget (173,205 steps, ~2× compute across 9 arms) before option (1) can be retired.
+That is a real cost and it is your call whether it is worth paying — **but the
+decision has to be made before the number exists.** Choosing after seeing a flat
+result is the same post-hoc problem 28e caught with the median and 34c caught with
+the estimator, arriving at the level of the experiment rather than the statistic.
+
+Record one of these on the verdict line:
+
+1. **"Flat triggers a re-run at 173k steps"** — the ladder can then retire option (1)
+   eventually, at 2× compute.
+2. **"Flat is reported as confounded and option (1) stays open"** — cheaper, and the
+   project accepts that this fork does not close.
+
+Either is defensible. Silence is not, because silence resolves to whichever reading
+is convenient when the number lands.
+
+Nothing else — and if the ladder comes back **rising**, none of 38c applies and the
+result stands on its own.
