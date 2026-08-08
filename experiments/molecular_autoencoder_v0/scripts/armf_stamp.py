@@ -248,9 +248,18 @@ def null_verdict(estimate, halfwidth, relevant, label="effect"):
     """
     lo, hi = estimate - halfwidth, estimate + halfwidth
     ratio = abs(estimate) / max(halfwidth, 1e-30)
-    if lo > 0 or hi < 0:
+    sig = (lo > 0) or (hi < 0)
+    inside = abs(relevant) > 0 and lo > -abs(relevant) and hi < abs(relevant)
+    # FOURTH STATE. A CI can exclude zero AND sit entirely inside +/-relevant -- e.g. [-0.040,
+    # -0.020] against relevant 0.10. Collapsing that into EXCLUDES_ZERO lets a caller act on an
+    # effect it has ALREADY DECLARED IRRELEVANT, which is the mirror of believing an underpowered
+    # null: statistically real, practically below the bar the caller itself set. It must be tested
+    # BEFORE the plain significance branch, or the plain branch swallows it.
+    if sig and inside:
+        return "SIGNIFICANT_BUT_BELOW_RELEVANCE", ratio, (lo, hi)
+    if sig:
         return "EXCLUDES_ZERO", ratio, (lo, hi)
-    if abs(relevant) > 0 and lo > -abs(relevant) and hi < abs(relevant):
+    if inside:
         return "EQUIVALENT", ratio, (lo, hi)
     return "NOT_RESOLVABLE", ratio, (lo, hi)
 
@@ -260,7 +269,12 @@ def null_report(estimate, halfwidth, relevant, label="effect", log=print):
     v, ratio, (lo, hi) = null_verdict(estimate, halfwidth, relevant, label)
     log(f"    {label}: {estimate:+.4f} +/- {halfwidth:.4f}  CI [{lo:+.4f}, {hi:+.4f}]  "
         f"|effect|/half-width {ratio:.2f}")
-    if v == "EXCLUDES_ZERO":
+    if v == "SIGNIFICANT_BUT_BELOW_RELEVANCE":
+        log(f"      -> REAL BUT BELOW THE BAR YOU SET. The CI excludes zero, so the effect is "
+            f"statistically real -- and it lies entirely within +/-{abs(relevant):.4f}, the smallest "
+            f"effect this caller said would matter.")
+        log(f"         Do NOT act on it as though it were the effect you were looking for.")
+    elif v == "EXCLUDES_ZERO":
         log(f"      -> REAL EFFECT (CI excludes zero).")
     elif v == "EQUIVALENT":
         log(f"      -> BOUNDED NULL: the CI also excludes +/-{abs(relevant):.4f}, the smallest effect "

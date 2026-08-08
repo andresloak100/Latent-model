@@ -2204,7 +2204,11 @@ to reject zero licenses nothing.**
 **CHECK — `armf_stamp.null_verdict(estimate, halfwidth, relevant)`.** Every caller must NAME the
 smallest effect that would change the conclusion, and gets **three** answers rather than two:
 
-- `EXCLUDES_ZERO` — CI excludes 0 → a real effect
+- `EXCLUDES_ZERO` — CI excludes 0, and reaches past `relevant` → a real effect that matters
+- **`SIGNIFICANT_BUT_BELOW_RELEVANCE`** — CI excludes 0 **and** sits entirely inside ±`relevant` →
+  statistically real, **practically below the bar the caller itself set**. This is the mirror of
+  believing an underpowered null: acting on an effect already declared irrelevant. It must be tested
+  **before** the plain significance branch or that branch swallows it.
 - `EQUIVALENT` — CI excludes ±`relevant` → a genuine null, **bounded by that number**
 - `NOT_RESOLVABLE` — CI contains both 0 and `relevant` → underpowered, **nothing is licensed**
 
