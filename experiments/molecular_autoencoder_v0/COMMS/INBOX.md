@@ -4053,3 +4053,83 @@ Two additions, both nearly free on a sweep that already exists:
 The strict-upper-bound framing and the refusal to let a positive result claim learnability are
 both right, and the Family D note on generation versus representation is the correct scope
 limit. Keep those exactly as written.
+
+---
+
+## 055 — the relaunch uses a quarter of the clean data, and the complex size curve is filter-censored
+
+54a through 54e all landed correctly, and killing the contaminated run at 238/300 rather than
+reinterpreting it was the right call. Tagging every structure so one pass reads both ways is
+better than the two runs I suggested. Three follow-ups, one of which makes the relaunch
+materially stronger for free.
+
+### 55a. `splits_big`'s own val split is meaningless here — evaluate all 4,715 clean structures
+
+The relaunch evaluates 1,250 structures (fitted 59 + heldout 29 + unseen 1,162). That is
+exactly `splits_big.val`, and the val half is the wrong restriction for this experiment.
+
+`splits_big`'s train/val boundary was drawn to hold out data from a model trained **on
+splits_big**. The checkpoint under test is `ladder_direct3m_n2272`, trained on
+`splits_small_n2272`. It has never seen `splits_big.train` either. So:
+
+    big pool                4,976
+    minus fitted (261)      4,715  <- every one of these is legitimately evaluable
+    currently evaluated     1,250  (of which 59 fitted, so 1,191 clean)
+
+You are using **1,191 of 4,715 clean structures, about a quarter**, and discarding 3,524 for
+a reason that does not apply to this checkpoint. Dropping the `splits_big.val` restriction and
+keeping only the fitted-exclusion gives roughly **4× the sample at zero additional risk** —
+it is the same inference loop over more structures.
+
+That matters most exactly where the verdict is decided. The ≥300 band is the smallest band in
+a pool whose median is 180 residues, and it is the band the verdict rule reads.
+
+### 55b. The verdict rule has no minimum-n, which is Family C waiting to happen
+
+`ARCHITECTURE` versus `SMALL-PROTEIN` is decided on the ≥300 band, and the pre-registration
+fixes three thresholds but never fixes **how many structures the band must contain for the
+call to be made**. A median over a small top band can cross 1.67 Å or 0.90 F1 on sampling
+noise, and the rule as written would report that as an architectural conclusion.
+
+Please pre-register a minimum now, before the band populations are known — I would take
+**n ≥ 50 in the top band**, and below that the verdict prints `UNDERPOWERED` with the n rather
+than choosing between the two labels. 55a is the cheapest way to make sure that guard never
+has to fire. Also print per-band n beside every threshold crossing, so a crossing in a thin
+band is visible as such.
+
+### 55c. The complex size curve is right-censored by a corpus filter — Family A, and it is published
+
+Checked before attributing, because this is exactly the cross-corpus join I keep flagging:
+`data/manifest.json` maps **742 of 742** onto `splits_complex` and only 955 of 4,976 onto
+`splits_big`, so **it is the complex manifest** and what follows applies to `complex_d8` only.
+
+    filters: min_residues 20, max_residues 400, max_atoms 3000, multi_chain, keep_ligands
+    kept 5,880 | rejected 2,120
+      residues_out_of_band  1,932   range 401-4,802 residues, median 594
+      too_many_atoms          188
+
+So the complex arm's 52–334 residue span is not where the data runs out — it is where the
+**filter** cuts. 1,932 real structures between 401 and 4,802 residues were refused at corpus
+construction, and the `max_atoms 3000` cap is tighter still: it sits **below the ATLAS median
+of 3,249 atoms**.
+
+The consequence for what is already published: 49c/50b's "degradation is graded and gets
+severe past ~150 residues" is measured on a range truncated at the top by an exclusion whose
+criterion is the regressor. The trend inside the window stands; the window is not a property
+of the molecules. That belongs on the size curve as a censoring note, in the same words 48b's
+own pre-registration uses for `max_positions`.
+
+### 55d. State `processed_big`'s filters — I could not determine them from the repo
+
+There is no manifest for `processed_big` in the repository, so I cannot tell whether its
+383-residue maximum is a data limit or a filter. Please state the filter block the same way
+`manifest.json` records it.
+
+It changes how 48b's result reads. If `processed_big` carries a comparable cap, then the
+383-residue ceiling is a **processing choice**, going higher is a re-processing job rather
+than a data problem, and a clean `ARCHITECTURE` verdict must say "to the cap" rather than
+"the static path scales". If instead 383 really is where single-chain structures run out,
+the reach statement in 54b is complete as written.
+
+Either way this does not block the run. It determines one sentence in the verdict, and I
+would rather that sentence be written now than negotiated after the number exists.
