@@ -3199,12 +3199,63 @@ though the mechanism is arm duration rather than rung order.
 across the two walls without a second writer. A separate n130 job is **not** launched — two processes
 appending to one `atlas_dm.json` is a lost-update race, which is worse than the problem it solves.
 
+### ⬛ 048: the project's success and its failure sit on almost disjoint domains — stated positively
+
+The unaided reading of this repo is that "0.79 Å reconstruction" and "loses to zero-shot ANM on 100%
+of 123 systems" contradict each other. **They do not, and neither transfers.** They differ on three
+axes at once:
+
+| | §5 direct codec | ATLAS modal line |
+|---|---|---|
+| task | static structure | per-frame displacement |
+| size | **157–799 atoms** (20–109 residues) | **598–33,377 atoms** |
+| latent | per-residue, **scales** | fixed, **L=1** |
+
+The **entire §5 range sits inside ATLAS's first quartile** (boundaries 1434 / 3249 / 7406), most of it
+below the smallest ATLAS system, and the largest §5 structure is **1/42** the largest ATLAS one. Both
+statements are true and they share almost no domain.
+
+**48b, the open question this makes visible:** the direct per-residue codec has **never been evaluated
+above ~109 residues**. Whether 0.79 Å is a property of the architecture or of small proteins is
+unknown, cheap to answer (inference on existing checkpoints, no training), and sits underneath every
+plan assuming the static path scales. Queued behind the ladder, 41c and the demo.
+
+### ⬛ Both headline numbers are MEANS, and they mislead in opposite directions
+
+Measured from the recorded per-structure evaluations, not re-derived:
+
+| arm | n | mean | median | range | skew |
+|---|---|---|---|---|---|
+| §5 single-chain | 758 | **0.7917** | **0.8357** | 0.27–2.38 | left — mean *below* median |
+| `complex_d8` | 186 | **5.8843** | **2.4907** | 1.91–21.57 | right — mean **2.4× the median** |
+
+So "complex plateaus at 5.5–5.9 Å" describes a mean dominated by a long tail; the **typical** complex
+reconstructs at **2.49 Å**. And §5's 0.79 understates its typical case. Quote both statistics for
+both arms — this is 28e's rule (median, mean and failure fraction together) applied to the two numbers
+the project leads with.
+
+Demo illustration of the size dependence in the complex arm: 2.23 Å at 52 residues, 6.06 at 164,
+7.47 at 233, **15.54 at 334**.
+
+### ⬛ NMR: conformers do not collapse, but the codec cannot resolve them
+
+`latent_suitability.py` on 3 entries × 6 models: true spread **1.1073 Å** → reconstructed **0.9206 Å**,
+ratio **0.831** (16.9% of spread lost). But **mean reconstruction error is 1.1969 Å — larger than the
+true spread itself.** The script's own criterion 1 is *"recon error well below the true spread; if the
+codec cannot tell conformers apart, nothing else matters."* On this sample that **fails**. "Conformers
+do not collapse" survives; "the codec resolves conformers" does not.
+
 ### ⚠ TWO CHECKPOINT-COMPATIBILITY DEFECTS, found by trying to load the 0.79 Å model
 
 Building the atom-level demo (045/046) required loading the checkpoint behind §5's headline. It is
 **`ladder_direct3m_n2272`** — all-atom **0.7917**, backbone **0.5103**, chirality **0.0002261**,
 contact F1 **0.9629**, matching §5's four numbers exactly. Note it is *not* any of the three
 `*perresidue*` result dirs, which sit at ~10 Å; the naming does not identify it.
+
+**FIXED AT THE CLASS.** The remap now lives in `molae/utils.load_checkpoint` (`remap_legacy_keys`),
+so every caller gets it. It was found via the demo but it is not a demo bug: `latent_suitability.py`
+failed identically, which means **§5's NMR number (0.868) was also unreproducible** by the script that
+produced it. Two of §5's bullets were blocked by one broken promise.
 
 **1. `PositionEncoding`'s backward-compatibility promise is broken.** `molae/scaling.py:73` states
 *"Default stays learned so every existing checkpoint loads and every prior result reproduces."* It

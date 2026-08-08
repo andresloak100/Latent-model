@@ -105,8 +105,33 @@ def grow_embedding_rows(state, model):
     return grown
 
 
+def remap_legacy_keys(state, model):
+    """PositionEncoding used to BE an nn.Embedding; it now WRAPS one as `self.table`. So a checkpoint
+    holding `x.res_pos_emb.weight` cannot load into `x.res_pos_emb.table.weight`, and every direct
+    checkpoint predating that refactor fails -- including the one behind Section 5's 0.79 A, and the
+    one latent_suitability.py needs for the 0.868 NMR number. scaling.py's docstring promises
+    "every existing checkpoint loads and every prior result reproduces"; this is what keeps it.
+
+    The remap is exact WITHIN max_positions. Beyond it the new forward CLAMPS where the old raised,
+    so callers evaluating oversized structures must check that themselves -- it is not silently safe.
+    Fixed here rather than per-script because three callers already hit it and the next one would too.
+    """
+    want = set(model.state_dict().keys())
+    out, moved = {}, []
+    for k, v in state.items():
+        if k not in want and k.endswith(".weight"):
+            cand = k[: -len(".weight")] + ".table.weight"
+            if cand in want:
+                out[cand] = v; moved.append((k, cand)); continue
+        out[k] = v
+    for a, b in moved:
+        print(f"[ckpt] remapped legacy key {a} -> {b}")
+    return out, moved
+
+
 def load_checkpoint(path, model, optimizer=None, map_location="cpu"):
     ckpt = torch.load(path, map_location=map_location, weights_only=False)
+    ckpt["model"], _moved = remap_legacy_keys(ckpt["model"], model)
     grown = grow_embedding_rows(ckpt["model"], model)
     if grown:
         for k, old, new in grown:
