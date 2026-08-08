@@ -321,6 +321,21 @@ Evaluation only, no retraining.
 
 ---
 
+## 5a. STANDING SCOPE LIMIT: every static-path corpus is capped at 3,000 atoms
+
+`manifest.json` records `max_atoms 3000` on the complex corpus, and `processed_big` — which has no
+manifest — measures out at **170–2,977 atoms, zero above 3,000**. So the cap is not one experiment's
+footnote; it bounds **every** static-path result in this project.
+
+Against the ATLAS held-out set (n=123, 598–33,377 atoms, quartiles 1,434 / 3,249 / 7,406):
+
+> **58 of 123 ATLAS systems (47.2%) fall below the 3,000-atom cap. 65 (52.8%) are above it and have
+> never been seen by any static-path model here.**
+
+Every present and future claim of the form *"the static path scales"* is bounded by this, including
+the sparse-channel work if it ever runs on these corpora. Capping at 3,000 atoms was a reasonable
+construction choice; leaving it implicit in one experiment's verdict is the defect.
+
 ## 5. What is actually established
 
 Worth stating alongside the gaps, since the list above is all deficits:
@@ -3198,6 +3213,41 @@ though the mechanism is arm duration rather than rung order.
 10314125, `afterany`), giving 40 h, and the resume is per-arm from `atlas_dm.json`. So n130 completes
 across the two walls without a second writer. A separate n130 job is **not** launched — two processes
 appending to one `atlas_dm.json` is a lost-update race, which is worse than the problem it solves.
+
+### ⬛ 48b RESULT — **SMALL-PROTEIN PROPERTY.** The 0.79 Å does not survive size.
+
+Run on all of `splits_big` minus the 261 fitted (4,715 clean), 1,400 evaluated, residues 25–395.
+**0 excluded** for `max_positions` — the Family A guard fires empty, so the curve is not censored.
+
+| residues | label | n | median all-atom Å | median contact F1 | clashes/1k | centroid null Å |
+|---|---|---|---|---|---|---|
+| 0–110 | **in-dist** | 55 | **0.86** | 0.959 | 13.8 | 12.7 |
+| 110–150 | OOD | 324 | 2.09 | 0.850 | 63.4 | 14.2 |
+| 150–200 | OOD | 336 | 2.75 | 0.749 | 109.7 | 15.1 |
+| 200–250 | OOD | 181 | 3.17 | 0.677 | 156.3 | 16.6 |
+| 250–300 | OOD | 237 | 3.38 | 0.639 | 183.6 | 17.5 |
+| **300–395** | OOD | **267** | **3.59** | **0.607** | **179.6** | 19.4 |
+
+**Verdict, by the rule fixed before the run:** top band n=**267** (n≥50 **met**), all-atom **3.59 Å**
+(> the 2.51 SMALL-PROTEIN threshold), contact F1 **0.607** (< 0.75), clashes **179.6** (> 60).
+**All three cross on the same side: SMALL-PROTEIN PROPERTY.**
+
+**The 54c control is what makes it a finding rather than an artefact.** The predict-the-centroid null
+rises only **12.7 → 19.4 Å (+53%)** across the range while the model's error rises **0.86 → 3.59 Å
+(+317%)**. The task gets ~1.5× harder; the model gets ~4.2× worse. The degradation is **not** explained
+by the metric getting harder with size — which is exactly what that control was added to separate.
+
+The in-distribution band reproduces the reference (0.86 vs 0.8357 median), so the harness agrees with
+the recorded evaluation where they overlap.
+
+**Reach (54b/55d):** this is measured to the **~2,980-atom processing cap**, about the ATLAS *median*
+system. It says nothing about the upper half of ATLAS, where 65 of 123 systems live.
+
+**One defect in the run, stated rather than buried:** the per-structure `pclass` tag came back
+`unknown` for all 1,400 — `cls_map` keys on split keys while the tag looks up `pdb_id`, and the two
+differ. The **exclusion still worked** (the log confirms 261 dropped, 4,715 clean), so the curve above
+is clean; but 54a's "report it both ways" sensitivity is **not available** from this run and would
+need the tag fixed.
 
 ### ⏳ 48b PRE-REGISTERED (INBOX 53a) — recorded BEFORE the run, committed before it launched
 

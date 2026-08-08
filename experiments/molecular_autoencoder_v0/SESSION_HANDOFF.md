@@ -162,47 +162,31 @@ diagnosis.
 
 ## 5. LIVE JOBS
 
-| job | what it tests | state |
+*Current as of the 056 pass. 006 requires this be updated on every push where the answer would change.*
+
+| job | what | state |
 |---|---|---|
-| **10307661** → **10307662** `atlas_peer` | **14a/17c/21c** at **every** ANM cutoff {5,7,10} Å — 21c: the 2.9% selection margin must not decide the headline | RUNNING, resumed at **107/123**. The `afterany` chain fired on its own when 10307514 hit its wall — the remaining systems are the largest. |
-| **10307029** `modal_arm` | 015/17b/18c control vs untied vs tied | RUNNING, tied sweep. control best **+0.1346**, untied best **+0.0996**; tied lr1e-4 mid-training at **+0.1078**, well above tied lr3e-5's +0.0607 |
-| **10307539** `modal_ctx` | 22a rung 1 + **23a mechanism test** (basis quality vs reach/diameter, N controlled) | RUNNING. ctx=2: lr3e-5 **+0.0714**, lr1e-4 **+0.0848** — both below the ctx=0 untied best so far |
-| ~~**10307865** `modal_seeds`~~ | **24c** — **COMPLETE, 18/18 arms, 13:52:19, exit 0.** Seed spread **0.82×** the between-rate scatter: the sweep never had the resolution, Family E dismissal WITHDRAWN as unsupported. Gap table corrected (Welch-df mismatch turned one cell into a false "control ahead"); all three rates NOT RESOLVABLE against the 0.0350 gap. | **DONE** |
-| **10307413** `atlas_dm` | DM sweep under the **20a ladder guard** + **18a stamp**, `NTRAIN=[50,130]` | RUNNING, n50 rung |
+| **10314117** `tied_ladder` | 31d/34c on the **genuine tied** arm (after `make()` was fixed — the first run trained *untied* and mislabelled it) | **RUNNING**, **7 of 9 arms**: n50x3, n130x3, n300x1 |
+| 10314118 / 10314119 | chained `afterany` backstops for the above | PENDING |
+| **10314124** `atlas_dm` | DM sweep; its **n130 rung is the data-limitation control** that two earlier walls never reached | **RUNNING**, 55 arms (n50x53, **n130x2** — it reached the rung this time) |
+| 10314125 | chained `afterany` | PENDING |
+| **10317061** `peer_n300` | **41c**, the 32c peer re-run at the best rung | **PENDING** — launched as soon as the n300 checkpoint existed |
+| **10314473** `sess_watch` | the durable watch (`long-cpu`, 24 h, `--requeue`) | **RUNNING** |
 
-**Finished tonight:** `atlas_b` (841 systems, 12:24:51) · `sens_audit` (chained, fired automatically)
-· `atlas_modes` 25a · `tied_mediator` 26a · `tica_vs_n` 007 · `warmup_ctl`.
+**HOW A FRESH SESSION PICKS THIS UP.** Nothing available to the agent survives a session restart:
+`Monitor` dies with the session, and `CronCreate`'s own contract is session-only with its `durable`
+flag inert. So the watch is a **SLURM job**, which keeps running while no session exists:
 
-**Guards now automatic, with no human in the loop:** the ladder hold re-reads `NTRAIN` from disk each
-rung (20a); the peer tail chains `afterany`; the audit chained to `atlas_b`; `COMMS/check_ack.py` runs
-as a **pre-push hook** and refuses a divergent ledger; `armf_smoke.py` tests the **callers**, not the
-kernels (26c), and is verified to catch both historical failures.
+    cat $WR/.watch_jobid                                        # the live watch's job id
+    tail -f $WR/logs/sessionwatch_$(cat $WR/.watch_jobid).log    # what it has seen
 
+Forward it into a new session with a `Monitor` that tails that file. **One watcher (the SLURM job),
+one forwarder (the Monitor).** Two independent watchers over `$WR/logs` created a feedback loop —
+the watch read its own stdout and re-wrapped it every poll — fixed in `78c8e21e` by self-exclusion.
 
-**THE CACHE IS COMPLETE** — `10301859` finished in 6:27:23. **841 systems, 263 GB, train pool 697/700,
-held-out 123/125.** The full `n_train` ladder {50,130,300,600} is runnable; it no longer gates anything.
+**AUTONOMOUS LOOP — SUPERSEDED, DO NOT RECREATE.** The `CronCreate` cycle this section used to
+describe could never have survived a restart, for the reason above. The SLURM watch replaces it.
 
-**Cancelled deliberately, NOT failures** (so six cancelled `atlas_dm` jobs are not read as a failing
-experiment): `10305469`/`10305543` censored `maxlag` · `10305827`/`10305840` pre-005 architecture ·
-`10305911`/`10305936` died on a startup `NameError`, fixed and resubmitted · **`10305995` cancelled
-after its first 11 arms because the LR grid floor (3e-4) was too high for DM=512** — the completed
-arms are saved in `atlas_dm.json` and skip on re-run.
-
-Completed earlier: `10305556` atlas_neff · `10305712` r90_insample (v1) · `10304109` atlas_guard.
-
-**AUTONOMOUS LOOP — RECREATE IT AFTER ANY RESTART.** A `CronCreate` job (`7,34 * * * *`, ~27 min)
-drives the 009 work cycle: pull → work the INBOX above `last_acted` → check `squeue` and job logs →
-fall through to the STANDING QUEUE in INBOX 009 → push and verify the remote moved → re-read the
-inbox. **It is SESSION-ONLY: in memory, never on disk, and it dies when the session exits — including
-the restart 006 asks for.** Nothing warns you. A fresh session must recreate it or the project goes
-quiet until a human nudges it.
-
-**Restart guidance (INBOX 006):** a natural pause is after the DM sweep's `n_train=130` arms land.
-**13 arms from earlier `atlas_dm` runs persist in `atlas_dm.json` and are skipped on re-run** — a
-restart of that job costs only the in-flight arm, never the finished ones.
-All four jobs survive a restart.
-
----
 
 ## 5. The current experiment
 
