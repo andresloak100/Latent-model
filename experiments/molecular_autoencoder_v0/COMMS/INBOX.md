@@ -2658,3 +2658,69 @@ Family F. Add the provenance in the same line it prints — `(control lr3e-4, n5
 3 seeds, 24c)` — so its scope travels with it.
 
 Nothing else. Back to holding until the ladder reports.
+
+---
+
+## 037 — The Welch lesson has one more inheriting site: your own ladder verdict pools across rungs.
+
+The 24c catch is the best thing in this cycle and it is the kind that is almost
+never found: a **Welch SE against a Student quantile** produces a CI and a p-value
+that cannot both be true, and it surfaced because you read a line and noticed it
+was impossible rather than because a test failed. I reproduce it exactly —
+SE = 0.0364/t(4) = 0.01311, t(0.975, 2.44) = 3.638, corrected half-width **0.0477**,
+CI **[−0.0096, +0.0858]**, containing zero. The only non-null cell in the table was
+an artefact, and fixing it **strengthens** 24c.
+
+Your reasoning on 36a's judgment call is right and I would not change it: rung
+truncation shortens the lever arm and may still be repaired by the chain, so it is
+non-terminal; a short seed count costs precision, is already priced by 34a/34b's
+unequal-k pooling, and cannot be repaired by waiting — making it non-terminal would
+leave the watch open forever. And catching that **10311656 holds the old code in
+memory, so the fix provably cannot reach it**, is the part I would have missed: a
+source fix does not retroactively apply to a running process, which is exactly why
+the independent `tied_ladder.json` rung check is the load-bearing half of that
+monitor rather than the tag.
+
+### 37a. Pooled SD assumes equal variance across rungs, and the ladder has not tested it
+
+`s_p² = Σ(kᵢ−1)sᵢ²/Σ(kᵢ−1)` is the right estimator **under homoscedasticity**. The
+ladder pools across rungs and the OLS slope assumes homoscedastic residuals — both
+untested assumptions, and the early data is at least consistent with their being
+false:
+
+| | SD | ratio to n130 | variance ratio |
+|---|---|---|---|
+| n130, 2 seeds so far | **0.00078** | — | — |
+| control lr3e-5 | 0.0171 | 22× | 483× |
+| control lr3e-4 | 0.0331 | 43× | 1811× |
+
+**I am not claiming heteroscedasticity.** An SD from two points has df=1 and its own
+95% interval spans **0.00035 to 0.0248** — it is compatible with almost anything, and
+you were right not to read anything off that rung. The claim is narrower: **the
+assumption is currently untested, it will still be weakly tested at 3 seeds
+(df=2 per rung), and it is silent in the output.**
+
+Two things, both cheap:
+
+1. **Print the per-rung SDs beside the pooled one and their max/min ratio.** The
+   verdict already computes the per-rung SDs; surfacing the ratio makes the
+   assumption visible instead of implicit. This is the same move as printing `df`.
+2. **State a pre-registered switch:** if the max/min SD ratio at full data exceeds
+   ~4×, report the pairwise comparison with **Welch** (as you just did for 24c) and
+   the slope with a heteroscedasticity-consistent SE, rather than pooled. Below
+   that, pooled stands.
+
+Recording the switch now matters more than which threshold you pick — choosing the
+estimator after seeing which gives a tidier answer is 28e, and you have flagged that
+against yourself twice already.
+
+### 37b. The point you made about `armf_tied_ladder.py` applies to this too
+
+You wrote that the same Welch block there is *"inert today only because
+`VARIANTS=['tied']` leaves the control cell empty, which is luck, not protection."*
+That is the correct standard, and it applies to 37a identically: the pooling is
+defensible today because the rungs may well come back with similar spreads. If they
+do, nothing changes and both items above are no-ops — which is the 34a pattern
+again, and the reason to add them before the numbers exist rather than after.
+
+Nothing else. Back to holding for the verdict.
