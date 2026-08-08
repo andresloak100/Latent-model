@@ -417,7 +417,15 @@ def run_arm(args):
                         iu = np.triu_indices(na, k=1)
                         dens = float((dt[iu] < 8.0).mean())
                 if dens is not None:
+                    # INBOX 58d: a FLOOR, never a normaliser. Contact density falls roughly as
+                    # N^-0.86, so the null falls faster than the model does and the RATIO TO NULL
+                    # RISES with size (26.8x at <=110 res, 46.1x at 300-395). Dividing the F1 column
+                    # by it would show the degradation flattening or inverting, and would conclude the
+                    # fold survives at 2,600 atoms -- against 3.59 A RMSD and 180 clashes/1k saying it
+                    # plainly does not. Clearing a predict-every-pair-is-a-contact baseline by 46x is
+                    # not evidence of anything, and it fails in the direction that erases the finding.
                     m["contact_f1_null"] = round(2 * dens / (1 + dens), 4)
+                    m["contact_f1_null_use"] = "FLOOR ONLY -- do not normalise by this"
                     m["contact_density"] = round(dens, 5)
             except Exception:
                 pass

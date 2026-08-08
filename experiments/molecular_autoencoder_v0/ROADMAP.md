@@ -3240,6 +3240,48 @@ taken for `modal_seeds` under 42a.
 **The n50 peer result is undamaged** — `tied_peer.json`'s mtime never changed. Relaunched as
 `10317064`, which will compute all 123.
 
+### ⬛ 41c RESULT — the peer loss SURVIVES the best rung. And the ladder slope, pinned at 8 arms.
+
+**41c (`10317064`, 123 systems, stamp carries `n_train: 300` so it recomputed rather than reusing
+n50).** Pre-registered under 41c as *"expected to gain ≈ +0.018–0.036 and to still lose on ~100% of
+systems"*:
+
+| quartile | tied @ n50 | **tied @ n300** | ANM | gap | tied > ANM |
+|---|---|---|---|---|---|
+| Q1 | +0.2956 | **+0.2538** | +0.6912 | −0.4484 | **0%** |
+| Q2 | +0.2622 | **+0.2633** | +0.7148 | −0.4104 | **0%** |
+| Q3 | +0.2030 | **+0.1698** | +0.6042 | −0.3795 | **0%** |
+| Q4 | −0.2791 | **+0.0292** | +0.6790 | −0.6248 | **0%** |
+
+**The prediction's direction was right and its shape was wrong.** Still 0% at every quartile — the
+floor is a floor, and the n50 peer loss is not an artefact of under-training. But the expected uniform
++0.018–0.036 did not happen: **Q1 and Q3 got worse** (−0.042, −0.033) while **Q4 improved by +0.308**.
+Worst-system FVE went −4.040 → **−1.673** and the fraction below −0.5 went 9% → **2%**.
+
+So more data did not lift the arm; it **traded quartiles**, repairing the catastrophic large-system
+tail at the small systems' expense. Nothing in the pre-registration anticipated that, and it is the
+part worth carrying forward.
+
+**This also makes every decades-to-close extrapolation unnecessary**, not merely risky: 41c is the
+same-harness measurement those were approximating.
+
+### ⏳ PRE-REGISTERED: how the 9-arm ladder slope is read, written before it was looked at
+
+The learning curve has resolved in magnitude for the first time:
+
+| arms | slope (HC3) | zero |
+|---|---|---|
+| 7 | +0.1048 ± 0.1375 | includes |
+| **8** | **+0.1142 ± 0.1006** | **EXCLUDES** (df=6, n300 k=2 at +0.1907) |
+
+The 9th arm is on disk and **has not been read**. Recorded first, so the question cannot be reopened:
+
+> **The 9-arm HC3 fit is authoritative by 37a and supersedes the 8-arm one whichever way it falls.**
+> If the CI returns across zero, the reading is **"the 8-arm exclusion was not resolved"** — *not*
+> "the 9th arm is an outlier". An outlier claim would require an independent reason to discount that
+> arm, and "it moved the answer back" is not one. The 8-arm value stays visible as the retract trail
+> rather than being overwritten.
+
 ### ⬛ 057: the 48b sample is size-representative, and 41a's extrapolation is RETIRED not recomputed
 
 **57a — the verdict is quotable.** `--limit 1400` capped the run; the rule is `linspace` over the
@@ -3255,10 +3297,21 @@ truncating it. Against the full 4,715 clean pool:
 | 250–300 | 16.6% | 16.9% | 783 | 237 |
 | 300–395 | 19.2% | 19.1% | 905 | 267 |
 
-**KS D = 0.0050, p = 1.000.** The 0–110 band is 29.3% covered against 29.7% overall, so its n=55 is
+**KS D = 0.0050, p = 1.000** — but this is a **construction check, not an independent test
+(58c)**. A `linspace` over a sorted index reproduces the sort key's CDF *by construction*, so D≈0 is
+guaranteed by the sampler rather than discovered about the sample. It certifies **size and nothing
+else**, and must not later be cited as evidence the sample is unbiased in general.
+The 0–110 band is 29.3% covered against 29.7% overall, so its n=55 is
 proportional and not the residue of a size-ordered truncation. Cost is precision only.
 
-**57b — the extrapolation is retired, not recomputed.** The ladder has since reached **8 arms**
+**57b — STRUCK ENTIRELY (INBOX 58a), not superseded.** Every decades-to-close figure in this
+project — 41a's ~10¹⁰, and the 4.9M / 52,217 / 74.9× / 92× numbers computed under 057 — joined
+**ladder** mean FVE to a **peer**-derived gap. The same arm reads **+0.1041 on the ladder and +0.0607
+on the peer at n50, a 1.71× ratio**. None was measured on one harness, so none is a result. Struck
+rather than recomputed, because recomputing a cross-harness join more carefully is still one. 41c
+now supplies the same-harness number and no extrapolation is needed.
+
+*(historical, retained as the retract trail)* **57b — the extrapolation is retired, not recomputed.** The ladder has since reached **8 arms**
 (n300 now k=2, +0.1907; slope **+0.1142 ± 0.1006**, HC3 df=6, which now **excludes zero**). Rerunning
 41a's arithmetic on it gives mean-gap closure at 4.2 decades (~7,000× the pool) and, at the optimistic
 CI end, **74.9×** the pool — so 057's surviving Q1 branch (3.5× the pool) **closes**: on the tighter
@@ -3284,7 +3337,12 @@ prediction puts every atom on every other, so its clash rate is maximal by const
 information — that is said rather than reported as a number. For contact F1 the same prediction *is*
 readable: recall = 1, precision = true contact density, F1 = 2d/(1+d), which **falls with N** (0.113 at
 N=200 → 0.012 at N=2,900) and supplies exactly the calibration the absolute 0.90/0.75 thresholds lack.
-The current 48b run predates it; per 057 this is precision, not correctness, and the SMALL-PROTEIN
+**It is a FLOOR, never a normaliser (58d).** Contact density falls roughly as N^−0.86, so the
+null falls *faster* than the model and the ratio to null **rises** with size — 26.8× at ≤110 residues
+against 46.1× at 300–395. Normalising the F1 column by it would show the degradation flattening or
+inverting and conclude the fold survives at 2,600 atoms, against 3.59 Å RMSD and 180 clashes/1k saying
+it does not. Report only that the model clears the trivial baseline at every band, and say on the line
+why it is not divided by. The current 48b run predates it; per 057 this is precision, not correctness, and the SMALL-PROTEIN
 verdict rests on RMSD, which is controlled and crosses on its own.
 
 ### ⬛ 48b RESULT — **SMALL-PROTEIN PROPERTY.** The 0.79 Å does not survive size.
