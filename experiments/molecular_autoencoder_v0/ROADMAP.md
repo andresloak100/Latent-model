@@ -3321,6 +3321,66 @@ contains both zero and an effect that would matter. It is rendered as such, not 
 reproduces `fve_model` to **0.000e+00**, K=all reaches exactly 1.0 with residual SSE 0 (Family B
 ceiling), monotone in K.
 
+### ⬛ 060: both ALL-row tests are significant and point opposite ways — and Q4's gain has a live confound
+
+**60a — the sign test is the stronger statistic, and the headline rests on it.** Reported with each
+number carrying its own test, since the previous row paired a descriptive fraction with a p-value
+computed on the other statistic:
+
+| statistic | value | test | p |
+|---|---|---|---|
+| mean paired Δ | **+0.1141** [+0.0315, +0.1967] | paired t | 0.00716 |
+| **systems worse** | **83 / 123 = 67%** | **exact binomial (sign), z=3.88** | **0.000132** |
+
+The sign test is **54× stronger in p**. These are **not in conflict**: the mean is positive because a
+minority moves far, the sign test is negative because the majority moves the other way. That *is* the
+finding, stated twice, and it is more convincing with both than with either. The sign test carries the
+headline because it assumes nothing about the shape of the delta distribution — which matters given
+Q2's spread.
+
+**60b — the regression-to-the-mean control fires, and Q4 is the entire positive result.** Regressing
+each system's paired Δ on its n50 value:
+
+| | slope | R² | p |
+|---|---|---|---|
+| **Q4** | **−0.5924 ± 0.0829** | **0.881** | <0.0001 |
+| Q1 | −0.1775 ± 0.1149 | 0.256 | 0.0037 |
+
+Not flat — steeply negative, explaining **88% of the variance in Q4's gains**. Systems that were worst
+at n50 gained most.
+
+**But the slope alone does not settle it, and saying it debunks Q4 would overclaim.** Regression to the
+mean and a genuine repair-of-the-worst-cases predict *the same* negative slope. Separating them needs an
+independent n50 read per system, which one arm cannot provide. **That read is cheap and available:**
+`tied_dm256_lr3e-05_s{0,1,2}_n50.pt` all exist, so running the peer harness on a second seed gives an
+independent per-system n50 and splits the two explanations. Queued behind the oracle.
+
+**60d — Q2 is NOT RESOLVABLE and is recorded as such.** CI [−0.1070, +0.3287], width 0.436 — **11×
+Q1's 0.039**. Its +0.1108 must not be rendered as a positive in any table scanned by sign; per
+`null_verdict`'s own four states the honest cell is *not resolvable*.
+
+### ⚠ 60c: the live question has no branch for what was measured — add the third
+
+31d asks **data-limited** vs **fundamental**. The result fits neither:
+
+- **data-limited** predicts systems improve with data. **67% got worse.**
+- **fundamental** predicts nothing moves. **Q4 moved +0.4474, p=0.0003.**
+
+Both rungs draw from the same 697-system pool, so the training distribution's *shape* is unchanged
+between them — there is simply more of it. A **fixed-width latent (DM=256)** asked to cover six times
+as many systems, improving the tail while degrading the majority, is the signature of **capacity
+competition**: the model reallocating a fixed budget rather than learning more. That is a **third
+hypothesis**, neither of the two on offer, and unlike both it is *actionable* — it points at
+conditioning or per-size capacity, not at more data and not at giving up.
+
+This is **Family D at the level of the research question**: a two-branch design cannot express
+capacity-limited, so whichever branch returned, the answer would have been mis-assigned.
+
+**Testable on data already on disk.** `atlas_dm` sweeps DM at `NTRAIN=[50,130]` — exactly the cross
+needed. Per-quartile paired Δ at each DM: if Q1's degradation **shrinks as DM grows**, it is capacity
+competition and the fixed-width assumption is the binding constraint; if **flat in DM**, the hypothesis
+dies cheaply. A groupby over completed arms, no new compute.
+
 ### ⬛ 059: six times the data made **67% of systems worse**. The slope is a tail repair.
 
 The ladder's rise and 41c's quartiles are one result, and the paired per-system test settles it.
