@@ -3257,6 +3257,49 @@ the finding.
 seeds per ctx would cost 6 more arms and would make either branch readable. Also note this was
 measured at **n_train=50**, which the ladder has now shown to be a floor for the untied arm.
 
+### ⬛ 048: THE SUCCESS AND THE FAILURE ARE ON ALMOST DISJOINT DOMAINS — stated positively
+
+A reader who meets *"the codec reconstructs at 0.79 Å"* and *"the codec loses to a zero-cost baseline
+on 100% of systems"* will reach for a contradiction. **There isn't one, and the two results share
+almost no domain.** Measured, not asserted:
+
+```
+section 5   157 ────── 799                (n=758 held-out, median 635 atoms)
+ATLAS                598 ──────────────────────────────── 33,377   (n=123 held-out)
+                          Q1 1434    Q2 3249    Q3 7406
+```
+
+| overlap, measured | |
+|---|---|
+| ATLAS systems inside §5's atom range | **10 / 123 (8.1%)** |
+| §5 structures below the *smallest* ATLAS system (598 atoms) | **311 / 758 (41.0%)** |
+| §5 largest (799) vs ATLAS largest (33,377) | **1/42 the size** |
+| does all of §5 sit below ATLAS Q1 (1434)? | **yes** |
+
+The two differ on **three axes at once**:
+
+| | §5 | ATLAS |
+|---|---|---|
+| task | static structure | per-frame displacement |
+| size | 157–799 atoms | 598–33,377 atoms |
+| latent | per-residue, **scales** with residue count | fixed, L=1 |
+
+**Both are true and neither transfers.** The 0.79 Å is not weakened by the peer loss, and the peer
+loss is not softened by the 0.79 Å. Any claim that spans them is a join across three axes at once —
+the failure mode that produced 41a, 42b and 045's ligand row on one axis each.
+
+### ⬜ 048b QUEUED (behind the ladder, 41c and the demo): does the direct codec hold above 109 residues?
+
+**The one architecture in this project that demonstrably works has never been evaluated above ~109
+residues** — smaller than the smallest system the rest of the project studies. That is not a
+criticism of the held-out set; it is a scope statement that was invisible until §5's range was put
+next to ATLAS's.
+
+Unlike most open questions here it is **cheap**: inference on existing checkpoints against existing
+structures, no training. It would not touch the dynamics question — different task — but it would
+separate *"0.79 Å is a property of the architecture"* from *"0.79 Å is a property of small
+proteins"*, and that distinction sits underneath every plan assuming the static path scales.
+
 ### ⛔ RETRACTED AS A *TIED* RESULT: the ladder trained the **UNTIED** architecture
 
 `armf_tied_ladder.py` was derived from `armf_modal_seeds.py` so the training loop would be

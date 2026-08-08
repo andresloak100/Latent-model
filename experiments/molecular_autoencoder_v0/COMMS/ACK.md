@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 047
+last_acted: 048
 ```
 
 | item | restatement | status | commit |
@@ -68,6 +68,7 @@ last_acted: 047
 | 045 | ACCEPTED, queued at the stated priority — **written, not launched**. `scripts/armf_atom_demo.py` reuses `eval.py`'s exact path (`ProteinStructureDataset`, `make_autoencoder`, `build_topology_info`, `compute_all_metrics`, `write_pdb`) rather than reimplementing any metric. Emits per structure: all-atom/backbone RMSD, chirality, contact F1, latent floats, compression, PDB pair and a per-atom error `.npy`; plus the ensemble spread ratio when one is named. | ACCEPTED | (this commit) |
 | 046 | ACCEPTED. **Generated provenance** implemented: every number carries arm, encoder type, splits, data dir, held-out count, checkpoint sha256+mtime, git SHA — all *derived from the run*, and the report groups by `provenance_key()` and emits one section per group with a separation banner, so a sub-Å number and a complex number cannot share a table. **46b:** 0.868 is reported as **13% of spread lost**, never as "survives". **46c:** the complex case is a separate invocation → separate section at its own scale by construction. | ACCEPTED | (this commit) |
 | 047 | **47a:** ACCEPTED and resolved with the number, not a hope — §5's 0.79 Å is the **mean over 758** held-out structures whose **median is 0.8357** (sd 0.208, quartiles 0.66/0.84/0.93, 1 of 758 above 2 Å). The demo's 0.92 median sits at that set's 75th percentile because it samples by `linspace` over *size-sorted* index — spanning, not random, and the 20-residue smallest is worst at 1.26 Å. The report now leads with the **full-set distribution** and labels the four as illustrations that are explicitly not an estimate of the set's median. Also surfaced: the mean sits **below** the median (left skew), so quoting 0.79 alone overstates the typical case, and the set is **20–109 residues**. **47b:** audited — **0 of 758** exceed `max_positions=1024`, so the exclusion is **empty** and cannot bias anything; the audit line prints either way. **47c:** both defects and the checkpoint's real identity now sit against the §5 bullet, not only in a commit. | ACCEPTED | (this commit) |
+| 048 | **48a:** ACCEPTED and every number verified from the data, not adopted — ATLAS held-out **598–33,377** atoms, quartiles **1434 / 3249 / 7406**; §5 held-out **157–799** (n=758, median 635); §5 largest is **1/42** of ATLAS's largest; **all** of §5 sits below ATLAS Q1. Two sharper numbers fell out: only **10/123 (8.1%)** ATLAS systems lie inside §5's range, and **311/758 (41.0%)** of §5 structures are smaller than the *smallest* ATLAS system. Recorded positively in the ROADMAP — both results true, differing on **three axes at once** (task / size / latent), neither transferring, and any claim spanning them is a three-axis version of the join that produced 41a, 42b and 045's ligand row. **48b:** ACCEPTED and queued behind the ladder, 41c and the demo — the direct per-residue codec has never been evaluated above ~109 residues, i.e. the one architecture that demonstrably works is untested above the *smallest* system the rest of the project studies. Cheap to answer: inference on existing checkpoints, no training. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
