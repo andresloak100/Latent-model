@@ -71,7 +71,9 @@ import armf_stamp as STAMP
 from armf_modal_decoder import ModalCodec
 
 WR = D.WR
-RES = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace/tied_ladder.json"
+RES = os.environ.get("LADDER_RES",
+      "/network/scratch/j/jacob-junqi.tian/latent-model-workspace/tied_ladder.json")
+REPORT_ONLY = bool(os.environ.get("LADDER_REPORT_ONLY", ""))
 DM, NTR = 256, 50
 USABLE_LRS = [3e-5]
 LADDER = [50, 130, 300]     # 31d: the ONLY thing that varies
@@ -94,52 +96,62 @@ if __name__ == "__main__":
     print(f"[modal-seeds] INBOX 24c: is the LR sweep resolvable? {VARIANTS} x {USABLE_LRS} x "
           f"{len(SEEDS)} seeds. Between-rate scatter {BETWEEN_RATE_SCATTER:.4f}, gap under test "
           f"{GAP_UNDER_TEST:.4f}.", flush=True)
-    man = json.load(open(D.MAN)); store = AtlasStore(f"{WR}/atlas_cache")
-    have = {m["pdb"]: i for i, m in enumerate(store.meta)}
-    ho_ids = [p for p in man["heldout"] if p in have]
-    tr_ids = [p for p in man["train_ordered"] if p in have]
-    HO = [x for x in (sysdata(store, have[p]) for p in ho_ids) if x is not None]
-    _ord = sorted(range(len(HO)), key=lambda i: HO[i]["N"])
-    HOt = [HO[_ord[i]] for i in np.linspace(0, len(HO) - 1, min(D.NHO_TRACK, len(HO))).astype(int)]
-    TR = [x for x in (sysdata(store, have[p]) for p in tr_ids[:NTR]) if x is not None]
-    print(f"  {len(TR)} train / {len(HOt)} tracked / {len(HO)} held-out", flush=True)
+    # INBOX 36a made the verdict path reachable only by a 20 h GPU job, so its new branch could
+    # not be exercised before it shipped. That is the 25a/ctx failure exactly: the tests covered
+    # the kernel and nothing called the CALLER. REPORT_ONLY replays stored arms through the SAME
+    # report code -- no fork, no copy -- and also re-prints the verdict from the store later
+    # without a GPU. LADDER_RES points it at a fixture.
+    if not REPORT_ONLY:
+        man = json.load(open(D.MAN)); store = AtlasStore(f"{WR}/atlas_cache")
+        have = {m["pdb"]: i for i, m in enumerate(store.meta)}
+        ho_ids = [p for p in man["heldout"] if p in have]
+        tr_ids = [p for p in man["train_ordered"] if p in have]
+        HO = [x for x in (sysdata(store, have[p]) for p in ho_ids) if x is not None]
+        _ord = sorted(range(len(HO)), key=lambda i: HO[i]["N"])
+        HOt = [HO[_ord[i]] for i in np.linspace(0, len(HO) - 1, min(D.NHO_TRACK, len(HO))).astype(int)]
+        TR = [x for x in (sysdata(store, have[p]) for p in tr_ids[:NTR]) if x is not None]
+        print(f"  {len(TR)} train / {len(HOt)} tracked / {len(HO)} held-out", flush=True)
 
-    ST = STAMP.stamp(dict(dm=DM, lrs=str(USABLE_LRS),   # NOT seeds/ladder: they select WHICH draws and
-                          # WHICH rungs, not how any arm is computed (27b's NSYS lesson)
-                          warmup=D.WARMUP, maxsteps=D.MAXSTEPS), ModalCodec, D.train)
-    rows = json.load(open(RES)) if os.path.exists(RES) else []
-    STAMP.report(rows, ST, "arms")
-    rows = [r for r in rows if STAMP.same_stamp(r, ST)]
-    done = {(r["variant"], r["lr"], r["seed"], r.get("n_train")) for r in rows}
-    orig = D.Codec
+        ST = STAMP.stamp(dict(dm=DM, lrs=str(USABLE_LRS),   # NOT seeds/ladder: they select WHICH draws and
+                              # WHICH rungs, not how any arm is computed (27b's NSYS lesson)
+                              warmup=D.WARMUP, maxsteps=D.MAXSTEPS), ModalCodec, D.train)
+        rows = json.load(open(RES)) if os.path.exists(RES) else []
+        STAMP.report(rows, ST, "arms")
+        rows = [r for r in rows if STAMP.same_stamp(r, ST)]
+        done = {(r["variant"], r["lr"], r["seed"], r.get("n_train")) for r in rows}
+        orig = D.Codec
 
-    for kind in VARIANTS:
-      for NTR_ in LADDER:
-        TR = [x for x in (sysdata(store, have[p]) for p in tr_ids[:NTR_]) if x is not None]
-        for lr in USABLE_LRS:
-            for sd in SEEDS:
-                if (kind, lr, sd, NTR_) in done: continue
-                D.Codec = make(kind)
-                try:
-                    torch.manual_seed(sd); np.random.seed(sd + 1)
-                    t0 = time.time()
-                    mdl, hist, used, stopped, improving = D.train(
-                        TR, HOt, DM, lr, f"{kind} n{NTR_} lr{lr:g} s{sd}", 1)
-                    mdl.eval()
-                    per = [D.fve_model(mdl, x) for x in HO]
-                    rec = dict(variant=kind, lr=lr, seed=sd, dm=DM, n_train=NTR_, stamp=ST,
-                               fve=float(np.mean(per)), med=float(np.median(per)),
-                               steps=used, stopped=stopped,
-                               improving=improving, best_track=max(h[1] for h in hist),
-                               secs=time.time() - t0)
-                    rows.append(rec); json.dump(rows, open(RES, "w")); done.add((kind, lr, sd))
-                    print(f"    {kind} n{NTR_} lr{lr:g} s{sd}: FVE {rec['fve']:+.4f}  steps {used} "
-                          f"({stopped}){'  *** VOID ***' if improving else ''}  "
-                          f"[{time.time()-t0:.0f}s]", flush=True)
-                except Exception as e:
-                    print(f"    {kind} lr{lr:g} s{sd}: FAIL {type(e).__name__}: {e}", flush=True)
-                finally:
-                    D.Codec = orig
+        for kind in VARIANTS:
+          for NTR_ in LADDER:
+            TR = [x for x in (sysdata(store, have[p]) for p in tr_ids[:NTR_]) if x is not None]
+            for lr in USABLE_LRS:
+                for sd in SEEDS:
+                    if (kind, lr, sd, NTR_) in done: continue
+                    D.Codec = make(kind)
+                    try:
+                        torch.manual_seed(sd); np.random.seed(sd + 1)
+                        t0 = time.time()
+                        mdl, hist, used, stopped, improving = D.train(
+                            TR, HOt, DM, lr, f"{kind} n{NTR_} lr{lr:g} s{sd}", 1)
+                        mdl.eval()
+                        per = [D.fve_model(mdl, x) for x in HO]
+                        rec = dict(variant=kind, lr=lr, seed=sd, dm=DM, n_train=NTR_, stamp=ST,
+                                   fve=float(np.mean(per)), med=float(np.median(per)),
+                                   steps=used, stopped=stopped,
+                                   improving=improving, best_track=max(h[1] for h in hist),
+                                   secs=time.time() - t0)
+                        rows.append(rec); json.dump(rows, open(RES, "w")); done.add((kind, lr, sd))
+                        print(f"    {kind} n{NTR_} lr{lr:g} s{sd}: FVE {rec['fve']:+.4f}  steps {used} "
+                              f"({stopped}){'  *** VOID ***' if improving else ''}  "
+                              f"[{time.time()-t0:.0f}s]", flush=True)
+                    except Exception as e:
+                        print(f"    {kind} lr{lr:g} s{sd}: FAIL {type(e).__name__}: {e}", flush=True)
+                    finally:
+                        D.Codec = orig
+    else:
+        rows = json.load(open(RES)) if os.path.exists(RES) else []
+        print(f"  [REPORT-ONLY] replaying {len(rows)} stored arms from {RES} "
+              f"-- no training, no stamp filter", flush=True)
 
     if not rows: raise SystemExit
     # ---------------- REPORT ----------------
@@ -167,6 +179,33 @@ if __name__ == "__main__":
         if np.isfinite(sd): sds.append(sd); sd_ks.append(len(f))
         pts.append((nt, float(f.mean()), float(np.nanmean(m)), len(f)))
         print(f"    {nt:>9}{len(f):>7}{f.mean():>+11.4f}{sd:>9.4f}{np.nanmean(m):>+13.4f}", flush=True)
+    # ---- INBOX 36a: IS THIS THE LADDER THAT WAS POSED? ----
+    # The verdict fires at len(pts)>=2 and the primary slope at len(allr)>=4, so TWO full rungs (6
+    # arms) trips both. That would print a bound measured over 50->130 = 2.6x for a question posed
+    # over 50->300 = 6.0x, and the truncation is at the END THAT SETS THE LEVER ARM -- the same shape
+    # as 18d, where a median-based coverage check passed a sample missing the top 18% of log-range.
+    # A reader who sees "=>" does not re-derive the span, so the span has to travel ON the verdict.
+    # Rungs missing => PARTIAL: the lever arm itself is short, and the monitor must NOT stop on it.
+    # Seeds short within a present rung is a different defect -- it costs precision, not lever arm,
+    # and 34a/34b's unequal-k pooling already prices it -- so it is noted but is NOT non-terminal.
+    # Making a VOID arm non-terminal would leave the watch running forever after the chain ended.
+    rungs_have = [p[0] for p in pts]
+    missing = [nt for nt in LADDER if nt not in rungs_have]
+    span_have = (max(rungs_have) / min(rungs_have)) if rungs_have else float("nan")
+    span_reg = max(LADDER) / min(LADDER)
+    PARTIAL = f" [PARTIAL LADDER -- {len(rungs_have)} of {len(LADDER)} rungs, span {span_have:.1f}x, " \
+              f"not the pre-registered {span_reg:.1f}x; missing n{','.join(str(m) for m in missing)}]" \
+              if missing else ""
+    if PARTIAL:
+        print(f"\n  !! {PARTIAL.strip(' []')}", flush=True)
+        print(f"     This is an EARLY READ, not the fork. Any bound below is measured over "
+              f"{span_have:.1f}x and cannot be quoted as the answer to a {span_reg:.1f}x question.",
+              flush=True)
+    short = [(nt, k_) for (nt, _, _, k_) in pts if k_ < len(SEEDS)]
+    if short:
+        print(f"     (also short of seeds, which costs PRECISION not lever arm and is already priced "
+              f"by the df below: {', '.join(f'n{nt}={k_}/{len(SEEDS)}' for nt, k_ in short)})",
+              flush=True)
     if len(pts) >= 2:
         n0, f0, m0, k0 = pts[0]; n1, f1, m1, k1 = pts[-1]
         d_mean = f1 - f0
@@ -186,7 +225,10 @@ if __name__ == "__main__":
             hw = tq * se
         else:
             tq = se = hw = float("nan")
-        CTRL_MEAN = 0.1042      # control lr3e-4 mean over 3 seeds (24c)
+        # INBOX 36b: a constant from ONE arm at ONE rung, living in a script that reports across
+        # three. Fine as a display denominator; it would be Family F the moment it entered a verdict
+        # CONDITION, so its scope prints wherever it does.
+        CTRL_MEAN = 0.1042; CTRL_PROV = "control lr3e-4, n50, 3 seeds, 24c"
 
         # ---- INBOX 34c: THE PRIMARY TEST IS FIXED HERE, BEFORE THE NUMBERS ----
         # PRIMARY  = slope of FVE on log10(n_train) over ALL arms (df = n_arms - 2).
@@ -216,7 +258,7 @@ if __name__ == "__main__":
               f"k={k0}/{k1});  SE {se:.4f};  t {tq:.3f};  95% half-width {hw:.4f}", flush=True)
 
         if moves and sl is not None:
-            print(f"\n  => THE CEILING MOVES WITH DATA. Slope {sl.slope:+.4f} +/- {hs:.4f} excludes")
+            print(f"\n  => THE CEILING MOVES WITH DATA.{PARTIAL} Slope {sl.slope:+.4f} +/- {hs:.4f} excludes")
             print(f"     zero, so the tied arm is DATA-limited over this range: 31d-(1) is NOT the")
             print(f"     binding constraint and (2)/(3) are premature.")
             print(f"     INBOX 32c CONSEQUENCE, pre-registered: 14a, 17c, 25a and the ENTIRE peer")
@@ -227,11 +269,11 @@ if __name__ == "__main__":
             print(f"     re-run at the best rung.", flush=True)
         elif sl is not None:
             bound = abs(hs * span)
-            print(f"\n  => Across a {10**span:.0f}x range in n_train, NO EFFECT LARGER THAN "
-                  f"{bound:.4f}")
+            print(f"\n  => Across a {10**span:.1f}x range in n_train, NO EFFECT LARGER THAN "
+                  f"{bound:.4f}{PARTIAL}")
             print(f"     (t-interval on the slope, df={dfs}) -- which is {100*bound/CTRL_MEAN:.0f}% of")
-            print(f"     the control's mean ({CTRL_MEAN:+.4f}). OPTION (1) IS NOT RETIRED; effects")
-            print(f"     below that size are not excluded by this design.")
+            print(f"     the control's mean ({CTRL_MEAN:+.4f}; {CTRL_PROV}).")
+            print(f"     OPTION (1) IS NOT RETIRED; effects below that size are not excluded here.")
             print(f"     Reporting this as 'not data-limited' would be Family C -- retiring the")
             print(f"     hypothesis the ladder exists to test.", flush=True)
 
