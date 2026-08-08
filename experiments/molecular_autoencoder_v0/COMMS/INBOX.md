@@ -3851,3 +3851,93 @@ file named in `metrics.json` actually exists, and fail loudly when it does not.*
 declared `"checkpoint": "final.pt"` against an absent file and reported anyway. A provenance
 block that names a file it never opened is asserting provenance it does not have, which is
 the same "satisfiable by a claim in prose" problem `check_ack.py` was built to end.
+
+---
+
+## 053 — launch 48b, and pre-register it before the numbers exist
+
+The audit and the HEAD correction are both accepted, and the `quick_rmsd` explanation
+retires 52c properly — a 4-batch aligned RMSD over the *training* loader was never
+comparable to a per-structure held-out RMSD, so there was no anomaly, only two quantities
+wearing one name. That is the third naming collision in as many items (`complex_d8`,
+`ladder_direct_n2272`, `rmsd`), which is worth noticing as a pattern rather than three
+incidents.
+
+Recording the thing that matters most from the audit: **the 3m ladder is clean on all three
+rungs**, so the learning-curve slope stands. That was 52d's real worry and it is cleared.
+
+### 53a. Run 48b now — it is the gate under every "the static path scales" claim
+
+It is unblocked, it needs no training, and it is the load-bearing unknown: the one
+architecture in this project that demonstrably works has only ever been shown to work on
+structures smaller than the smallest system the rest of the project studies.
+
+**Pre-registering the reading before the numbers exist**, per the standard 38c set:
+
+- **The claim under test.** "0.79 Å is a property of the architecture" versus "0.79 Å is a
+  property of small proteins." Those are the two outcomes; name which one the result
+  supports, in writing, before interpreting anything else.
+- **Report per size band, not pooled.** A single mean over 20–800 residues would hide the
+  effect the run exists to find. Bands as in 50b, with n per band.
+- **Report all-atom RMSD, contact F1 and clashes per 1,000 atoms together.** 49b already
+  established that all-atom RMSD alone can look respectable while the structure is not
+  physically usable — 1BYZ at 2.23 Å with roughly two clashes per atom. If RMSD degrades
+  gracefully and contact F1 collapses, that is the finding, and only the second metric
+  expresses it (**Family D** otherwise).
+
+**Two traps specific to this run, both of which I would state in the output rather than hope
+about:**
+
+1. **Family A, and it is unusually direct here.** `max_positions = 1024` means any structure
+   above that is refused — and the exclusion criterion *is* the regressor. A size curve that
+   silently drops its largest points is censored exactly where the question lives. Print the
+   excluded count and residue range per band even when it is zero, the way 47b's audit line
+   does, and if anything is excluded, say the curve is right-censored at that point rather
+   than reporting its top band as a measurement.
+
+2. **This is extrapolation, not held-out generalisation, and the report must not blur them.**
+   `splits_small_n2272` held-out is 20–109 residues; there is no structure above 109 in it.
+   Testing above 109 therefore requires a *different* pool, so the comparison against 0.79 Å
+   changes size **and** distribution at once. That is the two-axis join 48a warned about.
+   Label the sub-109 number as in-distribution held-out and everything above it as
+   out-of-distribution extrapolation, in the table, not only in prose.
+
+Cheap either way: inference on an existing checkpoint. The answer changes what can be
+claimed about the static path, which is currently the only working thing in the project.
+
+### 53b. Scope the sparse event channel — do not build it yet, and say what would falsify it
+
+This is the strategic item and I want a written scoping note, not code.
+
+Every negative result this project has is on the **global-latent-alone** path. The §7 design
+is `x_i(t) = f(S_i, g_t, e_t)` — static per-atom conditioning, a global latent, **and a
+sparse event channel** — and `e_t` has never been built. So "the codec loses to zero-shot ANM
+on 100% of 123 systems" is a measurement of two thirds of the architecture, and the premise
+check says the missing third is where the signal it cannot represent actually lives: top-1%
+atom variance 0.131 mean, 0.61 max in 1PU7, against a global mode basis that by construction
+cannot carry a localised event.
+
+The learning curve has already answered the other branch. At +0.048 per decade against a
+0.53 gap, data is not the path — 41a put it at roughly 10¹⁰ systems, and exhausting the
+corpus buys +0.018. So the honest position is that more data will not produce a peer win and
+the only untested thing that could is the channel.
+
+What I want in the note, before any implementation:
+
+- The **minimal** experiment that would test whether a sparse channel closes any of the ANM
+  gap — smallest thing that could fail informatively, not the full design.
+- What it would cost, and what existing artefacts it can reuse.
+- **The pre-registered falsifier.** What result would say the sparse channel does not help?
+  Write it now, while nobody knows the answer. If it cannot be falsified cheaply, say so and
+  the item stops there rather than becoming an open-ended optimisation loop — the same
+  failure INBOX 004 removed from the ANM-decoder branch.
+- Whether the comparison should still be per-frame FVE against ANM at all. 004 recorded that
+  ANM "has no generator and cannot be the product architecture." If the channel's value is
+  generative, FVE on reconstruction is a measurement that cannot express it, which is
+  **Family D** at the level of the research question rather than the metric.
+
+### 53c. Priority
+
+53a first — it is cheap, unblocked and gates existing claims. 53b in parallel, since it is
+writing rather than compute and does not contend for the GPU. 41c stays queued behind the
+ladder checkpoint.
