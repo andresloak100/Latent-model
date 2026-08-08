@@ -456,6 +456,43 @@ def build_report(out: Path):
                          f"distribution is **right-skewed** with a long tail and quoting the mean "
                          f"alone **overstates** the typical error.") + " Quote both.", ""]
                 bd = fu.get("bands")
+                if not bd and fu.get("source") and os.path.exists(fu["source"]):
+                    try:
+                        _m = json.load(open(fu["source"]))
+                        _per = _m.get("per_structure") or _m.get("structures") or []
+                        _rr = [(x["n_residues"], x["all_atom_rmsd"]) for x in _per
+                               if x.get("n_residues") and x.get("all_atom_rmsd") is not None]
+                        if _rr:
+                            _R = np.array([v[0] for v in _rr]); _A = np.array([v[1] for v in _rr])
+                            bd = []
+                            for _lo, _hi in ((0, 150), (150, 300), (300, 10 ** 6)):
+                                _sel = (_R >= _lo) & (_R < _hi)
+                                if _sel.sum():
+                                    bd.append({"label": f"{_lo}-{_hi if _hi < 10**6 else '+'}",
+                                               "n": int(_sel.sum()),
+                                               "median_rmsd": float(np.median(_A[_sel])),
+                                               "median_clashes": None})
+                            _o = np.argsort(_R); _Rs, _As = _R[_o], _A[_o]
+                            _cross = {}
+                            for _t in (2.0, 5.0):
+                                _c = None
+                                for _i in range(len(_Rs)):
+                                    _l, _h = max(0, _i - 7), min(len(_Rs), _i + 8)
+                                    if np.median(_As[_l:_h]) > _t: _c = int(_Rs[_i]); break
+                                _cross[_t] = _c
+                            L += ["", f"**Size trend (49c), from {len(_rr)} held-out structures in the "
+                                      f"source metrics -- no re-run.** all-atom spans "
+                                      f"{_A.min():.2f}-{_A.max():.2f} A over {_R.min()}-{_R.max()} "
+                                      f"residues. The running median crosses **2 A at ~"
+                                      f"{_cross[2.0]} residues** and **5 A at ~{_cross[5.0]} "
+                                      f"residues**.", ""]
+                            if _A.min() > 2.0:
+                                L += [f"Note the minimum is **{_A.min():.2f} A**: this is not a tight "
+                                      f"cluster that reconstructs plus a tail that does not -- "
+                                      f"**nothing in this arm is below 2 A**, and the trend is "
+                                      f"monotone degradation from already-poor.", ""]
+                    except Exception as _e:
+                        L += ["", f"*(49c size trend unavailable: {type(_e).__name__})*", ""]
                 if bd:
                     L += ["", f"**Size regimes (49c).** One median over the whole set describes "
                               f"neither end of it:", "",
@@ -465,9 +502,18 @@ def build_report(out: Path):
                         L.append(f"| {b_['lo']}–{b_['hi']} | {b_['n']} | {b_['median_rmsd']:.2f} | "
                                  + (f"{b_['median_clashes']:,.0f} |" if b_["median_clashes"] is not None
                                     else "— |"))
+                    # A threshold that is never crossed is a RESULT, not missing data. Rendering
+                    # None into the sentence printed "crosses 2 A at >=None residues" on the
+                    # single-chain arm -- which never crosses 2 A, the strongest thing that arm has to
+                    # say -- and read as a broken field. Same class as 49a: the sentence has to follow
+                    # the number instead of assuming one exists.
                     c2, c5 = fu.get("cross_2A"), fu.get("cross_5A")
-                    L += ["", f"Rolling median crosses **2 Å** at ≥{c2} residues and **5 Å** at "
-                              f"≥{c5} residues; Spearman(residues, RMSD) = "
+                    def _cross(v, thr):
+                        return (f"crosses **{thr} Å** at ≥{v} residues" if v is not None else
+                                f"**never crosses {thr} Å** across {fu['residues_min']}–"
+                                f"{fu['residues_max']} residues")
+                    L += ["", f"Rolling median {_cross(c2, 2)}; {_cross(c5, 5)}. "
+                              f"Spearman(residues, RMSD) = "
                               f"**{fu.get('spearman_res_rmsd')}**.", ""]
                 L += [f"The {len(aa)} structures below are chosen to **span the size range**, not "
                       f"drawn at random, so their median ({np.median(aa):.2f} Å) is an illustration "

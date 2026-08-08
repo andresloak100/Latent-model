@@ -1,6 +1,6 @@
 # Atom-to-atom reconstruction — direct per-residue codec
 
-Generated 2026-08-08 11:16 · every number below carries the provenance of the run that produced it.
+Generated 2026-08-08 11:20 · every number below carries the provenance of the run that produced it.
 
 > **These are different arms and are reported at different scales.** They are in separate sections
 > because they are not comparable; a number from one section does not describe the other.
@@ -51,7 +51,7 @@ The commonly quoted **5.88 Å is the mean**; the median is **2.49 Å**. The mean
 | 200–300 | 89 | 6.08 | 2,132 |
 | 300–334 | 8 | 15.46 | 6,538 |
 
-Rolling median crosses **2 Å** at ≥52 residues and **5 Å** at ≥122 residues; Spearman(residues, RMSD) = **0.499**.
+Rolling median crosses **2 Å** at ≥52 residues; crosses **5 Å** at ≥122 residues. Spearman(residues, RMSD) = **0.499**.
 
 The 4 structures below are chosen to **span the size range**, not drawn at random, so their median (6.76 Å) is an illustration and not an estimate of the set's.
 
@@ -105,7 +105,7 @@ The commonly quoted **0.79 Å is the mean**; the median is **0.84 Å**. The mean
 | 50–100 | 613 | 0.84 | 12 |
 | 100–109 | 88 | 0.77 | 9 |
 
-Rolling median crosses **2 Å** at ≥None residues and **5 Å** at ≥None residues; Spearman(residues, RMSD) = **0.011**.
+Rolling median **never crosses 2 Å** across 20–109 residues; **never crosses 5 Å** across 20–109 residues. Spearman(residues, RMSD) = **0.011**.
 
 The 5 structures below are chosen to **span the size range**, not drawn at random, so their median (0.97 Å) is an illustration and not an estimate of the set's.
 
