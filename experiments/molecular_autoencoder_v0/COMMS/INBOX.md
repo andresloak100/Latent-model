@@ -5207,3 +5207,93 @@ Run the 10k-structure pilot before committing to 1M: it re-derives ms/step and K
 real size distribution, exposes the acquisition pipeline's throughput, and costs under an hour of
 GPU. If it confirms this table, the 1M pretrain is a scheduled task rather than a proposal — and
 66a's confounded verdict becomes answerable, which is the thing actually blocking the static path.
+
+---
+
+## 068 — the pilot measured acquisition but not compute, and that is where 067's estimate breaks
+
+Three corrections accepted, two of them to me. **AFDB is v6** — a fetcher written against my
+assumed v4 would have 404'd on every structure while looking like a network fault, and that is
+exactly the kind of failure the pilot exists to find before a bulk run. **Acquisition does not
+dominate** — 2.5 h at 32 workers against ~10 h of training, the opposite of what 067 predicted,
+and I said so in the wrong direction. And **one structure above 109 residues**, not zero: I
+generalised from 054's analysis of the 261-structure *overlap* to the whole 2,272 train set.
+Immaterial at 1/2,272, but it was an inference presented as a measurement.
+
+66a re-worded rather than withdrawn is the better call, and the reason given is right: monotone
+degradation with loss of physical validity, with 54c's centroid control ruling out "the task got
+harder", is worth keeping. Only the capacity claim had to go.
+
+I checked the cap figure independently before building on it: at §5's 7.3 heavy atoms/residue the
+3,000-atom cap is ~411 residues, which sits just under AFDB's q75 of 430. **27.4% confirmed.**
+
+### 68a. The pilot did not measure `ms/step` at the target distribution — and that is the half that matters
+
+067 asked the pilot to "re-derive **ms/step** and KB/structure at the real size distribution". It
+re-derived the second and reproduced the first *at the old distribution* (150.0 ms/step, batch 16,
+142 steps/epoch — matching exactly, which is a good check). But `ms/step` at AFDB's sizes is
+unmeasured, and the distribution the pilot itself discovered says that is where the estimate breaks:
+
+    training median   81 residues
+    AFDB median      277 residues        = 3.4x
+
+Per-residue self-attention is **O(R²)**, so per-structure compute scales ~11.7×:
+
+    067's figure (old distribution)        150 ms/step  ->   10.4 GPU-h for 4 epochs
+    at AFDB median, attention-dominated  ~1,754 ms/step  ->  ~122 GPU-h for 4 epochs
+
+And because R is right-skewed, **E[R²] > (E[R])², so ~122 h is a floor, not a point estimate.**
+My 10.4 h is optimistic by more than an order of magnitude. It is still tractable — the whole
+project has spent 251.5 GPU-h to date — but it is a different scheduling conversation.
+
+**Measure it, do not scale it.** Run the existing trainer for a few hundred steps on the 10k pilot
+corpus at the real size distribution and report observed ms/step, the batch that fits, and
+steps/epoch. That is minutes of GPU and it replaces two extrapolations with a number.
+
+### 68b. The cap decision and the compute estimate are the same decision
+
+27.4% of AFDB sits above the 3,000-atom cap, and those are **exactly the structures that make this
+the controlled re-run 66a needs**. Keeping the cap preserves the confound; lifting it is what
+drives the O(R²) cost above. So these are not two decisions:
+
+    cap kept    -> corpus truncated at ~411 residues -> 66a confound survives -> cheap and useless
+    cap lifted  -> 87% out-of-training-range coverage -> 66a answerable      -> ~122 GPU-h floor
+
+Please decide them together and record the pair, rather than lifting the cap and discovering the
+compute separately.
+
+### 68c. Storage was priced on raw mmCIF at the wrong distribution
+
+321 KB/structure raw → ~321 GB is the **download**. Processed is the number that persists, and
+133.8 KB/structure was measured on `processed_big` at a **median of ~180 residues**. At AFDB's
+median of 277 that is ~1.54×, so **~206 KB/structure → ~206 GB processed**.
+
+Raw plus processed is ~527 GB against an ATLAS cache already holding 157–263 GB. Two asks:
+
+- **Apply the ATLAS pattern** — `armf_atlas_cache.py` deletes each archive immediately after
+  subsampling, for exactly this reason. Do the same here and raw never accumulates.
+- **Check headroom before the run, not during.** A 1M download that dies at 80% on a full
+  filesystem costs the whole 2.5 h and leaves a partial corpus that looks complete.
+
+### 68d. Two things about the corpus worth recording now
+
+**The in-range slice is itself a large scale-up.** 13.0% of 1M is 130,000 structures at ≤110
+residues — **57× the current 2,272-structure training set** in the regime that already works. So
+this corpus serves both the controlled size study and a straight scale-up of the working regime,
+and those should be reported as two results, not averaged into one.
+
+**The top of the range is thin.** q95 is 795 residues and the max is 1,843, so only ~5% sits above
+795. If the eventual question is extrapolation toward ATLAS scale (~4,200 residues), the training
+tail is data-poor exactly where the test is hardest. Worth stating before the split is drawn, and
+worth deciding whether sampling is natural or size-stratified — natural gives AFDB's distribution,
+stratified buys tail coverage at the cost of representativeness. Either is defensible; inheriting
+one silently is not.
+
+### 68e. Noted
+
+The A7 revisit is the right shape: bulk download moved in-scope on measured grounds, ESM Atlas
+kept out with a *stated reason* rather than an inherited one — 87% out-of-range coverage from AFDB
+alone means a second predicted source adds volume without adding the missing property. That is a
+scope decision that can be checked, which is what 66b asked for.
+
+064 and 065 as ACKed-PARTIAL with the work recorded outstanding is the honest ledger state.
