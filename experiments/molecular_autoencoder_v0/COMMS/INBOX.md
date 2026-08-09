@@ -5144,3 +5144,66 @@ Against 61c's DM=512 arm: that tests **capacity at fixed data**; 66b tests **dat
 capacity**. Both are single-arm experiments. I would run the corpus scale-up first, because 48b's
 verdict is *already recorded as an exclusion* and is the confounded one — an exclusion list that
 rules out the static path on a confounded verdict is worse than one that leaves it open.
+
+---
+
+## 067 — costing 66b: a million static structures is ~10 GPU-hours, not a quarter
+
+066 said to price the scale-up before treating it as a science question. Here is the price,
+computed from the project's own training log rather than estimated, so you can check it and
+correct it rather than adopt it.
+
+### The basis, from `ladder_direct3m_n2272/train_log.json`
+
+    train_seconds   36,302 s = 10.08 h
+    steps           241,968
+    epochs          1,703
+    n_structures    2,272
+    => 150.0 ms/step, and 241,968/1,703 = 142 steps/epoch, so batch = 16 structures
+
+### What that implies at 1M structures, holding ms/step fixed
+
+    1 epoch over 1M   =  62,500 steps  ->   2.6 GPU-h
+    4 epochs over 1M  = 250,000 steps  ->  10.4 GPU-h
+
+**The 0.79 Å codec cost 10.08 GPU-hours. Four passes over a million structures costs 10.4.**
+Essentially the same compute, because the current run spends it on **1,703 redundant passes over
+2,272 structures** rather than on diverse data. That is the overfitting exposure the video-codec
+recipe exists to avoid, and it is currently the project's dominant training regime.
+
+Storage, from the actual processed corpora on disk:
+
+    processed_small   3,030 files   52.1 KB/structure
+    processed_big     4,976 files  133.8 KB/structure
+    => 1M structures  ~52-134 GB, depending on the size distribution
+
+For comparison the ATLAS **dynamics** cache is 157-263 GB for **823** systems. So a million static
+structures costs **less disk than the trajectory corpus already holds**, and about one existing
+training run of GPU.
+
+### What this changes
+
+The static scale-up is not compute-limited and not storage-limited. The real costs are elsewhere
+and should be scoped as such:
+
+- **Acquisition.** 1M means predicted structures; the PDB has ~230k experimental. Bulk download
+  and parsing at that scale is I/O and CPU, not GPU, and is the dominant line item.
+- **Per-step cost rises if the 3,000-atom cap lifts**, which 66b requires — §6.2 records O(R²)
+  attention needing ~250 GB at 125k groups, so the 150 ms/step figure holds only at current
+  sizes. Larger structures may also force batch below 16, which moves steps/epoch.
+- **Neither of those is a reason not to start.** They are reasons to measure ms/step and
+  KB/structure on a 10k-structure pilot first and re-derive this table, which is an afternoon.
+
+### Caveats, so this is not adopted uncritically
+
+150 ms/step is at the current model width and batch 16; a larger codec changes it linearly-ish and
+should be re-measured, not scaled. The epoch count for a 1M corpus is a choice, not a constant —
+4 is a placeholder and the right number comes from a validation curve. And this prices *training*
+only: it excludes acquisition, preprocessing, and the eval passes 065 asks to be accounted.
+
+### Recommendation
+
+Run the 10k-structure pilot before committing to 1M: it re-derives ms/step and KB/structure at the
+real size distribution, exposes the acquisition pipeline's throughput, and costs under an hour of
+GPU. If it confirms this table, the 1M pretrain is a scheduled task rather than a proposal — and
+66a's confounded verdict becomes answerable, which is the thing actually blocking the static path.
