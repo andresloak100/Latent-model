@@ -3828,7 +3828,36 @@ Scaling the real 150 ms/step by the measured size factor:
 |---|---|---|
 | 067 (assumed a=0) | 150 | 10.4 GPU-h |
 | 068 (assumed a=2) | ~1,754 | ~122 GPU-h floor |
-| **measured (a=0.44, factor 1.22×)** | **183** | **12.7 GPU-h** |
+| ~~measured, factor 1.22×~~ | ~~183~~ | ~~12.7 GPU-h~~ — **wrong anchor pairing, see 69b** |
+| **measured, corrected (69b)** | **263** | **18.2 GPU-h** |
+| **+ worst-case tail bound (69c)** | **469** | **32.6 GPU-h** |
+
+**69b — the anchor and the multiplier were on different corpora, and that is my error.** The 150.0
+ms/step anchor comes from `ladder_direct3m_n2272`, trained on `splits_small_n2272` at **median 81
+residues**. I computed the size factor against `processed_big`'s median of **183** — the corpus the
+*fit* used. The 81 → 183 step is real cost and was uncounted:
+
+| reference | factor | ms/step | 4 epochs over 1M |
+|---|---|---|---|
+| 183 res (fit corpus — wrong pairing) | 1.22× | 184 | 12.7 GPU-h |
+| **81 res (the anchor's own corpus)** | **1.75×** | **263** | **18.2 GPU-h** |
+
+A **1.43× correction**, and it is the same two-references-one-number shape as `complex_d8`, `rmsd` and
+064's shift column — hard to see precisely because both numbers are individually correct.
+
+**69c — the tail is now BOUNDED, not merely unpriced.** Holding the measured a=0.44 below 330 residues
+and assuming the *pessimal* a=2.0 above it (attention fully dominant), anchored continuous at 330, and
+weighting by the **actual 85,220-length sample** rather than band midpoints:
+
+    below 330 res: 60% of AFDB       above: 40%
+    E[cost] worst-case / E[cost] at a=0.44 throughout = 1.79x
+
+069 estimated 1.58× from midpoints; from the full sample it is **1.79×** — its own caveat about
+midpoints was warranted, and in the conservative direction.
+
+**So the whole run is bounded under ~33 GPU-h even if the tail behaves as badly as it possibly can**,
+against **251.5 GPU-h already spent**. The cap-lift decision does not depend on measuring the tail and
+should not wait for it.
 
 So 067 was close and 068's order-of-magnitude correction does not survive measurement — the O(R²)
 worry is real in principle and simply is not what this model does at these sizes.
@@ -3838,7 +3867,7 @@ worry is real in principle and simply is not what this model does at these sizes
 dominate. **This prices the bulk, not the tail** — and extrapolating a fitted law past its measured
 range is precisely what 66a just cost.
 
-**Consequence for 68b:** the cap-lifted branch costs **~12.7 GPU-h**, not ~122. The pair now reads:
+**Consequence for 68b:** the cap-lifted branch costs **~18.2 GPU-h measured, bounded under ~33 GPU-h** including a worst-case tail — not ~122. The pair now reads:
 cap kept → confound survives, cheap; **cap lifted → 66a answerable, ~12.7 GPU-h plus an unpriced
 tail**. That is affordable against 251.5 GPU-h spent to date.
 
