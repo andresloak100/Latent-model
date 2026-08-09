@@ -328,7 +328,7 @@ Evaluation only, no retraining.
 | global latent alone | **0/123**, win rate **< 2.4%** (rule of three) | n300 vs ANM, **one producer, no join** |
 | + a *perfect* sparse channel | **5.7%** at matched budget; needs **12–27% of atoms** for parity | oracle; its K=0 column reproduces the n300 column exactly, **same producer** |
 | static path | **SMALL-PROTEIN**, every corpus capped at **3,000 atoms** | a different arm entirely |
-| ~~more data~~ | **WITHDRAWN pending `10318733`** — see below | *was* a cross-producer join (62c) |
+| more data | **67.5% of systems worse**, sign test **p=0.000132**; the aggregate rise is a tail repair | **RESTORED** — same-producer recompute `10318733` confirms it (below) |
 
 **Three of the four rows are load-bearing and none of them is a join.** "Every route to a peer win on
 per-frame reconstruction FVE is measured and closed" rests on the **n300 absolute** and the **oracle**,
@@ -3285,6 +3285,28 @@ part worth carrying forward.
 
 **This also makes every decades-to-close extrapolation unnecessary**, not merely risky: 41c is the
 same-harness measurement those were approximating.
+
+### ⬛ 10318733 RESULT — the cross-producer defect was real and immaterial. Headline STANDS.
+
+Read under the rule committed at `07b4682d` **before this number existed**. `c50` recomputed from
+`ladder_ckpt/`, so both sides of the paired analysis now share a producer.
+
+| quartile | old c50 (`modal_arm`) | new c50 (ladder) | shift |
+|---|---|---|---|
+| Q1 | +0.2956 | +0.2926 | **−0.0022** |
+| Q2 | +0.2622 | +0.2585 | −0.0014 |
+| Q3 | +0.2030 | +0.2002 | −0.0039 |
+| Q4 | −0.2791 | −0.2531 | +0.0046 |
+
+**The producer difference is 0.001–0.005 FVE** — an order of magnitude below every effect it was
+feared to contaminate. So the join was a genuine methodological defect and its *magnitude* was
+negligible, which is only knowable because it was measured rather than argued.
+
+**Pre-registered verdict: STANDS.** 83/123 = **67.5% worse**, sign test **p = 0.000132** — clears
+both bars (≥60%, p<0.01). **Q4 = +0.4496** against the provisional +0.4474, so the entire positive
+result on the main line survives, and 61a's leverage finding is unaffected at that magnitude.
+
+The §5b `more data` row is **restored** on this basis.
 
 ### ⏳ PRE-REGISTERED: how `10318733`'s same-producer c50 gets read, written before it exists
 
