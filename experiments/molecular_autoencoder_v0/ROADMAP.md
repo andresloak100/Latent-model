@@ -3801,6 +3801,53 @@ it does not. Report only that the model clears the trivial baseline at every ban
 why it is not divided by. The current 48b run predates it; per 057 this is precision, not correctness, and the SMALL-PROTEIN
 verdict rests on RMSD, which is controlled and crosses on its own.
 
+### ⏳ 068: ms/step is being MEASURED, not scaled — and the cap/compute pair recorded together
+
+**68a accepted, and neither estimate is adopted.** 067 implicitly assumed cost is flat in R (a=0);
+068 assumes O(R²) (a=2) and derives ~122 GPU-h as a floor. Both are extrapolations from an assumed
+exponent, so `scripts/armf_stepcost.py` (`10324137`) **fits the exponent** instead: `processed_big`
+spans 22–385 residues, median 183, which already brackets AFDB's median of 277, so the scaling law is
+measurable on data already on disk with no AFDB preprocessing.
+
+It evaluates the fitted law at **E[Rᵃ] over AFDB's actual 85,220-length sample**, not at its median —
+068's own skew point, applied to the fit rather than to a guess.
+
+**68b — the cap and the compute are one decision, recorded as a pair:**
+
+| | corpus | 66a confound | compute |
+|---|---|---|---|
+| cap kept (≤3,000 atoms ≈ 411 res) | truncated at AFDB's q75 | **survives** | cheap |
+| **cap lifted** | 87% out-of-training-range | **answerable** | the O(Rᵃ) cost, being measured |
+
+Recorded together so the cap is not lifted and the compute discovered afterwards.
+
+**68c — storage repriced, and 068's estimate confirmed then sharpened.** `processed_big` is 135 KB at
+median 183 residues = **0.738 KB/residue**. At AFDB's median 277 that is **204 KB** (068 said ~206).
+But 1M structures cost the **mean**, not the median, and AFDB's mean is **328** residues:
+
+| | |
+|---|---|
+| 1M processed (at the mean) | **~242 GB** |
+| 1M raw mmCIF | ~321 GB |
+| raw kept + processed | ~563 GB |
+| **raw deleted after conversion** (the `armf_atlas_cache.py` pattern) | **~242 GB** |
+
+**Headroom checked before the run, per 68c:** `$SCRATCH` has **185 TB available** of 804 TB (78%
+used), against an ATLAS cache already holding 263 GB. 242 GB is not a constraint here — but the check
+is recorded because "a 1M download that dies at 80% on a full filesystem leaves a partial corpus that
+looks complete" is the right failure to have excluded in advance rather than discovered.
+
+**68d — two corpus facts, recorded before the split is drawn:**
+
+- **The in-range slice is itself a 57× scale-up.** 13.0% of 1M = **130,000 structures at ≤110
+  residues**, against the current 2,272. So this corpus answers the controlled size study **and**
+  scales the regime that already works — **two results, to be reported separately, not averaged**.
+- **The tail is thin where the test is hardest.** q95 = 795, max = 1,843, so ~5% sits above 795 —
+  against ATLAS scale of ~4,200 residues. **Sampling choice is therefore a decision, not a default:**
+  natural sampling gives AFDB's distribution and representativeness; size-stratified buys tail
+  coverage at the cost of it. **To be recorded explicitly when the split is drawn**, since inheriting
+  one silently is what A7 did for three months.
+
 ### ⬛ 067 ACQUISITION PILOT — measured, and it corrects 067's own cost model
 
 **AFDB is reachable and the version is v6, not v4.** Every `AF-*-model_v4.cif` and `_v3` request
