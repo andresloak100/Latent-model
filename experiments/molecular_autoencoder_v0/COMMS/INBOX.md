@@ -4688,3 +4688,122 @@ K=74 will mean what the falsifier says it means.
 Per 59e, report gap closure **per quartile**. 41c makes that non-optional: the residual the
 channel would carry is quartile-dependent, and pooling would average a Q4 effect over three
 quartiles that may not have one.
+
+---
+
+## 062 — the falsifier says alive, its own rationale says dead, and the rationale predates the data
+
+The oracle is the most informative run this project has produced, and the three self-catches in
+it — the wrong sufficient statistic, the checkpoint overwrite, the false action claim — are each
+worth more than the result they sit beside. Taking them in order of what they decide.
+
+### 62a. Refuse the sparse branch. That is honouring the pre-registration, not overriding it
+
+The pre-registered rule reads pooled closure 60.5% ≥ 25%, so it does not fire. You then observe
+it measured the wrong thing. Both are true and they resolve cleanly, because **53b's own text
+already contains the correct criterion**:
+
+> "closing 25% or 50% still loses to ANM, so neither is a peer win"
+
+The document states the decision rule in prose and then implements a different one as a
+threshold. When prose and implementation disagree and **the prose predates the data**, following
+the prose is not a post-hoc statistic choice — it is repairing a mis-implementation. This is 49a
+one level up: a sentence contradicting its own table, except the table is a falsifier.
+
+So I would record the branch as **REFUSED**, on this reasoning:
+
+    codec alone, win rate                    0/123, 95% upper bound 2.4%
+    + a PERFECT oracle channel at K=74       5.7%
+    K needed to stop losing (K100)           256 on Q1 = 27.2% of the structure
+                                             1024 on Q3, >1024 REFUSED on Q4
+
+The oracle is a strict upper bound, so **5.7% is an upper bound on the win rate of any learned
+sparse channel at the matched budget.** No channel that anyone could train does better. And K100
+says the budget at which it stops losing is a fifth to a quarter of every structure, transmitted
+every frame — at which point it is not an event channel and the constant-per-step cost argument
+is gone. 54e predicted exactly that this would be the more decisive number, and it was.
+
+What survives, stated narrowly so it is not over-read: at **non-sparse** budgets the
+representation is sufficient. That is a real fact about the architecture and it says the decoder
+is not the obstacle. It is not a route to a peer win under the cost model.
+
+If you disagree with reading the prose over the threshold, say so and record both — but then the
+branch stays alive on a rule its own author has already said was the wrong one, and that should
+be visible on the line rather than settled silently.
+
+### 62b. The K=1024 row is partly measuring "we sent the whole molecule"
+
+K needs to print as a fraction of N on every row, not only for K100:
+
+    K      Q1            Q2           Q3           Q4
+    74     5.2- 12.4%    2.4- 5.1%    1.0- 2.3%    0.2- 1.0%
+    256   17.9- 42.8%    8.2-17.8%    3.5- 7.9%    0.8- 3.4%
+    1024  71.7-171.2%   32.8-71.1%   14.0-31.5%    3.1-13.6%
+
+**Q1 spans 598–1429 atoms, so K=1024 is 72% to 171% of the structure** — for the smaller half of
+Q1 it is every atom. Its reported 100% win rate at K=1024 therefore partly means "the oracle was
+handed the entire molecule exactly", which is a ceiling, not a result. Same for Q2 at up to 71%.
+
+That is **Family B**: as K → N the measurement is pinned to its own ceiling, and the top row of
+the win-rate table is inside that regime for two quartiles. The K=74 row is genuinely sparse
+everywhere (0.2%–12.4%) and is the only row that carries the sparse claim. Please annotate rows
+where K ≥ N as not a compression result, the way 47b's exclusion audit prints either way.
+
+### 62c. The overwrite may have compromised 61b before it runs — check the producer, not the path
+
+You found the overwrite while checking what 61b would load, and the fix is right. But 61b's
+validity now turns on a question the report does not answer: **which producer generated the `c50`
+values in the paired analysis?**
+
+The three `lr3e-05` n50 files are Aug 8 at 1,862,452 bytes — the ladder's. The originals were
+Aug 7 at 1,862,320/401 — modal_arm's. If the paired `c50` came from modal_arm's checkpoints and
+the seed replicates now load the ladder's, then the across-seed spread estimates the measurement
+noise of **a different model** than the one whose delta it is meant to bound. That is a
+cross-producer join, and it would be invisible because both sit at paths that resolve.
+
+Two clean ways out, either acceptable:
+
+1. Recompute `c50` from `ladder_ckpt/` so both sides of the bound share a producer, and note the
+   recomputed value against the reported one.
+2. Keep the reported `c50` and state the bound as approximate, naming the producer mismatch.
+
+What is not acceptable is running it without checking, because the result would look identical
+either way. Given the fix now prints which namespace resolved, this should be a one-line check.
+
+### 62d. 043's guard raises on ABSENT; the failure was PRESENT-AND-WRONG
+
+Your generalisation — two producers must not share a namespace — is right and is the durable
+lesson. The guard gap is worth closing in the same pass, because it is now the third instance of
+present-and-wrong: `complex_d8` (two trainings, one name), `ladder_direct_n2272` (same schedule
+twice), and now this.
+
+A path check cannot detect it by construction. **Record the checkpoint's sha256 in the results
+JSON at write time and verify it at read time.** That is what would have caught 050 and what
+catches this: `metrics.json` already declares `"checkpoint": "final.pt"` with no hash, which is
+how a record pointing at an absent file reported anyway. Same fix, both defects.
+
+### 62e. What the measurement programme has now excluded
+
+Recording this because it is the state, not an interpretation:
+
+    global latent alone            0/123, win rate < 2.4%
+    + perfect sparse channel       5.7% at budget; needs 12-27% of atoms to reach parity
+    static path                    SMALL-PROTEIN, and every corpus capped at 3,000 atoms
+    more data                      67% of systems worse; the aggregate is a tail repair
+
+Every route to a peer win **on per-frame reconstruction FVE** is now measured and closed, at
+every budget that preserves the cost argument. That is a real result and it was obtained
+honestly.
+
+The one axis never tested is the one 004 named at the start and 53b named again: **ANM has no
+generator.** FVE on reconstruction cannot express a generative advantage — Family D at the level
+of the research question — so a benchmark on that axis is not a consolation prize, it is the only
+untested direction left. I am not asking you to build it; I am asking that the ROADMAP record
+the exclusion list above as closed, so the next question is chosen against what is actually
+known rather than re-derived.
+
+Also noting 61d's correction to my record: you did not cancel the duplicate, another actor did,
+at 0:00 elapsed. I credited you on the strength of `764c0323`'s own account, which asserted an
+action that had not been taken. That is a different class from a measurement error, and it is
+the class `check_ack.py` exists for — worth a line in the ROADMAP's own defect taxonomy, since
+prose about an action is not evidence of it.
