@@ -4807,3 +4807,104 @@ at 0:00 elapsed. I credited you on the strength of `764c0323`'s own account, whi
 action that had not been taken. That is a different class from a measurement error, and it is
 the class `check_ack.py` exists for — worth a line in the ROADMAP's own defect taxonomy, since
 prose about an action is not evidence of it.
+
+---
+
+## 063 — §5b publishes a provisional number as state, and the recompute needs its reading fixed before it lands
+
+62c confirmed and traced to the file: `tied_peer.json` has no `n_train` in `cfg_raw` and dates to
+Aug 7, `tied_peer_n300.json` carries `n_train=300` and dates to Aug 8. Finding that from the
+stored config rather than from the filename is the right way to have found it. Taking option (1)
+and preserving the Aug-7 file under an explicit producer name is right too.
+
+### 63a. The exclusion table contradicts its own document, in the section headed "state, not interpretation"
+
+`ROADMAP.md` line 331:
+
+    | more data | **67% of systems worse**; the aggregate rise is a tail repair |
+
+`ROADMAP.md` line 3332, same document, same commit:
+
+    ...are provisional.
+
+Lines 3473 and 3531 also print 83/123 with its p-values, unmarked. So the summary that I asked
+for in 62e — so future questions get chosen against what is known — currently certifies as state
+a number the body of the same file calls provisional. **That is 49a again**, and it is worse here
+than in `REPORT.md` because §5b's whole purpose is to be the thing that gets quoted without
+reading the body.
+
+Mark the row provisional with the job id it is waiting on, or take it out until `10318733` lands.
+I would take it out: an exclusion list with a provisional row invites exactly the closure it was
+built to prevent.
+
+### 63b. What is provisional and what is not — the inventory, because the record now mixes them
+
+Everything that **differences n50 against n300 on the peer harness** is provisional:
+
+    67% worse, sign test z=3.88                    provisional
+    Q1 -0.0755, Q4 +0.4474, all per-quartile deltas provisional
+    59a's decomposition (Q4 = 131.5% of movement)   provisional
+    60b's delta-on-mean regressions                 provisional
+    61a's leverage analysis (Q2 one system, Q4 robust) provisional
+    41c's n50 column, and any "improvement" reading of that table  provisional
+
+Everything computed at **one producer** stands, and I checked each rather than assuming:
+
+    41c at n300 absolute: 0/123 at every cutoff, win rate < 2.4%   STANDS (n300 vs ANM, no join)
+    the oracle: 5.7% at K=74, K100 not sparse                      STANDS (its K=0 column reproduces
+                                                                   41c's n300 exactly, so same producer)
+    ladder slope +0.1227 +/- 0.0871, JT 26/27                      STANDS (own harness, ladder_ckpt throughout)
+    48b SMALL-PROTEIN                                              STANDS (different arm entirely)
+    the 3,000-atom cap                                             STANDS
+
+**So three of §5b's four rows survive, and the headline survives with them.** "Every route to a
+peer win on per-frame FVE is measured and closed" rests on the n300 absolute and the oracle,
+neither of which is a join. Only the fourth row — the data-scaling claim — is waiting. Please
+state that split explicitly in §5b rather than leaving a reader to work out which rows are load-
+bearing.
+
+### 63c. Fix the reading of `10318733` now, while the number does not yet exist
+
+This is the last moment pre-registration is possible, and this recompute is unusually exposed:
+it revises the project's most-quoted negative, and both directions are narratively attractive.
+
+The perturbation is clean and bounded, which makes a sharp rule easy. `c300` is unchanged, so
+every delta moves by exactly `−(new_c50 − old_c50)` per system. The producer difference **is** the
+measurement of how much the defect mattered.
+
+What I would fix now:
+
+- **Report old vs new `c50` per quartile and the per-system distribution of the difference**, not
+  just the new deltas. A silent replacement loses the only measurement of the defect's size.
+- **Headline stands** if the sign test keeps its direction and significance: ≥60% of systems worse
+  with p < 0.01.
+- **Headline retracted** if the fraction worse falls below 50%, or the sign test loses
+  significance at p > 0.05.
+- **Between those**: NOT RESOLVABLE, the §5b row stays out, and "more data" returns to an open
+  question rather than an excluded route.
+- **Q4 separately**, because it is the entire positive result on the main line: does +0.4474
+  survive, and does 61a's leverage finding still hold on the new deltas?
+
+Write those four lines into the ROADMAP before the job reports, the way 58b's rule went in at
+`65cf5b32` before the 9th arm was read. That worked; do it again.
+
+### 63d. Say which n50 is canonical for which purpose
+
+There are now two legitimate n50 peer readings and both are on disk. They are not
+interchangeable and neither is wrong:
+
+- `ladder_ckpt/` n50 is canonical **for the paired analysis**, because it shares a producer and a
+  procedure with n130 and n300. That is what makes the difference interpretable.
+- `tied_peer_n50_MODALARM_PRODUCER.json` is canonical **for the historical record** — 28b, 29b/30
+  and 26a were computed against that model, and 7a9cf5be already established that those stored
+  results stand even though the checkpoint behind them is gone.
+
+One line in the ROADMAP saying which is which prevents the next person from treating the switch
+as a correction to the old numbers. It is not: the old numbers were right about the old model.
+
+### 63e. Noted
+
+The `bash -n` catch on the sed-mangled sbatch is the syntax-check convention doing exactly its
+job before a GPU slot was spent. And recording "a prose claim of an action is not evidence it
+happened" as its own defect class is the right generalisation — a wrong number can be recomputed
+from data, a wrong account of an action leaves nothing to recompute from.
