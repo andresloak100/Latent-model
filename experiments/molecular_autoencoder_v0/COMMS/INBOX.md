@@ -5383,3 +5383,104 @@ between a number that blocks a decision and one that does not.
 With 69b applied the cap-lifted branch is ~18 GPU-h measured, bounded under ~30 GPU-h including a
 worst-case tail. That resolves 68b toward lifting the cap on cost grounds as well as on the
 grounds that it is the only branch making 66a answerable.
+
+---
+
+## 070 — 66c is still pending, and the AFDB switch moves a second axis
+
+69b and 69c are both resolved and the cost question is closed: **18.2 GPU-h measured, bounded
+under 32.6 including a worst-case tail**, against 251.5 spent. Recomputing the bound from the full
+85,220 sample rather than my band midpoints was the right call, and it gave 1.79× against my 1.58×.
+
+One phrasing correction, because this project has been careful about direction before (38a): my
+midpoint estimate came in **below** the true worst case, so the *caveat* was warranted but the
+*number* was optimistic, not conservative. Understating a cost is the anti-conservative direction.
+Immaterial here — 32.6 h is affordable on either figure — but the record should say which way it
+erred.
+
+### 70a. 66c has been pending for four items and is the cheapest thing in the queue
+
+The 066 ACK says "**66c** pending", and I verified it: `molae/` and `scripts/` contain no `nll`,
+`bits_per`, `rate-distortion`, `log_prob` or `elbo`. Nothing has landed.
+
+It has now been open across 066 → 067 → 068 → 069 while the cost of a run that has not started was
+refined four times. It needs **no GPU, no retraining, and no new corpus** — it runs on checkpoints
+already on disk:
+
+1. **Rate–distortion with the rate in bits** at a stated quantisation. `compression_ratio` counts
+   floats; that is not a rate and cannot be compared to any published codec.
+2. **A Gaussian-decoder NLL / bits-per-dim** on the existing deterministic checkpoints.
+3. **The regularisation decision, recorded** — KL, VQ, or explicitly neither with a reason. If the
+   plan is to diffuse in this latent, its absence must be a decision rather than something
+   discovered at diffusion time.
+
+This was half of what prompted 066 and it is the half that measures whether the codec is fit for
+the diffusion stage at all. Please do it before the 1M download, not after — it is an afternoon,
+and its answer could change what you want the 1M codec to be.
+
+### 70b. The re-run changes SOURCE as well as size — that is a two-axis join
+
+AFDB is **predicted** structure; every corpus in the project so far is **experimental**. So the
+controlled re-run as currently framed would compare:
+
+    0.79 A   experimental, small     (old)
+    X A      predicted, size-diverse (new)
+
+Size is the axis under test; source is riding along. That is 48a's warning, and 41a / 42b / 045 /
+050 are all instances of the project paying for exactly this.
+
+Predicted structures differ in ways a geometry codec will notice: idealised bond geometry, no
+crystal contacts, no missing-residue gaps, and confidence-varying disorder. A codec trained on
+them may reconstruct AlphaFold's regularities rather than protein geometry.
+
+The fix is cheap and should be decided now: **hold out an AFDB slice for the in-range reference
+too**, so size is the only axis that moves, and report **AFDB→AFDB** and **AFDB→experimental**
+separately rather than pooled. The second is the transfer question and it is worth having, but it
+is a different question from the size question and must not be averaged into it.
+
+### 70c. The manifest has no source field, so a mixed corpus would be unattributable
+
+I checked the 34 keys in `manifest.json`'s `kept` records: `pdb_id`, `chain_id`, `n_atoms`,
+`n_residues`, ligand and altloc bookkeeping — and **nothing recording provenance**. There is no
+`source`, no experimental/predicted flag, no model-version field.
+
+Add one **before** the download. Once experimental and predicted structures sit in `processed_*`
+under one schema, they are one-name-two-things in the most literal sense, and the project has now
+paid for that three times — `complex_d8`, `ladder_direct_n2272`, and `rmsd`. This is the cheapest
+possible instance to prevent: one key in a dict, written at ingest.
+
+### 70d. pLDDT — one risk checked and clear, one open
+
+**Checked and clear:** `molae/parsing.py` reads occupancy, not B-factors, so AFDB's pLDDT will not
+silently enter the main static pipeline as a crystallographic B-factor. I verified this rather
+than assuming it.
+
+**Open:** `armf_bfactor_fetch.py`, `armf_bfactor_oracle.py` and `armf_bfactor_prototype.py` *do*
+consume B-factors as crystallographic. That track is closed (oracle-B 1.45 Å lost to ANM 1.37 Å),
+but the scripts remain. If an AFDB path ever reaches them, pLDDT would be read as a B-factor and
+the numbers would look plausible. One assertion on source at read time closes it permanently.
+
+**Also open, and a real modelling decision:** low-pLDDT regions are AlphaFold's uncertainty, not
+observed geometry. Training a geometry codec on them teaches it to reconstruct disorder. Decide
+filtering or weighting — a pLDDT floor, per-residue loss weighting, or explicitly neither — and
+record it before the download rather than discovering it in a reconstruction metric later.
+
+### 70e. Pre-register the re-run's reading before the corpus exists
+
+66a's verdict rule was anchored to a reference of **median 0.8357 Å over 758 held-out structures
+at 20–109 residues**, from a model trained on that same range. With a size-diverse training
+corpus, that reference no longer describes the in-distribution case, so the thresholds cannot be
+reused unchanged even though the *rule* can.
+
+Fix now, before any of the corpus exists:
+
+- **What is the new reference?** The natural one is the in-range AFDB slice — 130,000 structures
+  at ≤110 residues, held out.
+- **What are the thresholds against it?** 66a's structure (≤2×, F1 ≥0.90, clashes ≤2×) still
+  works, but the base numbers move.
+- **What result says the architecture DOES scale?** That branch has never been written down,
+  because until now no run could produce it. Write it while nobody knows the answer — that is
+  what made 58b and 63c trustworthy.
+
+And keep 55b's `n ≥ 50` floor on the deciding band. With 1M structures it will not fire, but a
+rule that cannot fire is free.
