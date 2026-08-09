@@ -5484,3 +5484,104 @@ Fix now, before any of the corpus exists:
 
 And keep 55b's `n ≥ 50` floor on the deciding band. With 1M structures it will not fire, but a
 rule that cannot fire is free.
+
+---
+
+## 071 — the rate is in bits on one side only, and the NLL has no baseline
+
+66c is the best-executed item in a while, and three things in it are worth naming before the
+corrections. Catching that `all_atom_rmsd` is **Kabsch-aligned** while your first pass computed raw
+— a ~3× difference — inside the commit that exists to fix a units problem, is the discipline
+working on itself. Fitting sigma on a **disjoint half** and then *measuring* the optimism
+(+0.0003 bits/dim) rather than asserting it was negligible is the right order. And putting the NLL
+on **raw** residuals because Kabsch fits six free parameters per structure that the model does not
+have is a subtle call and the correct one — a likelihood must not be paid that discount.
+
+The 065 honesty is also right: 76% unattributed, recorded as unattributed rather than blended into
+a single factor. And it correctly revises **my** figure — the 251.5 h I compared against in 68b/69c
+was wall-hours on mixed hardware, not A100-equivalent.
+
+### 71a. The rate is now in bits on the numerator and still floats on the denominator
+
+The measurement is right and the conclusion — the operating point is 6–8 bits/scalar, not 32 — is
+the useful finding. But a compression *ratio* needs both sides in the same units, and only one side
+moved:
+
+    reported today (float count, both sides 32-bit)          2.74x
+    8-bit latent vs float32 input                           10.9x   <- the same trick, reversed
+    8-bit latent vs 19-bit input (0.001 A over +-200 A)      6.5x
+    8-bit latent vs 14-bit input (0.01 A over +-100 A)       4.8x
+
+If the headline is recomputed as 8-bit latent against a float32 denominator it will **overstate by
+4×** in exactly the way float-counting understated by 4–5×. Please quantise the *input* to a stated
+precision as well, and report the ratio as bits-in / bits-out with that precision on the line.
+PDB deposits three decimals in Å, so ~19 bits is the defensible default and ~14 is defensible if
+0.01 Å is argued for — but the number must not float free.
+
+Also worth stating for anyone reading the table: `bits/atom` is latent bits amortised over atoms,
+not bits describing an atom's coordinates — I checked it reproduces as `8 floats/residue ÷ 7.3
+atoms/residue × bits/scalar` to within 4%. Label it, because "8 bits/atom" reads as the second
+thing.
+
+### 71b. 2.03 bits/dim has no comparator, so it has no scale
+
+The NLL is measured cleanly and it is uninterpretable on its own. Is 2.0269 bits/dim good? Nothing
+in the record can say, because nothing else has been measured in those units — and this project's
+own Family E rule is that a comparison without a baseline proves nothing.
+
+Three baselines, all cheap and all on existing data:
+
+1. **Centroid predictor.** `trivial_all_atom_baselines` already carries
+   `centroid_all_atom_rmsd = 12.165`; fitting the same Gaussian to its residuals gives the
+   do-nothing NLL and sets the ceiling.
+2. **A per-element Gaussian prior** with no model at all — the rate you pay for knowing only that
+   this is a carbon.
+3. **PCA at matched rate**, if it is cheap. That is the comparator the README already treats as the
+   linear reference for the codec.
+
+Without at least the first, "2.03 bits/dim" cannot appear in a report — a reader has no way to
+know whether it is impressive or trivial, which is the same problem the bare `0%` had before 59c
+put the rule-of-three bound on it.
+
+### 71c. The scale branch's "flat within its CI" is an equivalence claim with no relevance bound
+
+The branch that had never been written down is now specified as: the ≥300-residue band meets all
+three thresholds **AND** the across-band degradation slope is flat within its CI.
+
+The second half is an equivalence claim stated as a null result. `null_verdict()` exists in this
+project precisely because "the CI includes zero" and "the effect is negligible" are different
+findings — it has four states, and `EQUIVALENT` requires a **relevance bound** that
+`NOT_RESOLVABLE` does not. As written, a slope estimated with a wide CI satisfies the branch by
+being imprecise, which is **Family C** in the one rule meant to certify the project's most
+important positive.
+
+At 1M structures the CI will very likely be tight enough that this never bites. That is exactly why
+it is free to fix now: state the relevance bound — what slope magnitude would count as
+degradation — and route the branch through `null_verdict` so it returns `EQUIVALENT` rather than
+"not significantly different from zero". 55b's `n ≥ 50` floor was retained on the same reasoning.
+
+### 71d. Say what hardware 18.2 GPU-h is denominated in
+
+Now that an A100-equivalence table exists, the estimate needs its units. 18.2 h derives from the
+150 ms/step anchor, which was measured on whatever GPU `ladder_direct3m_n2272` occupied. If that was
+the dominant Quadro RTX 8000 at your ×0.30 factor, then:
+
+    18.2 wall-hours on RTX 8000  ~=  5.5 A100-equivalent hours
+
+Those are the same run described two ways, and the second is the one that belongs next to "146
+A100-equivalent hours spent to date". Attach the anchor's GPU model to the estimate, or the two
+numbers will be compared as if they shared units — which is the same defect 069 caught in the
+anchor and the size factor, one level up.
+
+### 71e. Noted
+
+`PROVENANCE_KEYS = (source, model_version, confidence_kind)` written before any mixed corpus
+exists, and `_refuse_predicted()` on all four `armf_bfactor_*` scripts — verified to refuse
+`plddt` and pass `bfactor` — closes 70c and 70d properly. The observation that a predicted
+structure reaching that closed track "would have produced entirely plausible numbers" is the whole
+reason the guard belongs at the boundary rather than in a reviewer's memory.
+
+The regularisation decision is well-reasoned and correctly bounded: quantisability constrains the
+marginal per-scalar range, samplability of the aggregate posterior is a different property, nothing
+here measures it, and it must be answered before the diffusion stage. Recording that the 8-bit
+result argues VQ over KL is a useful prior to have written down before the choice is forced.
