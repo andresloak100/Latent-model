@@ -5049,3 +5049,98 @@ says what ruling it out took. Together those two are the honest summary of the p
 Not urgent, and it should not take a GPU slot from 61c's DM=512 arm. But it is cheap, it is
 read-only against SLURM's own accounting, and it is the one figure a reader outside the project
 will ask for first.
+
+---
+
+## 066 — 48b's verdict is confounded by its own training set, and there is no likelihood metric anywhere
+
+Two structural gaps, raised against the video-diffusion recipe the project is nominally following:
+train the autoencoder on the large, diverse STATIC corpus first, then freeze it and add the
+temporal model. Measured against that recipe, the codec has been trained on a corpus three orders
+of magnitude too small and evaluated with metrics that cannot say whether its latent is diffusable.
+
+### 66a. 48b cannot separate the architecture from its training distribution
+
+`ladder_direct3m_n2272` trains on `splits_small_n2272`. I checked the range rather than assuming:
+054 established that the 261 structures shared with the 48b pool are **21–107 residues, median 76,
+zero above 109**. The training set contains **no structure above 109 residues.**
+
+48b then evaluated that model out to **385 residues** and returned SMALL-PROTEIN.
+
+    what 48b compared:   trained <=109, tested <=109   vs   trained <=109, tested >109
+
+That design cannot distinguish *the architecture cannot represent large proteins* from *this model
+was never shown one*. Degradation on out-of-distribution size is the expected result for any
+architecture trained this way, and it is the third explanation the verdict rule has no branch for
+— exactly 60c's shape, where data-limited/fundamental had no branch for capacity competition.
+**Family D at the level of the research question.**
+
+This matters because it is not a lab note: §5b records `static path | SMALL-PROTEIN, every corpus
+capped at 3,000 atoms` as **state, not interpretation**. On the evidence it should read
+"does not extrapolate in size beyond its training range", which is a much weaker claim and does
+not exclude the architecture.
+
+Please either re-word that row or withdraw it pending the controlled version, the way 63a
+withdrew `more data`. The controlled version is: **train on a size-diverse corpus, then re-run
+48b unchanged.** Only then does the ARCHITECTURE/SMALL-PROTEIN distinction mean anything, and the
+pre-registered verdict rule can be reused as written.
+
+### 66b. The static corpus is three orders of magnitude short of the recipe
+
+Largest static training sets in the project: `splits_small_n2272` train **2,272**; `splits_big`
+train **3,726**. The dynamics line is **697**. The recipe being imitated trains the codec on the
+large diverse corpus precisely because it is hard to overfit and forces a general manifold.
+
+Sourcing, stated honestly because the number matters: the **PDB holds roughly 230k experimental
+structures**, so 1M is not reachable from experimental data alone. Getting there means predicted
+structures — AlphaFold DB is the obvious source at ~200M. The README records that **ESM Atlas is
+"intentionally not used"**; that was a deliberate scope decision for a small milestone and it
+should now be **revisited explicitly and re-recorded**, not silently inherited into a different
+project.
+
+Two conditions on any scale-up, both from the existing record:
+
+- **Lift the 3,000-atom cap at the same time.** 55d measured `processed_big` at 170–2,977 atoms
+  and `manifest.json` records `max_atoms 3000`. Scaling the *count* while keeping the cap leaves
+  66a's confound exactly where it is — you would train on a million small proteins and still have
+  no large ones.
+- **Price it first.** This is the one place 065's accounting is load-bearing: a 300× corpus
+  increase is a compute question before it is a science question, and the answer decides whether
+  this is a week or a quarter.
+
+### 66c. There is no ELBO, no likelihood, and no rate term — the model is not probabilistic at all
+
+Checked directly: `molae/` contains **zero** occurrences of `kl`, `elbo`, `log_prob`, `nll`,
+`logvar`, `reparam` or `variational`. Every metric in `molae/metrics.py` is a deterministic
+distortion measure — `all_atom_rmsd`, `ca_rmsd`, `backbone_rmsd`, `pairwise_distance_error`,
+`bond_length_error`, `chirality_violation_rate`, `clash_metrics`, `contact_map_recovery`.
+
+So the codec is a **deterministic autoencoder evaluated only on distortion**. There is no rate
+term: `compression_ratio` counts floats, not bits. Nothing measures whether the latent is
+distributionally well-behaved, which is the property a diffusion model actually consumes.
+
+Three concrete asks, cheapest first:
+
+1. **Report rate–distortion with the rate in bits.** Floats-per-structure is not a rate; bits at a
+   stated quantisation is. Without it "3× compression" cannot be compared to any published codec.
+2. **Compute a likelihood surrogate on the existing checkpoints.** A Gaussian decoder with a fitted
+   per-atom variance gives a proper NLL / bits-per-dim from the current deterministic model — no
+   retraining, and it makes the codec comparable to image-autoencoder practice.
+3. **Decide and record whether the latent is regularised.** An unregularised deterministic latent
+   has arbitrary scale and no prior; latent-diffusion codecs use a KL or VQ term for exactly that
+   reason. If the intent is to diffuse in this space, its absence should be a **recorded decision
+   with a reason**, not an omission discovered later.
+
+**Credit where it is due:** `latent_suitability.py` and `latent_smoothness.py` already ask the
+right *kind* of question — is the latent diffusable, not does it reconstruct — and
+`latent_suitability.py` states it outright: "reconstruction accuracy is necessary and NOT
+sufficient for latent diffusion." That framing is correct and predates this item. What is missing
+is the quantitative half: those are geometry diagnostics, not likelihoods, and nothing converts
+either into a number comparable across codecs.
+
+### 66d. Ordering
+
+Against 61c's DM=512 arm: that tests **capacity at fixed data**; 66b tests **data at fixed
+capacity**. Both are single-arm experiments. I would run the corpus scale-up first, because 48b's
+verdict is *already recorded as an exclusion* and is the confounded one — an exclusion list that
+rules out the static path on a confounded verdict is worse than one that leaves it open.
