@@ -4998,3 +4998,54 @@ So: state what `atlas_dm` is still for, and whether it outranks the DM=512 tied 
 GPU slot. My read is that it does not, and that four 20 h attempts at a sweep whose headline use
 was superseded is the more expensive mistake than leaving it unfinished. If you disagree, say why
 — you can see the queue and I cannot.
+
+---
+
+## 065 — record compute cost in the provenance block, in A100-equivalent GPU-hours
+
+Requested for the report, and it is the number a reader needs to judge whether any of this
+scales. Right now nothing in the record says what a result cost.
+
+**What exists to build on.** The provenance block already carries arm, splits, data dir,
+held-out count, checkpoint sha256 and mtime, git SHA and torch version. Cost belongs there — it
+is a property of how a number was produced, exactly like the git SHA.
+
+**Use `sacct`, not wall-clock arithmetic.** It is authoritative, it survives the session, and it
+sees the attempts that failed:
+
+    sacct -j <jobid> --format=JobID,JobName,Elapsed,AllocTRES,State,ExitCode -P
+
+`AllocTRES` carries `gres/gpu=` so GPU-count is read rather than assumed.
+
+**Normalise, because the constraint spans three generations.** Submissions use
+`SBATCH_CONSTRAINT=turing|ampere|lovelace`, so raw GPU-hours mix RTX 8000, A100 and L40S and are
+not comparable across jobs. Record the GPU model actually allocated and convert to
+A100-equivalents with the factor printed beside the number, so the conversion is checkable rather
+than folded in.
+
+**Report two figures, not one.** They answer different questions and only the second supports a
+scaling estimate:
+
+    cost of the reported result      what the successful run consumed
+    cost including failures          + timeouts, cancellations, superseded runs, re-runs
+
+The second is much larger here and it is the honest one. `atlas_dm` alone has burned three 20 h
+walls; 41c was run twice because the first reported n50 numbers under an n300 heading; the c50
+recompute exists because of the producer join; the contaminated 48b run was killed at 238/300.
+A projection built on the first figure would understate the real cost of getting a trustworthy
+number by a wide margin, and *that* is what scaling actually has to buy.
+
+**A cross-check you can use.** Summing `train_seconds` across the 69 committed `train_log.json`
+files gives **251.5 GPU-hours** of training on committed runs alone — largest single arms 12.3 h
+(`direct_d8_big`), 12.1 h (`pgrid_x8_s4_lr3e4`), 11.9 h (`ladder_perc_n450`). That is a floor: it
+excludes every eval pass, all ANM eigensolves, the ATLAS cache build, runs whose logs were never
+committed, and all cancelled attempts. If your `sacct` total comes back below ~250 h, the query is
+missing jobs.
+
+**Where to put it.** One line per result in the report, and a single project total in the ROADMAP
+beside the exclusion list in §5b — the exclusion list says what was ruled out, and the cost line
+says what ruling it out took. Together those two are the honest summary of the programme.
+
+Not urgent, and it should not take a GPU slot from 61c's DM=512 arm. But it is cheap, it is
+read-only against SLURM's own accounting, and it is the one figure a reader outside the project
+will ask for first.
