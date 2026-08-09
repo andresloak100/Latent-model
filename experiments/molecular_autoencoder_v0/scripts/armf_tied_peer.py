@@ -66,8 +66,12 @@ def ckpt_path(kind, dm, lr, seed, n_train):
     return p
 
 # results are keyed by n_train too, so two rungs cannot share a file even if the stamp were wrong
-RES = f"{WR}/tied_peer.json" if int(os.environ.get("PEER_NTRAIN", "50")) == 50 \
-      else f"{WR}/tied_peer_n{int(os.environ['PEER_NTRAIN'])}.json"
+# PEER_RES lets a run name its own output. Needed because PEER_NTRAIN=50 otherwise writes
+# tied_peer.json -- the Aug-7 file produced from modal_arm's checkpoint -- and overwriting it to fix a
+# provenance question would destroy the evidence the question is about.
+RES = os.environ.get("PEER_RES") or (
+    f"{WR}/tied_peer.json" if int(os.environ.get("PEER_NTRAIN", "50")) == 50
+    else f"{WR}/tied_peer_n{int(os.environ['PEER_NTRAIN'])}.json")
 DM, SEED = 256, 0
 ARM_LR = 3e-5          # the tied arm with the best Q1 median (+0.2956), per 28a
 CUTOFF = 5.0           # selected on TRAINING systems by armf_atlas_peer.py
@@ -105,8 +109,17 @@ if __name__ == "__main__":
     # 10317061 loaded tied_..._n300.pt correctly, matched all 123 stored n50 systems, computed nothing,
     # and reprinted the n50 numbers under an n300 heading. The checkpoint path and the results key have
     # to carry the same identity or the guard only moves the failure.
-    ST = STAMP.stamp(dict(dm=DM, lr=ARM_LR, seed=SEED, cutoff=CUTOFF, arm="tied", n_train=NTRAIN),
-                     ModalCodec, D.fve_model)
+    # INBOX 62d: a path check cannot detect PRESENT-AND-WRONG, which is now the third instance
+    # (complex_d8, ladder_direct_n2272, the ladder overwriting modal_arm's n50). Record the weights'
+    # sha256 at WRITE time; a reader can then verify the file still is what produced the numbers.
+    import hashlib
+    _h = hashlib.sha256()
+    with open(cp, "rb") as _f:
+        for _c in iter(lambda: _f.read(1 << 20), b""): _h.update(_c)
+    CKSHA = _h.hexdigest()[:16]
+    print(f"  [ckpt] sha256 {CKSHA}  ({os.path.getsize(cp)} bytes)", flush=True)
+    ST = STAMP.stamp(dict(dm=DM, lr=ARM_LR, seed=SEED, cutoff=CUTOFF, arm="tied", n_train=NTRAIN,
+                          ckpt_sha=CKSHA), ModalCodec, D.fve_model)
     res = json.load(open(RES)) if os.path.exists(RES) else {}
     STAMP.report(list(res.values()), ST, "systems")
     res = {k: v for k, v in res.items() if STAMP.same_stamp(v, ST)}

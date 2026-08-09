@@ -321,6 +321,23 @@ Evaluation only, no retraining.
 
 ---
 
+## 5b. WHAT THE MEASUREMENT PROGRAMME HAS EXCLUDED (state, not interpretation)
+
+| route | status |
+|---|---|
+| global latent alone | **0/123**, win rate **< 2.4%** (rule of three) |
+| + a *perfect* sparse channel | **5.7%** at matched budget; needs **12–27% of atoms** to reach parity |
+| static path | **SMALL-PROTEIN**, and every corpus capped at **3,000 atoms** |
+| more data | **67% of systems worse**; the aggregate rise is a tail repair |
+
+**Every route to a peer win on per-frame reconstruction FVE is measured and closed**, at every budget
+that preserves the cost argument.
+
+**The one axis never tested** is the one 004 named at the start and 53b named again: **ANM has no
+generator.** Reconstruction FVE cannot express a generative advantage — Family D at the level of the
+research question — so a benchmark on that axis is not a consolation prize, it is the only untested
+direction left. Recorded so the next question is chosen against what is known rather than re-derived.
+
 ## 5a. STANDING SCOPE LIMIT: every static-path corpus is capped at 3,000 atoms
 
 `manifest.json` records `max_atoms 3000` on the complex corpus, and `processed_big` — which has no
@@ -3264,6 +3281,60 @@ part worth carrying forward.
 
 **This also makes every decades-to-close extrapolation unnecessary**, not merely risky: 41c is the
 same-harness measurement those were approximating.
+
+### ⛔ 062: the sparse branch is REFUSED, and the paired result rests on a cross-producer join
+
+**62a — REFUSED, and this honours the pre-registration rather than overriding it.** 53b's own text
+says *"closing 25% or 50% still loses to ANM, so neither is a peer win"* and then implements a
+different rule as a threshold. Prose and implementation disagree, **the prose predates the data**, so
+following it repairs a mis-implementation instead of choosing a statistic post hoc. This is 49a one
+level up — a sentence contradicting its own table, where the table is a falsifier.
+
+| | |
+|---|---|
+| codec alone, win rate | 0/123, 95% upper bound **2.4%** |
+| **+ a PERFECT oracle channel at K=74** | **5.7%** |
+| K₁₀₀ to stop losing | 256 on Q1 = **27.2% of the structure**; 1024 on Q3; **>1024 REFUSED on Q4** |
+
+The oracle is a strict upper bound, so **5.7% bounds the win rate of any learned sparse channel at the
+matched budget** — no trainable channel does better. And the budget at which it stops losing is a
+fifth to a quarter of every structure every frame, at which point it is not an event channel and the
+constant-per-step cost argument is gone.
+
+**What survives, stated narrowly:** at *non-sparse* budgets the representation is sufficient. That
+says the decoder is not the obstacle. It is not a route to a peer win under the cost model.
+
+**62b — K as a fraction of N, and the top row is inside its own ceiling.**
+
+| K | Q1 | Q2 | Q3 | Q4 |
+|---|---|---|---|---|
+| 74 | 5.2–12.4% | 2.4–5.1% | 1.0–2.3% | 0.2–1.0% |
+| 256 | 17.9–42.8% | 8.2–17.8% | 3.5–7.9% | 0.8–3.4% |
+| **1024** | **71.7–171.2%** | 32.8–71.1% | 14.0–31.5% | 3.1–13.6% |
+
+**Q1 spans 598–1429 atoms, so K=1024 is 72%–171% of the structure** — for the smaller half of Q1 it is
+*every atom*. Its 100% win rate at K=1024 partly means "the oracle was handed the whole molecule
+exactly", which is a **Family B** ceiling, not a result. Only the **K=74 row is genuinely sparse
+everywhere** (0.2%–12.4%) and only it carries the sparse claim.
+
+**62c — the paired result is a cross-producer join, and it was invisible.** Checked rather than
+assumed:
+
+| | git | written | cfg_raw | checkpoint producer |
+|---|---|---|---|---|
+| `tied_peer.json` (c50) | 6ba90650 | **Aug 7 13:05** | no `n_train` | **`modal_arm`** (pre-043 n-less path) |
+| `tied_peer_n300.json` (c300) | 00496b2d | Aug 8 17:10 | `n_train: 300` | **ladder** |
+
+So 67%-worse, Q1 −0.0755 and Q4 +0.4474 all join a **`modal_arm`-trained n50** model to a
+**ladder-trained n300** model. Both sat at paths that resolved, so nothing failed. Option (1) taken:
+**c50 is being recomputed from `ladder_ckpt/`** (`10318733`) so both sides share a producer, with the
+Aug-7 file preserved as `tied_peer_n50_MODALARM_PRODUCER.json`. **Until it lands, the paired numbers
+are provisional.**
+
+**62d — sha256 at write time.** A path check cannot detect present-and-wrong, now the third instance
+(`complex_d8`, `ladder_direct_n2272`, the overwrite). The peer stamp now carries the checkpoint's
+**sha256**, recorded when the numbers are produced, so a reader can verify the weights still are what
+made them.
 
 ### ⚠ DATA LOSS I CAUSED: the ladder overwrote `modal_arm`'s n50 checkpoint
 
