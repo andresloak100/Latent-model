@@ -3801,6 +3801,47 @@ it does not. Report only that the model clears the trivial baseline at every ban
 why it is not divided by. The current 48b run predates it; per 057 this is precision, not correctness, and the SMALL-PROTEIN
 verdict rests on RMSD, which is controlled and crosses on its own.
 
+### ⬛ 68a MEASURED: the exponent is **0.44**, and 1M costs **~12.7 GPU-h**
+
+`10324137`, fitted on `processed_big` across 4,976 structures:
+
+| band | n | med R | ms/step | ms/structure |
+|---|---|---|---|---|
+| 20–60 | 102 | 54 | 17.4 | 1.09 |
+| 60–100 | 232 | 85 | 18.1 | 1.13 |
+| 100–150 | 1,191 | 129 | 18.1 | 1.13 |
+| 150–220 | 1,349 | 167 | 22.2 | 1.39 |
+| 220–300 | 1,197 | 257 | 30.8 | 1.92 |
+| 300–400 | 905 | 330 | 39.0 | 2.43 |
+
+**Fitted exponent a = 0.44.** Not 2 (068's O(R²)) and not 0 (067's implicit flat). **Attention does
+not dominate in this range** — cost is sub-linear in residues, so the model is still fixed-cost
+dominated at AFDB's bulk sizes.
+
+**The absolute figure needed anchoring, and my first script version got it wrong.** The benchmark's
+17–39 ms/step is **kernel-only** (forward+backward+step, direct indexing, MSE loss); `train_log`'s
+150.0 ms/step is the **full loop** — dataloader, masking/curriculum, periodic `quick_rmsd` evals,
+checkpointing — a **7.4× non-kernel overhead**. The **exponent transfers; the absolute does not.**
+Scaling the real 150 ms/step by the measured size factor:
+
+| | ms/step at AFDB sizes | 4 epochs over 1M |
+|---|---|---|
+| 067 (assumed a=0) | 150 | 10.4 GPU-h |
+| 068 (assumed a=2) | ~1,754 | ~122 GPU-h floor |
+| **measured (a=0.44, factor 1.22×)** | **183** | **12.7 GPU-h** |
+
+So 067 was close and 068's order-of-magnitude correction does not survive measurement — the O(R²)
+worry is real in principle and simply is not what this model does at these sizes.
+
+**CAVEAT, and it is 48b's own lesson turned on this fit:** the fit spans **54–330 residues** and
+**40% of AFDB lies above it** (q95 795, max 1,843). `a` may rise there if attention begins to
+dominate. **This prices the bulk, not the tail** — and extrapolating a fitted law past its measured
+range is precisely what 66a just cost.
+
+**Consequence for 68b:** the cap-lifted branch costs **~12.7 GPU-h**, not ~122. The pair now reads:
+cap kept → confound survives, cheap; **cap lifted → 66a answerable, ~12.7 GPU-h plus an unpriced
+tail**. That is affordable against 251.5 GPU-h spent to date.
+
 ### ⏳ 068: ms/step is being MEASURED, not scaled — and the cap/compute pair recorded together
 
 **68a accepted, and neither estimate is adopted.** 067 implicitly assumed cost is flat in R (a=0);

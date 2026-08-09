@@ -79,8 +79,23 @@ if __name__ == "__main__":
         idxf = f"{os.environ['WR']}/afdb_lengths.npy"
         if os.path.exists(idxf):
             L = np.load(idxf)
-            pred_ms = np.exp(sl[1]) * np.mean(L.astype(float) ** sl[0])
-            base = np.exp(sl[1]) * np.median(R) ** sl[0]
+            # The ABSOLUTE ms/step here is kernel-only (forward+backward+step, direct indexing,
+            # MSE loss) and runs ~7.4x faster than train_log's 150 ms/step, which amortises the
+            # dataloader, masking/curriculum, periodic quick_rmsd evals and checkpointing. So the
+            # EXPONENT transfers -- it is about how cost scales with R -- and the ABSOLUTE does not.
+            # Anchor to the real figure and scale it by the measured size factor.
+            TRAIN_LOG_MS = 150.0
+            ratio = np.mean(L.astype(float) ** sl[0]) / (float(np.median(R)) ** sl[0])
+            pred_ms = TRAIN_LOG_MS * ratio
+            base = TRAIN_LOG_MS
+            print(f"    kernel-only median here {np.median([x[1] for x in rows]):.1f} ms/step; "
+                  f"train_log 150.0 -> {TRAIN_LOG_MS/np.median([x[1] for x in rows]):.1f}x non-kernel "
+                  f"overhead. Exponent transfers, absolute does not.", flush=True)
+            print(f"    size factor E[R^a]/median^a = {ratio:.2f}x", flush=True)
+            hi = float(np.percentile(L, 95))
+            print(f"    CAVEAT: fit spans {min(x[0] for x in rows):.0f}-{max(x[0] for x in rows):.0f} "
+                  f"residues; {100*(L > max(x[0] for x in rows)).mean():.0f}% of AFDB is ABOVE it "
+                  f"(q95 {hi:.0f}, max {L.max():.0f}). This prices the bulk, not the tail.", flush=True)
             print(f"    AFDB E[R^a] over n={L.size}: predicted {pred_ms:.0f} ms/step "
                   f"({pred_ms/base:.1f}x the current-distribution cost)", flush=True)
             for ep in (4,):
