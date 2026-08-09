@@ -8,6 +8,17 @@ numbers from the h5 pdbProteinAtoms; download the parent PDB; match chain CA B-f
 by residue number; fit springs to matched B (z-scored); reconstruct the matched-residue
 mdCATH trajectory vs ANM(uniform)/PCA/null on the SAME matched subset.
 """
+# INBOX 70d GUARD. This track consumes B-factors as CRYSTALLOGRAPHIC. AFDB stores pLDDT in
+# the same column, so a predicted structure reaching here would be read as a B-factor and
+# would look entirely plausible. The track is closed (oracle-B 1.45 A lost to ANM 1.37 A)
+# but the scripts remain, so the refusal is made explicit rather than left to nobody
+# pointing an AFDB path at them.
+def _refuse_predicted(meta):
+    k = (meta or {}).get("confidence_kind")
+    if k == "plddt":
+        raise ValueError("refusing predicted structure: this script treats the confidence "
+                         "column as a crystallographic B-factor, and pLDDT is not one")
+
 import os, subprocess, numpy as np, torch, h5py
 MDATA = "/network/scratch/j/jacob-junqi.tian/datasets/mdcath/data"
 FROZEN = "/network/scratch/j/jacob-junqi.tian/mae_provisional/latent-model/experiments/molecular_autoencoder_v0/outputs/cluster/armf_frozen_test.txt"

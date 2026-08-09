@@ -1,3 +1,4 @@
+
 """Parse and clean protein structures from mmCIF/PDB into atom arrays.
 
 Design decisions (recorded per structure so filtering is auditable):
@@ -23,6 +24,15 @@ external monomer library.
 """
 
 from __future__ import annotations
+
+# INBOX 70c: provenance at ingest. Once experimental and predicted structures sit in
+# processed_* under one schema they are one-name-two-things in the most literal sense, and
+# this project has paid for that three times (complex_d8, ladder_direct_n2272, rmsd). One key
+# in a dict, written when the structure is parsed, is the cheapest possible prevention.
+PROVENANCE_KEYS = ("source", "model_version", "confidence_kind")
+# source: "experimental" | "predicted"; model_version: e.g. "AFDB-v6"; confidence_kind:
+# "bfactor" (crystallographic) | "plddt" (predicted) | None. 70d: pLDDT read as a B-factor
+# would look entirely plausible, so the KIND travels with the number, not just the number.
 
 from dataclasses import dataclass, field
 from typing import Optional

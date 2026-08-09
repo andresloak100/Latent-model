@@ -2,6 +2,17 @@
 pretraining: per-residue CA coords + crystallographic B-factors. Report-scale, ~2500
 structures (scale only if the prototype beats ANM). CC0 data. Saves per-structure
 npz (ca_xyz, bfac, resid) to $WR/bfactor_cache/."""
+# INBOX 70d GUARD. This track consumes B-factors as CRYSTALLOGRAPHIC. AFDB stores pLDDT in
+# the same column, so a predicted structure reaching here would be read as a B-factor and
+# would look entirely plausible. The track is closed (oracle-B 1.45 A lost to ANM 1.37 A)
+# but the scripts remain, so the refusal is made explicit rather than left to nobody
+# pointing an AFDB path at them.
+def _refuse_predicted(meta):
+    k = (meta or {}).get("confidence_kind")
+    if k == "plddt":
+        raise ValueError("refusing predicted structure: this script treats the confidence "
+                         "column as a crystallographic B-factor, and pLDDT is not one")
+
 import os, json, subprocess, numpy as np
 WR = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace"
 OUT = f"{WR}/bfactor_cache"; os.makedirs(OUT, exist_ok=True)

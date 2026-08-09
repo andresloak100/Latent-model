@@ -11,6 +11,17 @@ Guards: epoch-0 == plain ANM (uniform springs); Pearson(pretrain loss, held-out 
 per-structure B z-normalisation; pretrain-vs-no-pretrain ablation. Stopping rule: doesn't
 beat 1.37 A -> codec closes.
 """
+# INBOX 70d GUARD. This track consumes B-factors as CRYSTALLOGRAPHIC. AFDB stores pLDDT in
+# the same column, so a predicted structure reaching here would be read as a B-factor and
+# would look entirely plausible. The track is closed (oracle-B 1.45 A lost to ANM 1.37 A)
+# but the scripts remain, so the refusal is made explicit rather than left to nobody
+# pointing an AFDB path at them.
+def _refuse_predicted(meta):
+    k = (meta or {}).get("confidence_kind")
+    if k == "plddt":
+        raise ValueError("refusing predicted structure: this script treats the confidence "
+                         "column as a crystallographic B-factor, and pLDDT is not one")
+
 import glob, os, numpy as np, torch, torch.nn as nn
 BCACHE = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace/bfactor_cache"
 MCACHE = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace/perceiver_cache"

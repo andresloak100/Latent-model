@@ -3801,6 +3801,63 @@ it does not. Report only that the model clears the trivial baseline at every ban
 why it is not divided by. The current 48b run predates it; per 057 this is precision, not correctness, and the SMALL-PROTEIN
 verdict rests on RMSD, which is controlled and crosses on its own.
 
+### ⬛ 66c MEASURED (pending since 066): rate in bits, a likelihood surrogate, and the regularisation decision
+
+`scripts/armf_likelihood.py`, 120 held-out structures, CPU, no retraining.
+
+**Rate–distortion, rate in BITS at uniform scalar quantisation** — the distortion axis is the
+project's own `all_atom_rmsd` (Kabsch-**aligned**), because raw and aligned differ ~3× (1.589 vs 0.487
+on one structure) and reporting raw against a recorded aligned number would be one-name-two-things in
+the distortion axis:
+
+| bits/scalar | bits/atom | median aligned RMSD |
+|---|---|---|
+| 2 | 2.07 | 6.168 |
+| 3 | 3.11 | 3.080 |
+| 4 | 4.15 | 1.645 |
+| **6** | **6.22** | **0.837** |
+| **8** | **8.29** | **0.769** |
+| 12 | 12.44 | 0.757 |
+| 32 (float, no quantisation) | 33.16 | 0.757 |
+
+**The curve saturates at 8–12 bits.** 8 bits/scalar costs **1.6%** distortion (0.769 vs 0.757) for a
+**4× rate reduction**, and **6 bits/scalar already reaches the headline** (0.837 vs the recorded 0.8357
+median). So **`compression_ratio`'s float count overstates the rate by 4–5×**: the real operating
+point is **~6–8 bits/atom, not 33**.
+
+*Harness check first, per Family B:* `decode(z, batch)` reproduces `forward(batch)` to **0.000e+00**,
+and 32-bit passthrough gives 0.757 Å against the recorded 0.79/0.8357 — so the curve reaches its own
+ceiling before anything below it is read.
+
+**Gaussian-decoder likelihood surrogate.** σ fitted on 106,923 coordinates from a **disjoint half**:
+
+| | nats/dim | **bits/dim** |
+|---|---|---|
+| fit half | 1.4188 | 2.0469 |
+| **held half** | **1.4050** | **2.0269** ← the honest one |
+
+σ = 0.9999 Å. Refitting σ on the held half would give 2.0267, so the optimism from fitting and scoring
+on one set is **+0.0003 bits/dim** — negligible, which is itself worth knowing rather than assuming.
+
+**Stated as a surrogate:** the decoder is deterministic, so this prices reconstruction error *as* a
+likelihood. It says nothing about whether the latent is distributed in a way a diffusion model could
+sample. The NLL is on **raw** residuals deliberately — alignment is a per-structure rigid fit, i.e.
+free parameters the model does not have, and a likelihood must not be paid that discount.
+
+**THE REGULARISATION DECISION, RECORDED (66c.3).** The latent is currently regularised by **neither KL
+nor VQ**, and until now that was an omission rather than a decision. Recorded as a decision, with its
+evidence and its limit:
+
+> **Neither, for now.** The rate–distortion curve shows the latent survives uniform 8-bit scalar
+> quantisation at a 1.6% distortion cost, so it is not pathologically scaled or outlier-dominated —
+> which is the failure an unregularised latent usually shows first, and it is absent.
+>
+> **But that is not sufficient for diffusion.** Quantisability constrains the *marginal* per-scalar
+> range; diffusion needs the *aggregate posterior* to be close to something samplable, which nothing
+> here measures. **Before the diffusion stage this must be answered, not inherited** — and the 8-bit
+> result argues VQ is the cheaper candidate of the two, since the latent already tolerates
+> discretisation.
+
 ### ⬛ 68a MEASURED: the exponent is **0.44**, and 1M costs **~12.7 GPU-h**
 
 `10324137`, fitted on `processed_big` across 4,976 structures:
