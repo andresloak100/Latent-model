@@ -327,7 +327,7 @@ Evaluation only, no retraining.
 |---|---|---|
 | global latent alone | **0/123**, win rate **< 2.4%** (rule of three) | n300 vs ANM, **one producer, no join** |
 | + a *perfect* sparse channel | **5.7%** at matched budget; needs **12–27% of atoms** for parity | oracle; its K=0 column reproduces the n300 column exactly, **same producer** |
-| static path | **SMALL-PROTEIN**, every corpus capped at **3,000 atoms** | a different arm entirely |
+| static path | **DOES NOT EXTRAPOLATE IN SIZE beyond its training range** (66a — *not* "SMALL-PROTEIN"; see below) | a different arm entirely; **confounded by its own training set** |
 | more data | **67.5% of systems worse**, sign test **p=0.000132**; the aggregate rise is a tail repair | **RESTORED** — same-producer recompute `10318733` confirms it (below) |
 
 **Three of the four rows are load-bearing and none of them is a join.** "Every route to a peer win on
@@ -3801,7 +3801,86 @@ it does not. Report only that the model clears the trivial baseline at every ban
 why it is not divided by. The current 48b run predates it; per 057 this is precision, not correctness, and the SMALL-PROTEIN
 verdict rests on RMSD, which is controlled and crosses on its own.
 
-### ⬛ 48b RESULT — **SMALL-PROTEIN PROPERTY.** The 0.79 Å does not survive size.
+### ⬛ 067 ACQUISITION PILOT — measured, and it corrects 067's own cost model
+
+**AFDB is reachable and the version is v6, not v4.** Every `AF-*-model_v4.cif` and `_v3` request
+404s with an S3 `NoSuchKey`; the EBI FTP accession index carries the version in its last column and it
+is **6**. A fetcher written against v4 would have failed on every structure.
+
+**Measured throughput** (160 accessions from the live index, `curl` + `xargs -P`):
+
+| workers | structures/s | MB/s | 1M structures |
+|---|---|---|---|
+| 1 | 1.96 | 0.6 | 142 h |
+| 8 | 16.8 | 5.5 | 16.5 h |
+| **32** | **109.1** | **35.9** | **~2.5 h** |
+
+**321 KB/structure raw mmCIF** → ~321 GB download for 1M. So **acquisition is ~2.5 CPU/IO hours, not
+the dominant line item** 067 expected — it is comparable to the 10.4 GPU-h of training, not larger.
+
+**067's training basis reproduces exactly**: 36,300 s / 241,968 steps = **150.0 ms/step**, 142.0
+steps/epoch, batch **16.0**. Storage reproduces too: 53 and 135 KB/structure against 067's 52.1/133.8.
+
+**AFDB's size distribution is the finding that matters for 66a** (n=85,220 sampled from the index):
+
+| | residues |
+|---|---|
+| min / q25 / **median** / q75 / q95 / max | 16 / 162 / **277** / 430 / 795 / 1843 |
+
+- **Only 13.0% of AFDB is ≤110 residues** — the range `ladder_direct3m_n2272` was trained on. **87% is
+  outside it.**
+- AFDB's median is **3.4×** the training median (277 vs 81).
+- **27.4% is above the 3,000-atom cap**, so scaling the count *under* the cap would leave 66a's
+  confound untouched — which is exactly why the cap must lift in the same pass.
+
+So a 1M AFDB corpus does not merely add data: it is the **controlled re-run 66a needs**, because its
+training distribution spans the evaluation range for the first time.
+
+### ⬛ A7 REVISITED AND RE-RECORDED (067): AFDB is now in scope
+
+`PLAN.md` A7 reads *"Small scale is acceptable for a first prototype | ~21 proteins; explicitly
+labelled illustrative; **no bulk/auto download; ESM Atlas not used**"*, and `README.md:60` repeats it.
+**That exclusion was scoped to a ~21-protein illustrative milestone** and has been inherited unexamined
+ever since.
+
+**Re-recorded decision:** bulk download is now **in scope**, and the source is **AlphaFold DB**, on
+measured grounds — reachable, 109 struct/s at P=32, 321 KB/structure, and a size distribution that
+covers the range the static verdict is confounded on. ESM Atlas remains **not used**, now for a stated
+reason rather than an inherited one: AFDB alone supplies 87% out-of-training-range coverage at 1M,
+so a second predicted-structure source adds volume without adding the property that is missing.
+
+### ⚠ 66a: 48b's verdict is CONFOUNDED BY ITS OWN TRAINING SET — re-worded, not withdrawn
+
+`ladder_direct3m_n2272` trained on `splits_small_n2272`. Measured, not assumed:
+
+| half | n | residues | median | above 109 |
+|---|---|---|---|---|
+| train | 2,272 | **21–110** | 81 | **1** |
+| val | 758 | 20–109 | 82 | 0 |
+
+**The model saw essentially nothing above 110 residues, and 48b evaluated it to 385.** So the design
+cannot separate:
+
+- *the architecture cannot represent large proteins* — the reading "SMALL-PROTEIN PROPERTY" implies;
+- *this model was never shown one* — pure out-of-distribution extrapolation.
+
+**Training distribution is a third branch, and the verdict rule I fixed in advance had only two slots.**
+That is 60c's shape exactly — a two-way question answered by a third thing — committed in a rule I
+wrote myself, and pre-registering it did not help because the missing branch was missing from the
+pre-registration too.
+
+**What the run does support**, and it is still worth having: the codec **does not extrapolate in size
+beyond its training range**, degrading monotonically and losing physical validity (contact F1
+0.959 → 0.607, clashes 13.8 → 179.6/1k). The 54c centroid control still rules out "the task merely got
+harder" — the null rises 53% while the error rises 317%. What it does **not** support is any claim
+about the architecture's capacity.
+
+**The controlled re-run that would separate them:** train on a size-stratified corpus spanning the
+evaluation range, then re-evaluate. That is 66b/067's scale-up, and 66a is the reason the 3,000-atom
+cap must be lifted **in the same pass** — scaling the count under the cap leaves this confound exactly
+where it is.
+
+### ⬛ 48b RESULT (re-scoped by 66a — reads as extrapolation failure, not architectural capacity)
 
 Run on all of `splits_big` minus the 261 fitted (4,715 clean), 1,400 evaluated, residues 25–395.
 **0 excluded** for `max_positions` — the Family A guard fires empty, so the curve is not censored.
