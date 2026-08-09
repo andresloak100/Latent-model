@@ -4908,3 +4908,93 @@ The `bash -n` catch on the sed-mangled sbatch is the syntax-check convention doi
 job before a GPU slot was spent. And recording "a prose claim of an action is not evidence it
 happened" as its own defect class is the right generalisation — a wrong number can be recomputed
 from data, a wrong account of an action leaves nothing to recompute from.
+
+---
+
+## 064 — the verdict stands, but its own table does not reconcile with itself
+
+The recompute is the right outcome and it was obtained the right way. 63c required old-vs-new
+rather than a silent replacement, and that requirement is the only reason the defect's *size* is
+knowable at all — you said so yourself, and it is worth keeping as a standing rule: a correction
+that overwrites its own predecessor destroys the measurement of what it corrected.
+
+The verdict is not in question. What follows is about checkability.
+
+### 64a. The `shift` column is not the difference of the two columns beside it
+
+    quartile   old c50    new c50    new - old    reported shift   discrepancy
+       Q1      +0.2956    +0.2926      -0.0030        -0.0022        -0.0008
+       Q2      +0.2622    +0.2585      -0.0037        -0.0014        -0.0023
+       Q3      +0.2030    +0.2002      -0.0028        -0.0039        +0.0011
+       Q4      -0.2791    -0.2531      +0.0260        +0.0046        +0.0214
+
+**No row reconciles, and Q4 is off by 5.7×.** The most likely explanation is that it is correct
+arithmetic on a different statistic — the two `c50` columns look like quartile **medians** while
+`shift` looks like the **median of per-system shifts**, and `median(Δ) ≠ Δ(median)`. If so the
+shift column is the *better* number and nothing is wrong with the computation.
+
+But a reader who subtracts the columns gets a different answer on every row, which is the
+condition this project has spent sixty items eliminating. **Label each column with the statistic
+it carries**, and if the two `c50` columns are medians while `shift` is a median-of-shifts, say so
+on the line — the way 047 forced mean-versus-median to print together.
+
+### 64b. Q4's new delta does not reconcile with Q4's c50 move either
+
+`c300` is unchanged, so the paired delta is *fully determined* by the `c50` move:
+
+    old Q4 paired delta                       +0.4474
+    c50 shift as printed (new - old)          +0.0260
+    => predicted new delta                    +0.4214
+    reported new delta                        +0.4496     differs by +0.0282
+
+Consistent with the delta being a **mean** while the `c50` columns are **medians**, in which case
+both are right and neither can be checked against the other. That is the same one-name-two-things
+shape as `rmsd`, `complex_d8` and `ladder_direct_n2272`, in statistics rather than in filenames.
+Print which statistic each is, and the reconciliation becomes possible.
+
+### 64c. The stated magnitude understates Q4 by five-fold
+
+> "The producer difference is 0.001-0.005 FVE, an order of magnitude below every effect it was
+> feared to contaminate."
+
+On the columns as printed, Q4's producer difference is **+0.0260** — 5.2× the top of that range.
+The conclusion is unaffected: 0.0260 is 5.8% of Q4's +0.4496, so the defect is still immaterial to
+the verdict. But "0.001-0.005" is the wrong interval to record, and Q4 is the quartile carrying
+the entire positive result on the main line, so it is the one place the range should be exact.
+
+Restate it against whichever statistic 64a settles on, and give the range including Q4 rather than
+one that excludes it.
+
+**None of 64a-64c changes STANDS.** 83/123 at p = 0.000132 clears both pre-registered bars on any
+reading, and the §5b restoration is right.
+
+### 64d. `SBATCH_CONSTRAINT` leaked from a GPU submission into a CPU job
+
+The watch resubmit failing with "Requested node configuration is not available" because
+`turing|ampere|lovelace` was still exported is a real gap and a cheap one to close. It is the same
+shape as 61d — a hazard resolved by an operator noticing, in a shell whose exported state outlives
+the submission that set it.
+
+`armf_submit.sh` already reads the sbatch file to extract `--job-name`. Extend it: read the
+partition too, and refuse when a CPU partition is requested with a GPU-only `SBATCH_CONSTRAINT`
+exported, printing both. One `grep` and one conditional, in the guard that already exists, at the
+point where the cost is one failed submission rather than a lost queue slot.
+
+### 64e. `atlas_dm` has now timed out three times — what is it still for?
+
+`10314124` hit TIMEOUT at its 20 h wall; 44a flagged this risk and it has now bitten repeatedly.
+Worth asking plainly before it is resubmitted a fourth time.
+
+60c ruled it out of the capacity-competition test — wrong arm (attention, not tied) and wrong rung
+pair (50→130, not 50→300). That was its most decision-relevant use. Its remaining purpose is the
+002/005 question, sizing DM from the codec's own held-out FVE-vs-DM curve, which is real but is
+not on the critical path of anything currently open.
+
+Meanwhile 61c's **one arm — tied at n300, DM=512, matched, carrying the 002 participation-ratio
+guard** — *is* the capacity test, is pre-registered with its reading fixed, and has never been
+submitted.
+
+So: state what `atlas_dm` is still for, and whether it outranks the DM=512 tied arm for the next
+GPU slot. My read is that it does not, and that four 20 h attempts at a sweep whose headline use
+was superseded is the more expensive mistake than leaving it unfinished. If you disagree, say why
+— you can see the queue and I cannot.
