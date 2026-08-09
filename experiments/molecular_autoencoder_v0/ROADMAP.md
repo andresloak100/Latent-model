@@ -3801,6 +3801,81 @@ it does not. Report only that the model clears the trivial baseline at every ban
 why it is not divided by. The current 48b run predates it; per 057 this is precision, not correctness, and the SMALL-PROTEIN
 verdict rests on RMSD, which is controlled and crosses on its own.
 
+### ⬛ 064 RECONCILED, 065 ACCOUNTED, and 70b/70e PRE-REGISTERED before the corpus exists
+
+**64a/64b — the table was three different statistics under one heading.** My script printed
+`median(old)`, `median(new)`, and `median(new−old)`; a reader subtracting the columns gets
+`median(new)−median(old)`, and **median(Δ) ≠ Δ(median)**. Every column now carries its statistic:
+
+| Q | med(old) | med(new) | med(new)−med(old) | med(new−old) | mean(new−old) |
+|---|---|---|---|---|---|
+| Q1 | +0.2956 | +0.2926 | −0.0030 | −0.0022 | −0.0008 |
+| Q2 | +0.2622 | +0.2585 | −0.0038 | −0.0014 | +0.0096 |
+| Q3 | +0.2030 | +0.2002 | −0.0028 | −0.0039 | −0.0042 |
+| Q4 | −0.2791 | −0.2531 | **+0.0260** | +0.0046 | −0.0021 |
+
+**64b closes exactly:** Q4's paired delta went **+0.4474 → +0.4496**, a change of **+0.0021**, which
+equals **−mean(new−old) = +0.0021** to the digit. The delta is a *mean*; the c50 columns are *medians*.
+Both were right and neither could be checked against the other — one-name-two-things in **statistics**
+rather than filenames.
+
+**64c — my stated range was for one statistic only, and I should have said which:**
+
+| statistic | per-quartile range |
+|---|---|
+| med(new−old) | −0.0039 … +0.0046 ← what I quoted as "0.001–0.005" |
+| mean(new−old) | −0.0042 … +0.0096 |
+| **med(new)−med(old)** | −0.0038 … **+0.0260** ← what a reader subtracting columns sees |
+
+The largest producer difference is **+0.0260** at Q4, **5.2×** the top of my quoted range. It remains
+**5.8% of Q4's +0.4496**, so the verdict is unaffected — but Q4 carries the entire positive result, so
+it is exactly where the range had to be exact.
+
+**065 — compute accounted, with its own limitation stated.** `sacct` records `gres/gpu=N` but **not
+the GPU model**, so an A100-equivalent figure cannot come from sacct alone. Joining each job's elapsed
+time to the model in its `nvidia-smi` epilogue:
+
+| model | jobs | wall h | factor | A100-eq h |
+|---|---|---|---|---|
+| Quadro RTX 8000 | 33 | 117.0 | 0.30 | 35.1 |
+| NVIDIA RTX A6000 | 1 | 1.1 | 0.42 | 0.5 |
+| NVIDIA L40S | 2 | 0.0 | 0.55 | 0.0 |
+| **unattributed** | | **368.4** | — | — |
+
+**Only 24% of GPU wall-time is model-attributable from logs.** Attributed: **35.6 A100-eq h** of 118.1
+wall. If the remaining 368.4 h ran on the dominant model, the project total is **~146 A100-equivalent
+GPU-hours** against **486.4 wall**. Recorded with the 76%-unattributed caveat on its face, because a
+single blended factor would be a guess wearing an accounting's clothes.
+
+*Note this revises the "251.5 GPU-h spent" figure used in 68b/69c — that was wall-hours on mixed
+hardware, not A100-equivalent. The cap-lift comparison holds either way: ~18 GPU-h against 486 wall.*
+
+### ⏳ PRE-REGISTERED (70b/70e): the 1M re-run's reading, written before the corpus exists
+
+**70b — source is a second axis and must not ride along.** AFDB is **predicted**; every corpus so far
+is **experimental**. As framed, the re-run would compare *0.79 Å experimental-small* against
+*X Å predicted-size-diverse*, with **size** the axis under test and **source** moving with it — 48a's
+warning, which 41a/42b/045/050 have each already paid for.
+
+> **Hold out an AFDB in-range slice as the reference**, so size is the only axis that moves. Report
+> **AFDB→AFDB** and **AFDB→experimental** as **two results, never pooled**. The second is the transfer
+> question, worth having, and a different question.
+
+**70e — thresholds, fixed now.** 66a's rule was anchored to *median 0.8357 Å over 758 held-out at
+20–109 residues*, from a model trained on that range. With size-diverse training that reference no
+longer describes the in-distribution case, so the **rule** survives and the **numbers** must move:
+
+> **Reference:** the held-out in-range AFDB slice (≤110 residues, drawn from the 130,000 available).
+> **Structure retained from 66a:** all-atom ≤2× reference, contact F1 ≥0.90, clashes ≤2× reference.
+> **Floor retained from 55b:** n ≥ 50 in the deciding band, or **UNDERPOWERED**. It will not fire at
+> 1M — and a rule that cannot fire is free.
+>
+> **THE BRANCH THAT HAS NEVER BEEN WRITTEN DOWN — what says the architecture DOES scale:** the ≥300-
+> residue band meets **all three** thresholds against the in-range AFDB reference, **and** the
+> degradation slope across bands is flat within its CI. Until now no run could produce this branch, so
+> it was never specified; writing it while nobody knows the answer is what made 58b and 63c
+> trustworthy.
+
 ### ⬛ 66c MEASURED (pending since 066): rate in bits, a likelihood surrogate, and the regularisation decision
 
 `scripts/armf_likelihood.py`, 120 held-out structures, CPU, no retraining.
