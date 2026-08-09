@@ -323,15 +323,19 @@ Evaluation only, no retraining.
 
 ## 5b. WHAT THE MEASUREMENT PROGRAMME HAS EXCLUDED (state, not interpretation)
 
-| route | status |
-|---|---|
-| global latent alone | **0/123**, win rate **< 2.4%** (rule of three) |
-| + a *perfect* sparse channel | **5.7%** at matched budget; needs **12–27% of atoms** to reach parity |
-| static path | **SMALL-PROTEIN**, and every corpus capped at **3,000 atoms** |
-| more data | **67% of systems worse**; the aggregate rise is a tail repair |
+| route | status | rests on |
+|---|---|---|
+| global latent alone | **0/123**, win rate **< 2.4%** (rule of three) | n300 vs ANM, **one producer, no join** |
+| + a *perfect* sparse channel | **5.7%** at matched budget; needs **12–27% of atoms** for parity | oracle; its K=0 column reproduces the n300 column exactly, **same producer** |
+| static path | **SMALL-PROTEIN**, every corpus capped at **3,000 atoms** | a different arm entirely |
+| ~~more data~~ | **WITHDRAWN pending `10318733`** — see below | *was* a cross-producer join (62c) |
 
-**Every route to a peer win on per-frame reconstruction FVE is measured and closed**, at every budget
-that preserves the cost argument.
+**Three of the four rows are load-bearing and none of them is a join.** "Every route to a peer win on
+per-frame reconstruction FVE is measured and closed" rests on the **n300 absolute** and the **oracle**,
+so the headline survives without the fourth row. The data-scaling row is **withdrawn from this table
+until the recompute lands** — an exclusion list containing a provisional row invites exactly the
+premature closure it exists to prevent (63a). It is not restated here in weakened form, because the
+purpose of this section is to be quoted without reading the body.
 
 **The one axis never tested** is the one 004 named at the start and 53b named again: **ANM has no
 generator.** Reconstruction FVE cannot express a generative advantage — Family D at the level of the
@@ -3282,6 +3286,43 @@ part worth carrying forward.
 **This also makes every decades-to-close extrapolation unnecessary**, not merely risky: 41c is the
 same-harness measurement those were approximating.
 
+### ⏳ PRE-REGISTERED: how `10318733`'s same-producer c50 gets read, written before it exists
+
+The recompute revises the project's most-quoted negative and **both directions are narratively
+attractive**, so the rule goes in first — the way 58b's did at `65cf5b32` before the 9th arm was read.
+`c300` is unchanged, so every delta moves by exactly **−(new_c50 − old_c50)** per system, and the
+producer difference **is** the measurement of how much the defect mattered.
+
+> **Report old vs new c50 per quartile, and the per-system distribution of the difference** — not only
+> the new deltas. A silent replacement destroys the only measurement of the defect's size.
+>
+> - **HEADLINE STANDS** if the sign test keeps direction *and* significance: **≥60% of systems worse,
+>   p < 0.01**.
+> - **HEADLINE RETRACTED** if the fraction worse falls **below 50%**, or the sign test loses
+>   significance at **p > 0.05**.
+> - **BETWEEN**: **NOT RESOLVABLE** — the §5b row stays out and "more data" returns to an **open
+>   question**, not an excluded route.
+> - **Q4 SEPARATELY**, since it is the entire positive result on the main line: does **+0.4474**
+>   survive, and does 61a's leverage finding (Q2 one system, Q4 robust) still hold on the new deltas?
+
+**What is provisional, in full (63b).** Everything differencing n50 against n300 on the peer harness:
+the 67%/sign test, every per-quartile delta, 59a's decomposition, 60b's regressions, 61a's leverage
+analysis, and 41c's n50 column. **What stands, each checked rather than assumed:** 41c's n300
+absolute, the oracle, the ladder slope (`ladder_ckpt` throughout), 48b, and the 3,000-atom cap.
+
+### ⬛ 63d: which n50 is canonical, and for what
+
+Two legitimate n50 peer readings are on disk. **Neither is wrong and they are not interchangeable:**
+
+- **`ladder_ckpt/` n50 → canonical for the PAIRED ANALYSIS.** It shares a producer and a procedure
+  with n130 and n300, which is what makes a difference between rungs interpretable at all.
+- **`tied_peer_n50_MODALARM_PRODUCER.json` → canonical for the HISTORICAL RECORD.** 28b, 29b/30 and
+  26a were computed against that model, and `7a9cf5be` established those stored results stand even
+  though the checkpoint behind them was overwritten.
+
+**The switch is not a correction to the old numbers.** They were right about the old model. Anyone
+treating the new c50 as superseding 28b/29b/26a would be making the cross-producer error in reverse.
+
 ### ⛔ 062: the sparse branch is REFUSED, and the paired result rests on a cross-producer join
 
 **62a — REFUSED, and this honours the pre-registration rather than overriding it.** 53b's own text
@@ -3471,6 +3512,8 @@ Queued behind the oracle and the seed replicates.
 |---|---|---|
 | mean paired Δ | **+0.1141** [+0.0315, +0.1967] | paired t, **p = 0.0072** → more data helps |
 | systems worse | **83/123 = 67%** | sign test z = **+3.88**, exact binomial **p = 0.000132** → more data hurts |
+
+> **PROVISIONAL (62c/63a):** cross-producer join; awaiting `10318733`.
 
 The sign test is **54× stronger in p**, and it is what the headline rests on. The mean is positive
 because a minority moves far; the sign test is negative because the majority moves the other way.
