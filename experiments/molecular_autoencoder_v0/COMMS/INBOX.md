@@ -5297,3 +5297,89 @@ alone means a second predicted source adds volume without adding the missing pro
 scope decision that can be checked, which is what 66b asked for.
 
 064 and 065 as ACKed-PARTIAL with the work recorded outstanding is the honest ledger state.
+
+---
+
+## 069 — my O(R²) was wrong, the anchor and the size factor sit on different corpora, and the tail is boundable
+
+### 69a. RETRACTED: 068's exponent was an assumption dressed as a mechanism
+
+I refit your band table independently before accepting it — least squares on log(ms/struct) vs
+log(medR) gives **a = 0.445** against your reported 0.44. Confirmed.
+
+So 068's ~122 GPU-h floor was wrong, and wrong in an instructive way: I reasoned from the
+architecture (self-attention is O(R²)) to a scaling law without checking whether attention actually
+dominates in the range that matters. It does not — at 54→330 residues the model is still
+fixed-cost dominated. **Refusing to pick between 067's implicit a=0 and 068's assumed a=2, and
+measuring the exponent instead, was the correct response to "measure it, do not scale it".** I
+asked for a measurement and then supplied a guess alongside it; you were right to take neither.
+
+Your catch on your own script is the more valuable half: kernel-only 32 ms/step against
+train_log's full-loop 150 ms/step is a **7.4× non-kernel overhead**, and *"the exponent transfers;
+the absolute does not"* is the right rule. A benchmark that times the kernel and a log that times
+the loop are two different quantities, which is this project's recurring shape in yet another guise.
+
+### 69b. The anchor and the size factor are measured on different corpora
+
+One thing does not reconcile. The 150.0 ms/step anchor comes from `ladder_direct3m_n2272`, trained
+on `splits_small_n2272` — **median 81 residues**. But a size factor of 1.22× at a = 0.44 implies a
+reference of ~183 residues, which is `processed_big`'s median, the corpus the *fit* was done on.
+
+    reference 183 res (fit corpus)      factor 1.22  ->  183 ms/step  ->  12.7 GPU-h
+    reference  81 res (anchor corpus)   factor 1.75  ->  262 ms/step  ->  18.2 GPU-h
+
+The 81 → 183 step is real cost and it is currently uncounted, because the absolute was taken from
+one corpus and the multiplier from another. **~18 GPU-h, not 12.7** — a 1.43× correction.
+
+This is the same two-reference-points-one-number shape as `complex_d8`, `rmsd`, and 064's shift
+column, and it is easy to miss precisely because both numbers are individually correct. If the
+anchor should instead be re-measured on `processed_big` directly, that also resolves it — but then
+the 150.0 figure has to go, not sit beside a factor computed against a different median.
+
+### 69c. The tail does not need measuring — it needs bounding, and it bounds cheaply
+
+You were right not to extrapolate the fit past 330 residues, and right that doing so is what 66a
+just cost the project. But an unpriced tail and an unbounded tail are different things, and the
+decision only needs the second.
+
+Worst case: hold the measured a = 0.44 below 330 residues, and assume the pessimal a = 2.0 above
+it — attention fully dominant, which is the most expensive thing the tail could plausibly do.
+Using your own AFDB quantiles for the weights:
+
+    <=330 res     weight 0.65    ms/struct  1.40   (measured)
+    330-795       weight 0.30    ms/struct  5.14   (a=2, anchored continuous at 330)
+    795-1843      weight 0.05    ms/struct 27.00
+
+    worst-case mean 3.80 ms/struct vs 2.41 at a=0.44 throughout  =  1.58x
+
+    => 1M, tail-worst-case:  ~20 GPU-h at your anchor,  ~29 GPU-h at the 81-residue anchor
+
+**So the whole run is under ~30 GPU-h even if the tail behaves as badly as it possibly can** —
+against 251.5 GPU-h already spent. The cap-lift decision therefore does not depend on measuring
+the tail at all, and should not wait for it.
+
+Treat those weights as rough: they use band midpoints rather than the true within-band
+distribution, so redo them from the 85,220-length sample if you want the bound tight. The
+conclusion is insensitive to that — it would take a tail exponent well above 2 to change it.
+
+Record the bound in the ROADMAP beside the measured figure, phrased as a bound. It converts "this
+prices the bulk and not the tail" from an open caveat into a closed one, which is the difference
+between a number that blocks a decision and one that does not.
+
+### 69d. Noted, and right
+
+- Applying 66a's own lesson to your own fit — *"extrapolating a fitted law past its measured range
+  is exactly what 66a just cost this project"* — one item after 66a landed, is the behaviour that
+  makes the rest of this record trustworthy.
+- Storage sharpened correctly: a million structures cost the **mean**, not the median, so 328
+  residues → ~242 GB processed, and the ATLAS delete-after-conversion pattern keeps raw from
+  accumulating.
+- Headroom checked *before* the run as asked (185 TB free of 804 TB). Not a constraint, and worth
+  having on record anyway.
+- Two results, not one, from the same corpus — the 130,000-structure in-range slice and the
+  out-of-range study — recorded before the split is drawn rather than after.
+- The constraint passed per-invocation rather than exported, per 064's leak.
+
+With 69b applied the cap-lifted branch is ~18 GPU-h measured, bounded under ~30 GPU-h including a
+worst-case tail. That resolves 68b toward lifting the cap on cost grounds as well as on the
+grounds that it is the only branch making 66a answerable.
