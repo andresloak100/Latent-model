@@ -47,7 +47,17 @@ def ckpt_path(kind, dm, lr, seed, n_train):
     loaded the n50 model and reported it as the lifted result: the old answer wearing the new run's
     label. Every checkpoint now names its n_train, and a caller that asks for one it cannot have gets
     an exception rather than a neighbour."""
-    p = f"{CKPT}/{kind}_dm{dm}_lr{lr:g}_s{seed}_n{n_train}.pt"
+    # Two producers, two namespaces (see armf_tied_ladder's note): modal_arm writes modal_arm_ckpt/,
+    # the ladder writes ladder_ckpt/. Search both and SAY WHICH -- a checkpoint's producer is part of
+    # its identity, and collapsing that into one directory is what let the ladder overwrite
+    # modal_arm's n50 file. Still raises when it is in neither, which is 043's guard unchanged.
+    name = f"{kind}_dm{dm}_lr{lr:g}_s{seed}_n{n_train}.pt"
+    for d_ in (f"{WR}/ladder_ckpt", CKPT):
+        cand = f"{d_}/{name}"
+        if os.path.exists(cand):
+            print(f"  [ckpt] {name} resolved from {os.path.basename(d_)}/", flush=True)
+            return cand
+    p = f"{CKPT}/{name}"
     if not os.path.exists(p):
         raise FileNotFoundError(
             f"no checkpoint at {p}. Refusing to fall back to any other file -- a checkpoint the "

@@ -3265,6 +3265,32 @@ part worth carrying forward.
 **This also makes every decades-to-close extrapolation unnecessary**, not merely risky: 41c is the
 same-harness measurement those were approximating.
 
+### ⚠ DATA LOSS I CAUSED: the ladder overwrote `modal_arm`'s n50 checkpoint
+
+The 42b change that made the ladder save checkpoints wrote them into **`modal_arm_ckpt/` under
+`modal_arm`'s own naming scheme** — and 043 had just renamed `modal_arm`'s file to exactly
+`tied_dm256_lr3e-05_s0_n50.pt`. So the ladder's n50 seed-0 arm **overwrote the checkpoint 28b, 29b/30
+and 26a were computed from.**
+
+The evidence is in the directory: every other tied n50 file is **Aug 7 at 1,862,320/401 bytes**
+(`modal_arm`'s), while the three `lr3e-05` files are **Aug 8 at 1,862,452** — a different size,
+written by the ladder run.
+
+**043's guard could not catch this.** It raises when a checkpoint is *absent*; here a real file sat at
+the expected path holding a **different model**, which is 050's failure exactly. A guard against
+missing files does nothing about wrong ones.
+
+**What is lost and what is not.** The stored *results* are unaffected — `tied_peer.json` and the rest
+were computed on Aug 7 from the original. What is gone is the ability to *reproduce* them from that
+path: anything re-run against it today silently gets the ladder's model. The file is not recoverable.
+
+**Fixed:** the ladder now writes `ladder_ckpt/`, its nine checkpoints have been moved there, and
+`ckpt_path()` searches both namespaces **and prints which one resolved** — a checkpoint's producer is
+part of its identity. 043's raise-on-absent is unchanged (verified: `n999` still raises).
+
+*Two producers must not share a namespace, however well each is named inside it.* That is the
+generalisation; the specific fix is worth less than the rule.
+
 ### ⬛ ORACLE RESULT — the falsifier does not fire, and the channel still is not a path to a peer win
 
 `10318365`, 123/123 systems, tied arm at n300. **Family B ceiling passed: K=all median FVE

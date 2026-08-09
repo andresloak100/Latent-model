@@ -189,9 +189,17 @@ if __name__ == "__main__":
                         # way to compare an arm against ANM on the SAME frames -- which is what 42b says
                         # the join requires -- is to retrain it. armf_tied_peer.py reads this path.
                         try:
-                            os.makedirs(f"{WR}/modal_arm_ckpt", exist_ok=True)
+                            # NAMESPACE. This wrote into modal_arm_ckpt/ under modal_arm's OWN
+                            # naming scheme, and 043 had just renamed modal_arm's file to exactly
+                            # tied_dm256_lr3e-05_s0_n50.pt -- so the ladder's n50 s0 arm OVERWROTE
+                            # the checkpoint 28b/29b/26a were computed from. 043's guard cannot
+                            # catch that: it raises when a file is ABSENT, and here a real file sat
+                            # at the expected path holding a different model, which is 050's failure
+                            # exactly. Two producers must not share a namespace however well each is
+                            # named inside it.
+                            os.makedirs(f"{WR}/ladder_ckpt", exist_ok=True)
                             torch.save(mdl.state_dict(),
-                                       f"{WR}/modal_arm_ckpt/{kind}_dm{DM}_lr{lr:g}_s{sd}_n{NTR_}.pt")
+                                       f"{WR}/ladder_ckpt/{kind}_dm{DM}_lr{lr:g}_s{sd}_n{NTR_}.pt")
                         except Exception as e:
                             print(f"      [ckpt] save failed: {type(e).__name__}: {e}", flush=True)
                         print(f"    {kind} n{NTR_} lr{lr:g} s{sd}: FVE {rec['fve']:+.4f}  steps {used} "
