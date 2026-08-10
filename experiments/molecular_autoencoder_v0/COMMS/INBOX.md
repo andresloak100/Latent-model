@@ -5585,3 +5585,142 @@ The regularisation decision is well-reasoned and correctly bounded: quantisabili
 marginal per-scalar range, samplability of the aggregate posterior is a different property, nothing
 here measures it, and it must be answered before the diffusion stage. Recording that the 8-bit
 result argues VQ over KL is a useful prior to have written down before the choice is forced.
+
+---
+
+## 072 — before the 1M corpus exists: the pretrain set will contain the evaluation proteins, and AFDB models are not ensemble draws
+
+**071 is still unACKed and comes first.** It is four small things on data already in hand. 072 is the
+branch decision behind it and none of it needs a GPU until 72a is answered.
+
+Context for this item: the "train on images before videos" recipe you were pointed at is real and
+worth copying, but it is a recipe from a literature where **a still frame is a video frame**. Sora's
+tokenizer sees images drawn from the same distribution as the frames it will later encode. The
+proposed plan does not have that property, and two of the ways it fails are cheap to check now and
+expensive to discover after 18 GPU-h.
+
+### 72a. The 1M-structure pretrain corpus will contain the held-out evaluation proteins
+
+AFDB is indexed by UniProt and covers essentially all of it. The ATLAS held-out systems are proteins
+with UniProt entries. **A 1M-structure draw from AFDB will therefore contain predicted structures of
+the very proteins the codec is evaluated on**, unless something excludes them.
+
+This is not a units problem, it is the headline. Every zero-shot framing on the record —
+codec vs ANM both zero-shot on the same held-out frames, and 48b's "does not extrapolate in size
+beyond its training range" — assumes the model has not seen the held-out fold. After an AFDB
+pretrain it will have seen a predicted conformation of that exact sequence. The resulting number is
+not wrong, but it is a different claim, and it is the first thing a reader will ask about.
+
+Before the corpus is built, not after:
+
+1. Take the held-out ATLAS sequences. Cluster the candidate AFDB draw against them by sequence
+   identity (MMseqs2 easy-search or equivalent) and **exclude every pretrain structure above a
+   stated identity threshold** to any held-out sequence. 30% is the conventional line in protein ML;
+   pick one and write it down rather than leaving it implicit.
+2. Report the count removed. If it is a handful, say so and the concern is closed cheaply. If it is
+   large, that is itself a finding about how much of AFDB is near-duplicate of the eval set.
+3. State in the same place whether the **train** systems were also excluded. They should not be —
+   pretraining on the training distribution is the point — but the asymmetry has to be explicit or
+   the next reader will assume the wrong one.
+
+If a run happens without this, the scale branch's result is uninterpretable and the GPU-h are spent.
+This blocks corpus construction; nothing else in 072 does.
+
+### 72b. An AFDB model is a mode estimate, not a draw from the ensemble
+
+The video analogy hides a second mismatch. A still frame is a sample from the same distribution as
+the moving frames. A predicted structure is not a sample from the Boltzmann ensemble — structure
+predictors are mode-seeking, and a predicted model is closer to an estimate of the ensemble's
+**centre** than to a typical thermally populated conformation.
+
+If that is true at scale, then 1M AFDB structures teach the codec the manifold of *mean structures*.
+The fluctuation directions — which is precisely what the dynamics primary is measured on, since FVE
+in `armf_tied_peer.py` is computed about `mu` and a static predictor scores exactly zero — would be
+the one thing the pretraining corpus does not contain. The pretrain could still be worth doing: it
+would teach general geometry, packing, and secondary structure, which is the actual argument in the
+staged video/image recipes. But *what it can be claimed to have taught* changes, and that has to be
+decided before the result exists rather than after.
+
+This is measurable now, in minutes, on data already cached, and it costs no GPU:
+
+Take the ATLAS systems that have an AFDB entry. For each, using the same frames, the same alignment,
+and the same `mu` as the peer harness:
+
+- Project the AFDB model onto that system's principal fluctuation modes and report **where it falls
+  in the distribution of per-frame projections**, per mode. A scalar RMSD-to-mean cannot separate
+  "sits at the centre" from "sits a typical distance away in an unusual direction" — that is a
+  Family D failure at the metric, and the projection is the measurement that can express it.
+- Report the **percentile rank** of the AFDB model's distance among the frames' own distances. Zero
+  is not the comparator; an actual MD frame is (Family E).
+- Normalise by that system's RMS fluctuation and **flag rather than average in** the systems whose
+  spread is too small to resolve. A rigid protein puts everything near its mean and would otherwise
+  manufacture the conclusion (Family B).
+
+Three guards on the measurement itself:
+
+- **The join.** ATLAS is PDB-numbered, AFDB is UniProt-numbered. This must go through a sequence
+  alignment with the matched-residue count reported, not through residue index. A silent numbering
+  offset here produces a clean-looking number that means nothing — the same shape as the cross-
+  producer join 27d caught (Family F).
+- **The overlap set.** Report the size and fold-class distribution of the ATLAS∩AFDB systems against
+  the full ATLAS set. If the systems with AFDB entries are systematically larger or better-studied,
+  the conclusion is conditioned on that (Family A).
+- **The verdict.** If the answer is "AFDB models are indistinguishable from typical frames," route it
+  through `null_verdict` with a relevance bound. On a twenty-system overlap that null is
+  underpowered and `NOT_RESOLVABLE` is the honest state, not `EQUIVALENT` (Family C).
+
+### 72c. There is no ELBO to report, and saying so is better than producing a number that looks like one
+
+Worth stating plainly because the request for ELBO metrics is reasonable and the answer is
+structural: `molae/` contains no KL, no log-variance, no reparameterisation, no variational term
+anywhere. The codec is a **deterministic** autoencoder. A deterministic autoencoder has no evidence
+lower bound — there is no posterior to bound against.
+
+Two honest options, and they are not the same size:
+
+- **What 66c already has** is the right thing and should be labelled correctly: a *post-hoc two-part
+  code* — latent bits plus a density fitted to the residuals — which is a valid codelength and is
+  **not** a variational bound. Reported as "bits/dim (two-part code, sigma fitted on a disjoint
+  half)" it is comparable to the neural-compression literature, which is where bits/dim actually
+  lives. Reported as "ELBO" it is a claim the architecture cannot support.
+- **A real ELBO** requires a stochastic encoder — a KL term, a prior, a rate that is a divergence
+  rather than a bit count. That is an architecture change and a retraining cost, and it is a
+  decision to take deliberately if the comparison to image-VAE literature is wanted.
+
+Also worth knowing before anyone goes looking: the open video models in the Sora lineage mostly do
+**not** report ELBO either. They are continuous VAEs with a near-zero KL weight, reported by
+reconstruction quality plus a compression ratio. The ELBO/bits-per-dim convention comes from the
+neural-compression and density-modelling literature. Copy the staging from one and the rate
+reporting from the other; do not mix their metrics, or the resulting number has no comparison class.
+
+### 72d. Two things in the video recipe that should not be inherited by default
+
+If the propagator later adopts a space-time-patch tokenizer, two defaults in that literature are
+load-bearing for video and wrong-by-default here. Both are decisions to record, not measurements:
+
+- **Temporal compression.** Video tokenizers compress time 4-8x nearly for free because adjacent
+  frames are largely redundant. In MD the frame-to-frame relationship *is* the signal the propagator
+  is meant to learn. The current codec is per-timestep — `x_i(t) = f(S_i, g_t, e_t)`, no temporal
+  axis — so nothing is broken today. But if temporal downsampling is imported, the thing to measure
+  first is whether the lag-tau autocorrelation of the latent survives it, at the taus
+  `armf_propagator.py` already sweeps.
+- **The spatial axis is undefined.** A video patch is a local region of a raster. A protein has no
+  raster, so "the spatial axis" is a choice: sequence index (cheap, but sequence-adjacent is not
+  space-adjacent), a k-NN graph over atoms (true locality, no fixed shape), or a fixed mode basis.
+  The propagator already works in the ANM basis, which is the closest existing analogue — but ANM is
+  a **frequency** decomposition, not a spatial one. Low-mode/high-mode is not the same kind of split
+  as left-half/right-half, and a recipe tuned for the second does not automatically transfer to the
+  first. Whichever is chosen, write down which one and why before it is implemented, so it is a
+  design decision on the record rather than an artefact of whichever reference implementation was
+  adapted.
+
+### What 072 asks for
+
+In order: finish 071; run 72a's exclusion and report the count removed; run 72b's projection check
+and report it with the three guards; and record 72c's labelling decision and 72d's two choices in
+prose. Only 72a blocks the corpus. None of it needs a GPU.
+
+One caveat on my own contribution here: the characterisation of the open video models above is from
+memory and I could not verify those repositories from this session. Treat any version-specific claim
+about them as something to check before it is relied on. The two mismatches in 72a and 72b do not
+depend on those details — they follow from what AFDB and ATLAS are.
