@@ -52,9 +52,17 @@ def capture_environment(repo_dir: str = ".") -> dict:
 
 
 def save_json(obj, path):
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
+    # INBOX 73a/74b: written through a temp file and os.replace, which is atomic on
+    # one filesystem. A kill landing inside a direct write leaves a truncated file
+    # at the destination; this leaves either the old complete file or the new one.
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w") as f:
         json.dump(obj, f, indent=2, default=str)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
 
 
 def load_json(path):
@@ -63,7 +71,24 @@ def load_json(path):
 
 
 def save_checkpoint(path, model, optimizer, epoch, extra=None):
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    """INBOX 73a. Atomic, with one generation of fallback kept alongside.
+
+    WHY. On a preemptible partition the kill can land *inside* the write. A bare
+    ``torch.save`` onto ``latest.pt`` therefore leaves a truncated file that still
+    satisfies ``.exists()``, and ``train.py``'s resume branch keys on exactly that.
+    The requeued job then either dies on load every time -- a requeue loop that
+    reads as a scheduler problem rather than a corrupt file -- or resumes from
+    something that is not what the log names.
+
+    ``os.replace`` is atomic on one filesystem, so the destination is always either
+    the previous complete checkpoint or the new complete one and never a partial.
+    The previous generation is kept as ``.prev`` because the write *before* this one
+    could already have been bad, and because the rename leaves a brief window in
+    which the destination does not exist -- ``resume_checkpoint_path`` below covers
+    both cases.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     ckpt = {
         "model": model.state_dict(),
         "optimizer": optimizer.state_dict() if optimizer is not None else None,
@@ -71,8 +96,44 @@ def save_checkpoint(path, model, optimizer, epoch, extra=None):
         "rng_torch": torch.get_rng_state(),
         "rng_numpy": np.random.get_state(),
         "extra": extra or {},
+        # INBOX 73b: a requeued run is a second training under the first one's name,
+        # and --open-mode=append hides that in the log. Stamped here so the artefact
+        # carries how many times its producer died.
+        "slurm_restart_count": int(os.environ.get("SLURM_RESTART_COUNT", "0")),
+        "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
     }
-    torch.save(ckpt, path)
+    tmp = path.with_name(path.name + ".tmp")
+    torch.save(ckpt, tmp)
+    if path.exists():
+        os.replace(path, path.with_name(path.name + ".prev"))
+    os.replace(tmp, path)
+
+
+def resume_checkpoint_path(path):
+    """INBOX 73a. Return the newest checkpoint that actually LOADS, or None.
+
+    ``latest.pt`` existing is not evidence that it is readable, and the window
+    between the two renames in ``save_checkpoint`` can leave it absent while
+    ``latest.prev`` is intact. Both fall back to the previous generation, and the
+    fallback is announced -- a silent step back to an older checkpoint is a step
+    count that disagrees with the log, which is the same defect class as resolving a
+    checkpoint the caller did not name (INBOX 43b).
+    """
+    path = Path(path)
+    for cand in (path, path.with_name(path.name + ".prev")):
+        if not cand.exists():
+            continue
+        try:
+            torch.load(cand, map_location="cpu", weights_only=False)
+        except Exception as exc:                      # truncated, or half-written
+            print(f"[ckpt] {cand.name} exists but will not load ({type(exc).__name__}: {exc}); "
+                  f"treating it as absent")
+            continue
+        if cand != path:
+            print(f"[ckpt] FALLING BACK to {cand.name} -- {path.name} was missing or unreadable. "
+                  f"The resumed step count comes from the OLDER checkpoint.")
+        return cand
+    return None
 
 
 def grow_embedding_rows(state, model):

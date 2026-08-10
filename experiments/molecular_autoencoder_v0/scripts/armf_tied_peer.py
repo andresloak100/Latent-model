@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from armf_atlas_data import AtlasStore, sysdata, ho_cols
 from armf_anm import modes as anm_modes
 import armf_atlas_dm as D
+import armf_io as IO
 import armf_stamp as STAMP
 from armf_modal_decoder import ModalCodec
 
@@ -120,11 +121,16 @@ if __name__ == "__main__":
     print(f"  [ckpt] sha256 {CKSHA}  ({os.path.getsize(cp)} bytes)", flush=True)
     ST = STAMP.stamp(dict(dm=DM, lr=ARM_LR, seed=SEED, cutoff=CUTOFF, arm="tied", n_train=NTRAIN,
                           ckpt_sha=CKSHA), ModalCodec, D.fve_model)
-    res = json.load(open(RES)) if os.path.exists(RES) else {}
+    # INBOX 74b: this is a RESUME read, so it accepts a partial file by design. The
+    # analysis side must not -- see the complete=True write after the loop.
+    res, _was_complete, _ = IO.load_partial(RES)
+    if not isinstance(res, dict):
+        res = {}
     STAMP.report(list(res.values()), ST, "systems")
     res = {k: v for k, v in res.items() if STAMP.same_stamp(v, ST)}
 
     t0 = time.time()
+    n_failed = 0
     for i, d in enumerate(HO):
         if d["pdb"] in res: continue
         try:
@@ -134,11 +140,20 @@ if __name__ == "__main__":
             res[d["pdb"]] = dict(N=d["N"], codec=c, anm=a, stamp=ST)
         except Exception as e:
             print(f"    {d['pdb']} N={d['N']}: FAIL {type(e).__name__}: {e}", flush=True)
+            n_failed += 1
             continue
-        json.dump(res, open(RES, "w"))
+        # INBOX 74b. HO is sorted ASCENDING IN N at line 98, deliberately, so a kill
+        # here leaves a file holding the SMALL systems and missing the large-N tail --
+        # valid JSON, parses cleanly, looks finished, and size-biased by construction.
+        # Written partial-by-default; only the line after the loop declares it done.
+        IO.dump_rows(RES, res, n_expected=len(HO), n_failed=n_failed)
         if (i + 1) % 10 == 0 or i < 5:
             print(f"  {i+1}/{len(HO)} {d['pdb']} N={d['N']}  tied {c:+.4f}  ANM {a:+.4f}  "
                   f"({(time.time()-t0)/60:.0f} min)", flush=True)
+
+    # INBOX 74b: the loop ran to the end of HO, so the file may now be analysed.
+    # Nothing before this line is allowed to be read as a finished run.
+    IO.dump_rows(RES, res, n_expected=len(HO), n_failed=n_failed, complete=True)
 
     good = {k: v for k, v in res.items() if np.isfinite(v.get("anm", np.nan))}
     if len(good) < 12:

@@ -433,9 +433,17 @@ def main():
 
     start_epoch = 0
     log = []
-    latest = out_dir / "latest.pt"
-    if latest.exists():
+    # INBOX 73a: `.exists()` is not evidence the file loads. On a preemptible
+    # partition a kill inside the write leaves a truncated latest.pt that passes
+    # exists() and fails load, which requeues into a loop. resume_checkpoint_path
+    # returns the newest checkpoint that actually deserialises, or None.
+    latest = utils.resume_checkpoint_path(out_dir / "latest.pt")
+    if latest is not None:
         ckpt = utils.load_checkpoint(latest, model, opt)
+        rc = ckpt.get("slurm_restart_count")
+        if rc:
+            print(f"[train] this run has been requeued {rc}x -- the artefact it produces is NOT "
+                  f"a single uninterrupted training (INBOX 73b)")
         start_epoch = ckpt["epoch"] + 1
         log = ckpt["extra"].get("log", [])
         if ema is not None and ckpt["extra"].get("ema"):

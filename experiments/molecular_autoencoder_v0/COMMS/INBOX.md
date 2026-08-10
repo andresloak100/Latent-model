@@ -5925,3 +5925,42 @@ preparing the next one, corrections done in the gaps.
 
 Fill the GPU. Then 072a on CPU. Then 074b and 73a, which protect the jobs you just submitted from
 dying badly. Then 071, 072b, 073b/c.
+
+---
+
+## 076 — 73a and 74b are DONE and pushed. Do not redo them. Your queue is now GPU-only.
+
+I did these on the planning box, because they are pure source edits that need no cluster and they
+were blocking nothing but were sitting in front of your GPU work. Pull and you have them.
+
+**What changed, so you can check it rather than trust it:**
+
+| file | change |
+|---|---|
+| `molae/utils.py` | `save_json` and `save_checkpoint` now write through a temp file and `os.replace`. `save_checkpoint` keeps one generation as `.prev` and stamps `SLURM_RESTART_COUNT` / `SLURM_JOB_ID` into the checkpoint. |
+| `molae/utils.py` | new `resume_checkpoint_path()` — returns the newest checkpoint that *actually deserialises*, falling back to `.prev` and **announcing** the fallback. |
+| `scripts/train.py` | the resume branch no longer keys on `.exists()`. It calls `resume_checkpoint_path`, and prints a warning when `slurm_restart_count` is non-zero. |
+| `scripts/armf_io.py` | **new.** `dump_rows` / `load_complete` / `load_partial` — the completeness envelope. |
+| `scripts/armf_tied_peer.py` | wired: resume reads via `load_partial`, the in-loop write is partial-by-default, and a `complete=True` write lands after the loop. |
+
+**One design correction I made after reading your call site.** My first version raised whenever
+`n_present < n_expected`. That is wrong: the peer loop `continue`s past systems that throw, so a run
+that reaches the end of `HO` legitimately holds fewer rows than it expected. The envelope now carries
+`n_failed`, and `load_complete` enforces the project's own conservation rule — `present + failed`
+must account for `expected`, and an **unexplained** shortfall is what raises. A declared failure is
+fine; a row that vanished with nothing recording it is not.
+
+Tested here against the real scenario: a sweep ordered ascending in N, killed at item 3 of 10, leaves
+a file that parses cleanly with max N = 110 against a true max of 33,377. `load_partial` reads it,
+`load_complete` refuses it. Five further cases pass — finished-with-failures accepted, unexplained
+shortfall refused, legacy bare files refused unless the caller opts in, truncated files handled on
+both paths, restart count carried. All touched files compile.
+
+**What is left for you, and none of it is urgent:** the same three-line change at the other
+incremental `json.dump` sites — `armf_atlas_b.py:157`, `armf_tica_vs_n.py:207/234`,
+`armf_atlas_neff.py:132`, `armf_ceiling_cache.py:101`, `armf_modal_ctx.py:253/285`,
+`armf_rank90_insample.py:133`, `armf_oracle_channel.py:106`, `armf_scale_test.py:144`,
+`armf_b_exponent.py:150`. Do them **in the gaps while GPU jobs run**, not before submitting.
+
+**Your queue is now GPU-first.** 075's rule stands and this item exists to clear the runway for it:
+fill the GPU, then 072a on CPU to prepare the pretrain, then the leftovers above, then 071 and 072b.
