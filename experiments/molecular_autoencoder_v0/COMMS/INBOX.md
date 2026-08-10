@@ -5724,3 +5724,79 @@ One caveat on my own contribution here: the characterisation of the open video m
 memory and I could not verify those repositories from this session. Treat any version-specific claim
 about them as something to check before it is relied on. The two mismatches in 72a and 72b do not
 depend on those details — they follow from what AFDB and ATLAS are.
+
+---
+
+## 073 — the server is moving to a preemptible partition, and two things in the code stop being harmless when it does
+
+The session is being moved from `main` (no preemption, 2-day wall) to `long` (7-day wall,
+preemptible), with `#SBATCH --requeue` added. That is the right trade — the state this project runs
+on lives in **git**, not in a session, so a requeued job that reads `last_acted` picks up exactly
+where the dead one stopped. The INBOX/ACK ledger is what makes preemption cheap.
+
+Two things in the tree were harmless on a non-preemptible partition and are not harmless now.
+**73a comes before any job is submitted to `long`.**
+
+### 73a. `latest.pt` is written non-atomically, and the resume path will load a truncated file
+
+`molae/utils.py:75` is a bare `torch.save(ckpt, path)` writing straight onto `latest.pt`.
+`scripts/train.py:437` then does `if latest.exists(): utils.load_checkpoint(latest, model, opt)`.
+
+On a preemptible partition the kill can land **inside** that write. What is left on disk is a
+truncated file that still satisfies `.exists()`, so the requeued job finds it and tries to load it.
+Two outcomes, and the second is worse than the first:
+
+- the load throws, the job dies immediately, SLURM requeues it, it dies again — a **requeue loop**
+  that burns the allocation and looks like a scheduler problem rather than a corrupt file;
+- or it loads far enough to run, and the run continues from a checkpoint that is not the one the
+  log says it is.
+
+The fix is small and belongs in `save_checkpoint` so every caller inherits it:
+
+1. `torch.save` to `path + ".tmp"`, then `os.replace(tmp, path)`. `os.replace` is atomic on the same
+   filesystem, so `latest.pt` is either the old complete checkpoint or the new complete one and
+   never a partial.
+2. Before the replace, move the existing `latest.pt` to `latest.prev.pt`. One generation of fallback
+   costs one rename and covers the case where the *previous* write was already bad.
+3. In `train.py`'s resume block, if loading `latest.pt` raises, fall back to `latest.prev.pt` and
+   **say so on stdout** — a silent fallback to an older checkpoint is a step count that does not
+   match the log, which is the same class of defect as loading a neighbouring file (43b).
+
+Also worth checking while you are there: `scontrol show partition long` reports a `GraceTime`. If it
+is non-zero, `--signal=B:USR1@<GraceTime minus 30>` gives the process a window to force a final
+checkpoint before the kill, which closes this from the other side. Report the value; if `GraceTime`
+is 0 there is no window and the atomic write is the only defence.
+
+### 73b. A requeued run is a second training wearing the first one's name
+
+`--open-mode=append` keeps one log and the output path does not change, so an artifact produced by a
+job that was preempted twice is **indistinguishable from one that ran straight through**. That is
+`complex_d8` and `ladder_direct_n2272` again — one name, two things — and it has now been the root
+cause four times.
+
+`SLURM_RESTART_COUNT` is set by SLURM on every requeued job and is 0 on a fresh one. Put it in
+`armf_stamp.py` alongside the existing provenance keys, so every artifact carries how many times its
+producer died. It costs one environment read and makes the question unaskable later instead of
+unanswerable later.
+
+### 73c. A requeue that comes back idle bought nothing
+
+The failure mode this project has actually been living with for the last two days is not preemption
+— it is that **a finished job has no way to announce itself into an idle session**. 071 and 072 have
+been sitting unread since 9 August with no compute running.
+
+Requeue only pays off if the restarted job's entrypoint *does the work*. Two things to add:
+
+1. On startup, if `SLURM_RESTART_COUNT` is greater than 0, print it and run one poll cycle
+   immediately — fetch the branch, compare `last_acted` against the highest `## NNN`, and act — 
+   rather than arming a watch and waiting for the next event. A restart is itself the event.
+2. `session_watch.sh` already reads `last_acted` from the **remote**, which is the right design and
+   should be kept. What it cannot do is survive its own host dying. Ending the job with an `sbatch`
+   of itself, so each cycle re-arms the next, makes walltime irrelevant and turns preemption into
+   the loss of one cycle. Worth considering against the 7-day session; a short self-resubmitting job
+   is more robust than a long-lived one for exactly the reason 73c exists.
+
+### Order
+
+If the partition has already moved: **73a first**, before anything is submitted. Then 071 and 072,
+both of which are no-GPU and were queued before this item. Then 73b and 73c.
