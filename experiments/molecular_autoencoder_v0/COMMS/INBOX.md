@@ -5869,3 +5869,59 @@ failures:
 74b's declare-and-refuse before any sweep is submitted to a partition where it can be killed
 mid-run; 73a before any training job is; then 071 and 072, which are still unacknowledged and still
 need no GPU.
+
+---
+
+## 075 — STANDING RULE: never do CPU work while the GPU is idle
+
+Every item in the queue above this one — 071, 072, 073, 074 — is a correction, a baseline, or a
+bug fix. **None of them uses the GPU.** If you work them in order the GPU stays idle for a day while
+you edit text, and that is my error in how I queued them, not yours in how you worked them.
+
+### The rule, and it applies from now on and not only today
+
+**Before you touch a text file, run `squeue -u $USER`. If nothing of yours is running on a GPU,
+submit something first. Then do the CPU work while it runs.**
+
+A GPU job runs for hours. 071 through 074 are perhaps an hour of work between them. They belong
+*inside* the window a training job is running, never in front of it. The same goes for every future
+item: if an INBOX item is CPU-only and the GPU is empty, the correct first action is to fill the GPU
+and the second action is the item.
+
+State it in your report each time, one line: what was on the GPU while you did the CPU work. If the
+answer is "nothing," that is a defect to report the way any other defect is reported.
+
+### What to submit now, in this order — take the first one that is actually ready
+
+Check each on the cluster rather than trusting this list; I cannot see the filesystem or the queue
+from here.
+
+1. **`armf_atlas_dm.py`** — the DM sweep has timed out three times and has never produced a
+   completed result. It is written, it is priced, and its answer (does the architecture saturate in
+   width, or were the wide arms starved) is still open. Give it a longer wall and the dependency
+   chain from 074a so the wall stops being how it dies.
+2. **The DM=512 tied arm from 61c**, which was specified and never submitted.
+3. **`armf_propagator.py`** — the generative axis, which §5b records as *the only untested direction
+   left*, because ANM has no generator and reconstruction FVE structurally cannot express a
+   generative advantage. Note it currently runs `USE = ["3a5zD02", "3jvvA01"]`, two domains, and
+   reads mdCATH from `$SCRATCH/datasets/mdcath/data`. **Check that data is on disk before counting
+   on this one** — the 0.34 TB mdCATH download was dropped as part of cancelling the b-exponent
+   stream, and I do not know whether the propagator's copy survived that. If it is there, this is
+   the highest-value thing on the list and it should be widened past two domains.
+
+### And in parallel, on CPU, prepare the big one
+
+072a is the gate on the 1M-structure pretrain: cluster the candidate AlphaFold DB draw against the
+held-out ATLAS sequences and exclude anything above a stated identity threshold, because otherwise
+the pretraining set contains the proteins the model is evaluated on. That step plus corpus
+acquisition is roughly three to four hours of CPU and network. Run it **while the GPU jobs from the
+list above are running**, so that the moment they finish, the ~18 GPU-hour pretrain is ready to go
+in behind them on the same dependency chain.
+
+That is the shape of every day from here: GPU saturated with the longest job that is ready, CPU
+preparing the next one, corrections done in the gaps.
+
+### Order
+
+Fill the GPU. Then 072a on CPU. Then 074b and 73a, which protect the jobs you just submitted from
+dying badly. Then 071, 072b, 073b/c.
