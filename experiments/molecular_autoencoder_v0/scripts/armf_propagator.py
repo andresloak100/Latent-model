@@ -16,7 +16,11 @@ import argparse, math, numpy as np, torch, torch.nn as nn, h5py
 DATA = "/network/scratch/j/jacob-junqi.tian/datasets/mdcath/data"
 BB = ["N", "CA", "C", "O"]; TEMP, R0 = "320", "0"
 L, Tdiff, kT = 64, 100, 0.593
-USE = ["3a5zD02", "3jvvA01"]; TAUS = [1, 10, 50, 100]
+# WIDENED from 2 domains to all 28 present on disk. Two domains cannot separate "the propagator
+# works" from "it works on these two" -- the same n-too-small problem 22a/24c kept hitting, and
+# the generative axis is the only untested direction left (ROADMAP 5b), so it should not be
+# decided on n=2. Resumable per domain, so a time-limit kill costs the current domain only.
+USE = ['2cndA01', '2e2dC02', '2f93B00', '2fm7A00', '2h7tA01', '2k4qA00', '2lklA01', '2lt5A00', '2m1xA00', '2p9xA00', '2yx1A01', '2z1kA02', '3a5zD02', '3a9lA00', '3g7dA03', '3h7lB02', '3jamY00', '3jvvA01', '3k30A03', '4ccdA02', '4cd8A00', '4e6sA00', '4ifdE00', '4lrzE01', '4n9jA02', '4qdcA02', '4qiwK00', '4xk8d00']; TAUS = [1, 10, 50, 100]
 torch.manual_seed(0); np.random.seed(0)
 
 

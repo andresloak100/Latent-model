@@ -18,7 +18,15 @@ NAME=$(grep -oE -- '--job-name=[^ ]+' "$SB" | head -1 | cut -d= -f2)
 [ -n "${NAME:-}" ] || { echo "armf_submit: $SB has no --job-name; refusing, since a nameless job cannot be guarded" >&2; exit 2; }
 
 EXISTING=$(squeue -u "$USER" -h -n "$NAME" -o "%i %T" 2>/dev/null)
-if [ -n "$EXISTING" ] && [ -z "${ARMF_FORCE:-}" ]; then
+# A job chained with --dependency=afterany CANNOT run concurrently with the job it waits on, so it
+# is not a lost-update race. Refusing it forced ARMF_FORCE=1, which disables the check entirely --
+# a guard whose only escape hatch is "turn the guard off" gets turned off for the wrong reasons too.
+CHAINED=""
+for a in "$@"; do case "$a" in --dependency=*) CHAINED=1;; esac; done
+if [ -n "$EXISTING" ] && [ -n "$CHAINED" ] && [ -z "${ARMF_STRICT:-}" ]; then
+  echo "armf_submit: '$NAME' is queued, but this submission is --dependency chained, so it cannot" >&2
+  echo "  run concurrently. Allowing. (ARMF_STRICT=1 to refuse anyway.)" >&2
+elif [ -n "$EXISTING" ] && [ -z "${ARMF_FORCE:-}" ]; then
   echo "armf_submit: REFUSING -- job name '$NAME' is already in the queue:" >&2
   echo "$EXISTING" | sed 's/^/    /' >&2
   echo "  Two chains writing one stamped results file is a lost-update race (44a)." >&2

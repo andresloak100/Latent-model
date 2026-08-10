@@ -3801,6 +3801,32 @@ it does not. Report only that the model clears the trivial baseline at every ban
 why it is not divided by. The current 48b run predates it; per 057 this is precision, not correctness, and the SMALL-PROTEIN
 verdict rests on RMSD, which is controlled and crosses on its own.
 
+### ⬛ SEQUENCE-LEAKAGE GATE built and self-tested, before the 1M draw exists
+
+AlphaFold DB covers essentially all of UniProt, so a 1M draw **will** contain predicted structures of
+the held-out ATLAS proteins unless they are removed — and that would invalidate every zero-shot claim
+on the record: 0/123 at every cutoff, the 2.4% win-rate bound, the whole peer comparison.
+
+**MMseqs2 15-6f452** installed as a static binary (`pip` is dead in this venv). Query set is **all
+chains of all 125 held-out entries = 156 sequences**, deliberately over-inclusive: over-inclusion can
+only remove more candidates, while under-inclusion leaves a held-out protein unscreened, which is the
+failure the gate exists to prevent.
+
+**Two defects caught while building the query set, both silent:**
+
+- fragile chain-matching against RCSB's header variants lost **24 of 125 entries** (101 retrieved);
+- the id file had **no trailing newline**, so `while read` dropped the last line — **`6sup_A` had zero
+  sequences in the query set** until the 124-vs-125 discrepancy was chased rather than rounded off.
+
+Either would have left held-out proteins unscreened while the gate reported success.
+
+**Self-tested against a known positive:** feeding held-out sequences back in as candidates removes
+**2 of 2 at 100% identity**. A gate that has never rejected anything is not known to work.
+
+**Stated in the output, not just here:** the **training** systems are **not** excluded — pretraining
+on the training distribution is the point — and that is a decision rather than an oversight, printed
+every run because a reader seeing a leakage gate will reasonably assume it removed both.
+
 ### ⬛ 064 RECONCILED, 065 ACCOUNTED, and 70b/70e PRE-REGISTERED before the corpus exists
 
 **64a/64b — the table was three different statistics under one heading.** My script printed
