@@ -2532,9 +2532,23 @@ compared against a floor is unsupported in the only direction that matters.
 
 ### THIS IS CORPUS-INDEPENDENT -- there is NO dataset move that fixes it
 n_eff at 1-7% is trajectory length versus decorrelation time, not a property of ATLAS.
-MISATO **10 ns** / mdCATH **2.5 us** / ATLAS **100 ns** -- none supplies enough independent samples to
-fit a few-hundred-dimensional per-system subspace. **Exactly as with the ceiling, the answer is to
-change instrument, not corpus.**
+| corpus | continuous per trajectory | aggregate across replicas |
+|---|---|---|
+| MISATO | 10 ns | 10 ns (1 replica) |
+| mdCATH | **500 ns** | 2.5 µs (5 × 500 ns) |
+| ATLAS | **100 ns** | 300 ns (3 × 100 ns) |
+
+None supplies enough independent samples to fit a few-hundred-dimensional per-system subspace.
+**Exactly as with the ceiling, the answer is to change instrument, not corpus.**
+
+**81c — BOTH figures are now on this line, because they govern different things and only one of them
+was here.** For *independent samples*, which is what this passage is about, aggregating five 500 ns
+replicas into 2.5 µs is defensible. For **lag reach it is not: five 500 ns runs cannot measure a
+100 ns lag any better than one can.** Aggregate length buys samples at reachable lags; it does not
+buy reach. **The continuous figure is the one that governs lag**, and citing the aggregate for that
+purpose is what made a τ = 100 ns sweep look feasible against a 500 ns trajectory — the propagator
+run that produced 112 refused cells and no table. Seventh instance of one name, two things, and the
+most quotable of them, because it sits in a comparison table that exists to be cited.
 
 ### WITHDRAWN: `PCA-256 = 0.958` ("256 dimensions capture ~96% of displacement variance")
 Do not cite it. At k=256, n_eff is 94-165, so the fit carries **more dimensions than effective
@@ -3307,6 +3321,22 @@ both bars (≥60%, p<0.01). **Q4 = +0.4496** against the provisional +0.4474, so
 result on the main line survives, and 61a's leverage finding is unaffected at that magnitude.
 
 The §5b `more data` row is **restored** on this basis.
+
+**81d — WHAT THIS IS A STATEMENT ABOUT, corrected. It is "more data at a fixed step budget", not
+"more data".** 80c measured that arms terminate on plateau at a roughly fixed step count regardless
+of dataset size — 22,500 steps at n=50 against 25,000 at n=130, **data ×2.60 → steps ×1.11**. So the
+n50 and n300 arms ran comparable numbers of updates while n300 held six times the systems, and each
+system therefore received roughly **one sixth** the gradient updates.
+
+What was actually varied is therefore: **diversity up, per-system repetition down, compute
+approximately held.** That is a legitimate comparison and arguably the more practical one, but it is
+not what "67.5% of systems worse with six times the data" says, and the difference is not rhetorical
+— it attributes to data an effect the *stopping rule* is at least partly responsible for.
+
+**This does not overturn the result and is not claimed to.** The test that would separate the two is
+an n300 arm run to the same *per-system exposure* as n50, which is 6× the steps and a real cost.
+Until that exists, the finding is recorded with what was varied on its face. Cheap to fix in prose
+now; expensive to discover in review.
 
 ### ⏳ PRE-REGISTERED: how `10318733`'s same-producer c50 gets read, written before it exists
 
@@ -5647,3 +5677,48 @@ exclusions correlated with length that leave a healthy-looking summary statistic
 and a 0.584% leak rate are both unremarkable numbers, and both were computed on a corpus that had
 already had its short end and its long tail removed. The guard that caught them was not a threshold —
 it was comparing the *distribution* of what was dropped against the distribution of what was kept.
+
+---
+
+## Propagator: the scope of what τ ∈ {1, 2} can and cannot test — written before the numbers (81b)
+
+**This run bounds behaviour at 1–2 ns lags. The large-step claim is untested.**
+
+`steps→1ms` is in the script's own header and it is the propagator's reason to exist: take large
+steps. At τ = 1 ns reaching 1 ms takes 1,000,000 steps; at τ = 2 ns it takes 500,000. **A 2× saving.**
+So the reachable experiment answers *"does the model reproduce 1–2 ns dynamics"* and cannot answer
+*"can we take large steps"* — and the second is the claim that motivates the whole direction.
+
+Family D at the level of the research question, the same shape as 5b's "reconstruction FVE cannot
+express a generative advantage", arriving one level down.
+
+**The requirement, in frames, so the next dataset decision is arithmetic rather than argument:** a lag
+τ needs `MIN_H × τ` frames of continuous trajectory per replica. At MIN_H = 200:
+
+| τ | continuous trajectory needed per replica | mdCATH has | shortfall |
+|---|---|---|---|
+| 1 ns | 200 ns | 500 ns | reachable |
+| 2 ns | 400 ns | 500 ns | reachable |
+| 10 ns | 2,000 ns | 500 ns | 4× |
+| 50 ns | 10,000 ns | 500 ns | 20× |
+| **100 ns** | **20 µs** | 500 ns | **40×** |
+
+**Two points is not a sweep.** τ=1 and τ=2 are reported as two points. No slope is fitted through
+them: a line through two points has no residual degrees of freedom, so its "trend" is the noise, and
+this project has already published one slope it had to qualify.
+
+**81a gates all of it.** Before any DDPM row is read as evidence, OU is read as a *negative control*:
+it is independent per mode in the ANM basis, so `xcorr` and `amp` are ~0 for it by construction. If
+OU lands **inside** the reference band on those two, the band cannot reject a model that is wrong by
+construction, the test has no power on the metrics that carry the claim, and the honest output is the
+band width rather than a table. Measured on the first domain, at both lags: **OU lands outside on
+both `xcorr` and `amp` — the test has power.** Reference coupling is `xcorr_r = 0.248`,
+`amp_r = 0.168`, far above zero, so the pre-registered "task is Gaussian at this lag, no learned
+propagator needed" branch does *not* fire: there is real coupling for a learned model to capture.
+
+**81e — temperatures are not pooled.** The reference pool is replicas 1–4 **at 320 K only**. The
+other sixteen trajectories are at 348/379/413/450 K and sample a different distribution; folding them
+in would be Family F, a comparator computed on different data, and it would widen the band exactly
+where 81a needs it tight. Temperature as a *conditioning variable* is a different and legitimate
+design that would use all 25 trajectories — recorded as an option, not to be attempted before 81a
+reports on every domain.

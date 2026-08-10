@@ -427,6 +427,17 @@ for dom in USE:
         # model is not asked to beat it, it is asked to land inside it.
         print(f"    {'REFERENCE':14s}" + "".join(
             f"{band(rs,k)[0]:.2f}[{band(rs,k)[1]:.2f},{band(rs,k)[2]:.2f}]".rjust(16) for k in METRICS))
+        # INBOX 81a. THE BAND WIDTH IS PRINTED BEFORE ANY ARM, because a wide band accepts
+        # everything and "7/7 consistent" would then mean the test could not tell two models apart
+        # -- Family C wearing the costume of a positive result. JS(train||heldout)=0.1107 across
+        # independent replicas says this pool has not converged its own distribution in 500 ns, so
+        # the band being wide is a live possibility rather than a hypothetical.
+        print(f"    {'band width':14s}" + "".join(
+            f"{band(rs,k)[2]-band(rs,k)[1]:.3f}".rjust(16) for k in METRICS))
+        xr, ar = abs(band(rs, "xcorr")[0]), abs(band(rs, "amp")[0])
+        print(f"    reference coupling: xcorr_r={xr:.4f}  amp_r={ar:.4f}"
+              + ("   <- reference coupling is ~0: the task is GAUSSIAN/single-basin at this lag and "
+                 "no learned propagator is needed (pre-registered)" if max(xr, ar) < 0.02 else ""))
 
         def report(name, series_list, extra=""):
             ss = [stats_of(s, top2, thr, ref_full) for s in series_list]
@@ -458,6 +469,28 @@ for dom in USE:
                 x = a_ou * x + np.sqrt(v * (1 - a_ou ** 2)) * rng.standard_normal(L); roll.append(x.copy())
             ou.append(np.array(roll)[:H_use])
         report("OU", ou)
+
+        # INBOX 81a. OU IS A NEGATIVE CONTROL FOR THE TEST, NOT AN ARM, AND IT IS READ FIRST.
+        # OU in the ANM basis is independent per mode, so xcorr and amp are ~0 for it BY
+        # CONSTRUCTION. That makes it a KNOWN-WRONG model on two named metrics:
+        #   OU lands OUTSIDE on xcorr/amp -> the test has power exactly where the claim lives, and a
+        #                                    DDPM landing inside them is a real finding.
+        #   OU lands INSIDE  on xcorr/amp -> the band cannot reject a model that is wrong by
+        #                                    construction, so the test has NO POWER on the metrics
+        #                                    that carry the claim, and nothing about any DDPM can be
+        #                                    read from it. The honest output is the band width.
+        ou_ss = [stats_of(s, top2, thr, ref_full) for s in ou]
+        pw = {k: bool(consistent(ou_ss, rs, k)) for k in ("xcorr", "amp")}
+        has_power = not (pw["xcorr"] and pw["amp"])
+        print(f"    POWER CHECK (81a): OU is wrong by construction on xcorr/amp. "
+              f"xcorr {'INSIDE' if pw['xcorr'] else 'outside'}, amp {'INSIDE' if pw['amp'] else 'outside'}"
+              f"  -> {'TEST HAS POWER on the metrics that carry the claim' if has_power else 'TEST HAS NO POWER -- the band accepts a model that is wrong by construction; DDPM rows below are NOT readable as evidence'}")
+        ROWS.append(dict(dom=dom, tau=tau, model="POWER_CHECK", H=H_use, K=K_EVAL,
+                         ou_inside_xcorr=pw["xcorr"], ou_inside_amp=pw["amp"],
+                         has_power=has_power,
+                         band_width={k: float(band(rs, k)[2] - band(rs, k)[1]) for k in METRICS},
+                         xcorr_r=float(xr), amp_r=float(ar),
+                         gaussian_task=bool(max(xr, ar) < 0.02)))
 
         for param in ("absolute", "delta"):
             m = train_ddpm(torch.tensor(Zn_all), h, tau, param)

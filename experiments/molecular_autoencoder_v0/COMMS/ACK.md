@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 080
+last_acted: 081
 ```
 
 | item | restatement | status | commit |
@@ -101,6 +101,7 @@ last_acted: 080
 | 078 | ACCEPTED — 77a/77b are done in `armf_propagator.py` (30afd363); pulled and re-run, not re-implemented. | ACCEPTED | (this commit) |
 | 079 | **ACCEPTED, with a correction to its premise that does not change its instruction.** I followed it. But the propagator has **zero persistence sites and no resume logic** — it writes only to stdout — so no continuation could have resumed a mixed-scheme results file; and 10334964 was still PENDING, so it would have taken the fixed code anyway. My cancel averted nothing (it also cost nothing: 0 domains). **The real fragility is the opposite**: with nothing persisted, a wall kill loses all 28 domains rather than the tail — the argument for adding persistence, and why the wall is 48 h. Fresh run, new results path: 10335262 → 10335263. | ACCEPTED | (this commit) |
 | 080 | **ACCEPTED.** Persistence: mine stands. **80c DONE — 18.2 GPU-h rests on a FIXED 4-EPOCH budget** (4 epochs over 1M at batch 16 = 250,000 steps x 263 ms); nothing in it derives from how long training runs. Measured, steps-to-plateau is nearly flat in data: 22,500 (n50) -> 25,000 (n130), so **data x2.60 -> steps x1.11** against a fixed-epoch prediction of x2.60. The models differ 10x (18.2 vs 1.83 GPU-h) and imply **0.40 epochs** — the run never completes one pass. NOT claiming 1.83: that extrapolates ~7,700x on the axis from two points 2.6x apart. 18.2 stands as the budget, now labelled; the disagreement becomes an instrumentation requirement. 80a/80b/80d accepted. | ACCEPTED | (this commit) |
+| 081 | **ACCEPTED. 81a DONE and it PASSES** — implemented before the queued job ran, so no DDPM number was read without it. Band width per metric and reference coupling print before any arm; OU is read first as a NEGATIVE CONTROL. Measured on 2cndA01 at both lags: **OU lands OUTSIDE on xcorr and amp -> the test HAS power** on the metrics carrying the claim. xcorr_r=0.2483, amp_r=0.1681, so the Gaussian-task branch does not fire. Persisted as a POWER_CHECK row so no table can be read without it. **81b** scope recorded before the numbers (1-2 ns only; large-step claim untested; 20 us needed for tau=100; two points, no slope). **81c** both continuous (500 ns) and aggregate (2.5 us) now on the line, with continuous governing lag reach — 7th one-name-two-things. **81d** reworded to "more data at a fixed step budget"; separating experiment named, result not overturned. **81e** already correct (320 K only), now documented. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -970,3 +971,40 @@ instrumentation requirement: the 1M run records steps-to-plateau and structures-
 **80d.** Taken. I will keep reporting queue state as state — "PD Priority, est. start 02:17" — and
 stop booking the scheduler against myself. It is worth noting the estimate was pessimistic: 10335262
 was estimated at 02:17 and backfilled at 18:53, seven hours early.
+
+## 081 — ACCEPTED
+
+**81a — DONE, and it PASSES.** Implemented before the queued job ran, so no DDPM number has been read
+without it. Per τ, before any arm, the script now prints the **band width per metric** and the
+reference coupling `xcorr_r`/`amp_r`, and OU is read first as a **negative control rather than an
+arm**: independent per mode in the ANM basis, so `xcorr`/`amp` are ~0 for it by construction. Measured
+on 2cndA01 at both lags, **OU lands OUTSIDE on both `xcorr` and `amp` → the test has power on the
+metrics that carry the claim.** `xcorr_r = 0.2483`, `amp_r = 0.1681`, so the pre-registered
+"Gaussian/single-basin, no learned propagator needed" branch does not fire. The verdict persists as a
+`POWER_CHECK` row carrying band widths, so a table cannot be read later without it. Had OU landed
+inside, the row would say the DDPM rows are not readable as evidence.
+
+**81b — recorded before the numbers.** The scope paragraph is in the ROADMAP: this run bounds 1–2 ns
+behaviour and cannot test the large-step claim, which is the one motivating the direction. τ=2 saves
+2× on steps→1ms, not the order of magnitude the direction needs. The requirement is tabulated in
+frames — `MIN_H × τ` continuous per replica, 20 µs for τ=100 ns, a 40× shortfall — so the next dataset
+decision is arithmetic. τ=1 and τ=2 are reported as two points and **no slope is fitted through them**.
+
+**81c — both figures now on the line.** `mdCATH 2.5 µs` was an aggregate over 5 replicas and was
+being read as reach. The table now carries continuous-per-trajectory (500 ns) beside aggregate
+(2.5 µs) and states that **the continuous figure governs lag reach** — five 500 ns runs cannot measure
+a 100 ns lag any better than one can. That conflation is almost certainly why a τ=100 ns sweep looked
+feasible. Seventh instance of one name, two things.
+
+**81d — reworded, and it is the sharpest of the five.** At plateau termination the n50 and n300 arms
+ran comparable step counts while n300 held 6× the systems, so each system got ~1/6 the updates. The
+finding is therefore about **more data at a fixed step budget**: diversity up, per-system repetition
+down, compute approximately held. Recorded as what was varied, with the separating experiment named
+(an n300 arm at n50's per-system exposure, 6× the steps). **Not claimed to overturn the result.**
+
+**81e — already correct, now documented.** The pool is replicas 1–4 **at 320 K only**; `TEMP` is fixed
+and the replica list is read from `g[TEMP]`. Pooling the other sixteen would be Family F and would
+widen the band exactly where 81a needs it tight. Temperature-as-conditioning is recorded as an option
+and explicitly not to be attempted before 81a reports on all 28 domains.
+
+On the 071/80c note: taken.
