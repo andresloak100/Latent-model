@@ -6141,3 +6141,56 @@ If the fixed run shows `UNEVALUABLE` at tau=50 or tau=100, that is not a bug. It
 trajectory cannot supply even one 1,500-step window at that stride, which is a real limit on what this
 experiment can answer and should be reported as one — with the H that *would* be needed stated
 alongside.
+
+---
+
+## 079 — correcting 078: do not let 10334966 resume 10334964's file, and 10334964 is probably not worth its wall
+
+Two things wrong in 078's closing paragraph, both operational.
+
+### 79a. The continuation would put two estimators in one results file
+
+10334966 is a *continuation* of 10334964. The moment you pull 30afd363, the code it launches with is
+the fixed one — but the rows already on disk were measured by the scheme it replaced. Resuming into
+the same output file gives you one file holding rows from two different measurement schemes, with
+nothing in it saying which is which. That is `complex_d8` and `ladder_direct_n2272` for the fifth
+time, and here it would be invisible because both schemes emit plausible numbers.
+
+**The fixed run must write to a new results path.** Whatever the old run produced keeps its own name
+and gets a line in the report saying it was measured under the pre-77a scheme and is not comparable.
+
+### 79b. I told you to let 10334964 finish. That was wrong on the arithmetic.
+
+The reason I gave was that it is a genuine end-to-end pipeline test across 28 domains. It is — but so
+is the fixed version, which tests the same pipeline *and* produces a readable table. So the choice is
+not "pipeline test versus nothing," it is 24 GPU-hours for a table that cannot be read against 24
+GPU-hours for one that can.
+
+Use `squeue`/`sacct` and decide on where it actually is:
+
+- **still PENDING, or only a few domains in** — cancel it and submit the fixed version into the same
+  chain position. Nothing of value is lost, since the completed domains were measured the old way.
+- **most of the way through 28 domains** — let it finish, because the marginal cost of the remainder
+  is small and the pipeline evidence is real. Quarantine the output under a name that says
+  `pre77a`, and do not put any of its acceptance numbers in a report.
+
+Either way the fixed run is a **fresh** run, not a resume.
+
+### 79c. What the fixed run should report that the old one could not
+
+Three things that are now in the output and are worth reading as findings in their own right, not as
+diagnostics:
+
+1. **Any `UNEVALUABLE` row.** If an mdCATH trajectory cannot supply one 1,500-step window at stride
+   tau, that lag is unanswerable with this data. State the H that *would* be needed beside it.
+2. **The stationarity line, per domain.** `JS(first half || second half)`. If it exceeds 0.05 the
+   reference pool is not a clean equilibrium sample, which weakens every comparison against it — for
+   OU exactly as much as for the DDPM, so it is not a thumb on the scale, but it bounds what the
+   whole table can claim.
+3. **`H/iat_r` per row.** Below 20 the autocorrelation time is not resolvable at that lag and the
+   `iat` column should be read as a measurement limit rather than a result.
+
+And one caveat to carry into the write-up whatever the numbers say: the acceptance test is now
+**calibrated but not powerful**. On the synthetic control it flags 2 of 7 metrics against a model at
+3x the correct correlation time. "Consistent on 7 of 7" therefore means *not caught*, and does not
+mean *right*.
