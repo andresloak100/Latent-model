@@ -27,8 +27,9 @@ misses against 7-14% for testing the generated median against the reference band
 `H/iat_r` is printed per row and a lag whose trajectory is too short to evaluate is
 reported as unevaluable rather than scored.
 """
-import argparse, math, numpy as np, torch, torch.nn as nn, h5py
+import argparse, math, os, json, numpy as np, torch, torch.nn as nn, h5py
 DATA = "/network/scratch/j/jacob-junqi.tian/datasets/mdcath/data"
+WR = "/network/scratch/j/jacob-junqi.tian/latent-model-workspace"
 BB = ["N", "CA", "C", "O"]; TEMP, R0 = "320", "0"
 L, Tdiff, kT = 64, 100, 0.593
 # WIDENED from 2 domains to all 28 present on disk. Two domains cannot separate "the propagator
@@ -268,13 +269,34 @@ K_EVAL = args.K          # n per cell on BOTH sides -- was 1 on the generated si
                          # very K-sensitive, but the SPREAD it prints is, and a spread from
                          # 8 draws is not worth reading.
 MIN_H = 200              # below this a series cannot carry these statistics at all
+# 079 (correcting its premise). This script had ZERO persistence sites: every result went to stdout
+# and nothing to disk. So 079's stated risk -- a continuation resuming a mixed-scheme results file --
+# could not occur, and the opposite risk was live: a wall kill lost ALL 28 domains rather than the
+# tail of them, which is the only reason the wall was 48 h. Per-domain persistence makes the wall a
+# function of ONE domain instead of the whole sweep, so it can come down to something that backfills.
+RES = os.environ.get("PROP_RES", f"{WR}/propagator_tauK.json")
 COVER_MIN = 20.0         # H/iat_r below this means iat is ceiling-limited (INBOX 77b)
 SEED_BASE = 20250810
 print(f"[propagator] tau sweep {TAUS}, FiLM cond, delta/absolute, vs OU. H={args.H} K={K_EVAL}")
 print(f"  INBOX 77a/77b: generated and reference statistics now come from the SAME estimator on\n"
       f"  series of the SAME length and tau-spacing, K={K_EVAL} per side. A model is scored by whether\n"
       f"  it lands INSIDE the band real trajectory slices make (* = inside), not by beating a number.")
+DONE = {}
+if os.path.exists(RES):
+    try:
+        DONE = json.load(open(RES))
+        print(f"  [resume] {len(DONE)} domain(s) already complete in {os.path.basename(RES)}: "
+              f"{', '.join(sorted(DONE))}", flush=True)
+    except Exception as e:
+        print(f"  [resume] {os.path.basename(RES)} unreadable ({type(e).__name__}); starting fresh",
+              flush=True)
+        DONE = {}
+
 for dom in USE:
+    if dom in DONE:
+        print(f"\n=== {dom} SKIPPED (already in {os.path.basename(RES)}) ===", flush=True)
+        continue
+    ROWS = []
     with h5py.File(f"{DATA}/mdcath_dataset_{dom}.h5", "r") as f:
         g = f[dom]; z = np.array(g["z"]); N = len(z); nm = parse_names(g, N)
         heavy = z != 1; bb = np.isin(nm[heavy], BB); ca = nm[heavy] == "CA"
@@ -317,6 +339,13 @@ for dom in USE:
             print(f"  tau={tau:<4} UNEVALUABLE: H_use={H_use} over {len(Z)} frames at stride {tau} "
                   f"({len(REFW)} reference windows). Not reported -- at this lag the trajectory is "
                   f"too short to estimate these statistics on either side.")
+            # Recorded, not merely skipped. An absent row and a refused row look identical in a
+            # results file, and a tau sweep that quietly loses its long lags on the SHORT
+            # trajectories is an exclusion correlated with trajectory length -- the same Family A
+            # shape as the AFDB parse drop, arriving through a `continue` instead of a regex.
+            ROWS.append(dict(dom=dom, tau=tau, model=None, H=H_use, K=K_EVAL, unevaluable=True,
+                             reason="H_use<MIN_H" if H_use < MIN_H else "no reference windows",
+                             n_frames=int(len(Z)), nCA=int(ca.sum()), cover=cover))
             continue
         rs = [stats_of(w, top2, thr, ref_full) for w in REFW]
         flag = "" if cover >= COVER_MIN else f"  <- CEILING: H/iat_r={cover:.1f} < {COVER_MIN}, iat is not resolvable here"
@@ -331,13 +360,21 @@ for dom in USE:
 
         def report(name, series_list, extra=""):
             ss = [stats_of(s, top2, thr, ref_full) for s in series_list]
-            cells, agree = [], 0
+            cells, agree, row = [], 0, {}
             for k in METRICS:
                 med, lo, hi = band(ss, k)
                 ok = consistent(ss, rs, k)
                 agree += ok
+                rmed, rlo, rhi = band(rs, k)
+                row[k] = dict(med=med, lo=lo, hi=hi, inside=bool(ok),
+                              ref=dict(med=rmed, lo=rlo, hi=rhi))
                 cells.append(f"{med:.2f}[{lo:.2f},{hi:.2f}]{'*' if ok else ''}".rjust(16))
             print(f"    {name:14s}" + "".join(cells) + f"   {agree}/{len(METRICS)} consistent {extra}")
+            # Persisted from the SAME values that were printed, never recomputed -- recomputing is
+            # how "one name, two things" starts, and this project has hit that five times.
+            ROWS.append(dict(dom=dom, tau=tau, model=name, H=H_use, K=K_EVAL, agree=agree,
+                             n_metrics=len(METRICS), guard=extra, cover=cover, stat_js=stat_js,
+                             nCA=int(ca.sum()), metrics=row))
 
         # OU at lag tau -- K independent realisations, same length as the reference
         # windows and as the DDPM rollouts. Every arm is now n=K, not n=1.
@@ -366,6 +403,18 @@ for dom in USE:
             aref_tau = (Zn_all[:h - tau] * Zn_all[tau:h]).mean(0) / ((Zn_all[:h - tau] ** 2).mean(0) + 1e-9)
             guard = f"cg{abs(add).mean()/max(abs(aref_tau).mean(),1e-6):.2f}"
             report("DDPM-" + param, [gen[k, :H_use] for k in range(gen.shape[0])], guard)
+
+    # Written once per DOMAIN, after all four taus, so a wall kill costs the current domain and
+    # nothing already finished. Atomic: write a temp file and rename, because the failure this
+    # replaces is a half-written JSON that parses as an empty dict and silently restarts the sweep.
+    DONE[dom] = ROWS
+    tmp = RES + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(DONE, fh)
+    os.replace(tmp, RES)
+    print(f"  [persist] {dom}: {len(ROWS)} rows -> {os.path.basename(RES)} "
+          f"({len(DONE)}/{len(USE)} domains complete)", flush=True)
+
 print("\n  discriminators: OU has xcorr~0, amp~0, kurt~0 BY CONSTRUCTION. If ref xcorr/amp/kurt ~0 too")
 print("  -> task is Gaussian/single-basin at this lag, no learned propagator needed (pre-registered).")
 print("  A learned win = matching ref xcorr/amp/kurt/trans that OU misses. cg = conditioning guard (a_ddpm/a_ref).")
