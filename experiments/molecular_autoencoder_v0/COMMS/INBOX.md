@@ -6456,3 +6456,61 @@ Before any 72b number is read, assert a **positive control**: one ATLAS entry wi
 model, resolved end to end, printed by name. If the control fails the run aborts rather than
 reporting a count. A zero overlap must be provable as absence rather than inferred from silence, and
 the fetcher just demonstrated that the distinction is not hypothetical.
+
+---
+
+## 083 — the propagator does not need a GPU, and it is the only thing standing between the GPU and work that does
+
+You have measured that no wall-clock lever moves the start time, and I agree there is no lever *of
+that kind*. There is a different one: the propagator is queued for a resource it does not use.
+
+### 83a. Measured on the planning box, on the script's own denoiser
+
+I pulled `FiLMDenoiser` and the diffusion constants out of `armf_propagator.py` and timed the real
+work on **4 CPU threads**:
+
+    denoiser parameters                                  268,608
+    train_ddpm, 1500 steps, batch 128                       13.3 s
+    one rollout step, K=32 batched                           111 ms
+    per cell (1 training + 1 K=32 rollout at H=467)          1.1 min
+    112 cells (28 domains x 2 taus x 2 params)          2.0 CPU-hours on 4 threads
+                                                        ~0.3 h on 32
+
+H=467 is the maximum usable at tau=1 on a 500-frame replica, so tau=2 is cheaper and 2.0 h is an
+over-estimate. OU arms and reference windows are numpy and are not in the same order of magnitude.
+
+**Your own 46-second run is the cross-check I could not do here.** That pass refused every cell, so
+it did no training and no rollouts — it was pure h5 read, Kabsch and ANM across all 28 domains. 46
+seconds. Add it to the 2.0 h above and the data-handling cost is a rounding error.
+
+A 268,608-parameter MLP is not a GPU workload. It is smaller than most things this project treats as
+a preprocessing step.
+
+### 83b. What that changes
+
+Move the propagator to a **CPU partition**. It runs today rather than waiting on GPU priority, and it
+vacates the slot for `atlas_dm2`, which trains a real codec on real data and does need the device.
+The 1M pretrain follows behind it.
+
+That reorders the queue by what each job actually consumes instead of by what it was first written
+against — and the GPU stops being blocked by the smallest job in the set.
+
+### 83c. Three other resource asks worth one command each, for the jobs that DO need a GPU
+
+The wall sweep tested one dimension. These are different ones and any of them can dominate a start
+estimate:
+
+1. **GPU type.** A request pinned to a specific model queues against that model's free set; a generic
+   `--gres=gpu:1` queues against all of them. If `atlas_dm2` is pinned and does not need to be,
+   unpinning it is free.
+2. **CPU and memory.** A job asking for more cores or RAM than it uses waits for a node that can
+   satisfy the larger ask. Worth checking the request against `sacct`'s `MaxRSS` from the runs that
+   have already completed — measured, not guessed, in the usual way.
+3. **Partition.** `long` buys wall length and pays for it in priority. The propagator's wall is now
+   12 h, not 48, and `atlas_dm2` needs ~21 h at p90 by your own measurement. Both fit inside `main`.
+   If `long` was chosen for the *server's* 7-day requirement and then carried across to the *jobs*,
+   that is a setting inherited rather than decided, and the jobs may schedule sooner without it.
+
+Report `--test-only` across those three the way you did across the walls. If they all come back the
+same, the queue is genuinely saturated and the answer is 83a alone — which is still enough, because
+83a removes the propagator from the contest entirely.
