@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 076
+last_acted: 079
 ```
 
 | item | restatement | status | commit |
@@ -97,6 +97,9 @@ last_acted: 076
 | 074 | **DONE BY ANOTHER SESSION** (`4cc0f735`) — `scripts/armf_io.py` plus the completeness envelope in `armf_tied_peer.py`. The diagnosis is the sharp one: a preempted results file is **not corrupt, it is SIZE-BIASED**, because writes are incremental and the loop sorts ascending in N — an exclusion perfectly correlated with the regressor, in a file that parses fine. Not redone per 076. | ACCEPTED | (this commit) |
 | 075 | **ACCEPTED AS A STANDING RULE, and it caught me immediately.** `squeue` showed **no GPU job of mine** — reported as a defect, not smoothed over. GPU chain submitted **before** any text file was touched: `10334964` propagator (28 domains, was 2) → `10334965` atlas_dm at **48 h** (dead at a 20 h wall three times) → `10334966` continuation, all `long`, all `afterany`. | ACCEPTED | (this commit) |
 | 076 | ACCEPTED — queue treated as GPU-only. 96 h of GPU work chained; CPU work confined to the leakage gate, which gates the next GPU job rather than competing with the current one. | ACCEPTED | (this commit) |
+| 077 | **ACCEPTED.** 77a/77b pulled, not re-implemented. **Q1: the 48 h wall was DOUBLED, not projected** — I attached no arithmetic at the time. Measured now from the arm boundaries: n50 median 30.7 min / p90 56.7; n130 median 35.0 / p90 78.1; 16 cells remain → **20.8 h at p90**, so the 20 h wall held 15 of 16 arms and timed out one short. 48 h is 2.3× p90 — adequate by luck. **Also corrects my own cost model: n130 costs 1.14× n50, not the 2.60× I assumed** (arms stop on plateau, not at fixed steps). **Q2: the tight predicate shipped** — the dependency must NAME the queued same-name job; the loose version reopened 61d's hole within the hour, exactly as 077f predicted. | ACCEPTED | (this commit) |
+| 078 | ACCEPTED — 77a/77b are done in `armf_propagator.py` (30afd363); pulled and re-run, not re-implemented. | ACCEPTED | (this commit) |
+| 079 | **ACCEPTED, with a correction to its premise that does not change its instruction.** I followed it. But the propagator has **zero persistence sites and no resume logic** — it writes only to stdout — so no continuation could have resumed a mixed-scheme results file; and 10334964 was still PENDING, so it would have taken the fixed code anyway. My cancel averted nothing (it also cost nothing: 0 domains). **The real fragility is the opposite**: with nothing persisted, a wall kill loses all 28 domains rather than the tail — the argument for adding persistence, and why the wall is 48 h. Fresh run, new results path: 10335262 → 10335263. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -881,3 +884,58 @@ The prior mdCATH DM sweep produced exactly that failure — DM=256/512 collapsed
 **participation ratio of the learned latent code** alongside FVE. A flat curve with the wide arms
 using their full width is width saturation; a flat curve with DM=512 using ~200 effective dimensions
 is capacity that failed to train, which is a different finding and must not be reported as the first.
+
+## 077 — ACCEPTED
+
+The acceptance table compares a 1,500-frame rollout against a full-length reference, so every row is
+two estimators of different variance; and the tau sweep trends because tau enters the estimator.
+77a/77b are implemented in `armf_propagator.py` (30afd363) and I have not re-implemented them.
+
+**077f Q1 — is the 48 h wall for atlas_dm projected from the three 20 h logs, or doubled?**
+**Doubled. It was not projected, and I am producing the projection only now.** The honest sequence is:
+20 h timed out, I doubled it, and I attached no arithmetic. The arithmetic, measured from the arm
+boundaries in `logs/atlasdm_*.log` (the per-arm timer resets at each arm, so an arm's cost is the last
+`(Ns)` before its summary line):
+
+|  | n | median | p90 | max |
+|---|---|---|---|---|
+| n_train=50 | 24 | 30.7 min | 56.7 min | 69.0 min |
+| n_train=130 | 11 | 35.0 min | 78.1 min | 79.0 min |
+
+16 of the 40 grid cells remain, all at n_train=130 → **20.8 h at p90**. So the 20 h wall held 15 of
+the 16 arms needed and timed out one short, which is exactly what happened. 48 h is 2.3× the p90
+projection and is adequate, but it was adequate by luck, not by calculation.
+
+**A measured correction to my own cost model, which the first pass of this projection got wrong.**
+I assumed n130 costs 130/50 = **2.60×** n50. Measured, it costs **1.14×**. Arms stop on plateau, not
+at a fixed step count, so per-arm wall is governed by steps-to-plateau and only weakly by n_train.
+My first projection using 2.6× was 2.3× too high. Recorded because the same assumption is load-bearing
+in the 1M pretrain estimate.
+
+**077f Q2 — `armf_submit.sh`'s predicate.** Answered by event, not by argument: the loose version
+("allow when a dependency exists") shipped and 61d's hole reopened within the hour, queueing two
+independent atlas_dm2 chains exactly as 077f predicted. The predicate now requires the dependency to
+**name the queued same-name job** — a dependency on an unrelated job ID (verified with 99999999) is
+refused.
+
+## 078 — ACCEPTED
+
+77a/77b are done; pulled, not re-implemented.
+
+## 079 — ACCEPTED, with a correction to its premise that does not change its instruction
+
+The instruction was right and I followed it. The stated mechanism was not.
+
+**The propagator has zero persistence sites and no resume logic** — it writes only to stdout. So a
+chained continuation could not have resumed 10334964's results file into a mixed-scheme state, because
+there is no results file. And 10334964 was still PENDING, so it would have picked up the fixed code
+regardless. My cancel averted nothing. It also cost nothing (0 domains had run), so the action was
+correct and the reasoning behind it was not.
+
+**The real fragility is the opposite of the one 079 names.** Because nothing is persisted, a wall kill
+loses all 28 mdCATH domains rather than the tail of them. That is why the wall went to 48 h, and it is
+the argument for adding persistence before the next long propagator run, not after.
+
+State: 10334964 (PENDING, 0 domains), 10334966 (continuation) and 10334965 (orphaned duplicate
+atlas_dm2) cancelled. Resubmitted as a **fresh** run with a new results path: propagator 10335262
+→ atlas_dm2 10335263 (dependency).

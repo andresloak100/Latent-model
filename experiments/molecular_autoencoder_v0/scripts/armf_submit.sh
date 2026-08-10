@@ -21,10 +21,25 @@ EXISTING=$(squeue -u "$USER" -h -n "$NAME" -o "%i %T" 2>/dev/null)
 # A job chained with --dependency=afterany CANNOT run concurrently with the job it waits on, so it
 # is not a lost-update race. Refusing it forced ARMF_FORCE=1, which disables the check entirely --
 # a guard whose only escape hatch is "turn the guard off" gets turned off for the wrong reasons too.
+# INBOX 077f predicted this and it happened on the next submission: "allow when a dependency
+# exists" lets TWO INDEPENDENT CHAINS both pass, which is 61d's hole reopened by its own fix. Two
+# atlas_dm2 jobs were queued at once as a result. The tight predicate is that the dependency must NAME
+# a job id that is itself queued under this same job name -- i.e. this submission is genuinely behind
+# the thing it would otherwise duplicate, not merely behind something.
 CHAINED=""
-for a in "$@"; do case "$a" in --dependency=*) CHAINED=1;; esac; done
+for a in "$@"; do
+  case "$a" in
+    --dependency=*)
+      deps=$(printf '%s' "$a" | sed 's/^--dependency=//' | tr ':,?' '\n')
+      for d in $deps; do
+        case "$d" in
+          [0-9]*) if printf '%s\n' "$EXISTING" | grep -q "^$d "; then CHAINED=1; fi ;;
+        esac
+      done ;;
+  esac
+done
 if [ -n "$EXISTING" ] && [ -n "$CHAINED" ] && [ -z "${ARMF_STRICT:-}" ]; then
-  echo "armf_submit: '$NAME' is queued, but this submission is --dependency chained, so it cannot" >&2
+  echo "armf_submit: '$NAME' is queued, and this submission depends on THAT job id, so it cannot" >&2
   echo "  run concurrently. Allowing. (ARMF_STRICT=1 to refuse anyway.)" >&2
 elif [ -n "$EXISTING" ] && [ -z "${ARMF_FORCE:-}" ]; then
   echo "armf_submit: REFUSING -- job name '$NAME' is already in the queue:" >&2

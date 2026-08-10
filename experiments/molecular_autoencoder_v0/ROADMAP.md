@@ -5502,3 +5502,66 @@ averaged) with per-discriminator N-slopes and CIs, on **consecutive** frames bec
 discriminator is meaningless on a strided sample.
 **If criterion-1 pass rates are flat in N AND FVE is flat in N, that is far stronger than either
 alone -- and the first version of the headline claim that would survive scrutiny.**
+
+---
+
+## AFDB corpus: two Family A defects in my own pilot, both measured, both adverse
+
+078 asked me to diagnose the 118/2,000 parse failures **before** dropping them, and to say how the
+2,000 accessions were drawn. Both checks came back adverse. Neither was visible from the success rate.
+
+### 1. The parse failure was a regex defect, and the drop was perfectly non-random in length
+
+Bucketed by failure reason, all 118 fall in **one** bucket: `has _entity_poly but regex missed`. So
+the CIF block is present in every failing file and my extractor is what failed. Length distributions:
+
+| | n | median | mean | range |
+|---|---|---|---|---|
+| parsed | 1,882 | 290 | 346 | **81 – 1,271** |
+| failed | 118 | 64 | 61 | **17 – 80** |
+
+**KS D = 1.0000, p = 9.5e-194.** D = 1 is complete separation: the two distributions do not overlap at
+a single residue. The cut is at **80/81**.
+
+The cause, confirmed by reading a failing file (`A0A0B0MID3.cif`, 17 residues): mmCIF writes a short
+sequence **inline on the tag's own line**, and a long one in a `;`-delimited multi-line block. My
+regex matched only the block form, so the cut at 80/81 residues is nothing but the line-width
+threshold at which the writer switches encodings.
+
+This is Family A in its cleanest form — **the exclusion is a deterministic function of length, and
+length is the regressor**. It is worse than a generic 5.9% attrition because of *which* 5.9%: at 1M it
+would have silently removed ~59,000 structures, all of them the shortest, and the ≤110-residue slice
+is exactly the regime 68d identified as the codec's working range and the point of the 57× scale-up.
+The pipeline would have reported 94.1% success throughout.
+
+**Fixed** in `scripts/armf_cif_seq.py`, which handles both encodings (`_can` before raw, block before
+inline). Re-run on the same 2,000: **2,000 parsed, 0 failed, 0 length-vs-index mismatches**, range
+17–1,271. No length-correlated drop remains. Re-gated at 30% identity on the complete set:
+**11 of 2,000 removed (0.550%), 1,989 kept** — against 0.584% on the truncated 1,882, so the leak rate
+itself was barely biased; the corpus composition was.
+
+### 2. The 2,000 pilot accessions were drawn from a PREFIX, not at random
+
+I obtained the pool with `curl -r 0-2000000` — a byte-range prefix covering **0.028%** of an 8.1 GB
+index — then `shuf -n 2000` within it. So the shuffle was uniform over a non-uniform pool, and the
+0.584% leak rate does not extrapolate on its face. Testing whether the prefix is representative, by
+comparing length distributions across index segments:
+
+| segment | n | median | mean | KS vs prefix | p |
+|---|---|---|---|---|---|
+| prefix (0%) | 56,812 | 277 | 328 | — | — |
+| 25% | 42,604 | 277 | 328 | 0.0043 | 0.765 |
+| 50% | 42,619 | 277 | 327 | 0.0035 | 0.919 |
+| 75% | 42,625 | 278 | 330 | 0.0046 | 0.681 |
+| **99%** | 37,860 | **366** | **396** | **0.1945** | **< 1e-300** |
+
+The prefix is statistically indistinguishable from the index through 75%, and the **final ~1% is a
+distinct, longer population** (median 366 vs 277). So the pilot's numbers are defensible for ~99% of
+the index and not for the tail. The full draw samples **across the whole index**, not a prefix — the
+fix costs nothing and removes the need to rely on this test holding at 1M.
+
+**What the two findings have in common, and why they were not caught by the success rate.** Both are
+exclusions correlated with length that leave a healthy-looking summary statistic: 94.1% parse success
+and a 0.584% leak rate are both unremarkable numbers, and both were computed on a corpus that had
+already had its short end and its long tail removed. The guard that caught them was not a threshold —
+it was comparing the *distribution* of what was dropped against the distribution of what was kept.
