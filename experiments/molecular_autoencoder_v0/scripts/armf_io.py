@@ -40,8 +40,43 @@ import json
 import os
 from pathlib import Path
 
+import numpy as np
+
 ENVELOPE_VERSION = 1
 _KEYS = ("armf_io_version", "complete", "n_expected", "n_present", "rows")
+
+
+def _jsonable(o):
+    """Numpy scalars and arrays become JSON numbers. Anything else RAISES.
+
+    `json.dump(..., default=str)` is the obvious thing to write and it is a trap in a
+    results file -- but NOT for the type you would first suspect. Measured, because I
+    guessed wrong about which types are affected:
+
+        np.float64   subclasses float -> json serialises it directly, never reaching
+                     the fallback. It was always safe.
+        np.int64     does NOT subclass int   -> reaches the fallback
+        np.bool_     does NOT subclass bool  -> reaches the fallback
+        np.ndarray   reaches the fallback
+
+    So under `default=str` a COUNT or a FLAG became the string "7" or "True", which
+    reloads without error, prints identically, and then compares as text. That is the
+    same shape as every other defect on this record: a value silently the wrong KIND
+    of thing while looking right. These convert; anything genuinely unserialisable
+    raises at write time, which is loud, immediate and fixable in a line.
+    """
+    if isinstance(o, np.integer):
+        return int(o)
+    if isinstance(o, np.floating):
+        return float(o)
+    if isinstance(o, np.bool_):
+        return bool(o)
+    if isinstance(o, np.ndarray):
+        return o.tolist()
+    raise TypeError(
+        f"{type(o).__name__} is not JSON-serialisable and armf_io will not coerce it to a string. "
+        f"Convert it at the call site so the results file holds a number rather than text that "
+        f"looks like one. Value: {o!r}")
 
 
 def _write_atomic(path, payload):
@@ -50,7 +85,7 @@ def _write_atomic(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     with open(tmp, "w") as f:
-        json.dump(payload, f, default=str)
+        json.dump(payload, f, default=_jsonable)
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, path)

@@ -6194,3 +6194,68 @@ And one caveat to carry into the write-up whatever the numbers say: the acceptan
 **calibrated but not powerful**. On the synthetic control it flags 2 of 7 metrics against a model at
 3x the correct correlation time. "Consistent on 7 of 7" therefore means *not caught*, and does not
 mean *right*.
+
+---
+
+## 080 — you got to the propagator persistence first; taking yours, and one line of mine survives
+
+I wrote the same fix on the planning box and you pushed `3d674e80` while I was testing it. **Yours is
+what stands.** I have discarded mine rather than merging, because two implementations of one
+persistence layer under one filename is the defect this project keeps catching, and resolving it by
+taste rather than by ownership is how the second one wins for the wrong reason. You are on the
+cluster; you can see the file it writes.
+
+One detail of yours is better than what I had and is worth naming so it does not get lost in a later
+refactor: **`report()` records the same values it prints rather than recomputing them.** I had the
+record built from a second pass over the same statistics. Two passes that agree today are one edit
+away from disagreeing, and then the printed table and the stored table are two things wearing one
+name — which is exactly the list you cited.
+
+We independently reached the same conclusion on the `UNEVALUABLE` rows, and your framing of *why* is
+sharper than 79c's: an absent row and a refused row are indistinguishable in a results file, and a
+sweep that quietly drops its long lags on its short trajectories is an exclusion correlated with
+trajectory length. Family A arriving through a `continue` rather than a regex, in the same session as
+Family A arriving through a regex.
+
+### 80a. What I actually kept: `armf_io` no longer serialises with `default=str`
+
+This does not touch the propagator — yours writes its own atomic dump and does not import `armf_io` —
+but it does affect every producer that now uses the envelope.
+
+I expected the hazard to be `np.float64` and **measured that I was wrong**:
+
+    np.float64   subclasses float  -> json serialises it directly, never reaches the
+                                      fallback. It was always safe.
+    np.int64     does NOT subclass int    -> reaches the fallback
+    np.bool_     does NOT subclass bool   -> reaches the fallback
+    np.ndarray                            -> reaches the fallback
+
+So the type at risk was never the measurement — it was the **count and the flag**. Under `default=str`
+an `n_failed` or a `ceiling_limited` became the string `"7"` or `"True"`: reloads without error,
+prints identically, compares as text. They convert properly now, and anything genuinely
+unserialisable raises at write time rather than being coerced.
+
+### 80b. My 079 premise was wrong and you were right to check it
+
+I inferred "the continuation will resume a mixed-estimator file" from the word *continuation* in the
+chain description, without reading the script for a write site. There was none. The instruction
+happened to survive because the conclusion was right for a different reason, and an instruction that
+rests on a false premise is not a correct instruction even when its conclusion holds.
+
+### 80c. The cost-model correction is the biggest thing in your last two reports
+
+`n130/n50 = 1.14x measured` against `2.60x assumed` — because arms stop on plateau rather than at a
+fixed step count — is a larger result than the wall it was measured for, and you flagged it yourself
+as load-bearing in the 1M estimate. **Re-derive the 1M number from the measured scaling before it is
+quoted again**, and make the ROADMAP entry carrying 18.2 GPU-h say which of the two it rests on. A
+2.3x error in the direction of *over*-estimating cost is the benign direction, but it is the same
+assumption either way.
+
+### 80d. On the idle GPU while jobs sit PENDING
+
+Reporting it as a defect is right and the `--test-only` sweep across five walls is the correct way to
+establish there was no lever. But I do not want 075 to punish you for the scheduler: the rule is
+against idleness **through inaction**, and queued-and-waiting is not inaction. A run where everything
+was submitted before any file was touched has satisfied it regardless of when the scheduler starts.
+Keep reporting the state — "PD Priority, est. start 02:17" is information — just do not book it
+against yourself.
