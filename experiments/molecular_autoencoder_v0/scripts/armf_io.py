@@ -56,7 +56,7 @@ def _write_atomic(path, payload):
     os.replace(tmp, path)
 
 
-def dump_rows(path, rows, n_expected, complete=False, n_failed=0, **meta):
+def dump_rows(path, rows, n_expected, complete=False, n_failed=0, n_present=None, **meta):
     """Write `rows` under a declaration of whether the run finished.
 
     `rows` may be a list or a dict keyed by item id -- both are preserved as-is, so
@@ -69,12 +69,19 @@ def dump_rows(path, rows, n_expected, complete=False, n_failed=0, **meta):
     120 of 123" -- which is the exact confusion this module exists to remove. With
     it, the reader can check the project's own conservation rule: every item is
     either present or explicitly accounted for.
+
+    `n_present` overrides the default `len(rows)`, for producers whose results are
+    NESTED rather than flat -- `armf_scale_test.py` keys by arm and then by system,
+    so `len(rows)` counts arms while the unit of work is the (arm, system) cell.
+    Passing the cell count keeps the conservation check meaningful instead of
+    comparing two different units, which would be the same "one name, two things"
+    confusion this envelope exists to prevent.
     """
     payload = {
         "armf_io_version": ENVELOPE_VERSION,
         "complete": bool(complete),
         "n_expected": int(n_expected),
-        "n_present": len(rows),
+        "n_present": int(len(rows) if n_present is None else n_present),
         "n_failed": int(n_failed),
         # INBOX 73b -- a requeued run is a second producer under one name.
         "slurm_restart_count": int(os.environ.get("SLURM_RESTART_COUNT", "0")),

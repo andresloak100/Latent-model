@@ -32,6 +32,7 @@ from scipy import stats
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from armf_atlas_data import AtlasStore, sysdata, ho_frames
 import armf_atlas_dm as D
+import armf_io as IO
 import armf_stamp as STAMP
 from armf_modal_decoder import ModalCodec
 
@@ -118,14 +119,24 @@ if __name__ == "__main__":
     print(f"  {len(HO)} systems, quartile boundaries {q[0]:.0f}/{q[1]:.0f}/{q[2]:.0f}", flush=True)
 
     ST = STAMP.stamp(dict(dm=DM, seed=SEED, nframe=NFRAME, arms=str(ARMS)), ModalCodec, scale_stats)
-    res = json.load(open(RES)) if os.path.exists(RES) else {}
+    # INBOX 74b: RESUME read -- accepts a partial file by design. The analysis side
+    # must not; see the complete=True write after the arms loop.
+    res, _was_complete, _ = IO.load_partial(RES)
+    if not isinstance(res, dict): res = {}
     res = {k: v for k, v in res.items() if v and STAMP.same_stamp(list(v.values())[0], ST)} \
         if res else {}
+    # The unit of work is the (arm, system) CELL, not the arm, so conservation is
+    # counted in cells. Arms skipped for a missing checkpoint are accounted as failed
+    # rather than quietly shrinking the denominator.
+    CELLS = len(HO) * len(ARMS)
+    cells = lambda r: sum(len(v) for v in r.values())
+    nfail = 0
 
     for kind, lr in ARMS:
         cp = ckpt_path(kind, DM, lr, SEED, NTRAIN)
         if not os.path.exists(cp):
-            print(f"  {kind} lr{lr:g}: no checkpoint -- skipped", flush=True); continue
+            print(f"  {kind} lr{lr:g}: no checkpoint -- skipped", flush=True)
+            nfail += len(HO); continue
         if len(res.get(kind, {})) >= len(HO): continue
         mdl = build(kind, Fs)
         mdl.load_state_dict(torch.load(cp, map_location=dev)); mdl.eval()
@@ -137,15 +148,21 @@ if __name__ == "__main__":
                 r = scale_stats(mdl, d); r["stamp"] = ST; rows[d["pdb"]] = r
             except Exception as e:
                 print(f"    {d['pdb']} N={d['N']}: FAIL {type(e).__name__}: {e}", flush=True)
-                continue
+                nfail += 1; continue
             # PER-SYSTEM checkpoint: the full window makes each arm a multi-hour unit, and a
             # preemption that loses a whole arm is a whole arm redone. Ascending N also means a
-            # partial arm is a SIZE-TRUNCATED sample, which the 18d check below makes visible.
-            json.dump(res, open(RES, "w"))
+            # partial arm is a SIZE-TRUNCATED sample, which the 18d coverage_by call below makes
+            # visible -- but only to a run that REACHES it. INBOX 74b: a killed run never does, and
+            # the file it leaves is valid, parseable, and missing its large-N tail with nothing on
+            # disk saying so. Partial-by-default here; the declaration goes on after the arms loop.
+            IO.dump_rows(RES, res, n_expected=CELLS, n_present=cells(res), n_failed=nfail)
             if (i + 1) % 20 == 0:
                 print(f"    {kind} {i+1}/{len(HO)} ({(time.time()-t0)/60:.0f} min)", flush=True)
         print(f"  {kind}: {len(rows)}/{len(HO)} systems ({(time.time()-t0)/60:.0f} min)", flush=True)
         del mdl
+
+    # INBOX 74b: every arm has run to the end of HO, so the file may now be analysed.
+    IO.dump_rows(RES, res, n_expected=CELLS, n_present=cells(res), n_failed=nfail, complete=True)
 
     for kind, _ in ARMS:
         if kind not in res: continue
