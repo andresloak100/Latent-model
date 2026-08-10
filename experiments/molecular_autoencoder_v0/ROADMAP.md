@@ -3801,6 +3801,40 @@ it does not. Report only that the model clears the trivial baseline at every ban
 why it is not divided by. The current 48b run predates it; per 057 this is precision, not correctness, and the SMALL-PROTEIN
 verdict rests on RMSD, which is controlled and crosses on its own.
 
+### ⬛ 072a RUN ON A REAL DRAW: the leak is real — **0.584%**, ~5,800 structures at 1M
+
+Pilot: 2,000 AFDB accessions drawn from the live index, downloaded, sequences extracted from the CIFs,
+gated against the 156 held-out sequences at 30% identity.
+
+| | |
+|---|---|
+| downloaded | 2,000 / 2,000 |
+| sequences extracted | 1,882 (**118 unparseable, 5.9%** — see below) |
+| **removed above 30% identity** | **11 of 1,882 = 0.584%** |
+| kept | 1,871 |
+
+**Highest-identity removals** — these are genuine homologs of held-out ATLAS proteins that would
+otherwise have entered pretraining:
+
+    A0A840RPW2 -> 5ol4_A  71.7%
+    A0A168PLH1 -> 2x8w_A  57.8%
+    A0A9E1WEE8 -> 5znj_A  48.6%
+
+**Extrapolated to 1M: ~5,840 structures would leak.** Not a hypothetical risk — a measured one, and
+every zero-shot claim on the record (0/123 at every cutoff, the 2.4% win-rate bound, the peer
+comparison) depends on their removal.
+
+**Two corrections to my own 067/068 pilot numbers, from measuring rather than re-quoting:**
+
+- **Throughput is 34.4 struct/s, not 109.** The earlier figure fetched to `/dev/null` on a small,
+  possibly-cached sample; this one writes to disk. **1M is ~8.1 h, not 2.5 h.**
+- **302 KB/structure raw** (604 MB for 2,000) → ~302 GB for 1M, close to the earlier 321 KB.
+
+**Open, and not swept under:** 118 of 2,000 CIFs (5.9%) yielded no parseable
+`_entity_poly.pdbx_seq_one_letter_code`. At 1M that is ~59,000 structures silently dropped, and an
+un-gated structure is worse than a dropped one only if the drop is random — which is untested. **This
+must be diagnosed before the full draw**, not after.
+
 ### ⬛ SEQUENCE-LEAKAGE GATE built and self-tested, before the 1M draw exists
 
 AlphaFold DB covers essentially all of UniProt, so a 1M draw **will** contain predicted structures of
