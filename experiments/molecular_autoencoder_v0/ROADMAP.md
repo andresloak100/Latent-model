@@ -4047,6 +4047,42 @@ weighting by the **actual 85,220-length sample** rather than band midpoints:
 069 estimated 1.58× from midpoints; from the full sample it is **1.79×** — its own caveat about
 midpoints was warranted, and in the conservative direction.
 
+**80c — WHICH COST MODEL 18.2 GPU-h RESTS ON, now stated on its face: a FIXED 4-EPOCH BUDGET.**
+18.2 GPU-h is 4 epochs over 1M at batch 16 = **250,000 steps** at 263 ms/step. Nothing in it is
+derived from how long training actually runs; the residue-count exponent a=0.44 sets the ms/step and
+the epoch count sets the steps.
+
+**The measured evidence contradicts the fixed-epoch model in the range where it was measured.** Arms
+terminate on plateau, not on epochs, and plateau step-count barely moves with data:
+
+| n_train | arms | median steps to plateau | mean | min | max |
+|---|---|---|---|---|---|
+| 50 | 45 | 22,500 | 26,328 | 15,000 | 72,500 |
+| 130 | 17 | 25,000 | 29,706 | 20,000 | 57,500 |
+
+**Data ×2.60 → steps ×1.11.** A fixed-epoch model predicts ×2.60. This is the same measurement that
+gave n130/n50 = 1.14× wall (not the 2.60× I assumed), seen on the axis that causes it.
+
+**The two models disagree by 10× on the 1M run**, and on what the corpus is for:
+
+| model | steps | GPU-h | corpus seen |
+|---|---|---|---|
+| fixed 4 epochs (what 18.2 rests on) | 250,000 | 18.2 | 4.0 epochs |
+| plateau-terminated (measured behaviour) | ~25,000 | **1.83** | **0.40 epochs** |
+
+**I am not claiming 1.83 GPU-h.** Carrying plateau step-count from 50→130 ATLAS systems out to 1M
+AFDB structures is a ~7,700× extrapolation on the axis from two points 2.6× apart, and this project
+has already retracted an extrapolation of exactly that shape — the ladder's +0.0483 FVE/decade
+projected over 12.7 decades. **18.2 GPU-h stands as the budget**, and the measured scaling says it is
+an over-estimate rather than an under-estimate, which is the benign direction.
+
+**What the disagreement does license is an instrumentation requirement, not a smaller number.** The
+1M run must record steps-to-plateau and structures-seen, so this is settled by the run instead of by
+extrapolation. And it puts a question against the corpus size itself: if the run plateaus at 0.40
+epochs it never completes one pass, and 1M vs 400k is then untested rather than justified. The corpus
+job proceeds at 1M regardless — 0.32 TB is cheap and a corpus larger than needed costs nothing but
+disk, whereas one too small costs a re-acquisition.
+
 **So the whole run is bounded under ~33 GPU-h even if the tail behaves as badly as it possibly can**,
 against **251.5 GPU-h already spent**. The cap-lift decision does not depend on measuring the tail and
 should not wait for it.

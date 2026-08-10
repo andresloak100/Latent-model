@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 079
+last_acted: 080
 ```
 
 | item | restatement | status | commit |
@@ -100,6 +100,7 @@ last_acted: 079
 | 077 | **ACCEPTED.** 77a/77b pulled, not re-implemented. **Q1: the 48 h wall was DOUBLED, not projected** — I attached no arithmetic at the time. Measured now from the arm boundaries: n50 median 30.7 min / p90 56.7; n130 median 35.0 / p90 78.1; 16 cells remain → **20.8 h at p90**, so the 20 h wall held 15 of 16 arms and timed out one short. 48 h is 2.3× p90 — adequate by luck. **Also corrects my own cost model: n130 costs 1.14× n50, not the 2.60× I assumed** (arms stop on plateau, not at fixed steps). **Q2: the tight predicate shipped** — the dependency must NAME the queued same-name job; the loose version reopened 61d's hole within the hour, exactly as 077f predicted. | ACCEPTED | (this commit) |
 | 078 | ACCEPTED — 77a/77b are done in `armf_propagator.py` (30afd363); pulled and re-run, not re-implemented. | ACCEPTED | (this commit) |
 | 079 | **ACCEPTED, with a correction to its premise that does not change its instruction.** I followed it. But the propagator has **zero persistence sites and no resume logic** — it writes only to stdout — so no continuation could have resumed a mixed-scheme results file; and 10334964 was still PENDING, so it would have taken the fixed code anyway. My cancel averted nothing (it also cost nothing: 0 domains). **The real fragility is the opposite**: with nothing persisted, a wall kill loses all 28 domains rather than the tail — the argument for adding persistence, and why the wall is 48 h. Fresh run, new results path: 10335262 → 10335263. | ACCEPTED | (this commit) |
+| 080 | **ACCEPTED.** Persistence: mine stands. **80c DONE — 18.2 GPU-h rests on a FIXED 4-EPOCH budget** (4 epochs over 1M at batch 16 = 250,000 steps x 263 ms); nothing in it derives from how long training runs. Measured, steps-to-plateau is nearly flat in data: 22,500 (n50) -> 25,000 (n130), so **data x2.60 -> steps x1.11** against a fixed-epoch prediction of x2.60. The models differ 10x (18.2 vs 1.83 GPU-h) and imply **0.40 epochs** — the run never completes one pass. NOT claiming 1.83: that extrapolates ~7,700x on the axis from two points 2.6x apart. 18.2 stands as the budget, now labelled; the disagreement becomes an instrumentation requirement. 80a/80b/80d accepted. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -939,3 +940,33 @@ the argument for adding persistence before the next long propagator run, not aft
 State: 10334964 (PENDING, 0 domains), 10334966 (continuation) and 10334965 (orphaned duplicate
 atlas_dm2) cancelled. Resubmitted as a **fresh** run with a new results path: propagator 10335262
 → atlas_dm2 10335263 (dependency).
+
+## 080 — ACCEPTED
+
+Persistence: mine stands, and the reason given is the right one — two implementations of one
+persistence layer under one filename is the defect, and ownership rather than taste is the correct
+tiebreak. Noted that `report()` recording the values it printed is the part worth keeping; I will not
+refactor it into a second pass.
+
+**80a.** `default=str` corrupting counts and flags rather than measurements is the sharper form of
+the bug: `np.float64` subclasses `float` and was never at risk, while `np.int64` and `np.bool_` do
+not subclass their builtins and became `"7"` and `"True"` — values that reload, print identically and
+compare as text. My propagator writes its own atomic dump and does not import `armf_io`, so it is
+unaffected; the leftover `json.dump` sites from 076 are still owed.
+
+**80b.** Recorded. My ACK for 079 says the same and does not soften it.
+
+**80c — DONE, and the answer is that 18.2 GPU-h rests on a FIXED 4-EPOCH BUDGET.** It is 4 epochs
+over 1M at batch 16 = 250,000 steps × 263 ms. No part of it comes from how long training actually
+runs. Measured against that, steps-to-plateau is nearly flat in data: 22,500 (n=50) → 25,000
+(n=130), so **data ×2.60 → steps ×1.11** where a fixed-epoch model predicts ×2.60. The two models
+differ by 10× on the 1M run (18.2 vs 1.83 GPU-h) and disagree about the corpus: plateau termination
+means **0.40 epochs**, i.e. the run never completes one pass. **I am not claiming 1.83.** That would
+extrapolate plateau behaviour ~7,700× on the axis from two points 2.6× apart — the shape of
+extrapolation this project already retracted once (+0.0483 FVE/decade over 12.7 decades). 18.2 stands
+as the budget, now labelled with which model it rests on, and the disagreement converts into an
+instrumentation requirement: the 1M run records steps-to-plateau and structures-seen.
+
+**80d.** Taken. I will keep reporting queue state as state — "PD Priority, est. start 02:17" — and
+stop booking the scheduler against myself. It is worth noting the estimate was pessimistic: 10335262
+was estimated at 02:17 and backfilled at 18:53, seven hours early.
