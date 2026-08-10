@@ -6259,3 +6259,120 @@ against idleness **through inaction**, and queued-and-waiting is not inaction. A
 was submitted before any file was touched has satisfied it regardless of when the scheduler starts.
 Keep reporting the state — "PD Priority, est. start 02:17" is information — just do not book it
 against yourself.
+
+---
+
+## 081 — OU is a free negative control for the acceptance test, and it must be read before the DDPM
+
+A 46-second COMPLETED job that produced 112 refused cells and no table is the best possible outcome
+of the last three items working together: the matched-window rule made the impossibility *visible*,
+the persistence made it *legible*, and recording refusals rather than `continue`-ing made it
+*countable*. A silent version of this run would have produced a plausible table.
+
+Four things in that report are findings in their own right and none of them was the thing you set out
+to measure: the sweep is unreachable by 4–40x, the script was using **1/25th** of the data on disk,
+tau is applied in frames and labelled ns, and `cg = 9.2e16` is a diverged model whose distributional
+metrics would have been tabulated as a result.
+
+### 81a. The acceptance test's power is unknown, and OU measures it for free — do this before reading any DDPM number
+
+This is the one that blocks. `JS(train || heldout) = 0.1107` **across independent replicas at the same
+temperature** says the reference pool has not converged its own distribution in 500 ns. The reference
+band is built from windows of that pool. So the band may be wide — and a wide band accepts everything.
+
+If OU and DDPM both land inside on every metric, "7/7 consistent" for both means **the test could not
+tell them apart**, which is Family C wearing the costume of a positive result. That reading has to be
+excluded before the numbers exist, not argued about after.
+
+**OU is already the instrument for this and costs nothing extra.** It is independent per mode in the
+ANM basis, so `xcorr` and `amp` are ~0 for it *by construction* — you have this in the script's own
+closing note. That makes OU a **known-wrong arm on two named metrics** and therefore a negative
+control for the test itself:
+
+- **OU lands OUTSIDE the band on `xcorr`/`amp`** → the test has power exactly where it should, and a
+  DDPM landing inside those is a real finding.
+- **OU lands INSIDE the band on `xcorr`/`amp`** → the band is too wide to reject a model that is
+  wrong *by construction*, so the test has **no power on the metrics that carry the claim**. Nothing
+  about any DDPM can then be read from it, and the honest output is the band width, not a table.
+
+Print, per tau, before any arm: the band width per metric, and the reference coupling `xcorr_r` /
+`amp_r`. If the reference itself has coupling ~0, the pre-registered branch in the script's closing
+lines already fires — the task is Gaussian at this lag and no learned propagator is needed — and that
+is a *result*, not a failure.
+
+Report the OU verdict first, in its own line, labelled as the power check rather than as an arm.
+
+### 81b. tau ∈ {1, 2} scopes the claim, and the scope must be written down now
+
+`steps->1ms` is in the script's own header, and it is the propagator's reason to exist: take large
+steps. At tau = 2 ns that is 500,000 steps against 1,000,000 at tau = 1 — a **2x** saving. The
+reachable experiment can therefore test *"does the model reproduce 1–2 ns dynamics"* and cannot test
+*"can we take large steps."* Those are different claims and the second is the one that motivates the
+whole direction.
+
+That is Family D at the level of the research question — the same shape as 5b's "reconstruction FVE
+cannot express a generative advantage," arriving one level down. Please put the scope in the writeup
+*before* the numbers, in the form: this run bounds behaviour at 1–2 ns; the large-step claim is
+untested and requires trajectories `MIN_H x tau` long, which for tau=100 ns at H=200 is **20 µs of
+continuous trajectory per system**. Naming the requirement in frames makes the next dataset decision
+arithmetic rather than argument.
+
+Two points is also not a sweep. Report tau=1 and tau=2 as two points; do not fit a slope through
+them — a line through two points has no residual degrees of freedom and its "trend" is the noise.
+
+### 81c. `mdCATH 2.5 µs` in ROADMAP:2535 is an AGGREGATE, and it was later used as a REACH
+
+The line reads `MISATO 10 ns / mdCATH 2.5 us / ATLAS 100 ns` in a passage about whether a corpus
+supplies enough *independent samples*. For that purpose aggregating five 500 ns replicas into 2.5 µs
+is defensible. For lag time it is not: **five 500 ns runs cannot measure a 100 ns lag any better than
+one can.** Aggregate length buys samples at reachable lags; it does not buy reach.
+
+That number is almost certainly why a tau=100 ns sweep looked feasible against a 500 ns trajectory.
+Seventh instance of one name, two things — and the most quotable, because it sits in a comparison
+table that exists to be cited. Please record **both** figures on that line: continuous length per
+trajectory and aggregate across replicas, with which one governs lag reach.
+
+### 81d. Plateau termination changes what "more data hurts" is a statement about
+
+This follows from your 80c measurement and it lands on the project's most-cited negative.
+
+If arms stop on plateau at roughly a fixed step count regardless of dataset size — `data x2.60 →
+steps x1.11` — then the n50 and n300 ladder arms ran comparable numbers of updates while n300 held
+six times the systems. Each system therefore received roughly **one sixth** the gradient updates.
+
+So `67.5% of systems worse with six times the data` is a statement about **more data at a fixed step
+budget**, not about more data. That is a legitimate and arguably the more practical comparison, and it
+is not what the sentence currently says. It should read as what was varied: diversity up, per-system
+repetition down, compute approximately held.
+
+I am not claiming this overturns the result — the honest test is an arm at n300 run to the same
+*per-system* exposure as n50, which is 6x the steps and a real cost. What I am claiming is that the
+current wording attributes to data an effect that the stopping rule is at least partly responsible
+for, and that is cheap to fix in prose today and expensive to discover in review.
+
+### 81e. Do not pool temperatures into the reference band
+
+After "we were using 1/25th of the data," the natural next move is the other 20 trajectories. Four of
+them are replicas at 320 K and belong in the pool. The other sixteen are **other temperatures** and
+sample a different distribution — folding them into one reference pool would be Family F, a comparator
+computed on different data, and it would widen the band precisely where 81a needs it tight.
+
+There is a legitimate use for them and it is a different design: temperature as a **conditioning
+variable**, which would use all 25 trajectories and turn a nuisance axis into a tested one. Worth
+recording as an option; not worth doing before 81a says whether the test has power at all.
+
+### On 071 and 80c
+
+Both are right and both caught a defect of their own on the way, which is the pattern that matters
+more than either number. The dB axis makes the codec comparable for the first time, and `4.42 dB/bit
+= 73% of the Gaussian ceiling while coding` is a genuinely good result stated at exactly its size.
+The dilution catch — 0.62 dB/bit pooled against 4.42 active — is 59e's shape and you found it
+yourself. And refusing to claim 1.83 GPU-h because it would be a 7,700x extrapolation from two points
+2.6x apart is the ladder retraction applied to your own favourable number, which is the harder
+direction.
+
+One consequence of 80c worth carrying into the corpus work: at plateau termination the 1M run sees
+**0.40 epochs**. The scale-up is then not "more passes over more data" but "a fixed step budget spent
+on more diverse data, each item seen less than once." That is still worth doing, and it is a different
+experiment from the one the 18.2 GPU-h line implies. It also makes the leakage gate matter *more*, not
+less: at 0.4 epochs the specific structures drawn are exactly what the model sees.
