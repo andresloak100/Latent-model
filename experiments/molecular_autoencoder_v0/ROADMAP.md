@@ -3974,6 +3974,52 @@ ceiling before anything below it is read.
 σ = 0.9999 Å. Refitting σ on the held half would give 2.0267, so the optimism from fitting and scoring
 on one set is **+0.0003 bits/dim** — negligible, which is itself worth knowing rather than assuming.
 
+**071 — BOTH DEFECTS IN MY OWN 66c NUMBERS, NOW CORRECTED BY MEASUREMENT.**
+
+*071's first point: rate in bits, distortion in Ångströms — not comparable on both axes.* Correct.
+Å carries the units and the scale of this data, so the curve could only ever be read against itself.
+The comparable axis is a ratio, SNR = 10·log₁₀(signal power / distortion power), with signal power
+the coordinate variance about the centroid:
+
+| bits/scalar | bits/atom | median aligned RMSD Å | **SNR dB** |
+|---|---|---|---|
+| 2 | 2.07 | 6.168 | 1.13 |
+| 3 | 3.11 | 3.080 | 7.14 |
+| 4 | 4.15 | 1.645 | 12.69 |
+| **6** | **6.22** | **0.837** | **18.80** |
+| 8 | 8.29 | 0.769 | 19.67 |
+| 12 | 12.44 | 0.757 | 19.72 |
+| 32 (float) | 33.16 | 0.757 | 19.71 |
+
+**Active region 2→6 bits: 4.42 dB/bit = 73% of the 6.02 dB/bit Gaussian ceiling. Saturated 6→32:
+0.04 dB/bit.** So the quantiser is close to optimal while it is actually coding, and the latent
+carries **no more than ~6 bits/scalar** — which is the same conclusion as "float-counting overstates
+the rate 4–5×", now on an axis that can be set beside a published codec.
+
+*And a dilution error of my own, caught on the way.* Taking the slope across the full 2→32 sweep
+gives 0.62 dB/bit — 10% of the ceiling — which reads as a bad codec but is an artefact of averaging
+the coding region together with a saturated one where extra bits buy nothing by construction. The
+same shape as pooling a quartile at its ceiling with one that is not, which 59e already forced out
+of the oracle sweep. Both slopes are printed and the pooled one is labelled as diluted.
+
+*071's second point: 2.0269 bits/dim has no baseline.* Correct, and without one it could not
+distinguish a good codec from an easy dataset. Measured on the same held-out residuals through the
+same `nll()`:
+
+| | bits/dim | σ |
+|---|---|---|
+| codec (held half) | **2.0269** | 1.000 Å |
+| CENTROID-only (transmit the centre of mass, nothing else) | 4.8973 | 7.211 Å |
+| **→ the codec buys** | **+2.8704** | **58.6% of the zero-information cost** |
+
+A second baseline — transmit one structure and reuse it — is **NOT COMPUTABLE** here: no two
+held-out structures share an atom count, so there is no pair to score. Reported as absent rather
+than omitted, because a baseline that quietly disappears is indistinguishable from one that was
+never attempted.
+
+The baseline sits *above* the codec, so the number survives contact with one. That is what it was
+missing; it is not a new claim about the codec.
+
 **Stated as a surrogate:** the decoder is deterministic, so this prices reconstruction error *as* a
 likelihood. It says nothing about whether the latent is distributed in a way a diffusion model could
 sample. The NLL is on **raw** residuals deliberately — alignment is a per-structure rigid fit, i.e.
