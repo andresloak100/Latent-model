@@ -5800,3 +5800,72 @@ Requeue only pays off if the restarted job's entrypoint *does the work*. Two thi
 
 If the partition has already moved: **73a first**, before anything is submitted. Then 071 and 072,
 both of which are no-GPU and were queued before this item. Then 73b and 73c.
+
+---
+
+## 074 — a preempted results file is not corrupt, it is SIZE-BIASED, and 73a's fix does not touch it
+
+Two corrections to 073, one of them mine and one that makes the caution in it more serious than I
+wrote it.
+
+### 74a. My requeue framing was wrong about the failure that is actually happening
+
+073 presented `--requeue` as making the restart cycle self-healing. It does not. `--requeue` makes a
+job eligible for requeue on **preemption and node failure**. A job killed for exceeding its time
+limit is **not** requeued by it, and the account history says the time limit is the only thing that
+has ever happened: `10310790` ran 2-00:00:24 against a 2-day limit on `main-cpu`, which is a
+wall-clock kill on a non-preemptible partition, and there are zero PREEMPTED or REQUEUED states
+anywhere since July. `10234627` ran the full 7-00:00:19 on `long-cpu` and ended on TIMEOUT — it
+survived seven days there without being preempted.
+
+So the trade is more lopsided than 073 made it: `long`'s preemption risk is unobserved across the
+whole account, and `main`'s 2-day restart is certain. Go to `long`, keep `--requeue` as insurance,
+and do not expect it to change the restart cadence.
+
+The thing that *does* cover TIMEOUT is a pre-submitted chain — each job `--dependency=afterany` on
+the last, so the successor starts whether the predecessor timed out, failed, or was preempted. That
+is strictly better than the trailing `sbatch` I suggested in 73c: a job killed at the wall may never
+get to execute its own resubmission, whereas the chain is already in the queue before the kill.
+Please use the dependency chain and treat 73c's self-resubmit as superseded.
+
+### 74b. The results files fail in the direction that produces a wrong number, not a missing one
+
+The caution about `json.dump(res, open(RES, "w"))` is correct and its consequence is not corruption.
+Verified in the tree:
+
+- `armf_tied_peer.py:98` — `HO.sort(key=lambda d: d["N"])`. The work is ordered **ascending in N**,
+  deliberately, so the Q1 answer lands before the large-N tail finishes.
+- `armf_tied_peer.py:138` — `json.dump(res, open(RES, "w"))` **inside the loop**, rewritten after
+  every system. The same incremental pattern appears in at least ten other `armf_*` scripts.
+- Nothing anywhere in the tree declares or checks completeness at the file level. `PARTIAL` in
+  `armf_tied_ladder.py` keys on missing *rungs*, which is a different object; there is no
+  `n_expected`, no `complete` flag, and no reader that refuses a short file.
+
+Put those together and the dangerous case is not the truncated file. A truncated JSON raises on
+parse — that failure is **loud**. The dangerous case is the file written *between* items: it is
+valid, it parses cleanly, it looks finished, and it contains the small systems and not the large
+ones. Any downstream read of it gets a sample whose exclusion is perfectly correlated with N, which
+is the regressor. **That is Family A, produced by the scheduler rather than by a filter**, and it is
+the exact hazard `armf_atlas_peer.py:240` already states in prose — "a resume path IS an exclusion
+filter when the work is ordered by a regressor" — with nothing enforcing it at the file level.
+
+`os.replace()` does not fix this. Atomicity guarantees the file is a complete *write*; it says
+nothing about whether it is a complete *run*. Both fixes are needed and they address different
+failures:
+
+1. **Declare completeness.** Every incremental results file carries `n_expected` alongside its rows,
+   and sets `complete: true` only on the final write. One extra key, written at the same moment the
+   rows are.
+2. **Refuse an undeclared file on read.** A loader that opens a results file without `complete:
+   true` raises, the way `ckpt_path()` raises rather than resolving a neighbouring checkpoint. A
+   partial file is legitimate input to a *resume* and never legitimate input to an *analysis*, and
+   only the reader can tell those apart.
+3. **Then make the write atomic** — temp file plus `os.replace` — which is 73a's fix generalised
+   from `torch.save` to `json.dump`. Note the incremental pattern hits the vulnerable window once
+   per item rather than once per run, so on a several-hundred-system sweep it is not a rare event.
+
+### Order
+
+74b's declare-and-refuse before any sweep is submitted to a partition where it can be killed
+mid-run; 73a before any training job is; then 071 and 072, which are still unacknowledged and still
+need no GPU.
