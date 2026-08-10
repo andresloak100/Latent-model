@@ -36,7 +36,15 @@ L, Tdiff, kT = 64, 100, 0.593
 # works" from "it works on these two" -- the same n-too-small problem 22a/24c kept hitting, and
 # the generative axis is the only untested direction left (ROADMAP 5b), so it should not be
 # decided on n=2. Resumable per domain, so a time-limit kill costs the current domain only.
-USE = ['2cndA01', '2e2dC02', '2f93B00', '2fm7A00', '2h7tA01', '2k4qA00', '2lklA01', '2lt5A00', '2m1xA00', '2p9xA00', '2yx1A01', '2z1kA02', '3a5zD02', '3a9lA00', '3g7dA03', '3h7lB02', '3jamY00', '3jvvA01', '3k30A03', '4ccdA02', '4cd8A00', '4e6sA00', '4ifdE00', '4lrzE01', '4n9jA02', '4qdcA02', '4qiwK00', '4xk8d00']; TAUS = [1, 10, 50, 100]
+USE = ['2cndA01', '2e2dC02', '2f93B00', '2fm7A00', '2h7tA01', '2k4qA00', '2lklA01', '2lt5A00', '2m1xA00', '2p9xA00', '2yx1A01', '2z1kA02', '3a5zD02', '3a9lA00', '3g7dA03', '3h7lB02', '3jamY00', '3jvvA01', '3k30A03', '4ccdA02', '4cd8A00', '4e6sA00', '4ifdE00', '4lrzE01', '4n9jA02', '4qdcA02', '4qiwK00', '4xk8d00']
+# TAUS WAS [1, 10, 50, 100] AND ONLY THE FIRST OF THOSE IS REACHABLE ON mdCATH.
+# A window spans H*tau frames and a replica is 500, so at MIN_H=200 the largest usable lag is
+# (500-K-1)/200 = 2. tau=10 would need 2,033 ns per replica, tau=50 10,033 ns, tau=100 20,033 ns --
+# 4x, 20x and 40x what mdCATH stores. The sweep is therefore [1, 2]: the reachable lags, including
+# tau=2 which the original grid skipped over. Two points is a thin sweep and it is reported as such;
+# it is not widened by lowering MIN_H, which would buy lags by weakening the guard that decides
+# whether any lag is readable at all.
+TAUS = [1, 2]
 torch.manual_seed(0); np.random.seed(0)
 
 
@@ -163,12 +171,23 @@ def ref_windows(Z, H, tau, K, rng):
 
     Returns [] when the trajectory cannot supply even one window, which is a real
     limit at large tau and is reported rather than silently worked around.
+
+    `Z` may be a LIST of replicas. A window must lie inside ONE replica -- concatenating
+    independent trajectories and slicing across the seam would manufacture a transition
+    that no simulation produced, and `trans_rate` is one of the scored metrics, so that
+    seam would land directly in a discriminator.
     """
+    pool = Z if isinstance(Z, list) else [Z]
     span = H * tau
-    if len(Z) <= span + 1:
+    usable = [r for r in pool if len(r) > span + 1]
+    if not usable:
         return []
-    starts = rng.integers(0, len(Z) - span, size=K)
-    return [Z[s:s + span:tau][:H] for s in starts]
+    out = []
+    for i in range(K):
+        r = usable[i % len(usable)]                 # cycle replicas so the draw is spread evenly
+        s = int(rng.integers(0, len(r) - span))
+        out.append(r[s:s + span:tau][:H])
+    return out
 
 
 def band(rows, key):
@@ -281,6 +300,32 @@ print(f"[propagator] tau sweep {TAUS}, FiLM cond, delta/absolute, vs OU. H={args
 print(f"  INBOX 77a/77b: generated and reference statistics now come from the SAME estimator on\n"
       f"  series of the SAME length and tau-spacing, K={K_EVAL} per side. A model is scored by whether\n"
       f"  it lands INSIDE the band real trajectory slices make (* = inside), not by beating a number.")
+# WHICH LAGS THIS DATASET CAN ACTUALLY CARRY, PRINTED BEFORE ANY WORK.
+# The first run of this sweep spent a GPU allocation printing "UNEVALUABLE" 112 times and exited
+# COMPLETED with exit code 0. The reachable set is a property of the trajectory length and is known
+# before a single frame is read, so it is stated first and the unreachable lags are named with the
+# trajectory length they would need. mdCATH stores 500 frames per replica at 1 ns/frame.
+FRAMES_PER_REP, NS_PER_FRAME = 500, 1.0
+print(f"\n  LAG REACHABILITY at {FRAMES_PER_REP} frames/replica ({NS_PER_FRAME:g} ns/frame), "
+      f"K={K_EVAL} windows, MIN_H={MIN_H}:")
+print(f"    {'tau':>6}{'tau(ns)':>9}{'max H':>8}{'reachable':>11}   requires")
+REACH = []
+for _t in TAUS:
+    _h = min(args.H, (FRAMES_PER_REP - K_EVAL - 1) // _t)
+    _ok = _h >= MIN_H
+    REACH.append(_t) if _ok else None
+    _need = (MIN_H * _t + K_EVAL + 1) * NS_PER_FRAME
+    print(f"    {_t:>6}{_t*NS_PER_FRAME:>9.2f}{_h:>8}{'yes' if _ok else 'NO':>11}   "
+          f"{'' if _ok else f'{_need:.0f} ns/replica ({_need/(FRAMES_PER_REP*NS_PER_FRAME):.0f}x what mdCATH has)'}")
+if not REACH:
+    raise SystemExit("  NO LAG IS REACHABLE -- refusing to run. This is a dataset limit, not a "
+                     "model result, and it must not be reported as one.")
+if len(REACH) < len(TAUS):
+    print(f"  -> the sweep is TRUNCATED to {REACH}. The tau-dependence this experiment exists to\n"
+          f"     measure cannot be read off {len(REACH)} lag(s); a trend needs the lags that are "
+          f"missing.\n     Reported as a Family D limit on the DATASET, never as a propagator result.",
+          flush=True)
+
 DONE = {}
 if os.path.exists(RES):
     try:
@@ -297,14 +342,30 @@ for dom in USE:
         print(f"\n=== {dom} SKIPPED (already in {os.path.basename(RES)}) ===", flush=True)
         continue
     ROWS = []
+    # ALL FIVE REPLICAS AT THIS TEMPERATURE, not one. mdCATH stores 5 replicas x 5 temperatures of
+    # 500 frames each; this script read replica 0 at 320 K and ignored the other 24 trajectories,
+    # using 1/25th of what is on disk. Two things follow from loading them:
+    #   1. The reference pool becomes genuinely held out. The 77c stationarity guard fired on EVERY
+    #      domain of the first run (JS 0.105, 0.064, 0.070 against a 0.05 threshold), because the
+    #      pool was the same trajectory the model trained on. Replicas 1-4 are independent runs.
+    #   2. Reference windows stop being near-duplicates. A window spans H*tau frames, so on one
+    #      500-frame replica 32 windows at tau=1 share ~93% of their frames; drawn across four
+    #      replicas they do not.
     with h5py.File(f"{DATA}/mdcath_dataset_{dom}.h5", "r") as f:
         g = f[dom]; z = np.array(g["z"]); N = len(z); nm = parse_names(g, N)
         heavy = z != 1; bb = np.isin(nm[heavy], BB); ca = nm[heavy] == "CA"
-        coords = g[TEMP][R0]["coords"][:].astype(np.float64)[:, heavy, :][:, bb, :]
+        reps = sorted(k for k in g[TEMP].keys() if "coords" in g[TEMP][k])
+        raw = {r: g[TEMP][r]["coords"][:].astype(np.float64)[:, heavy, :][:, bb, :] for r in reps}
+    coords = raw[R0]
     al = kabsch(coords, ca[bb]); d = (al - al[0]).reshape(len(al), -1); T = d.shape[0]; h = int(T * 0.8)
     mean = d[:h].mean(0); modes, lam = anm(al[0], L); B = modes[:, :L].T; lam = lam[:L]
     Z = (d - mean) @ B.T; zmu = Z[:h].mean(0); sd = np.sqrt(0.593 / np.clip(lam, 1e-8, None))
-    Zn_all = ((Z - zmu) / sd).astype(np.float32); ref_full = Z
+    Zn_all = ((Z - zmu) / sd).astype(np.float32)
+    # Held-out replicas, projected onto the SAME ANM basis and centred by the SAME training mean --
+    # a second basis or a second centre would make the two sides incomparable, which is Family F.
+    HOREP = [((kabsch(raw[r], ca[bb]) - al[0]).reshape(len(raw[r]), -1) - mean) @ B.T
+             for r in reps if r != R0]
+    ref_full = np.concatenate(HOREP) if HOREP else Z
     # INBOX 77c. Basins are defined on the TRAINING span only. Everything else here
     # already restricted correctly -- mean, zmu, v, a1, gamma are all fit on [:h] --
     # and this was the one target that was selected using frames the model never saw.
@@ -314,10 +375,14 @@ for dom in USE:
     # evidence against: ATLAS replicas sit only 1.18x further apart than frames
     # within one replica, and n_eff runs 1-7%. Measure it instead of asserting it --
     # if the two halves disagree, the pool is contaminated by the training portion.
-    _hf = len(Z) // 2
-    stat_js = marg_js(Z[:_hf], Z[_hf:])
-    print(f"  stationarity: JS(first half || second half) = {stat_js:.4f}"
-          f"{'   <- halves DISAGREE; ref pool is not a clean equilibrium sample' if stat_js > 0.05 else ''}")
+    # Now measured ACROSS replicas, which is the comparison that matters: the pool is replicas 1-4
+    # and the model is fit on replica 0, so this asks whether independent runs of the same system
+    # sample the same distribution. The within-replica version this replaces could only ever have
+    # detected drift inside the one trajectory it was already contaminated by.
+    stat_js = marg_js(Z[:h], ref_full)
+    print(f"  replicas: train {R0} ({h}/{T} frames)  reference {[r for r in reps if r != R0]} "
+          f"({len(ref_full)} frames)   JS(train || heldout) = {stat_js:.4f}"
+          f"{'   <- replicas DISAGREE; the reference is not the same distribution' if stat_js > 0.05 else ''}")
     v = kT / np.clip(lam, 1e-8, None); v *= (Z[:h].var(0).sum() / v.sum())
     a1 = (Z[:h - 1] * Z[1:h]).mean(0) / ((Z[:h - 1] ** 2).mean(0) + 1e-9)
     gamma = float(np.median((-lam / np.log(np.clip(a1, 0.02, 0.98)))[lam > 0]))
@@ -331,8 +396,13 @@ for dom in USE:
         # to compare against. At large tau the trajectory cannot supply that, and the
         # honest response is to shorten BOTH sides together and say by how much --
         # not to leave the generated side capped while the reference side is not.
-        H_use = min(args.H, (len(Z) - 1) // tau)
-        REFW = ref_windows(Z, H_use, tau, K_EVAL, rng)
+        # H comes from the DATA, not from a constant. The first run asked for H=1500 against
+        # 500-frame replicas, so the rollout was three times the whole trajectory and every cell
+        # of every domain came back unevaluable -- 28 domains, 112 cells, zero results, exit code
+        # 0. `- K_EVAL` leaves room for K distinct window starts rather than exactly one.
+        FMIN = min(len(r) for r in HOREP) if HOREP else len(Z)
+        H_use = min(args.H, (FMIN - K_EVAL - 1) // tau)
+        REFW = ref_windows(HOREP if HOREP else Z, H_use, tau, K_EVAL, rng)
         iat_r_full = iat_ref_tau(ref_full, tau)
         cover = H_use / max(iat_r_full, 1e-9)
         if H_use < MIN_H or not REFW:
@@ -374,7 +444,10 @@ for dom in USE:
             # how "one name, two things" starts, and this project has hit that five times.
             ROWS.append(dict(dom=dom, tau=tau, model=name, H=H_use, K=K_EVAL, agree=agree,
                              n_metrics=len(METRICS), guard=extra, cover=cover, stat_js=stat_js,
-                             nCA=int(ca.sum()), metrics=row))
+                             nCA=int(ca.sum()), metrics=row,
+                             cg=float(cg) if name.startswith("DDPM") else None,
+                             cg_diverged=bool(name.startswith("DDPM") and cg >= 1e3),
+                             iat_ceiling=bool(cover < COVER_MIN)))
 
         # OU at lag tau -- K independent realisations, same length as the reference
         # windows and as the DDPM rollouts. Every arm is now n=K, not n=1.
@@ -401,7 +474,12 @@ for dom in USE:
             cnd = Zn_all[idx]
             add = ((cnd - cnd.mean(0)) * (g1 - g1.mean(0))).mean(0) / (((cnd - cnd.mean(0)) ** 2).mean(0) + 1e-9)
             aref_tau = (Zn_all[:h - tau] * Zn_all[tau:h]).mean(0) / ((Zn_all[:h - tau] ** 2).mean(0) + 1e-9)
-            guard = f"cg{abs(add).mean()/max(abs(aref_tau).mean(),1e-6):.2f}"
+            cg = abs(add).mean() / max(abs(aref_tau).mean(), 1e-6)
+            # A conditioning ratio near 1 means the model propagates its input; the smoke run
+            # produced cg = 9.2e16 for DDPM-absolute, which is not a weak conditioner but a
+            # diverged one. An arm whose one-step map is diverged cannot have its distributional
+            # metrics read as a propagator result, so it is marked rather than tabulated quietly.
+            guard = f"cg{cg:.2f}" if cg < 1e3 else f"cg{cg:.3g} DIVERGED"
             report("DDPM-" + param, [gen[k, :H_use] for k in range(gen.shape[0])], guard)
 
     # Written once per DOMAIN, after all four taus, so a wall kill costs the current domain and

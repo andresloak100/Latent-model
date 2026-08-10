@@ -13,7 +13,23 @@ set -uo pipefail
 WR=/network/scratch/j/jacob-junqi.tian/latent-model-workspace
 N=${1:-2000}; P=${2:-32}
 OUT=$WR/afdb_raw; mkdir -p "$OUT"
-IDX=$WR/afdb_accessions_sample.csv
+# THE DRAW MUST COVER THE WHOLE INDEX, NOT A PREFIX.
+# The pilot drew from `curl -r 0-2000000` -- a byte-range PREFIX over 0.028% of an 8.7 GB index --
+# and then shuffled inside it, which is uniform over a non-uniform pool. Measured, the prefix is
+# indistinguishable from the index through 75% (KS p 0.68-0.92) but the final ~1% is a distinct,
+# longer population (median 366 vs 277 residues, p < 1e-300). So the pilot's rates hold for ~99% of
+# AFDB and not for the tail, and the fix costs one 8.7 GB download.
+IDXURL=https://ftp.ebi.ac.uk/pub/databases/alphafold/accession_ids.csv
+IDX=$WR/afdb_accessions_full.csv
+NEED=8702185935
+have=$(stat -c%s "$IDX" 2>/dev/null || echo 0)
+if [ "$have" -lt "$NEED" ]; then
+  echo "[afdb] index $have/$NEED bytes; resuming download"
+  curl -sS -C - -o "$IDX" "$IDXURL" || { echo "[afdb] index download FAILED"; exit 1; }
+fi
+got=$(stat -c%s "$IDX")
+[ "$got" -eq "$NEED" ] || { echo "[afdb] index truncated: $got != $NEED -- REFUSING to draw from a partial index"; exit 1; }
+echo "[afdb] index complete: $got bytes, $(wc -l < "$IDX") accessions"
 shuf -n "$N" "$IDX" > "$OUT/draw.csv"
 echo "[afdb] drawing $N accessions, $P workers"
 t0=$(date +%s)
