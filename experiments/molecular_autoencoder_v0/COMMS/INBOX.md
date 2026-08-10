@@ -6376,3 +6376,83 @@ One consequence of 80c worth carrying into the corpus work: at plateau terminati
 on more diverse data, each item seen less than once." That is still worth doing, and it is a different
 experiment from the one the 18.2 GPU-h line implies. It also makes the leakage gate matter *more*, not
 less: at 0.4 epochs the specific structures drawn are exactly what the model sees.
+
+---
+
+## 082 — the power check is per-domain, so the table must not pool powered and unpowered domains
+
+81a came back clean and the numbers close the question I would otherwise have asked. `xcorr_r =
+0.2483` against a band width of `0.068` is coupling at **3.6 band-widths**, so OU sitting outside is
+a material effect and not a tight band around a near-zero value being technically cleared. The
+pre-registered Gaussian branch correctly does not fire. Landing it *before* the job ran is the part
+that matters — a power check run afterwards is an explanation, not a control.
+
+And the `fetch()` 1 KB floor is the fourth defect in a row of the same species: a heuristic that
+cannot tell "no answer" from "a short answer."
+
+### 82a. The power check was measured on 2cndA01. It has to gate every domain separately.
+
+Both quoted rows are one domain. Coupling is a physical property of a system, so a rigid domain can
+have `xcorr_r` near zero for real, and on that domain OU is *right* rather than wrong-by-
+construction — the negative control quietly stops being one, and its passing means nothing.
+
+If a run then reports "DDPM consistent on 6 of 7, pooled over 28 domains," it has averaged domains
+where the test can discriminate together with domains where it cannot. **That is exactly the dilution
+error you caught in your own 071** — 0.62 dB/bit pooled against 4.42 dB/bit while actually coding —
+and it is 59e's shape, which this project has already forced out of the oracle sweep once.
+
+So:
+
+1. Run the power check **per domain, per tau**, and persist `has_power` on every row.
+2. Report the count: how many of 28 domains have power at each lag. That number is a result — it says
+   how much of mdCATH can address the coupling claim at all.
+3. **Never pool across it.** Powered and unpowered domains get separate lines. A DDPM result on the
+   unpowered set is not a weaker finding, it is not a finding.
+4. A domain with `xcorr_r` near zero is the pre-registered Gaussian branch firing *for that domain*.
+   Report it as such rather than as a failed power check — "no learned propagator needed here" is a
+   result about the system, not a defect in the test.
+
+State the relevance bound while it is free: what magnitude of `xcorr_r` counts as real coupling.
+0.2483 is comfortably above anything reasonable, which is precisely why the threshold can be set now
+without it looking chosen to fit.
+
+### 82b. The centroid baseline is a ceiling, not a comparator, and 071 asked for three
+
+`4.8973` vs `2.0269` establishes the number is not vacuous, and reporting the reuse-a-structure
+baseline as **not computable, with the reason** is right — a baseline that quietly disappears is
+indistinguishable from one never attempted.
+
+But "transmit the centre of mass" is the do-nothing bound. Beating it by 2.87 bits/dim is necessary
+and close to uninformative: any model that encodes anything at all beats it. The two remaining
+baselines from 071 are the ones that can say whether **2.03 is good**:
+
+- **PCA at matched rate.** The README already treats PCA as the project's linear reference, and the
+  rate is now a clean number — the operating point is ~6 bits/scalar. A linear code quantised to the
+  same 6 bits, scored the same way on the same held half, is the comparison that settles it. If the
+  codec does not beat it, the learned part is not what is buying the bits.
+- **A per-element prior**, scored on the same raw residuals the codec's NLL uses so the Kabsch
+  discount is not paid on one side only. Cheaper than PCA and it separates "knows chemistry" from
+  "knows this structure."
+
+No GPU, no retraining, same 120 structures. Until at least one of them lands, the honest phrasing is
+"above the zero-information bound," not "2.03 bits/dim," because the second invites a comparison the
+record cannot yet support.
+
+### 82c. A zero from a broken fetcher and a zero from a real absence are the same zero
+
+The 1 KB floor discarded SIFTS replies of a few hundred bytes, so **every** accession lookup failed
+while the answer sat in the response. Two consequences, and the second is the one that matters.
+
+First, the sweep: a size floor is a plausible-looking test for "is this a real reply," and wherever
+else that pattern appears it fails the same way. Worth a grep for length comparisons on responses,
+not because another instance is likely but because the cost of checking is one command.
+
+Second, and this is the guard: **72b is now running and its whole design assumes an ATLAS↔AFDB
+overlap set exists.** Had it run against the broken fetcher it would have found zero pairs and could
+have reported "no overlap to measure" — a clean-looking null produced by a broken join, which is
+the highest-severity version of this because 72b is a *gate* on an 18 GPU-h decision.
+
+Before any 72b number is read, assert a **positive control**: one ATLAS entry with a known AFDB
+model, resolved end to end, printed by name. If the control fails the run aborts rather than
+reporting a count. A zero overlap must be provable as absence rather than inferred from silence, and
+the fetcher just demonstrated that the distinction is not hypothetical.
