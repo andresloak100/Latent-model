@@ -5964,3 +5964,119 @@ incremental `json.dump` sites — `armf_atlas_b.py:157`, `armf_tica_vs_n.py:207/
 
 **Your queue is now GPU-first.** 075's rule stands and this item exists to clear the runway for it:
 fill the GPU, then 072a on CPU to prepare the pretrain, then the leftovers above, then 071 and 072b.
+
+---
+
+## 077 — the propagator's acceptance table compares two series of different lengths, and the tau sweep will show a trend that is the estimator
+
+Two sessions of real work. The leak is **measured**, not argued — 11 genuine homologs at 71.7%,
+57.8%, 48.6% identity that would have entered pretraining — and correcting your own throughput from
+109 to 34.4 struct/s by writing to disk instead of `/dev/null` is the right instinct applied to your
+own number. The 5.9% parse failure raised as an open bias rather than absorbed as attrition is the
+same. And the two silent defects in the query set — fragile chain-matching losing 24 of 125, the
+missing trailing newline dropping 6sup_A — are exactly the failures that let a gate report success
+while screening nothing.
+
+**10334964 is running now, so 77a and 77b are time-critical.** They are about the acceptance test,
+not the model.
+
+### 77a. Generated and reference statistics are estimated from series of very different lengths
+
+`gen` is a single rollout of `H = 1500`. `ref_full` is the entire trajectory, `T` frames, `T` far
+larger. Every row compares a statistic estimated from 1,500 points against the same statistic
+estimated from tens of thousands:
+
+| metric | gen | ref |
+|---|---|---|
+| `iat` | `iat_series(gen, maxlag=400)` on 1,501 points | `iat_ref_tau(ref_full, tau, maxk=200)` on T points |
+| `trans` | changes over 1,500 opportunities | over `T - tau` |
+| `kurt`, `js`, `xcorr`, `amp` | 1,500 correlated samples | T correlated samples |
+
+Different lengths mean **different estimator bias on the two sides** — Family F arriving through the
+estimator rather than through a join. An autocorrelation time cannot be estimated much above a tenth
+of the series it is measured on, and excess kurtosis from 1,500 correlated points has an effective
+sample size of `1500 / iat`, which on this project's own n_eff numbers is a few dozen. The reference
+side has none of those problems, so any gap reads as the model failing.
+
+**One fix subsumes all of it and costs no training.** Draw **K windows of length H** from the
+reference, compute every statistic on each window with the *same* estimator applied to `gen`, and
+compare against that distribution instead of a single full-trajectory number. Both sides then carry
+the same bias and it cancels. Do the same on the generated side — **K rollouts from K different
+held-out start frames**. Rollout is inference; K=8 per side is minutes.
+
+As written every cell is n=1: one rollout, one number, no spread, across 28 x 4 x 2 = 224 cells. A
+single stochastic rollout beating OU on coupling is not evidence, and at 224 cells some will.
+
+### 77b. The tau sweep will show a trend that is the ceiling relaxing
+
+The generated IAT is capped by rollout length, and one rollout step advances by `tau` — so **at small
+tau the cap bites hardest and at large tau it relaxes**. `iat_g / iat_r` will drift toward 1 as tau
+grows for a model that has not changed at all.
+
+The tau sweep is the axis this experiment exists to measure. A monotone trend along it produced by
+the estimator is Family B manufacturing a result on the primary axis — the same shape as the PCA
+ceiling degrading with N, which is already on the record as why the ceiling-free primary exists.
+
+Print `H / iat_r` on every line and refuse to read any row below ~20. If the flag fires across a whole
+tau column, that column is a measurement limit and must be reported as one.
+
+### 77c. Two smaller things in the same block
+
+- `top2` and `thr` are computed on the **full** `Z`, including the fifth after `h`, while `mean`,
+  `zmu`, `v`, `a1` and `gamma` all correctly restrict to `[:h]`. It hits OU and DDPM equally so it does
+  not bias the contest, but the basins are defined using frames the model never saw.
+- `ref_full` is justified as "stationary." That is the assumption this project has the most direct
+  evidence against — ATLAS replicas sit **1.18x** further apart than frames within one replica, and
+  n_eff runs 1–7%. Two halves of one trajectory are not two draws from equilibrium. Compare first-half
+  against second-half marginals; if they differ, the full-reference comparison is contaminated by the
+  training portion.
+
+### 77d. The leak rate is 11 events, so give it its interval
+
+0.584% is a point estimate from **11 events** and the extrapolation inherits that. Exact
+Clopper–Pearson on 11/1,882:
+
+    rate     0.584%   95% CI [0.292%, 1.043%]
+    at 1M    5,845    95% CI [2,921, 10,434]
+
+The conclusion is unchanged in every direction — even the lower bound is ~2,900 leaked structures, so
+the gate is required either way, which is what makes this cheap to state rather than awkward. But
+"~5,840" without its interval is a bare point estimate of the kind 59c put the rule-of-three bound on.
+
+If a tighter number is ever wanted, the pilot size that buys it is knowable in advance: n=5,000 gives
+a CI width of ~4,400 structures at 1M, n=10,000 ~3,100, n=20,000 ~2,200. Almost certainly not worth
+it — the decision does not change anywhere in the interval — but the reason for not doing it should be
+"the decision is insensitive," not silence.
+
+### 77e. Three things on the pilot, one of which you already raised
+
+- **How were the 2,000 accessions drawn?** If randomly across AFDB, the extrapolation is sound. If they
+  are a prefix — first N by accession, or one proteome — then organism and family correlate with
+  position and the leak rate need not transfer, which would be Family A on the pilot itself. One line
+  either way.
+- **The 5.9% parse failure, which you flagged and were right to.** The diagnosis is cheap and should
+  precede the full draw: bucket the 118 by *why* the parse failed — missing
+  `_entity_poly.pdbx_seq_one_letter_code`, multi-entity, non-standard residues — and compare their
+  length distribution against the 1,882 that parsed. A histogram of failure reasons distinguishes
+  "random" from "one structural class" in minutes. Dropping is the safe action, since an unparseable
+  CIF cannot be gated and must not enter; the only question is whether the drop is neutral.
+- **Storage, since it is one line.** 302 KB x 1M is 0.30 TB raw, and a processed cache alongside it
+  roughly doubles that. Fine against the 5 TB quota, but confirm the headroom before an 8.1 h download
+  rather than during hour seven.
+
+### 77f. The other three from before, none urgent
+
+- **48 h for `atlas_dm` is a guess and it can be a projection.** Three runs died at a 20 h wall and
+  their logs say how far each got. Rate x remaining work gives a number; doubling gives another two
+  days lost if 48 is also short. State which it is.
+- **The guard's new predicate.** If the fix is "allow when a dependency is present," two independent
+  chains each carrying dependencies both pass and 61d's hole is back. The tight predicate is: allow
+  only when the new job's dependency list **names the job ID already queued under that name**. Say
+  which you implemented.
+- **30% identity bounds sequence leakage, not fold leakage.** Two proteins share a fold well below 20%
+  identity, and what the gate protects is that the model has not seen the *fold* — Family D at the
+  gate. Either word the claim as exactly what was screened, "no sequence-level leakage above 30%," or
+  add a structural screen; foldseek over 125 held-out structures is affordable and would let the
+  stronger claim be made honestly. Your self-test is a positive control at n=2 — it shows the gate is
+  not a no-op, which is worth having, but it does not calibrate where the threshold cuts. A homolog
+  near 25–35% would.
