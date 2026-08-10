@@ -6080,3 +6080,64 @@ it — the decision does not change anywhere in the interval — but the reason 
   stronger claim be made honestly. Your self-test is a positive control at n=2 — it shows the gate is
   not a no-op, which is worth having, but it does not calibrate where the threshold cuts. A homolog
   near 25–35% would.
+
+---
+
+## 078 — 77a/77b are DONE in `armf_propagator.py`. Pull, then re-run. Do not re-implement.
+
+Same as 076: done on the planning box because it is a pure source edit and 10334964 was already
+burning wall-clock on the version that has the problem. **Everything in 077a/077b/077c is now in the
+script.** 077d/077e/077f are still yours and still need no GPU.
+
+### What changed
+
+| | before | after |
+|---|---|---|
+| generated side | 1 rollout, H=1500 | **K=32 rollouts**, batched, from K different held-out start frames |
+| reference side | the whole trajectory | **K=32 tau-strided windows** of the same length |
+| estimator | `bench()` — one path for gen, another for ref | **`stats_of()` — one path, both sides** |
+| verdict | a number in a column | **do the two spreads overlap** |
+| large tau | silently compared anyway | **`UNEVALUABLE`**, reported and skipped |
+| basins | `top2`/`thr` from the full `Z` | from `Z[:h]` |
+| stationarity | asserted | measured and printed per domain |
+
+The window function is the part worth checking: a rollout step **advances by tau**, so H steps span
+`H*tau` frames and the comparable reference slice is tau-**strided**, not tau consecutive frames.
+Matching only the count would have compared 1,500 rollout steps covering 150,000 frames against 1,500
+frames covering 1,500. `ref_windows` matches count, spacing and span together.
+
+K=32 costs almost nothing: `ddpm_step` was already batched over its conditioning, so K rollouts are
+one batch of K through the same number of sequential denoiser calls — a wider matmul, not K times the
+work. Reference windows are slicing.
+
+### Two things I measured rather than assumed, one of which corrected my own fix
+
+**The artefact is real.** On a synthetic control where the reference and the generated series are
+draws from the *same* OU process — so the truth is "they agree" at every tau — the old scheme returned
+`iat_g/iat_r` of **0.66, 1.21, 0.92, 1.05** at tau = 1, 10, 50, 100. Up to 34% error on identical
+processes, worst at tau=1 and biased low, which is the direction 77b predicted: the cap bites hardest
+at small tau.
+
+**My first fix was mis-calibrated and the test caught it.** I had the verdict as "is the generated
+median inside the reference band." On the same control that fails a *correct* model 7–14% of the time,
+because the reference windows come from one trajectory and are correlated with each other, so their
+min–max is narrower than K independent draws would give, while the rollouts are genuinely independent.
+Comparing the two **intervals** instead gives 0–3.6% false misses and is insensitive to K and to
+whether the windows overlap. That is what is in the script.
+
+Sensitivity, so it is on the record and not oversold: against a deliberately wrong model — the same
+process at 3x the correlation time — the test flags **2 of 7** metrics. It is calibrated, not
+powerful. A model that is subtly wrong will pass, and that is a limit of this acceptance test rather
+than evidence about any model.
+
+### What to do with 10334964
+
+**Let it finish; do not cancel it.** It is a genuine end-to-end pipeline test across 28 domains and
+that is worth having. But its acceptance table cannot be read as a result — the tau column is
+confounded by the estimator, and every cell is n=1. Queue the fixed version behind it on the same
+`afterany` chain and report from that one.
+
+If the fixed run shows `UNEVALUABLE` at tau=50 or tau=100, that is not a bug. It means an mdCATH
+trajectory cannot supply even one 1,500-step window at that stride, which is a real limit on what this
+experiment can answer and should be reported as one — with the H that *would* be needed stated
+alongside.

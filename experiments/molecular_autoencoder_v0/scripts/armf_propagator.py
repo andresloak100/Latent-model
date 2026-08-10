@@ -9,8 +9,23 @@ Acceptance metrics (gen vs reference), the discriminators OU cannot pass by desi
 
 Sweep tau = 1/10/50/100 ns; DDPM with FiLM per-layer conditioning; delta-vs-absolute
 ablation; OU at matched lag; step-1 conditioning guard reported per DDPM; steps-to-1ms.
-Marginals/coupling use the FULL reference (stationary, stride-free); kinetics use
-tau-separated reference pairs (robust at all tau).
+
+HOW THE COMPARISON IS MADE (INBOX 77a/77b -- this replaced an earlier scheme).
+Earlier, the generated statistics came from ONE rollout of 1,500 steps and the
+reference statistics came from the WHOLE trajectory. None of these estimators is
+length-neutral, so the two sides carried different bias and every gap read as the
+model failing. Worse, the generated autocorrelation time is capped by the rollout
+length while a rollout step advances by tau -- so the cap loosened as tau grew, and
+the tau sweep, which is the axis this experiment exists to measure, would have shown
+a trend for a model that had not changed.
+
+Now: K rollouts and K tau-strided reference windows of the SAME length, every one
+through the same `stats_of`. Estimator bias is common to both sides and cancels. The
+verdict per metric is whether the two spreads OVERLAP -- measured on a synthetic
+control where both sides are the same process, interval-overlap gives 0-3.6% false
+misses against 7-14% for testing the generated median against the reference band.
+`H/iat_r` is printed per row and a lag whose trajectory is too short to evaluate is
+reported as unevaluable rather than scored.
 """
 import argparse, math, numpy as np, torch, torch.nn as nn, h5py
 DATA = "/network/scratch/j/jacob-junqi.tian/datasets/mdcath/data"
@@ -101,18 +116,86 @@ def basins(X, thr):                                             # top-2-mode med
 def trans_rate(labels):
     return float((labels[1:] != labels[:-1]).mean() * 1000)
 
-def bench(gen, ref, top2, thr, tau, ref_full):
+def stats_of(X, top2, thr, ref_pool):
+    """INBOX 77a. EVERY statistic from ONE series through ONE estimator.
+
+    The version this replaces computed the generated statistics from a 1,500-step
+    rollout and the reference statistics from the entire trajectory -- tens of
+    thousands of frames. Length is not a neutral parameter for any of these
+    estimators. An integrated autocorrelation time cannot be resolved much above a
+    tenth of the series it is measured on; excess kurtosis over 1,500 CORRELATED
+    points has an effective sample size of 1500/iat, which on this project's own
+    n_eff numbers is a few dozen; a transition rate over 1,500 opportunities has a
+    relative error the reference side simply does not have.
+
+    So the two sides carried different estimator bias, and every gap read as the
+    model failing -- Family F arriving through the estimator rather than through a
+    join. Both sides now come through this function, on series of the SAME length and
+    the SAME time-spacing (see `ref_windows`), so the bias is common and cancels.
+
+    `js` is measured against a common pool for both sides, which keeps it comparable
+    for the same reason: what matters is gen-vs-pool set beside refwindow-vs-pool.
+    """
     m = {}
-    m["std"] = float((gen.std(0) / (ref_full.std(0) + 1e-9)).mean())
-    m["js"] = marg_js(gen, ref_full)
-    m["kurt_g"] = excess_kurt(gen); m["kurt_r"] = excess_kurt(ref_full)
-    m["xcorr_g"] = offdiag(np.corrcoef(gen.T)); m["xcorr_r"] = offdiag(np.corrcoef(ref_full.T))
-    m["amp_g"] = offdiag(np.corrcoef(np.abs(gen).T)); m["amp_r"] = offdiag(np.corrcoef(np.abs(ref_full).T))
-    m["iat_g"] = np.mean([iat_series(gen[:, i]) for i in range(gen.shape[1])])
-    m["iat_r"] = iat_ref_tau(ref_full, tau)
-    m["trans_g"] = trans_rate(basins(gen[:, top2], thr))
-    lab_r = basins(ref_full[:, top2], thr); m["trans_r"] = float((lab_r[tau:] != lab_r[:-tau]).mean() * 1000)
+    m["std"] = float(X.std(0).mean())
+    m["js"] = marg_js(X, ref_pool)
+    m["kurt"] = excess_kurt(X)
+    m["xcorr"] = offdiag(np.corrcoef(X.T))
+    m["amp"] = offdiag(np.corrcoef(np.abs(X).T))
+    m["iat"] = float(np.mean([iat_series(X[:, i]) for i in range(X.shape[1])]))
+    m["trans"] = trans_rate(basins(X[:, top2], thr))
     return m
+
+
+METRICS = ("std", "js", "kurt", "xcorr", "amp", "iat", "trans")
+
+
+def ref_windows(Z, H, tau, K, rng):
+    """INBOX 77a. K reference slices matched to an H-step rollout at lag `tau`.
+
+    A rollout step ADVANCES BY TAU, so H steps span `H*tau` frames of trajectory.
+    The comparable slice of reference is therefore tau-STRIDED, not tau consecutive
+    frames -- matching only the count would compare 1,500 rollout steps covering
+    150,000 frames against 1,500 frames covering 1,500. These windows match on all
+    three of count, spacing and time-span, which is what makes any estimator applied
+    to both unbiased relative to the other.
+
+    Returns [] when the trajectory cannot supply even one window, which is a real
+    limit at large tau and is reported rather than silently worked around.
+    """
+    span = H * tau
+    if len(Z) <= span + 1:
+        return []
+    starts = rng.integers(0, len(Z) - span, size=K)
+    return [Z[s:s + span:tau][:H] for s in starts]
+
+
+def band(rows, key):
+    """median and [min, max] of one statistic across a set of series."""
+    v = np.array([r[key] for r in rows])
+    return float(np.median(v)), float(v.min()), float(v.max())
+
+
+def consistent(gen_rows, ref_rows, key):
+    """Do the two spreads OVERLAP? -- the verdict, and it is deliberately not
+    'is the generated median inside the reference band'.
+
+    Measured on a synthetic control where both sides are draws from the SAME process,
+    so every verdict should be 'consistent' and any miss is the test's own error:
+
+        point-in-band      7-14% false misses
+        interval overlap   0-3.6% false misses
+
+    The point test is mis-calibrated because reference windows come from ONE
+    trajectory and are correlated with each other, so their min-max is narrower than
+    K independent draws would give, while the generated rollouts are genuinely
+    independent. Comparing a point against that band therefore fails a correct model
+    roughly one time in ten. Comparing the two intervals accounts for spread on both
+    sides and holds up whether the windows overlap or not and across K.
+    """
+    _, glo, ghi = band(gen_rows, key)
+    _, rlo, rhi = band(ref_rows, key)
+    return (glo <= rhi) and (ghi >= rlo)
 
 
 # ---------------- FiLM denoiser (per-layer conditioning) ----------------
@@ -158,16 +241,39 @@ def ddpm_step(m, cond):
 
 
 def rollout_ddpm(m, z0, H, param):
+    """INBOX 77a. BATCHED: z0 is (K, L) and the return is (K, H+1, L).
+
+    K independent rollouts, not one. The version this replaces produced a single
+    trajectory per configuration, so all 28 x 4 x 2 = 224 cells of the table were
+    n=1 -- one roll of the dice, no spread. Across 224 cells some will beat OU by
+    chance, and nothing in the output could tell those from a real effect.
+
+    Costs almost nothing: `ddpm_step` is already batched over its conditioning, so K
+    rollouts run as one batch of K through the SAME number of sequential denoiser
+    calls. The wall-clock difference is a wider matmul, not K times the work.
+    """
     z = z0.clone(); out = [z.clone()]
     for _ in range(H):
         s = ddpm_step(m, z); z = (z + s) if param == "delta" else s
         z = torch.nan_to_num(z, nan=0.0).clamp(-12, 12)          # guard blow-up (whitened space)
         out.append(z.clone())
-    return torch.cat(out, 0).numpy()
+    return torch.stack(out, 1).numpy()                            # (K, H+1, L)
 
 
-ap = argparse.ArgumentParser(); ap.add_argument("--H", type=int, default=1500); args = ap.parse_args()
-print(f"[propagator] strengthened test, tau sweep {TAUS}, FiLM cond, delta/absolute, vs OU. H={args.H}")
+ap = argparse.ArgumentParser(); ap.add_argument("--H", type=int, default=1500)
+ap.add_argument("--K", type=int, default=32, help="INBOX 77a: rollouts AND reference windows per cell")
+args = ap.parse_args()
+K_EVAL = args.K          # n per cell on BOTH sides -- was 1 on the generated side.
+                         # 32 rather than 8: the verdict is interval-overlap so it is not
+                         # very K-sensitive, but the SPREAD it prints is, and a spread from
+                         # 8 draws is not worth reading.
+MIN_H = 200              # below this a series cannot carry these statistics at all
+COVER_MIN = 20.0         # H/iat_r below this means iat is ceiling-limited (INBOX 77b)
+SEED_BASE = 20250810
+print(f"[propagator] tau sweep {TAUS}, FiLM cond, delta/absolute, vs OU. H={args.H} K={K_EVAL}")
+print(f"  INBOX 77a/77b: generated and reference statistics now come from the SAME estimator on\n"
+      f"  series of the SAME length and tau-spacing, K={K_EVAL} per side. A model is scored by whether\n"
+      f"  it lands INSIDE the band real trajectory slices make (* = inside), not by beating a number.")
 for dom in USE:
     with h5py.File(f"{DATA}/mdcath_dataset_{dom}.h5", "r") as f:
         g = f[dom]; z = np.array(g["z"]); N = len(z); nm = parse_names(g, N)
@@ -177,29 +283,81 @@ for dom in USE:
     mean = d[:h].mean(0); modes, lam = anm(al[0], L); B = modes[:, :L].T; lam = lam[:L]
     Z = (d - mean) @ B.T; zmu = Z[:h].mean(0); sd = np.sqrt(0.593 / np.clip(lam, 1e-8, None))
     Zn_all = ((Z - zmu) / sd).astype(np.float32); ref_full = Z
-    top2 = np.argsort(Z.std(0))[::-1][:2]; thr = np.median(Z[:, top2], 0)
+    # INBOX 77c. Basins are defined on the TRAINING span only. Everything else here
+    # already restricted correctly -- mean, zmu, v, a1, gamma are all fit on [:h] --
+    # and this was the one target that was selected using frames the model never saw.
+    top2 = np.argsort(Z[:h].std(0))[::-1][:2]; thr = np.median(Z[:h, top2], 0)
+    # INBOX 77c. `ref_full` is used as the comparison pool on the argument that the
+    # trajectory is stationary. That is the assumption this project has the most
+    # evidence against: ATLAS replicas sit only 1.18x further apart than frames
+    # within one replica, and n_eff runs 1-7%. Measure it instead of asserting it --
+    # if the two halves disagree, the pool is contaminated by the training portion.
+    _hf = len(Z) // 2
+    stat_js = marg_js(Z[:_hf], Z[_hf:])
+    print(f"  stationarity: JS(first half || second half) = {stat_js:.4f}"
+          f"{'   <- halves DISAGREE; ref pool is not a clean equilibrium sample' if stat_js > 0.05 else ''}")
     v = kT / np.clip(lam, 1e-8, None); v *= (Z[:h].var(0).sum() / v.sum())
     a1 = (Z[:h - 1] * Z[1:h]).mean(0) / ((Z[:h - 1] ** 2).mean(0) + 1e-9)
     gamma = float(np.median((-lam / np.log(np.clip(a1, 0.02, 0.98)))[lam > 0]))
     print(f"\n=== {dom} (nCA {ca.sum()}) ===")
-    print(f"  {'model':16s}{'tau':>4}{'std':>6}{'js':>6}{'kurtG/R':>10}{'xcorrG/R':>11}{'ampG/R':>11}"
-          f"{'iatRat':>7}{'transG/R':>11}{'->1ms':>8}")
     for tau in TAUS:
         steps1ms = int(1e6 / tau)
-        # OU at lag tau
-        a_ou = np.exp(-lam * tau / gamma); x = Z[h].copy(); roll = [x.copy()]
-        for _ in range(args.H):
-            x = a_ou * x + np.sqrt(v * (1 - a_ou ** 2)) * np.random.randn(L); roll.append(x.copy())
-        mo = bench(np.array(roll), ref_full, top2, thr, tau, ref_full)
-        print(f"  {'OU':16s}{tau:>4}{mo['std']:>6.2f}{mo['js']:>6.2f}{mo['kurt_g']:>5.1f}/{mo['kurt_r']:<4.1f}"
-              f"{mo['xcorr_g']:>5.2f}/{mo['xcorr_r']:<5.2f}{mo['amp_g']:>5.2f}/{mo['amp_r']:<5.2f}"
-              f"{mo['iat_g']/max(mo['iat_r'],1e-6):>7.2f}{mo['trans_g']:>5.0f}/{mo['trans_r']:<5.0f}{steps1ms:>8}")
+        rng = np.random.default_rng(SEED_BASE + tau)
+
+        # INBOX 77b. THE ROLLOUT LENGTH IS A CEILING AND IT MOVES WITH TAU.
+        # A rollout step advances by tau, so H steps need H*tau frames of reference
+        # to compare against. At large tau the trajectory cannot supply that, and the
+        # honest response is to shorten BOTH sides together and say by how much --
+        # not to leave the generated side capped while the reference side is not.
+        H_use = min(args.H, (len(Z) - 1) // tau)
+        REFW = ref_windows(Z, H_use, tau, K_EVAL, rng)
+        iat_r_full = iat_ref_tau(ref_full, tau)
+        cover = H_use / max(iat_r_full, 1e-9)
+        if H_use < MIN_H or not REFW:
+            print(f"  tau={tau:<4} UNEVALUABLE: H_use={H_use} over {len(Z)} frames at stride {tau} "
+                  f"({len(REFW)} reference windows). Not reported -- at this lag the trajectory is "
+                  f"too short to estimate these statistics on either side.")
+            continue
+        rs = [stats_of(w, top2, thr, ref_full) for w in REFW]
+        flag = "" if cover >= COVER_MIN else f"  <- CEILING: H/iat_r={cover:.1f} < {COVER_MIN}, iat is not resolvable here"
+        print(f"  tau={tau:<4} H={H_use}  refwindows={len(REFW)}  H/iat_r={cover:.1f}"
+              f"  steps->1ms={steps1ms}{flag}")
+        print(f"    {'model':14s}" + "".join(f"{k:>16s}" for k in METRICS))
+        # The reference band is the NULL: what these statistics do across real slices
+        # of trajectory measured exactly the way the generated side is measured. A
+        # model is not asked to beat it, it is asked to land inside it.
+        print(f"    {'REFERENCE':14s}" + "".join(
+            f"{band(rs,k)[0]:.2f}[{band(rs,k)[1]:.2f},{band(rs,k)[2]:.2f}]".rjust(16) for k in METRICS))
+
+        def report(name, series_list, extra=""):
+            ss = [stats_of(s, top2, thr, ref_full) for s in series_list]
+            cells, agree = [], 0
+            for k in METRICS:
+                med, lo, hi = band(ss, k)
+                ok = consistent(ss, rs, k)
+                agree += ok
+                cells.append(f"{med:.2f}[{lo:.2f},{hi:.2f}]{'*' if ok else ''}".rjust(16))
+            print(f"    {name:14s}" + "".join(cells) + f"   {agree}/{len(METRICS)} consistent {extra}")
+
+        # OU at lag tau -- K independent realisations, same length as the reference
+        # windows and as the DDPM rollouts. Every arm is now n=K, not n=1.
+        ou = []
+        for _ in range(K_EVAL):
+            a_ou = np.exp(-lam * tau / gamma); x = Z[h].copy(); roll = [x.copy()]
+            for _ in range(H_use):
+                x = a_ou * x + np.sqrt(v * (1 - a_ou ** 2)) * rng.standard_normal(L); roll.append(x.copy())
+            ou.append(np.array(roll)[:H_use])
+        report("OU", ou)
+
         for param in ("absolute", "delta"):
             m = train_ddpm(torch.tensor(Zn_all), h, tau, param)
-            gen = rollout_ddpm(m, torch.tensor(Zn_all[h:h + 1]), args.H, param) * sd + zmu
-            md = bench(gen, ref_full, top2, thr, tau, ref_full)
+            # K rollouts from K DIFFERENT held-out start frames: this varies the
+            # generative draw and the start point together, which is the sensitivity
+            # a single rollout from a single frame cannot show.
+            st = np.linspace(h, len(Zn_all) - 1, K_EVAL).astype(int)
+            gen = rollout_ddpm(m, torch.tensor(Zn_all[st]), H_use, param) * sd + zmu
             # step-1 cond guard: a_ddpm vs a_ref at this lag
-            idx = np.random.choice(h - tau, min(150, h - tau), replace=False)
+            idx = rng.choice(h - tau, min(150, h - tau), replace=False)
             with torch.no_grad():
                 g1 = ddpm_step(m, torch.tensor(Zn_all[idx])).numpy()
             g1 = (Zn_all[idx] + g1) if param == "delta" else g1
@@ -207,9 +365,7 @@ for dom in USE:
             add = ((cnd - cnd.mean(0)) * (g1 - g1.mean(0))).mean(0) / (((cnd - cnd.mean(0)) ** 2).mean(0) + 1e-9)
             aref_tau = (Zn_all[:h - tau] * Zn_all[tau:h]).mean(0) / ((Zn_all[:h - tau] ** 2).mean(0) + 1e-9)
             guard = f"cg{abs(add).mean()/max(abs(aref_tau).mean(),1e-6):.2f}"
-            print(f"  {'DDPM-' + param:16s}{tau:>4}{md['std']:>6.2f}{md['js']:>6.2f}{md['kurt_g']:>5.1f}/{md['kurt_r']:<4.1f}"
-                  f"{md['xcorr_g']:>5.2f}/{md['xcorr_r']:<5.2f}{md['amp_g']:>5.2f}/{md['amp_r']:<5.2f}"
-                  f"{md['iat_g']/max(md['iat_r'],1e-6):>7.2f}{md['trans_g']:>5.0f}/{md['trans_r']:<5.0f}{steps1ms:>8} {guard}")
+            report("DDPM-" + param, [gen[k, :H_use] for k in range(gen.shape[0])], guard)
 print("\n  discriminators: OU has xcorr~0, amp~0, kurt~0 BY CONSTRUCTION. If ref xcorr/amp/kurt ~0 too")
 print("  -> task is Gaussian/single-basin at this lag, no learned propagator needed (pre-registered).")
 print("  A learned win = matching ref xcorr/amp/kurt/trans that OU misses. cg = conditioning guard (a_ddpm/a_ref).")
