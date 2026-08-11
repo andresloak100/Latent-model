@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 092
+last_acted: 093
 ```
 
 | item | restatement | status | commit |
@@ -113,6 +113,7 @@ last_acted: 092
 | 090 | **ACCEPTED — 090a RETRACTS 088.** The rotation DID precede quantisation, so 3.221 b/atom was paired with an unrotated code's distortion. And a second defect it surfaced: **the codec's distortion was measured with the latent never quantised at all** (`pred, z = model(gb)`; z unquantised), while PCA paid quantisation distortion — the two sides were never comparable on distortion, since 084. Measured properly: **PCA dominates at EVERY rate by ~0.66 bits/dim**, double the 0.315 first claimed. 088 retracted, 084/085 stands and is stronger. The 088 rate was also wrong 2x on its own terms (global vs per-column range: 7.584 not 3.221). 092b's prediction: at fixed bits/component rotation COSTS up to +41.6%, matching its original sign not the retracted one; at matched rate it helps slightly. zstd/xz achieved-rate check OWED. | ACCEPTED | (this commit) |
 | 091 | **ACCEPTED — loop written and submitted (10339914).** Data plumbing only; `code_and_score` and `self_test()` untouched and gating. ANM rotate=False (reference structure only), codec rotate=True; ANM's nonzero mode count printed beside its rate per 092a; both readings pre-registered in the docstring. **Scope limit stated:** `code_and_score` reconstructs linearly, so the codec arm uses a least-squares readout — this compares REPRESENTATIONS under a common linear decoder, because giving the codec its nonlinear decoder would break the symmetry self_test() guarantees. Nonlinear decoder owed. | ACCEPTED | (this commit) |
 | 092 | **ACCEPTED. 092c DONE FIRST** (minutes, borrowed account): `data/atlas/` holds atlas_manifest.json + atlas_info.tsv + README with the acquisition command, **STRIDE=4** and **NSEL=825** and their reasons, and the 10 ps → 40 ps frame spacing 81c needs. Raw 282 GB / 289 GB stay unversioned and re-downloadable. Same treatment owed for the 972,849 gated accessions when prep1m lands. 092a folded into 091; 092b answered under 090. | ACCEPTED | (this commit) |
+| 093 | **ACCEPTED, all four verified. pretrain1m 10338752 CANCELLED first.** 93a pulled. **93b fixed and it is SIX collisions across fifteen configs**, worst being `ladder_direct_n2272` sharing an out_dir with its **_s1/_s2 SEED variants** — the arms 87b/87d read seed spread from; afdb1m given its own name/out_dir plus a cfg_hash resume guard, runtime-tested (fingerprints differ, refusal fires). **93c: max_steps added** to config+train.py (none existed; purely epoch-driven), set to 100,000 with epochs as an upper bound. **93d verified and severe: 74.0% of val has a >=30% training homolog at median 98.0% identity, 47% at >=90%**; homolog-free val is **0.9358 A vs the published 0.8357 (+21.9%)**. My own first version re-split and re-scored the existing checkpoint, drawing 76% of new-val from old-TRAIN, and reported a 65% "improvement" — caught by the sign. Owed: a model trained on a 30%-separated split. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1376,3 +1377,55 @@ for the 972,849 gated accessions when `prep1m` lands.
 
 **Taken, and it is the right frame:** this does not touch FVE. 0/123 stands, a rate result would not
 overturn it, and saying so is the point rather than a hedge.
+
+## 093 — ACCEPTED. All four verified; the 1M pretrain was cancelled before anything else
+
+**93f.1 first: `pretrain1m` 10338752 CANCELLED.** It was queued `afterany:prep1m` and would have
+launched into `outputs/ladder/ladder_direct3m_n2272` with 1,704 epochs.
+
+**93a — pulled, running your file.** Noted that this is the second 73a-era change a runtime test found
+and compiling did not; my `import mmap` no-op was the first, and I ran the 93b guard rather than
+compiling it for that reason.
+
+**93b — fixed, and it is SIX collisions, not one.** `afdb1m_pretrain.yaml` now has
+`name: afdb1m_pretrain` / `out_dir: outputs/pretrain/afdb1m_pretrain`. The config-hash guard is in
+`train.py`: it stamps `cfg_hash` into every checkpoint and **raises SystemExit** when `out_dir` holds
+one whose hash differs. Runtime-tested — afdb1m fingerprints `e69f1a7ee5b0`, ladder `7f1f1c4479de`,
+stable on re-call, and the refusal branch fires.
+
+A repo sweep found **six `(name, out_dir)` pairs shared across fifteen configs**, so 93b is a class:
+
+| shared identity | files |
+|---|---|
+| `ladder_direct_n2272` | `ladder_direct_n2272.yaml`, **`_s1.yaml`, `_s2.yaml`** |
+| `C_local_graph_L128_d32` | + 3 `E1/E2_seqpool` variants incl. `BUDGETVIOLATING` |
+| `C_local_graph_L128_d8` | + 3 more |
+| `cap_d384_l4`, `cap_d128_l2`, `complex_scaled` | + `base_small_*`, `_ema` |
+
+The ladder one is the worst: **its `_s1` and `_s2` seed variants share an `out_dir`**, so seeds would
+resume each other — and 87b/87d are reading seed spread off exactly those arms.
+
+**93c — `max_steps` added as the controlling quantity**, since `train.py` had no such knob and was
+purely epoch-driven. `max_steps: 100000` (≈4× the pre-registered plateau expectation, the headroom
+88d needs), `epochs: 4` as an upper bound only. `max_steps: 0` disables it, so every existing config
+behaves exactly as before.
+
+**93d — verified, and the leakage is severe.** 561 of 758 val structures (**74.0%**) have a ≥30%
+identity match in TRAIN, at **median 98.0% identity**, with **359 (47%) at ≥90%**. Same checkpoint,
+two halves:
+
+| set | n | median RMSD |
+|---|---|---|
+| ALL val (published 0.8357) | 758 | 0.8357 Å |
+| with a training homolog | 561 | 0.7678 Å |
+| **no training homolog** | 197 | **0.9358 Å** |
+
+**+21.9%.** The generalisation figure is **0.9358 Å**, not 0.8357. *And a defect of mine caught by the
+sign:* my first version re-split and re-scored the existing checkpoint, drawing 76% of the new val set
+from the old TRAIN set, and reported 0.2879 Å — a 65% "improvement" from a stricter split, which
+leakage cannot produce. Still owed: a model actually trained on a 30%-separated split.
+
+**93e — taken.** "MD is chaotic, so an exact atom-by-atom future is not the target; distributions,
+free energies, kinetics and rates are" belongs in the ROADMAP and I will put it there. And the
+push-back lands where it should: none of this has produced a defended positive result on the dynamics
+axis, which is the thing to fix.

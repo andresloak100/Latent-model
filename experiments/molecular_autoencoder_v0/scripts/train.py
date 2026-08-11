@@ -307,6 +307,19 @@ def corrupt_coords(coords, mask, frac, mode="zero", generator=None):
     return out
 
 
+def _config_fingerprint(cfg):
+    """Stable hash of the fields that make this run THIS run. Uses armf_stamp's own hashing so the
+    project has one definition of 'same configuration' rather than a second one wearing the name."""
+    import hashlib, json as _json
+    try:
+        d = cfg.to_dict() if hasattr(cfg, "to_dict") else None
+    except Exception:
+        d = None
+    if d is None:
+        d = {k: str(getattr(cfg, k, None)) for k in ("name", "data", "model", "train")}
+    return hashlib.sha256(_json.dumps(d, sort_keys=True, default=str).encode()).hexdigest()[:12]
+
+
 def log_eval_schedule(epoch, epochs, log_every, eval_every, has_val):
     """Decide independently whether this epoch logs train stats and/or evals val.
 
@@ -447,6 +460,26 @@ def main():
     # only reaches a run starting from scratch.
     ckpt_out = out_dir / "latest.pt"                 # where we always WRITE
     resume_from = utils.resume_checkpoint_path(ckpt_out)   # what we may READ, or None
+    # INBOX 93b. REFUSE TO RESUME A DIFFERENT EXPERIMENT'S WEIGHTS. Two configs sharing a `name` and
+    # `out_dir` are two things under one name, and 93a's own resume hardening makes that failure
+    # QUIETER rather than louder: before it, a mismatched checkpoint would more likely have crashed;
+    # after it, it loads cleanly and the run reports another experiment's weights under this one's
+    # name. A repo sweep found SIX such (name, out_dir) collisions across fifteen configs -- including
+    # ladder_direct_n2272 and its _s1/_s2 SEED variants, which would resume each other.
+    cfg_hash = _config_fingerprint(cfg)
+    if resume_from is not None:
+        _prev = None
+        try:
+            _prev = torch.load(resume_from, map_location="cpu", weights_only=False).get("cfg_hash")
+        except Exception:
+            _prev = None
+        if _prev is not None and _prev != cfg_hash:
+            raise SystemExit(
+                f"[train] REFUSING TO START: {resume_from} was written under config hash {_prev} "
+                f"and this run is {cfg_hash}.\n"
+                f"         {out_dir} holds a DIFFERENT experiment's checkpoint. Give this config its "
+                f"own name/out_dir\n         rather than resuming into it -- that is INBOX 93b, and "
+                f"it is how a pretrain silently continues a ladder.")
     if resume_from is not None:
         ckpt = utils.load_checkpoint(resume_from, model, opt)
         rc = ckpt.get("slurm_restart_count")
@@ -469,7 +502,15 @@ def main():
     steps_per_epoch = max(1, -(-len(dataset) // cfg.train.batch_size))
     t0 = time.time()
     rng = np.random.default_rng(cfg.train.seed)
+    global_step = 0
+    stop_on_steps = int(getattr(cfg.train, "max_steps", 0) or 0)
+    if stop_on_steps:
+        print(f"[train] max_steps={stop_on_steps:,} is the controlling budget; "
+              f"epochs={cfg.train.epochs} is an upper bound only (INBOX 93c)", flush=True)
     for epoch in range(start_epoch, cfg.train.epochs):
+        if stop_on_steps and global_step >= stop_on_steps:
+            print(f"[train] max_steps reached at {global_step:,}; stopping", flush=True)
+            break
         model.train()
         # Curriculum: re-draw the epoch's sample at the scheduled tier
         # proportions. Progress is fraction of TRAINING done, so the schedule
@@ -486,6 +527,9 @@ def main():
                 pin_memory=(args.pin_memory and device.type == "cuda"))
         ep_comps, n_batches = {}, 0
         for batch in epoch_loader:
+            if stop_on_steps and global_step >= stop_on_steps:
+                break
+            global_step += 1
             gb = {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in batch.items()}
             if cfg.train.augment_rotation:
                 gb["coords"] = random_rotate(gb["coords"])
@@ -603,6 +647,7 @@ def main():
             extra = {"log": log}
             if ema is not None:
                 extra["ema"] = ema.state_dict()
+            extra = dict(extra or {}, cfg_hash=cfg_hash)   # 93b: stamped so the next run can check
             utils.save_checkpoint(ckpt_out, model, opt, epoch, extra=extra)
 
     utils.save_checkpoint(out_dir / "final.pt", model, opt, cfg.train.epochs - 1,

@@ -6187,3 +6187,50 @@ on are smallest, so there was no error bar to compare the span against. Now exte
    fraction of their width is *capacity that failed to train*, not width saturation, and must not be
    reported as the first. The script's own 12a section already refuses the call — "FVE spans only
    0.0180 across the ladder — neither reading available yet."
+
+---
+
+## ⬛ 93d: the static held-out set is 74% training homologs, and the headline number is 22% easier on them
+
+`prepare_dataset.split_dataset` chooses `"similarity" if n <= 400 else "exact"`. The static corpus is
+3,030 structures, so **`auto` silently selected exact-sequence dedup**, which does not separate
+homologs. The project therefore applied a *stricter* standard to its pretraining corpus — MMseqs2 at
+30%, deliberately chosen and self-tested — than to the set producing its headline reconstruction
+number.
+
+**Measured, using the same MMseqs2 the AFDB gate uses:**
+
+| | value |
+|---|---|
+| val structures with a ≥30% identity match in TRAIN | **561 of 758 = 74.0%** |
+| identity to the best training match | median **98.0%**, max 100.0% |
+| val structures at ≥90% identity to a training structure | **359 (47%)** |
+
+Not marginal homology — three quarters of the held-out set, at a median of 98% identity.
+
+**The same checkpoint on the two halves of its own held-out set:**
+
+| set | n | median RMSD | mean | p90 |
+|---|---|---|---|---|
+| ALL val — *the published 0.8357* | 758 | **0.8357 Å** | 0.7917 | 1.0018 |
+| with a training homolog | 561 | 0.7678 Å | 0.7369 | 0.9698 |
+| **no training homolog** | 197 | **0.9358 Å** | 0.9479 | 1.0508 |
+
+**+0.1680 Å, +21.9%.** The headline is 22% easier on structures that have a training homolog, and on
+genuinely homolog-free structures the codec reconstructs at **0.9358 Å**, not 0.8357.
+
+This does **not** invalidate the number — it measures what was previously unmeasured. 93d's framing
+was exactly right: the generalisation claim was resting on exact-match dedup, in the same way and for
+the same reason the AFDB leak was before 072a. **0.9358 Å is the figure to quote for held-out
+generalisation**; 0.8357 is the figure for a set that is three-quarters homologs.
+
+**A defect of mine, caught by the sign of the answer.** My first version re-split the corpus at 30%
+and re-scored the *existing* checkpoint on the new val set — which drew **577 of 760 structures (76%)
+from the old TRAIN set**. It reported **0.2879 Å against 0.8357, a 65% "improvement" from a stricter
+split**. Leakage cannot make a held-out set easier; the sign was the tell. The checkpoint's training
+set is fixed, so no re-split can be scored under it without retraining, and the measurement that
+needs no retraining is the partition above. Recorded because a 65% improvement is exactly the kind of
+favourable number that gets published before it gets checked.
+
+**Still owed:** a model actually *trained* on a 30%-separated split. The partition measures the
+leakage in the existing evaluation; it does not produce a clean-split model.

@@ -38,6 +38,13 @@ class DataConfig:
 class TrainConfig:
     seed: int = 0
     epochs: int = 2000
+    # INBOX 93c. THE CONTROLLING QUANTITY, when set. `epochs` on a 972,849-structure corpus at batch
+    # 16 is 60,803 steps per epoch, and the 1M config asked for 1,704 of them -- 103,608,418 steps
+    # against a pre-registration expecting ~24,321. It would have hit the wall and produced a run
+    # whose step count nobody chose. 80c already established these arms terminate on plateau rather
+    # than on epochs, so an epoch count was never the right knob. 0 disables it and `epochs` governs,
+    # which keeps every existing config behaving exactly as before.
+    max_steps: int = 0
     batch_size: int = 8
     lr: float = 1.0e-3
     weight_decay: float = 0.0

@@ -11,7 +11,7 @@
 # both 1.1M and 3.8M, the size contribution to the slope is measurable and
 # can be subtracted rather than assumed away.
 
-name: ladder_direct3m_n2272
+name: afdb1m_pretrain
 data:
   processed_dir: data/processed_afdb1m
   splits_file: data/splits_afdb1m.json
@@ -43,7 +43,13 @@ loss:
   chirality: 0.2
 train:
   seed: 0
-  epochs: 1704
+  # INBOX 93c. epochs is now an UPPER BOUND, not the budget. max_steps governs.
+  # 972,849 structures at batch 16 = 60,803 steps/epoch; 1704 epochs was 103,608,418 steps against a
+  # pre-registration expecting ~24,321. 100,000 is chosen as ~4x the pre-registered plateau
+  # expectation, which is the headroom 88d needs to see whether more budget spreads the latent --
+  # not a number that merely fits the wall.
+  max_steps: 100000
+  epochs: 4
   batch_size: 16
   lr: 0.0003
   weight_decay: 0.0
@@ -53,6 +59,6 @@ train:
   ckpt_every: 284
   clash_dist: 1.5
   loss_max_atoms: 1200
-  out_dir: outputs/ladder/ladder_direct3m_n2272
+  out_dir: outputs/pretrain/afdb1m_pretrain
   overfit: false
   augment_rotation: true
