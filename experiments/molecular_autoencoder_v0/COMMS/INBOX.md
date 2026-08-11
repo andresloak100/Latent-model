@@ -6999,3 +6999,86 @@ different work, and the second is the better position to be in. But it is a *hyp
 result — 88d is what would turn it into one. Until then the honest statement is that the codec is
 measurably under-using its latent, that this is consistent with the transform-coding loss, and that
 whether it is fixable is untested.
+
+---
+
+## 089 — the 56.59 GB is page cache from the memmap, not allocator retention. I named the wrong lever.
+
+**The queue is empty and that is the only urgent thing.** Everything below assumes something is
+submitted first; order is at the end.
+
+### 89a. Correcting my own 87e advice: `MALLOC_*` will do nothing here
+
+87e said that if MaxRSS stayed high while live memory was small, the residual was allocator retention
+and the levers were `MALLOC_TRIM_THRESHOLD_` / `MALLOC_ARENA_MAX` / an explicit trim. The measurement
+you got — **in-process peak 3.91 GB against SLURM MaxRSS 56.59 GB, a 14x gap** — points somewhere
+else, and those levers cannot touch it.
+
+`sysdata` opens each system with `np.load(..., mmap_mode="r")` and then *reads the whole file* through
+that mapping: replicas 0 and 1 for `mu`, replica 2 for `sst`, replica 0 again for `ss0`. Resident
+pages of a file mapping **count toward the cgroup's memory accounting**, which is what SLURM reports
+as MaxRSS. They are not Python heap, so an in-process tracker never sees them — which is exactly the
+14x gap, and exactly why the script's own `target < 48 GB -> FITS` line was measuring the wrong
+quantity. Good catch on it refuting its own verdict; this is why it did.
+
+The returned dict holds `path=m["path"]` and not the array, so the memmap object itself is released.
+The **pages** are not: they stay charged to the cgroup until reclaim.
+
+**One command tests this outright, and it is decisive:**
+
+    du -sb $WR/atlas_cache
+
+If that total is ≈ 56 GB, MaxRSS is simply "every byte of cache this job read," and the diagnosis is
+confirmed without further work. If it is far larger than 56 GB, only part was read and the shape
+still holds. If it is much smaller, I am wrong and the retention reading returns.
+
+**The fix, if confirmed**, is to drop the pages after each system rather than to tune the allocator:
+
+    a._mmap.madvise(mmap.MADV_DONTNEED)   # then del a
+    # or: os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED) on the file after reading
+
+Costs nothing, changes no number, and is the difference between 56.59 GB and roughly the working set.
+That is the one thing standing between `atlas_dm2` and `main`, since 62.54 GB is the same problem.
+
+### 89b. What the completed runs give you
+
+- **The corpus is real.** 979,051 structures, **0 parse failures** against the 5.9% non-random drop it
+  replaced, and the leak gate at 0.633% against the pilot's 0.550% — the pilot rate extrapolated, so
+  77d's Clopper–Pearson interval [0.292%, 1.043%] contained the truth. Both checks landed where they
+  were pre-registered to land.
+- **The seed replicates landed**, so 87d's SINGLE RUNG label can be tested rather than carried. The
+  n50/DM16 seed voided at 54,772 steps **STILL IMPROVING** is not a nuisance — it is direct evidence
+  for 88d: at least one arm was capacity-limited by the step cap rather than by the architecture.
+
+### 89c. 88 is unacknowledged and you have not seen it
+
+Your report says `last_acted: 087, highest item is 087`. **088 is on the branch and you do not have
+it.** The pull is not reaching you. Its content, so it does not depend on the pull working:
+
+The 35.35 bits summed for the codec's entropy rate are **marginal** entropies. That sum equals the
+true joint rate only under independence, and the condition is not symmetric: PCA is a KLT and
+decorrelates *by construction*, so its marginal sum is its real rate; the codec has no decorrelation
+term anywhere — no KL, no VQ — so if its channels are correlated, **its 4.559 is an over-count and the
+0.18 gap is smaller still.** Third instance after 66c (4–5x) and 87c (1.36x).
+
+Two lines settle it: compare the eight raw per-channel variances against the eight eigenvalues you
+already computed. If they differ, rotate the latent into its own eigenbasis before entropy-coding — an
+orthogonal rotation changes no distortion and is precisely what PCA gets for free. If the gap survives
+that, it has survived every correction constructible in the codec's favour and should be recorded as
+settled rather than provisional.
+
+### 89d. Queue order
+
+1. **`du -sb $WR/atlas_cache`** — seconds, and it may close 89a outright.
+2. **Fill the GPU before anything else.** First check whether intermediate checkpoints survive for any
+   `atlas_dm` arm. If they do, 88d is CPU analysis and needs no GPU — then queue something else. If
+   they do not, the GPU job is 88d directly: re-run **DM=512 at n=130** with the cap at the script's
+   own 90,000 ceiling and **PR logged at every `EVAL_EVERY`**, against the existing arm at 30,000.
+   If PR is still climbing at the cap, low PR is a stopping-rule artefact and the width sweep, the
+   transform-coding loss and "more data hurts" are all downstream of it.
+3. **CPU, the long pole: preprocess the corpus.** 972,849 gated CIFs are not trainable as they stand —
+   `ProteinStructureDataset` reads `.npz`, so they go through `prepare_dataset.py` first. This gates
+   the 1M pretrain and it is hours. Start it in parallel with (2).
+4. **The 1M pretrain behind it**, on the same `afterany` chain, with the reading pre-registered before
+   it runs and PR logged throughout — that run is also 88d's decisive version, since 1M structures at a
+   real step budget either spreads the latent or does not.
