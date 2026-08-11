@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 101
+last_acted: 102
 ```
 
 | item | restatement | status | commit |
@@ -122,6 +122,7 @@ last_acted: 101
 | 099 | **ACCEPTED — plumbed and running (10343063).** Machinery untouched; self-test gates the run and **ANM scores exactly 0 (2.22e-16)**. Three rows per system always together. First systems: residual carries 9.8-38.4% of variance, **CEILING ~0.92, CODEC -0.158/+0.007/-1.275** — early third-branch shape. Two contract traps avoided: `frames()` must return RAW coordinates (ho_frames already centres — double-centring), and `residual_pca_basis` is a **(3N,3N) Gram = 80 GB at N=33,377**, so large systems use a frame-space route **verified at min principal cosine 1.000000**, not asserted. | ACCEPTED | (this commit) |
 | 100 | **ACCEPTED. 100a running (10343261)** — the mechanical reading is right: -1.2753 is SPURIOUS output, not missing. First systems mixed: 1j8e_A **+0.3421 -> +0.3759 (+0.0338)**, 1fd3_A -0.0025; 9.5-15.3% of output energy ANM-orthogonal. **100c submitted (10343251)** before 98b/SEM, in the size-independent form, classes from ATLAS's own .pdb (125/125 on disk), refusing on count mismatch rather than reindexing. **100b taken** — the 0.92 ceiling is a PER-SYSTEM pipeline against one shared model; what survives is that the residual is ~92% linearly predictable, so it is not noise and nobody reaches it. **100d recorded**: width past PR~17 is actively harmful; the plateau rule was stopping in about the right place. **100e**: full run **40/40 at z=6.6-16.3**, but median ITS 36.62 ns vs 100 ns = **2.73 relaxation times**, 82% under 5, 100% under 10, 2 systems never relax once — detection safe, **occupancy only ~61% relative error**. | ACCEPTED | (this commit) |
 | 101 | **ACCEPTED, with two corrections.** **101a identity verified beyond the two systems: max \|predicted-measured\| = 8.76e-16** across all overlapping systems — two independent harnesses to machine precision. **Correction 1: projanm is NOT redundant** — 099 carries perp_frac and the orthogonal scores but **not codec_total**, so the absolute total is not in there. **Correction 2 (larger): the 0/123 headline is a DIFFERENT CODEC** — tied_peer_n300 is the ModalCodec tied arm at n_train=300; 099/100a score armf_atlas_dm.Codec at n_train=130. Combining them would be the **ninth one-name-two-things, inside the answer to a question about the eighth**. **Flip count (13 systems): 13/13 lost, 0 flipped**, projection helps 92.3% by median +0.0273 against a median margin of +0.5185 — **5.3% of the margin**. ANM recomputed not transferred, cross-checked at 5.38e-12. **101d** written into the pre-registration: simplex encodes WHICH state, not HOW OFTEN; acceptance is identity/assignment, never occupancy. **101e** enrichment added for every class (10343519). | ACCEPTED | (this commit) |
+| 102 | **ACCEPTED. 102c CONFIRMED within one codec** (29 systems, atlas_dm n_train=130, ANM recomputed): codec WITHIN span **0.2997** vs ANM **1.0000**, deficit **+0.7003** on 100% of systems. **With a PERFECT residual the codec still loses on 25/29 = 86%** (0.5040 vs 0.6912, shortfall +0.1648) — **the orthogonal axis cannot close the peer gap even if won outright**, so SEM and 98b aim at the smaller half. **ANM_total IS par_share (3.4e-12)**: ANM's within-span FVE is 1 BY CONSTRUCTION, so its total is just the share of variance in its span — labelled so a definition is not read as a result. **My own verdict cliff at >0.9 printed the OPPOSITE** at 86%; now proportional. **102b: min(margin - movement) = +0.3370** on 4aqr_D (median +0.4969) — deterministic, far stronger than the rule-of-three 10%. Both withdrawals noted; 61d guard logged as having worked. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1609,3 +1610,47 @@ axis" failure condition, because without it the natural first evaluation is the 
 **101e — added, and you are right that it would otherwise read as concentration.** Every class now
 reports **population share and enrichment**, not just backbone and buried. Side chains being ~60% of
 heavy atoms makes "60% of the residual is side-chain" the null. `10343519` re-running with it.
+
+## 102 — ACCEPTED. 102c survives recomputation and it redirects the work
+
+**102c — confirmed within one codec, and it is the finding you expected.** 29 overlapping systems,
+`armf_atlas_dm.Codec` n_train=130, ANM recomputed rather than transferred:
+
+| | median |
+|---|---|
+| codec WITHIN span | **0.2997** |
+| ANM WITHIN span | **1.0000 (by construction)** |
+| within-span deficit | **+0.7003**, codec behind on **100%** |
+| perfect-residual total | **0.5040** |
+| ANM total | **0.6912** |
+| **still losing with a perfect residual** | **25/29 = 86%** |
+
+**On 86% of systems the ANM-orthogonal axis cannot close the peer gap even if won outright**, median
+shortfall +0.1648. So 099 measures a real and open axis that is **not** the one the peer comparison
+turns on, and SEM and 98b's ANM-basis initialisation are aimed at the smaller half. On the remaining
+14% a perfect residual would overtake ANM — reported, not rounded away.
+
+**One thing your illustrative numbers understate, and it changes the framing:** `ANM_total ≡
+par_share`, verified at **3.4e-12**. ANM's within-span FVE is **1.0000 by construction** — its
+reconstruction *is* the exact projection onto its own basis, so it has no within-span error for the
+same reason it has no orthogonal signal. **ANM's total FVE is just the share of variance lying inside
+a 256-mode elastic-network subspace**, and "the codec loses to ANM" means the codec explains less
+total variance than that share. Reporting ANM as "achieving 1.0000 within span" would be reading a
+definition as a result, so it is labelled.
+
+**A defect of mine, caught by the sign of my own verdict.** The branch threshold was `>0.9`, so at 86%
+it fell through and printed *"the orthogonal axis is live for the peer comparison"* — the opposite of
+what the numbers say. An arbitrary cliff turned a confirmation into a refutation. Now proportional to
+the measured fraction.
+
+**102b — you are right that the count is weak, and the deterministic number is much stronger.** 0 in
+29 gives a 95% upper bound of 3/29 ≈ 10% by the rule of three. **min(margin − movement) = +0.3370**
+on `4aqr_D`, median +0.4969. A flip needs that below zero; the nearest system is **0.3370 away**.
+
+**Third — both withdrawals noted, and I am not re-litigating either.** For the record, the one that
+matters going forward is the codec split: nothing about the tied arm may be said from these numbers,
+and re-running 099 against `tied_peer_n300`'s checkpoint is queued behind 102c as you suggest.
+
+**Fourth — recorded.** `armf_submit.sh` refusing the 100c resubmission while the cancelled job drained,
+and requiring `ARMF_FORCE=1`, is **61d firing correctly on a deliberate second chain** — logged as a
+guard that worked, not only as an obstacle.

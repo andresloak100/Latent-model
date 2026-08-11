@@ -6364,3 +6364,66 @@ same question about the tied arm requires re-running 099 against that checkpoint
 **ANM's total FVE is model-independent and was recomputed rather than transferred**, then
 cross-checked against `tied_peer_n300`: **max |diff| = 5.38e-12**, so the transfer is validated rather
 than assumed.
+
+---
+
+## ⬛ 102c: the deficit is INSIDE ANM's span, so the orthogonal axis cannot close the peer gap
+
+FVE splits exactly across the ANM boundary, `FVE_total = par·FVE_par + perp·FVE_perp` with
+`par + perp = 1`, so `FVE_par = (FVE_total − perp·FVE_perp)/par`. Computed **within one codec** —
+`armf_atlas_dm.Codec`, n_train=130, DM=256 — with ANM totals recomputed rather than transferred.
+**29 systems** where the two sweeps overlap; both still in flight.
+
+| quantity | median | IQR |
+|---|---|---|
+| perp share of variance | 0.3088 | [0.1876, 0.4054] |
+| ANM total | 0.6912 | [0.5946, 0.8124] |
+| codec total | 0.1800 | [0.0840, 0.2616] |
+| **codec WITHIN span** | **0.2997** | [0.1731, 0.3923] |
+| ANM WITHIN span | **1.0000 — by construction** | — |
+
+**A tautology that must not be read as a result: `ANM_total ≡ par_share`**, verified at
+**max |diff| = 3.4e-12**. ANM's reconstruction *is* the exact projection onto its own basis, so it
+reproduces the spanned component with no error — `FVE_par(ANM) = 1` for the same reason
+`FVE_perp(ANM) = 0`. **ANM's total FVE is simply the share of variance lying inside a 256-mode
+elastic-network subspace.** "The codec loses to ANM" therefore means "the codec explains less total
+variance than the fraction of motion that happens to lie in that subspace."
+
+**The within-span deficit is +0.7003 and the codec is behind on 100% of systems.**
+
+### The bound: give the codec a *perfect* residual
+
+`FVE_total(perfect residual) = par·FVE_par(codec) + perp·1`. No model can exceed `FVE_perp = 1`, so
+this is a bound, not an estimate:
+
+| | median |
+|---|---|
+| perfect-residual total | **0.5040** |
+| ANM total | **0.6912** |
+| **systems still losing** | **25/29 = 86%** |
+| median shortfall | **+0.1648** |
+
+**On 86% of systems the ANM-orthogonal axis cannot close the peer gap even if won outright.** 102c's
+hypothesis survives recomputation within one codec. 099 measures a real and open axis — the residual
+is ~92% linearly predictable and nobody reaches it — but **it is not the axis the peer comparison
+turns on**, and both SEM and 98b's ANM-basis initialisation are aimed at the smaller half of the
+problem. On the remaining **14%** a perfect residual would overtake ANM, so the axis is not closed
+everywhere; reported rather than rounded away.
+
+**A defect of mine in the reporting, caught by the sign of the verdict.** The branch threshold was
+`>0.9`, so at 86% it fell through and printed *"the orthogonal axis is live"* — the opposite of what
+the numbers say. A cliff at an arbitrary threshold turned a confirmation into a refutation. The
+verdict is now proportional to the measured fraction.
+
+## 102b: the deterministic version of the flip question
+
+0 flips in 29 puts the 95% upper bound on the flip rate at 3/29 ≈ 10% by the rule of three, so **the
+count is weak evidence**. The mechanism is not:
+
+| | value |
+|---|---|
+| **min(margin − movement)** | **+0.3370** (on `4aqr_D`) |
+| median | +0.4969 |
+
+A flip needs `margin − movement < 0`. **The nearest system is 0.3370 away** — deterministic rather
+than statistical, and a far stronger statement than the rule-of-three bound.
