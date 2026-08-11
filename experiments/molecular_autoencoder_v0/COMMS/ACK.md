@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 083
+last_acted: 084
 ```
 
 | item | restatement | status | commit |
@@ -104,6 +104,7 @@ last_acted: 083
 | 081 | **ACCEPTED. 81a DONE and it PASSES** — implemented before the queued job ran, so no DDPM number was read without it. Band width per metric and reference coupling print before any arm; OU is read first as a NEGATIVE CONTROL. Measured on 2cndA01 at both lags: **OU lands OUTSIDE on xcorr and amp -> the test HAS power** on the metrics carrying the claim. xcorr_r=0.2483, amp_r=0.1681, so the Gaussian-task branch does not fire. Persisted as a POWER_CHECK row so no table can be read without it. **81b** scope recorded before the numbers (1-2 ns only; large-step claim untested; 20 us needed for tau=100; two points, no slope). **81c** both continuous (500 ns) and aggregate (2.5 us) now on the line, with continuous governing lag reach — 7th one-name-two-things. **81d** reworded to "more data at a fixed step budget"; separating experiment named, result not overturned. **81e** already correct (320 K only), now documented. | ACCEPTED | (this commit) |
 | 082 | **ACCEPTED. 82a DONE** — power check was already per (domain,tau); the reading rule now lives in `armf_propagator_report.py` so it applies to partial files. **Relevance bound registered in advance: real coupling <=> xcorr_r >= max(0.05, band width)**; POWERED requires BOTH coupling and OU failing. Powered/unpowered never pooled. **82b** phrasing corrected to "above the zero-information bound"; PCA at matched 6 bits running. **82c DONE and gating** — `positive_control()` resolves 4ued_B -> Q13541 (38/38) and raises SystemExit on failure, so a zero overlap is provable absence. Size-floor sweep found one more instance, **latent not active**: smallest real CIF is 27,193 bytes. | ACCEPTED | (this commit) |
 | 083 | **ACCEPTED. 83a DONE** — `armf_propagator.py` has ZERO references to cuda/.to(/device; it never opened the GPU it was queueing for. Moved to `main-cpu`, no gres, 4 threads, 16G (MaxRSS 1.64 GB vs a 96 GB ask). **Started within a minute; 9/28 domains at 12 min**, against a 2026-08-19 estimate on GPU. **83c swept**: L1 (unpin) and L2 (96G->88G) move nothing; **L3 is closed by POLICY not inheritance** — main-partition QOS caps at mem=48G and atlas_dm2's measured MaxRSS is 87.6 GB, so `long` is required and L2/L3 interlock. 083's fallback holds: the answer is 83a alone. Also measured: 32 CPUs is WORSE than 4, and main-cpu beats long-cpu by ~13 h. | ACCEPTED | (this commit) |
+| 084 | **ACCEPTED — and 84b/84c REVERSE 82b's headline.** Measured: codec holds 1.031 latent floats/atom = **6.18 bits/atom** vs PCA-256's **3.84** — 1.6x more rate in a table labelled matched; matching needs **412 components**, and rank forced the PCA fit onto the train split. With reverse water-filling at matched bits/atom over the full rank, **PCA reaches 1.7435 bits/dim / 19.04 dB against the codec's 2.0588 / 16.82 — the codec LOSES by 0.315 bits/dim and 2.2 dB.** 82b's +1.195 and "the learned part buys the bits" are both RETRACTED (rate mismatch 0.40 + allocation 0.89 = 1.29 > 1.195). Made the sigma protocol identical on both sides before retracting; unchanged. Correction to 84c's framing: water-filling at the same k is slightly WORSE than flat — the gain is extending the basis to 1117 and zeroing 229. PCA sits near its rank cap, so the gap is a lower bound on PCA. **84a done on all 28 domains**: divergence reported as an outcome (24% at tau=1, **41% at tau=2**, worsening with lag); arms compared on a common cell set; whole vector — OU 3.0/7 vs DDPM 2.0/7, DDPM ahead on std/xcorr/amp, behind on js/kurt/iat/trans. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1070,3 +1071,48 @@ because it removed the propagator from the contest entirely.
 **One measurement worth keeping:** asking for **32 CPUs is worse than 4** (2026-08-12 vs
 2026-08-11 on `long-cpu`), so the thread count 83a measured is also the right ask; and `main-cpu`
 beats `long-cpu` by ~13 h. Over-asking for cores is a scheduling cost, not free headroom.
+
+## 084 — ACCEPTED. 84b/84c reverse 82b's headline: at matched rate, PCA beats the codec
+
+**84b — correct, and the arithmetic lands on 412 not 256.** Measured: the codec holds **1.031 latent
+floats/atom**, so at 6 bits/scalar it spends **6.18 bits/atom** against PCA-256's **3.84** over 400
+atoms — 1.6× more rate in a table labelled matched. "Matched" meant matched bits per *coefficient*,
+and the two methods carry different coefficient counts per atom. PCA also could not have reached
+matched rate from 379 val structures, since rank is capped by the fit sample count; it is now fitted
+on **train** (the codec's own training split, so like-for-like rather than a handicap) and scored on
+val.
+
+**84c — correct, and it is the larger of the two.** Reverse water-filling implemented,
+`b_i = max(0, ½·log₂(v_i/θ))`, at a total budget matched in bits/atom. The flat row is kept and
+labelled.
+
+| scheme | k | bits/atom | bits/dim | SNR dB |
+|---|---|---|---|---|
+| 82b: flat 6 bits, global range | 256 | 3.84 | 3.0285 | 11.02 |
+| 84b: flat, per-component range | 412 | 6.18 | 2.6304 | 17.06 |
+| **84c: water-filling, full rank** | 1117 | **6.18** | **1.7435** | **19.04** |
+| **CODEC** | — | **6.18** | **2.0588** | **16.82** |
+
+**The codec loses by 0.315 bits/dim and 2.2 dB.** 82b's "+1.195 bits/dim" is **retracted**, and so is
+the conclusion it carried — "the learned part is what buys the bits". Decomposed: rate mismatch was
+worth 0.40 bits/dim, allocation 0.89, together 1.29, which more than covers the 1.195 claimed. I also
+made the σ protocol identical on both sides (fitted on train, scored on all of val) before retracting,
+because a retraction resting on an estimator asymmetry would be the same defect facing the other way;
+the result was unchanged, 2.0566 → 2.0588.
+
+**One correction to how 84c should be stated:** water-filling at the *same* k=412 is slightly **worse**
+than flat (2.7502 vs 2.6304). The gain comes from extending the basis to 1,117 components and having
+water-filling zero out 229 — so it is "more components with variance-proportional bits", not
+"water-filling is better". And PCA sits near its rank cap, so the gap is a **lower bound on PCA**.
+
+Taken: PCA is a linear *internal* reference, not the peer. ANM is the peer and 5b is untouched.
+
+**84a — done, on the full 28 domains.** Divergence is reported as an outcome of the arm: **24% of
+cells at τ=1 and 41% at τ=2** for DDPM-absolute — and it worsens with lag, which is the direction that
+matters for a model whose purpose is larger steps. Arms are compared on a **common cell set** (the
+domains where every arm produced a readable cell), so OU is no longer scored on cells the DDPM blew up
+on. The whole vector, τ=1, n=11: **OU agrees 3.0/7, DDPM-absolute 2.0/7**; DDPM ahead on
+`std`/`xcorr`/`amp`, behind on `js`/`kurt`/`iat`/`trans`. The coupling win is real and is the first
+thing here a learned model does that the physics baseline structurally cannot — OU's 0/11 on both is
+by construction — but it is bought at the cost of agreement everywhere else, and reporting only those
+two columns would be choosing the scoreboard after seeing it.

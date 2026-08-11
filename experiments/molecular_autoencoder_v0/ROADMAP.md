@@ -4057,14 +4057,71 @@ at a rank that approaches the codec's rate:
 | CENTROID-only (do-nothing bound) | 4.8996 | 7.223 Å | 0 |
 | first-structure reuse | 5.3181 | 9.653 Å | — |
 
-**The codec beats the best matched-rate PCA by 1.195 bits/dim, and PCA does not close the gap with
-more rate** — it saturates at ~3.26 from k=64 onward, because the 6-bit uniform quantiser's step
-widens as the coefficient range grows. So the learned part *is* what buys the bits, which is exactly
-what 82b said the centroid bound could not establish.
+**~~The codec beats the best matched-rate PCA by 1.195 bits/dim, and PCA does not close the gap with
+more rate~~ — RETRACTED, see 84b/84c below.** Neither half of that sentence survived: the comparison
+was not rate-matched (the codec held 1.6× more rate), and the saturation was the bit allocation
+rather than PCA. Corrected, **PCA wins**. The claim that "the learned part is what buys the bits" is
+withdrawn with it.
 
 **The per-element prior settles a second question:** 4.8986 against the centroid's 4.8996 — knowing
 the chemical element buys **0.001 bits/dim**. The codec's gain is "knows this structure", not "knows
 chemistry".
+
+### ⬛ 84b/84c CORRECTED: at genuinely matched bits/atom with proper allocation, **PCA beats the codec**
+
+Two defects in the comparison above, both of which flattered the codec, and together they more than
+account for the advantage it appeared to have.
+
+**84b — "matched rate" meant matched bits per COEFFICIENT, not per atom.** Both sides were quantised
+to 6 bits per coefficient and that was called matched. But the two methods carry different numbers of
+coefficients per atom: measured, the codec holds **1.031 latent floats per atom**, so at 6 bits/scalar
+it spends **6.18 bits/atom**, while PCA-256 over 400 atoms spends 1536/400 = **3.84**. The codec had
+**1.6× more rate in a table labelled matched-rate**, on the axis 66c and 071 spent four items
+establishing as the honest one. Matching requires **412 components**, not 256. Eighth instance of one
+name, two things, and this one sat in the headline.
+
+*Why 82b could not have reached matched rate even in principle:* PCA rank is capped by the number of
+structures it is fitted on, and 379 val structures cannot support 412 components. PCA is therefore
+fitted on the **train split**, which is also the fairer control — the codec was trained on train, so a
+linear reference fitted on train and scored on val is like-for-like, not a handicap.
+
+**84c — flat six bits on every component is a known-suboptimal allocation.** The eigenvalue spectrum
+spans orders of magnitude; rate–distortion theory allocates by reverse water-filling,
+`b_i = max(0, ½·log₂(v_i/θ))`, so components below the water level get **zero** bits instead of six.
+Under a flat budget each extra low-variance component costs 6 bits and buys almost nothing — which is
+exactly the saturation measured at k=64→256 and wrongly attributed to PCA.
+
+**Both sides scored on the same first 400 atoms, with the same σ protocol** (σ fitted on the train
+structures, scored on the full val set). That removes 82b's truncation caveat rather than flagging
+it, and it is the *stricter* setting for the codec, since train error is smaller so the fitted σ is
+smaller.
+
+| scheme | k | bits/atom | bits/dim | SNR dB | nonzero |
+|---|---|---|---|---|---|
+| 82b: flat 6 bits, global range | 64 | 0.96 | 3.1222 | 10.40 | 64 |
+| 82b: flat 6 bits, global range | 256 | 3.84 | 3.0285 | 11.02 | 256 |
+| 84b: flat 6 bits, per-component range | 412 | **6.18** | 2.6304 | 17.06 | 412 |
+| 84c: water-filling, k capped at 412 | 412 | **6.18** | 2.7502 | 17.27 | 412 |
+| **84c: water-filling, full rank** | 1117 | **6.18** | **1.7435** | **19.04** | 888 |
+| **CODEC** | — | **6.18** | **2.0588** | **16.82** | — |
+
+**At matched rate with a proper allocation, PCA reaches 1.7435 bits/dim and 19.04 dB against the
+codec's 2.0588 and 16.82 dB. The codec loses by 0.315 bits/dim and 2.2 dB.**
+
+**Where the phantom 1.195 came from**, decomposed: rate mismatch was worth 0.40 bits/dim
+(3.0285 → 2.6304 on going from 3.84 to 6.18 bits/atom) and allocation was worth 0.89
+(2.6304 → 1.7435). Together 1.29, which more than covers the 1.195 that was claimed.
+
+**One detail that matters for stating this correctly:** water-filling at the *same* k=412 is slightly
+**worse** than flat (2.7502 vs 2.6304). The gain does not come from water-filling per se — it comes
+from letting the basis extend to 1,117 components and having water-filling zero out 229 of them. The
+right statement is "more components, with bits allocated by variance", not "water-filling is better".
+
+**Bounds on the retraction.** PCA at k=1117 is near its rank cap (1,118 fit structures), so a larger
+fit set could push it further — the gap is a lower bound on PCA, not an upper one. And PCA is a
+**linear internal reference, not the peer**: ANM is the peer, and 5b's "no surviving peer-comparison
+win" is untouched. What is withdrawn is narrower and was the only favourable comparator result on
+this line — that the learned part is what buys the bits. It is not.
 
 **Three caveats, none of which the numbers state on their own.** (1) PCA is fitted on the first 400
 atoms of the 347 structures that have ≥400, while the codec is scored on all atoms of all 758 — a
@@ -5755,3 +5812,98 @@ in would be Family F, a comparator computed on different data, and it would wide
 where 81a needs it tight. Temperature as a *conditioning variable* is a different and legitimate
 design that would use all 25 trajectories — recorded as an option, not to be attempted before 81a
 reports on every domain.
+
+---
+
+## ⬛ Propagator, all 28 mdCATH domains: the DDPM reaches coupling OU cannot, and loses everywhere else
+
+`10336089`, `main-cpu`, **40 minutes** — the job that had spent nine days queued for a GPU it never
+opened. Read through `armf_propagator_report.py`, which never pools powered with unpowered cells.
+
+**Coverage first, because it bounds everything below.** Only **17 of 28 domains** produce an
+evaluable cell at either reachable lag; the other 11 fail `H_use < MIN_H` — their trajectories are
+too short even at τ=1. So the sweep covers **61% of mdCATH**, and that is before any model question.
+
+**The power check passes everywhere it was measured** (82a):
+
+| τ | cells | coupled | OU fails | POWERED | Gaussian branch |
+|---|---|---|---|---|---|
+| 1 | 17 | 17 | 17 | **17** | 0 |
+| 2 | 17 | 17 | 17 | **17** | 0 |
+
+Every evaluable domain has reference coupling above the pre-registered bound *and* OU fails on it, so
+the negative control is working on all of them and no domain falls into the pre-registered
+"Gaussian/single-basin, no learned propagator needed" branch.
+
+**Divergence is an outcome of the arm, not missing data** (84a). A practitioner running this model
+gets, per cell:
+
+| τ | DDPM-absolute | DDPM-delta |
+|---|---|---|
+| 1 | **24%** diverged | 24% |
+| 2 | **41%** diverged | 35% |
+
+`cg ≥ 1e3` means the one-step map is diverged, not weakly conditioned. **It gets worse with lag**,
+which is the direction that matters for a model whose purpose is larger steps.
+
+**On a common cell set — the same domains for every arm** (84a), τ=1, n=11 of 17:
+
+| arm | agree | std | js | kurt | xcorr | amp | iat | trans |
+|---|---|---|---|---|---|---|---|---|
+| **OU** | **3.0/7** | 5 | 4 | 9 | **0** | **0** | 1 | 11 |
+| DDPM-absolute | 2.0/7 | 7 | 1 | 4 | **3** | **6** | 0 | 2 |
+| DDPM-delta | 1.0/7 | 4 | 0 | 3 | 2 | 4 | 1 | 5 |
+
+τ=2, n=9 of 17, is the same shape: OU 3.0/7, DDPM-absolute 2.0/7, DDPM ahead on `std`/`xcorr`/`amp`.
+
+**The whole vector, not the two columns where the learned model wins.** The DDPM reaches coupling OU
+structurally cannot — `xcorr` 3/11 and `amp` 6/11 against OU's 0/11 and 0/11, and OU's zeros are *by
+construction*, since it is independent per mode in the ANM basis. **That is the first thing in this
+project a learned model does that the physics baseline cannot.** It is also the whole of the good
+news: the DDPM agrees on **fewer metrics overall** (2.0/7 vs 3.0/7), is behind on `js`, `kurt`, `iat`
+and `trans`, and diverges on a quarter to two-fifths of cells. Reporting `xcorr`/`amp` alone would be
+choosing the scoreboard after seeing it.
+
+**Scope, unchanged from 81b:** this bounds 1–2 ns behaviour on 61% of mdCATH. The large-step claim
+that motivates the direction is untested and needs 20 µs of continuous trajectory per replica.
+
+---
+
+## ⬛ 72b: the AFDB model is not the ensemble's centre — it sits outside the ensemble entirely
+
+`10335852`, CPU, 44 minutes, 95 of 125 held-out systems resolved end to end.
+
+**82c's positive control gated it**: `4ued_B → Q13541`, 38/38 residues, printed before system 1 of
+125 — so the counts below are measurements, not the silence of a broken join.
+
+**Guards.** Matched residues per system: median 208, **fraction of CA matched = 1.00**. Overlap
+guard: length median **208 (with AFDB) vs 208 (all held-out), KS p = 1.000 — not a biased slice**.
+Zero systems flagged low-spread, so nothing was excluded on that ground.
+
+**The hypothesis was that AFDB models are mode-seeking centre estimates. They are not — and the
+result runs the other way.**
+
+| | value |
+|---|---|
+| distance-to-mean percentile, median | **100.0** |
+| mean | 79.2 |
+| IQR | [62.4, 100.0] |
+| systems below their frames' 25th percentile | 11.6% (11/95) |
+
+A draw from the ensemble sits at 50. A centre estimate sits below 50. **The median AFDB model sits at
+100 — further from the MD mean than every single frame of the trajectory.** Per-mode centrality
+confirms it is not a one-dimensional artefact: medians of 72.6, 83.8, 79.3, 81.6, 76.0, 74.2, 76.8,
+79.5, 92.4, 83.2 across the top ten fluctuation modes, which together carry 76% of the variance.
+
+**What this does and does not license.** It refutes "AFDB models are estimates of the ensemble
+centre" — 72b's stated concern — but it does **not** upgrade them to typical draws. Sitting outside
+the sampled region on every mode means the model is neither the mean nor a thermally populated
+conformation: for these 95 systems it is a conformation the 100 ns trajectory does not visit. For the
+pretraining question that is *worse* than 72b feared, not better, because the corpus then teaches
+neither the mean structure manifold nor the fluctuation directions.
+
+**The honest caveat, and it is large.** ATLAS is 100 ns per replica and this project has already
+measured that its replicas do not decorrelate (between/within RMSD ratio 1.18, n_eff 1–7%). A
+trajectory that has not explored its own basin will place *any*external structure at percentile 100, so
+this measures "outside what 100 ns of MD sampled", which is a weaker statement than "outside the
+Boltzmann ensemble". The verdict is recorded with that bound on its face.

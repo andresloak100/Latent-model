@@ -83,27 +83,59 @@ if __name__ == "__main__":
           f"at that\n  lag for that domain and NO LEARNED PROPAGATOR IS NEEDED there. A result about "
           f"the system,\n  not a defect in the test.", flush=True)
 
-    print(f"\n=== ARMS, SPLIT BY POWER, NEVER POOLED (82a.3) ===")
+    print(f"\n=== DIVERGENCE IS AN OUTCOME OF THE ARM, NOT MISSING DATA (84a) ===")
+    # A practitioner running this model gets divergence at this rate. Averaging it away is the one
+    # thing the exclusion must not do, so it is reported as a rate BEFORE any table that excludes it.
     for t in taus:
-        for model in ("OU", "DDPM-absolute", "DDPM-delta"):
-            for lab, want in (("POWERED  ", True), ("unpowered", False)):
-                sel = [r for r in rows if r.get("model") == model and r.get("tau") == t
-                       and ((r["dom"] in powered[t]) == want)]
-                if not sel:
-                    continue
-                div = sum(1 for r in sel if r.get("cg_diverged"))
-                use = [r for r in sel if not r.get("cg_diverged")]
-                if not use:
-                    print(f"  tau={t} {model:<14} {lab} n={len(sel):>3}  ALL {div} DIVERGED "
-                          f"(cg>=1e3) -- no readable cell", flush=True)
-                    continue
+        for model in ("DDPM-absolute", "DDPM-delta"):
+            sel = [r for r in rows if r.get("model") == model and r.get("tau") == t]
+            if not sel: continue
+            div = sum(1 for r in sel if r.get("cg_diverged"))
+            print(f"  tau={t} {model:<14} DIVERGED {div}/{len(sel)} = {100*div/len(sel):.0f}% "
+                  f"of cells (cg>=1e3, the one-step map is diverged)", flush=True)
+
+    print(f"\n=== ARMS, SPLIT BY POWER, ON A COMMON CELL SET, NEVER POOLED (82a.3 + 84a) ===")
+    for t in taus:
+        for lab, want in (("POWERED  ", True), ("unpowered", False)):
+            group = {m: [r for r in rows if r.get("model") == m and r.get("tau") == t
+                         and ((r["dom"] in powered[t]) == want)]
+                     for m in ("OU", "DDPM-absolute", "DDPM-delta")}
+            if not any(group.values()):
+                continue
+            # 84a. THE COMPARISON MUST BE ON THE SAME DOMAINS. Scoring OU on all cells while the
+            # DDPM is scored only on the cells it did not blow up on is Family F by construction,
+            # and Family A on top, because the excluded cells are exactly where the arm did worst.
+            # The common set is the domains where EVERY arm produced a readable cell.
+            ok = {m: {r["dom"] for r in v if not r.get("cg_diverged")} for m, v in group.items() if v}
+            common = set.intersection(*ok.values()) if ok else set()
+            allsel = set.union(*[{r["dom"] for r in v} for v in group.values() if v]) if group else set()
+            print(f"  tau={t} {lab}  common cell set n={len(common)} of {len(allsel)} domains "
+                  f"({len(allsel)-len(common)} dropped: an arm diverged there)", flush=True)
+            for m, v in group.items():
+                use = [r for r in v if r["dom"] in common]
+                if not use: continue
                 ag = np.array([r["agree"] for r in use])
                 per = {k: sum(1 for r in use if r["metrics"][k]["inside"]) for k in METRICS}
-                extra = f" (+{div} diverged, excluded)" if div else ""
-                print(f"  tau={t} {model:<14} {lab} n={len(use):>3}{extra}"
-                      f"  agree median {np.median(ag):.1f}/7", flush=True)
-                print(f"        inside: " + "  ".join(f"{k} {per[k]}/{len(use)}" for k in METRICS),
-                      flush=True)
+                print(f"    {m:<14} n={len(use):>3}  agree median {np.median(ag):.1f}/7  "
+                      f"mean {ag.mean():.2f}", flush=True)
+                print(f"      " + "  ".join(f"{k} {per[k]}/{len(use)}" for k in METRICS), flush=True)
+            # THE WHOLE VECTOR, not the two columns where the learned model wins. Choosing the
+            # metrics after seeing them is choosing the scoreboard after the game.
+            if common and group["OU"] and group["DDPM-absolute"]:
+                ou = [r for r in group["OU"] if r["dom"] in common]
+                dd = [r for r in group["DDPM-absolute"] if r["dom"] in common]
+                if ou and dd:
+                    o_ag = np.median([r["agree"] for r in ou])
+                    d_ag = np.median([r["agree"] for r in dd])
+                    cw = [k for k in METRICS
+                          if sum(r["metrics"][k]["inside"] for r in dd) >
+                             sum(r["metrics"][k]["inside"] for r in ou)]
+                    lw = [k for k in METRICS
+                          if sum(r["metrics"][k]["inside"] for r in dd) <
+                             sum(r["metrics"][k]["inside"] for r in ou)]
+                    print(f"    -> on the SAME {len(common)} domains: OU agrees {o_ag:.1f}/7, "
+                          f"DDPM-absolute {d_ag:.1f}/7. DDPM ahead on {cw or 'nothing'}, "
+                          f"behind on {lw or 'nothing'}.", flush=True)
         print()
 
     if not any(powered.values()):

@@ -329,6 +329,9 @@ if __name__ == "__main__":
     hw = 1.96 * sd / math.sqrt(len(pd)) if len(pd) > 1 else float("nan")
     print(f"\n  VERDICT on 'the AFDB model is a typical frame' (percentile == 50):")
     print(f"    estimate {est:+.1f} percentile points, 95% CI +/-{hw:.1f}, n={len(pd)}")
-    print("    " + null_verdict(est, hw, 10.0, "departure from a typical frame").replace("\n", "\n    "),
+    verdict, ratio, (lo, hi) = null_verdict(est, hw, 10.0, "departure from a typical frame")
+    print(f"    {verdict}  CI [{lo:+.1f}, {hi:+.1f}] percentile points, |est|/halfwidth = {ratio:.1f}",
           flush=True)
+    print(f"    relevance bound 10 points: a model within 10 percentile points of 50 would be "
+          f"indistinguishable\n    from a typical frame for this purpose.", flush=True)
     json.dump(res, open(RES, "w"))
