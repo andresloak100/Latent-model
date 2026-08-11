@@ -18,6 +18,16 @@ PERFECT ANM-orthogonal residual still loses on 86%. The learned basis is not the
 differentiator this project can still own is the LEARNED GENERATOR, so the basis is handed to physics
 and the generator is what gets trained.
 
+CORPUS: ATLAS, not mdCATH, and the reason is measured rather than preferred. 104's feasibility check
+chose mdCATH under a T=16 budget. 105 requires T >= MIN_H = 200 for the statistics to mean anything,
+and at T=256 the disjoint-segment budget inverts:
+
+    mdCATH  T=16 -> 4,340 segments      T=256 ->   140   (1 window per 500-frame replica)
+    ATLAS   T=16 -> 28,080 segments     T=256 -> 1,620
+
+mdCATH's 500-frame replicas yield ONE disjoint window each at T=256, so the corpus that was abundant
+at T=16 is exhausted at the length the estimator requires.
+
 ANM specifically, not tICA: it is zero-shot from the reference structure, so the basis costs nothing
 on a protein never seen, and it is the peer the dynamics line has been scored against all along.
 Coefficients are whitened by TRAIN statistics, so mode k means "the k-th slowest ANM mode" in
@@ -29,9 +39,11 @@ buy anything over generating one step at a time? The one-step DDPM propagator is
 reaching cross-mode coupling OU structurally cannot, at the cost of agreement elsewhere and 24-41%
 divergence. Joint generation is scored against the SAME acceptance test so the two are comparable.
 
-THE ACCEPTANCE TEST IS IMPORTED, NOT REBUILT. armf_propagator.stats_of / band / consistent /
-ref_windows carry 77a's matched-length matched-spacing discipline and 81a's power check. A second
-implementation of these would be the tenth "one name, two things" in a project that has caught nine.
+THE SCORING IS IMPORTED, NOT REBUILT: stats_of, band, consistent, METRICS and MIN_H come from
+armf_propagator and carry 77a's matched-length discipline. `ref_windows` is NOT imported -- the
+header used to claim it was, while `segments()` below is a local reimplementation for a different
+data layout. Corrected rather than quietly aligned, because a header that overstates reuse is how a
+second implementation hides.
 
 PRE-REGISTERED READINGS, before any number exists:
   JOINT INSIDE THE BAND WHERE ONE-STEP IS NOT  joint trajectory generation buys something real, and
@@ -53,15 +65,37 @@ sys.path.insert(0, HERE); sys.path.insert(0, ROOT)
 from molae.latent_video import LatentVideoConfig, LatentVideoDiffusion
 from armf_atlas_data import AtlasStore, sysdata
 from armf_anm import modes as anm_modes
-from armf_propagator import stats_of, band, consistent, METRICS
+from armf_propagator import stats_of, band, consistent, METRICS, MIN_H
 import armf_atlas_dm as D
 import armf_io
 
 WR = D.WR
 K = int(os.environ.get("LV_K", "64"))          # ANM modes = R x Dlat
-RGRP = int(os.environ.get("LV_R", "8"))
+# INBOX 104b: THE TOKEN AXIS IS A STATED CHOICE, NOT A SILENT ONE. The mode axis becomes the
+# "spatial" axis: (B, T, R=64, latent_dim=1), one token per ANM mode, which is what 104 specifies.
+# My first run used R=8 x D=8 -- eight consecutive modes bundled per token -- without saying so, and
+# that is a different inductive bias: factorised attention over MODES is not attention over groups of
+# modes, and if one underperforms that is a finding about the token axis rather than about joint
+# generation. LV_R=8 reproduces the bundled variant as a one-variable ablation.
+RGRP = int(os.environ.get("LV_R", "64"))
 DLAT = K // RGRP
-T = int(os.environ.get("LV_T", "32"))          # frames per segment
+# INBOX 105. T=32 WAS UNREADABLE AND THE GUARD DID NOT COME ACROSS WITH THE ESTIMATOR.
+# armf_propagator:290 sets MIN_H = 200, "below this a series cannot carry these statistics at all",
+# and lines 415/424 REFUSE to score below it, writing UNEVALUABLE. This file imported
+# stats_of/band/consistent, set T=32, and scored. The estimator came across; the guard that says
+# when it is meaningless did not.
+#
+# Why it matters here specifically: OU is independent per mode BY CONSTRUCTION so its true xcorr and
+# amp are exactly 0, but the ESTIMATOR floor is ~0.8/sqrt(T) and I reproduced it --
+#   T=32  a1=0.90 -> xcorr 0.3023  amp 0.2265      T=256 a1=0.90 -> 0.1498 / 0.0978
+#   T=32  a1=0.99 -> xcorr 0.4002  amp 0.3407      T=512 a1=0.90 -> 0.1073 / 0.0719
+# Bias still cancels (77a holds); what dies is POWER. consistent() is interval overlap, so below the
+# floor EVERY arm passes including OU, and a good JOINT result would be unreadable too.
+#
+# The floor depends on T and on the modes' own a1, NOT on K -- so trimming modes does not help. My
+# sweep adds one the item did not: at T=256 with a1=0.99 the floor is still 0.3177. So raising T is
+# necessary and not sufficient, and the power check below is BLOCKING rather than advisory.
+T = int(os.environ.get("LV_T", "256"))        # frames per segment; ATLAS gives 2245 starts at 256
 NTRAIN = int(os.environ.get("LV_NTRAIN", "60"))
 NEVAL = int(os.environ.get("LV_NEVAL", "24"))
 STEPS = int(os.environ.get("LV_STEPS", "20000"))
@@ -105,11 +139,23 @@ def prepare(store, have, ids, n):
     return out
 
 
-def segments(C, T, k, rng):
-    """k random contiguous segments of length T, as (k, T, R, Dlat)."""
+def segments(C, T, k, rng, disjoint=False):
+    """k contiguous segments of length T, as (k, T, R, Dlat).
+
+    INBOX 105: with `disjoint`, starts are drawn WITHOUT overlap. Overlapping reference windows share
+    frames, so band()'s range is narrower than independent draws would give -- which moves
+    consistent() STRICTER, the opposite direction to the power loss above. Two biases in opposite
+    directions do not cancel to anything known unless both are measured, so the reference side is
+    drawn disjoint and the realised count is reported rather than assumed.
+    """
     if len(C) <= T: return None
-    s = rng.integers(0, len(C) - T, size=k)
-    return np.stack([C[i:i + T] for i in s]).reshape(k, T, RGRP, DLAT)
+    if disjoint:
+        n = (len(C) - 1) // T
+        if n < 2: return None
+        st = rng.permutation(n)[:min(k, n)] * T
+    else:
+        st = rng.integers(0, len(C) - T, size=k)
+    return np.stack([C[i:i + T] for i in st]).reshape(len(st), T, RGRP, DLAT)
 
 
 def ou_segments(C_tr, C0, T, k, rng):
@@ -184,35 +230,56 @@ if __name__ == "__main__":
     rows = {}
     for i, sysd in enumerate(HO, 1):
         try:
-            refw = segments(sysd["C_ho"], T, KEVAL, rng)
+            if T < MIN_H:
+                print(f"  [{i}/{len(HO)}] {sysd['pdb']}: UNEVALUABLE -- T={T} < MIN_H={MIN_H}; "
+                      f"the estimator cannot carry these statistics at this length", flush=True)
+                continue
+            refw = segments(sysd["C_ho"], T, KEVAL, rng, disjoint=True)
             if refw is None: continue
+            # MATCH n ON BOTH SIDES. 2,501 held-out frames give only (2501-1)//256 = 9 DISJOINT
+            # windows, not the 32 requested, and `consistent()` compares two SPREADS -- an interval
+            # from 9 draws against one from 32 is not the same estimator on both sides, which is the
+            # asymmetry 77a exists to remove. The generated side is therefore drawn at the reference
+            # count, and that count is reported rather than assumed.
+            keval = len(refw)
             pool = sysd["C_ho"]
-            rs = [stats_of(w.reshape(T, K), np.argsort(pool[:len(pool)//2].std(0))[::-1][:2],
-                           np.median(pool[:, np.argsort(pool.std(0))[::-1][:2]], 0), pool)
-                  for w in refw]
+            # ONE computation of the reference statistics. The first of the two was dead -- it built
+            # top2/thr inline, then both were rebuilt and rs recomputed, so the first result was
+            # discarded unused. Removed rather than left as a second definition of the same thing.
             top2 = np.argsort(pool.std(0))[::-1][:2]
             thr = np.median(pool[:, top2], 0)
             rs = [stats_of(w.reshape(T, K), top2, thr, pool) for w in refw]
             with torch.no_grad():
-                gen = mdl.sample((KEVAL, T, RGRP, DLAT), dev, steps=SAMPLE_STEPS).cpu().numpy()
-            ou = ou_segments(sysd["C_tr"], sysd["C_ho"], T, KEVAL, rng)
+                gen = mdl.sample((keval, T, RGRP, DLAT), dev, steps=SAMPLE_STEPS).cpu().numpy()
+            ou = ou_segments(sysd["C_tr"], sysd["C_ho"], T, keval, rng)
             arms = {}
             for name, S in (("OU", ou), ("JOINT-diffusion", gen)):
                 ss = [stats_of(w.reshape(T, K), top2, thr, pool) for w in S]
                 inside = {k: bool(consistent(ss, rs, k)) for k in METRICS}
                 arms[name] = dict(agree=int(sum(inside.values())), inside=inside,
                                   med={k: float(band(ss, k)[0]) for k in METRICS})
+            # INBOX 81a/105: THE POWER CHECK IS BLOCKING. OU is wrong on xcorr and amp BY
+            # CONSTRUCTION, so if it lands INSIDE the band on both, the band cannot reject a model
+            # that is wrong by construction and NOTHING about JOINT may be read from this system --
+            # including a good result.
+            o_in = arms["OU"]["inside"]
+            powered = not (o_in["xcorr"] and o_in["amp"])
+            arms["POWER"] = dict(ou_inside_xcorr=o_in["xcorr"], ou_inside_amp=o_in["amp"],
+                                 powered=powered, n_refw=int(len(refw)),
+                                 band_xcorr=float(band(rs, "xcorr")[2] - band(rs, "xcorr")[1]))
             bm, bs = bond_stats(sysd, gen); rm, rs_ = bond_stats(sysd, refw)
             arms["geometry"] = dict(gen_bond_mean=bm, gen_bond_sd=bs,
                                     ref_bond_mean=rm, ref_bond_sd=rs_)
             rows[sysd["pdb"]] = dict(N=sysd["N"], arms=arms,
                                      ref_med={k: float(band(rs, k)[0]) for k in METRICS})
             j = arms["JOINT-diffusion"]; o = arms["OU"]
-            print(f"  [{i}/{len(HO)}] {sysd['pdb']:10s} N={sysd['N']:>6}  "
+            print(f"  [{i}/{len(HO)}] {sysd['pdb']:10s} N={sysd['N']:>6} "
+                  f"{'POWERED' if powered else 'NO POWER'}  "
                   f"JOINT {j['agree']}/7  OU {o['agree']}/7   "
                   f"xcorr {'IN' if j['inside']['xcorr'] else '--'}/"
                   f"{'IN' if o['inside']['xcorr'] else '--'}  "
-                  f"bond {bm:.2f}A vs ref {rm:.2f}A  ({time.time()-t0:.0f}s)", flush=True)
+                  f"bond {bm:.2f}A vs ref {rm:.2f}A  n={keval}  ({time.time()-t0:.0f}s)",
+                  flush=True)
         except Exception as e:
             print(f"  [{i}/{len(HO)}] {sysd['pdb']}: FAIL {type(e).__name__}: {e}", flush=True)
         armf_io.dump_rows(RES, rows, n_expected=len(HO), complete=(i == len(HO)), n_failed=0,
@@ -222,9 +289,17 @@ if __name__ == "__main__":
         raise SystemExit("\n  NO system scored.")
     print(f"\n=== RESULT ({len(rows)} held-out systems) ===")
     print(f"  {'arm':>18}{'median agree':>14}" + "".join(f"{k:>9}" for k in METRICS))
+    pw = {k: v for k, v in rows.items() if v["arms"]["POWER"]["powered"]}
+    print(f"  POWERED systems: {len(pw)}/{len(rows)}  "
+          f"(OU outside the band on xcorr AND amp -- 81a)")
+    if not pw:
+        print(f"  -> NO SYSTEM IS POWERED. Nothing about JOINT is readable from this run, including\n"
+              f"     a good result. The honest output is the band width, not a table.")
     for arm in ("OU", "JOINT-diffusion"):
-        ag = np.array([r["arms"][arm]["agree"] for r in rows.values()])
-        cells = "".join(f"{100*np.mean([r['arms'][arm]['inside'][k] for r in rows.values()]):>8.0f}%"
+        src = pw or {}
+        if not src: break
+        ag = np.array([r["arms"][arm]["agree"] for r in src.values()])
+        cells = "".join(f"{100*np.mean([r['arms'][arm]['inside'][k] for r in src.values()]):>8.0f}%"
                         for k in METRICS)
         print(f"  {arm:>18}{np.median(ag):>14.1f}{cells}")
     print(f"  (percentages are the share of systems whose generated segments land INSIDE the band "

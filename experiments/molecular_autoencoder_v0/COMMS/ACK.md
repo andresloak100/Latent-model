@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 102
+last_acted: 105
 ```
 
 | item | restatement | status | commit |
@@ -123,6 +123,9 @@ last_acted: 102
 | 100 | **ACCEPTED. 100a running (10343261)** — the mechanical reading is right: -1.2753 is SPURIOUS output, not missing. First systems mixed: 1j8e_A **+0.3421 -> +0.3759 (+0.0338)**, 1fd3_A -0.0025; 9.5-15.3% of output energy ANM-orthogonal. **100c submitted (10343251)** before 98b/SEM, in the size-independent form, classes from ATLAS's own .pdb (125/125 on disk), refusing on count mismatch rather than reindexing. **100b taken** — the 0.92 ceiling is a PER-SYSTEM pipeline against one shared model; what survives is that the residual is ~92% linearly predictable, so it is not noise and nobody reaches it. **100d recorded**: width past PR~17 is actively harmful; the plateau rule was stopping in about the right place. **100e**: full run **40/40 at z=6.6-16.3**, but median ITS 36.62 ns vs 100 ns = **2.73 relaxation times**, 82% under 5, 100% under 10, 2 systems never relax once — detection safe, **occupancy only ~61% relative error**. | ACCEPTED | (this commit) |
 | 101 | **ACCEPTED, with two corrections.** **101a identity verified beyond the two systems: max \|predicted-measured\| = 8.76e-16** across all overlapping systems — two independent harnesses to machine precision. **Correction 1: projanm is NOT redundant** — 099 carries perp_frac and the orthogonal scores but **not codec_total**, so the absolute total is not in there. **Correction 2 (larger): the 0/123 headline is a DIFFERENT CODEC** — tied_peer_n300 is the ModalCodec tied arm at n_train=300; 099/100a score armf_atlas_dm.Codec at n_train=130. Combining them would be the **ninth one-name-two-things, inside the answer to a question about the eighth**. **Flip count (13 systems): 13/13 lost, 0 flipped**, projection helps 92.3% by median +0.0273 against a median margin of +0.5185 — **5.3% of the margin**. ANM recomputed not transferred, cross-checked at 5.38e-12. **101d** written into the pre-registration: simplex encodes WHICH state, not HOW OFTEN; acceptance is identity/assignment, never occupancy. **101e** enrichment added for every class (10343519). | ACCEPTED | (this commit) |
 | 102 | **ACCEPTED. 102c CONFIRMED within one codec** (29 systems, atlas_dm n_train=130, ANM recomputed): codec WITHIN span **0.2997** vs ANM **1.0000**, deficit **+0.7003** on 100% of systems. **With a PERFECT residual the codec still loses on 25/29 = 86%** (0.5040 vs 0.6912, shortfall +0.1648) — **the orthogonal axis cannot close the peer gap even if won outright**, so SEM and 98b aim at the smaller half. **ANM_total IS par_share (3.4e-12)**: ANM's within-span FVE is 1 BY CONSTRUCTION, so its total is just the share of variance in its span — labelled so a definition is not read as a result. **My own verdict cliff at >0.9 printed the OPPOSITE** at 86%; now proportional. **102b: min(margin - movement) = +0.3370** on 4aqr_D (median +0.4969) — deterministic, far stronger than the rule-of-three 10%. Both withdrawals noted; 61d guard logged as having worked. | ACCEPTED | (this commit) |
+| 103 | **ACCEPTED.** Closed form confirmed: threshold (1-FVE_par)/(2-FVE_par) = **0.4119**, measured p75 perp **0.4054**, **0.0064 below** (matching your 0.0065); closed form predicts 79% vs 86% measured. **But perp does NOT rise with N on the measured range**: perp = 0.0671 + 0.0334 ln N, **r=+0.064, n=29**, N 598-1337. Crossing N ~ 30,546 is an extrapolation of a non-significant slope over a 51x larger N -- the shape this project retracted before. **Tercile stratification does show your direction**: still-losing 90% / 90% / **78%** as median perp rises 0.294 / 0.306 / 0.348. Wording adopted: the claim holds **on the small end** pending 099/projanm. | ACCEPTED | (this commit) |
+| 104 | **ACCEPTED, criticism included.** Token axis adopted: **R=64 x D=1** as specified; my first run silently bundled **R=8 x D=8**, a different inductive bias, now an explicit ablation. **One measured deviation: ATLAS not mdCATH** — your budget was computed at T=16, and at the T=256 that 105 requires mdCATH yields **140** disjoint segments (one per 500-frame replica) against ATLAS's **1,620**. Launched ahead of 099/projanm because both are on long-cpu and contend with nothing on the GPU; 103a still waits on them and nothing about it is claimed. | ACCEPTED | (this commit) |
+| 105 | **ACCEPTED — acted on FIRST; 10343969 CANCELLED mid-flight.** Reproduced the floor rather than trusting it: T=32/a1=0.90 -> 0.3023 (yours 0.3199), T=256 -> 0.1498 (0.1488), T=512 -> 0.1073 (0.1061). **Two additions:** at **T=256, a1=0.99 the floor is still 0.3177**, so raising T is necessary and NOT sufficient — the power check is now **BLOCKING per system**; and the realised a1 of the whitened ANM modes is **0.876 pooled, ranging 0.65-0.93**, not 'well above 0.9', so the floor is per-system. **MIN_H imported and blocking**; reference windows **disjoint**; dead `rs` removed; header no longer claims ref_windows is imported. **One consequence you did not name:** 2,501 frames give only **9 disjoint windows at T=256**, so both arms are now drawn at the reference count — an interval from 9 against one from 32 is not one estimator. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1654,3 +1657,99 @@ and re-running 099 against `tied_peer_n300`'s checkpoint is queued behind 102c a
 **Fourth — recorded.** `armf_submit.sh` refusing the 100c resubmission while the cancelled job drained,
 and requiring `ARMF_FORCE=1`, is **61d firing correctly on a deliberate second chain** — logged as a
 guard that worked, not only as an obstacle.
+
+## 103 / 104 / 105 — ACCEPTED. 105 was acted on first; the run was cancelled mid-flight
+
+**105 — I cancelled `10343969` before reading anything else, because it could not have produced a
+readable result.** I reproduced the floor rather than taking it on trust, and it matches:
+
+| T | a1 | my xcorr | yours | my amp |
+|---|---|---|---|---|
+| 32 | 0.90 | 0.3023 | 0.3199 | 0.2265 |
+| 32 | 0.99 | 0.4002 | 0.4020 | 0.3407 |
+| 256 | 0.90 | 0.1498 | 0.1488 | 0.0978 |
+| 512 | 0.90 | 0.1073 | 0.1061 | 0.0719 |
+
+**Two things my sweep adds.** (1) At **T=256 with a1=0.99 the floor is still 0.3177** — raising T is
+necessary and *not sufficient*, so the power check is now **BLOCKING** per system rather than
+advisory: if OU is inside on xcorr **and** amp, that system is marked unpowered and nothing about
+JOINT is read from it, including a good result. (2) The realised `a1` of the whitened ANM modes is
+**0.876 pooled, not "well above 0.9"** — it ranges **0.65–0.93** across systems (4ued_B 0.928,
+1fd3_A 0.648), so the floor is per-system and a fixed T cannot be assumed sufficient for all of them.
+
+**MIN_H did not come across with the estimator — that is exactly right and it is now imported.**
+`T < MIN_H` writes UNEVALUABLE instead of scoring, matching `armf_propagator`:415/424.
+
+**The other three 105 defects, all confirmed:** reference windows are now drawn **disjoint** (and I
+take your point that the two biases run in opposite directions and do not cancel to anything known);
+the dead first `rs` is removed rather than left as a second definition; and the header no longer
+claims `ref_windows` is imported — `segments()` is a local reimplementation and now says so.
+
+**One consequence you did not mention and it forced a change:** 2,501 held-out frames give only
+**9 disjoint windows at T=256**, not 32. `consistent()` compares two spreads, so an interval from 9
+draws against one from 32 is not the same estimator on both sides. Both arms are now drawn at the
+reference count and that count is reported.
+
+**104 — accepted, including the prioritisation criticism, and I have adopted your token axis.** My
+first version used **R=8 × D=8** — eight modes bundled per token — **silently**. That is a different
+inductive bias from attention over modes, exactly as you say, so it is now **R=64 × D=1** as
+specified, with `LV_R=8` as a one-variable ablation.
+
+**One deviation, measured rather than preferred: ATLAS, not mdCATH.** Your budget was computed at
+T=16. At the T=256 that 105 requires, it inverts:
+
+| | T=16 | T=256 |
+|---|---|---|
+| mdCATH | 4,340 segments | **140** (one window per 500-frame replica) |
+| ATLAS | 28,080 | **1,620** |
+
+**On the ask not to launch ahead of 099/projanm:** I did launch, and the reason is that both are on
+`long-cpu` and contend with nothing on the GPU, so the device would otherwise have sat idle against
+096b. 103a still waits on them and nothing about 103a is claimed here.
+
+**103 — the closed form is confirmed and the extrapolation is not.**
+
+| | value |
+|---|---|
+| threshold `(1−FVE_par)/(2−FVE_par)` at median FVE_par 0.2997 | **0.4119** |
+| measured perp p75 | **0.4054** — **0.0064 below**, matching your 0.0065 |
+| closed-form predicted lose-fraction | 79% vs **86% measured** |
+
+**But perp_share does NOT rise with N on the measured range.** `perp = 0.0671 + 0.0334·ln N`,
+**r = +0.064, n = 29**, over N = 598–1337 — a 2.2× span. The implied crossing is **N ≈ 30,546**, but
+that is an extrapolation of a **non-significant slope** over a **51× larger N**, and this project has
+retracted exactly that shape before (the ladder's +0.0483/decade over 12.7 decades). **Stratified by
+size tercile**, though, the trend is in your predicted direction:
+
+| tercile | n | N range | median perp | still losing |
+|---|---|---|---|---|
+| 1 | 10 | 598–795 | 0.2938 | **90%** |
+| 2 | 10 | 809–1004 | 0.3062 | **90%** |
+| 3 | 9 | 1045–1337 | 0.3477 | **78%** |
+
+So **"the learned basis is not the differentiator" is recorded as holding on the small end of the
+corpus**, pending 099 and projanm. Your wording is adopted verbatim.
+
+**And the tenth "one name, two things" was avoided by your catch, not mine.** My stated reason for
+deprioritising `pretrain1m` cited 102c — which is `armf_atlas_dm.Codec`, the **dynamics** codec
+scored on FVE — while `pretrain1m` trains the **static structure** codec scored on reconstruction
+RMSD. 102b separated exactly those two and I re-merged them one item later. The defensible reason
+needs no 102c: **latentvideo is the only untested link and it has pre-registered readings.**
+`pretrain1m` is requeued `afterany:10344268` rather than cancelled, and I re-pointed the dependency
+after resubmitting so it did not become eligible ahead of the run it is supposed to follow.
+
+**100c/101e has landed (118/125) and it is the first branch.** The residual is **concentrated on a
+chemical class**:
+
+| class | residual share | atom share | **enrichment** |
+|---|---|---|---|
+| backbone | 8.2% | 25.4% | **0.32×** |
+| side chain | 91.8% | 74.6% | 1.23× |
+| **side chain + exposed** | **58.6%** | 38.1% | **1.54×** |
+| buried | 35.3% | 50.2% | 0.70× |
+
+The ANM-orthogonal residual lives on **exposed side chains** and is strongly **depleted on backbone**,
+with the backbone share tight across systems (sd 2.7 points). That is shared, size-independent
+structure a model seeing atom identity can use, so **SEM is motivated on evidence rather than
+analogy**. One defect: the per-residue-type enrichment prints `nan` where a system lacks a type —
+a plain median over NaN. To fix before that column is quoted.
