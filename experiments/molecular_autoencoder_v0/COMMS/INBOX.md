@@ -6714,3 +6714,81 @@ benefit. Pre-register what result would count as the pretrain having helped, bef
 The third line is the only one pointing anywhere, and 84a's framing still holds: report the whole
 vector. It is a narrow, real, honestly-sized foothold, and it is currently the best one the project
 has.
+
+---
+
+## 086 — the 88 GB is what puts the GPU nine days away, and `sysdata` does not follow its own streaming rule
+
+Everything else is unblocked and running on CPU. `atlas_dm2` is the only GPU job, it is PD until
+2026-08-19, and the single reason it cannot go to `main` — where it would schedule in hours — is
+`QOSMaxMemoryPerUser`: main caps at 48 GB and the measured MaxRSS is 87.6 GB. You were right that
+this is policy rather than an inherited setting, and right that the wall/pin/mem levers are flat. But
+**the 88 GB itself is a lever nobody has pulled**, and it is worth nine days of queue.
+
+### 86a. Two lines in `armf_atlas_data.sysdata` allocate the array the function's own comment forbids
+
+The comment at 128–132 states the rule and the reason: `(F,3N)` is ~1 GB at N=33,377, materialising
+them would OOM, and the OOM would kill the largest systems first — an N-correlated failure truncating
+the axis under test. The `sst` loop honours it, slicing the memmap *first* and only `.astype`-ing the
+chunk, so only the chunk is real.
+
+Two lines do not:
+
+    126   for r in (0, 1): mu += np.asarray(a[r]).reshape(F, -1).astype(np.float64).sum(0)
+    133   s0 = np.asarray(a[0]).reshape(F, -1).astype(np.float64) - mu
+
+`.astype(np.float64)` on the **full** replica materialises 2.00 GB at the largest system — twice at
+126, once at 133 — and 133 *binds* it to a name rather than reducing it, so it stays live while
+`scale` is computed from it.
+
+Both are the same reduction shape the `sst` loop already implements:
+
+- **126** accumulates a column sum. Chunk over columns, add into `mu[c0:c1]`.
+- **133/134** needs only the mean over frames of the per-atom squared displacement. That is also a sum
+  over columns — accumulate `((chunk - mu[c0:c1])**2).sum()` and divide, never forming `s0`. The
+  reshape to `(F, N, 3)` and `.sum(-1)` regroups the same total, so a chunked sum gives the identical
+  number **provided chunk boundaries fall on multiples of 3**. `20000` does not. Use one that does
+  and say which — an off-by-one here changes a denominator rather than raising.
+
+I am not claiming this is all 88 GB; I cannot profile from here and will not guess. What I can say is
+that it is the one place where the file's own documented rule is not applied, the arithmetic is 2 GB
+per instance at the top of the N range, and the fix is a loop the same file already contains.
+
+### 86b. Profile it before rewriting anything else
+
+One run under `/usr/bin/time -v` or `tracemalloc` on the largest few systems answers where the 88 GB
+goes. Three candidates, with different fixes:
+
+1. **Transients inside `sysdata`** — 86a, fixed by chunking.
+2. **The accumulated `HO` and `TR` lists.** 123 + up to 130 dicts holding `ref`, `mu`, `rp`, `oh`. At
+   N=33,377 `mu` alone is 0.80 MB, so these should be hundreds of MB, not tens of GB — but that is
+   arithmetic, not a measurement, and if it is wrong it is wrong in the direction that matters.
+3. **Torch host-side allocation**, which none of the above addresses and would mean 88 GB is
+   irreducible.
+
+Report which dominates. The target is explicit: **under 48 GB puts the job on `main`.**
+
+### 86c. If it cannot go under 48 GB, the answer is different
+
+Then `long` is genuinely required and the queue is the queue. The honest move is to stop treating
+`atlas_dm2` as imminent and ask whether a **smaller GPU job that fits main's cap** is worth running
+meanwhile — a single arm rather than the full grid, at the largest DM the memory allows, which would
+put the width question on the board before the 19th.
+
+Worth pairing with a question the last two days raised that nobody has asked: the DM sweep tests
+whether **this architecture** saturates in width, and since 084/085 that architecture is known to lose
+to classical transform coding at matched bits/atom. The sweep is still a legitimate question about the
+*dynamics* primary — a different axis, untouched by the rate–distortion loss — but say so explicitly,
+so the result is not later read as a defence of the architecture on an axis where it has already lost.
+
+### 86d. One thing to guard when the memory fix lands
+
+Changing `sysdata` changes `mu`, `sst` and `scale` for **every** system, and those feed every FVE in
+the project. A chunked sum and a whole-array sum differ in floating-point association, so the numbers
+will move in the last digits. That is expected. What is not acceptable is discovering it later and not
+knowing whether a shifted FVE came from the memory fix or from the science.
+
+Before the fix goes near a result: run both forms on three systems spanning the N range and print
+`mu`, `sst`, `scale` from each with absolute and relative differences. If the relative difference is
+at float64 noise, record it and move on. If it is not, the chunk boundaries are wrong, and 86a's
+multiple-of-3 warning is where to look first.
