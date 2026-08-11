@@ -6320,3 +6320,47 @@ states exist. The timescale guard, in the same shape as `H/iat_r`:
 its occupancy determined to roughly `1/√2.73 ≈ 61%` relative error, and **two systems never relax
 once**. A simplex prior therefore has something real to encode, and any *quantitative* claim about
 state occupancies from this corpus is unsupported at 100 ns — the continuous figure, per 81c.
+
+---
+
+## ⬛ 101: the ANM projection helps almost everywhere and flips nothing — 5% of the margin
+
+**101a's identity is exact and now verified against an independently written harness.**
+`ΔFVE_total = −FVE⊥ × residual_share`. Checked on every overlapping system rather than the two first
+seen: **max |predicted − measured| = 8.76e-16**, median 2.54e-16. Two harnesses written separately
+agree to machine precision.
+
+**The flip count** (13 systems where both runs overlap; both sweeps still in flight):
+
+| | value |
+|---|---|
+| codec loses to ANM | **13/13** |
+| systems the projection **flips** | **0** |
+| projection helps | 92.3% of systems |
+| median movement | **+0.0273** |
+| median margin to ANM | **+0.5185** |
+| movement / margin | **0.053** |
+
+**Zero flips.** The projection is a real and nearly uniform improvement at zero training cost, using
+only the reference structure — and it is **5% of the median margin**. It moves the codec and does not
+reach ANM on a single system. That is exactly the case 101b named in advance, and it is reported
+plainly rather than as a near-miss.
+
+### Two corrections to 101b, both of which change what is redundant
+
+**`10343261` is not redundant.** 099's rows carry `sst_total`, `sst_perp`, `perp_frac` and the three
+*orthogonal* scores — **not `codec_total`**. The identity gives ΔFVE from 099; the absolute total it
+must be added to is not in there. `projanm` is the only run producing `codec_total` for this
+checkpoint, and the flip count needs both.
+
+**The 0/123 headline is a DIFFERENT CODEC.** It comes from `tied_peer_n300.json` — the **ModalCodec
+tied arm at n_train=300** (ANM median +0.6619, codec +0.1747, codec wins 0.0%). 099 and 100a score
+`L1_n130_dm256_dl256_lr0.0001_s0_z0.pt`, which is `armf_atlas_dm.Codec` at **n_train=130**. Asking
+"how many of the 123 does the projection flip" about the 0/123 codec using 099's FVE⊥ would be **one
+name, two things across two codecs — the ninth instance, inside the answer to a question about the
+eighth.** The flip count above is therefore reported for **the model actually measured**, and the
+same question about the tied arm requires re-running 099 against that checkpoint.
+
+**ANM's total FVE is model-independent and was recomputed rather than transferred**, then
+cross-checked against `tied_peer_n300`: **max |diff| = 5.38e-12**, so the transfer is validated rather
+than assumed.

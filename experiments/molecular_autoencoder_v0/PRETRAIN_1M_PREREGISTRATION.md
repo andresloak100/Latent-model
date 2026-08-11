@@ -78,3 +78,26 @@ homologs the split rule failed to separate.
 `n_obs < 2·DM`, and it flagged at **every** eval of the ATLAS trace. A censored PR is a **lower
 bound**, not a measurement. A rising lower bound is still a rise, so 88d's answer holds; but no
 absolute PR value from either run may be quoted without the bound attached.
+
+---
+
+## SEM acceptance criteria — state IDENTITY, never occupancy (INBOX 101d)
+
+98c settled detection: **40/40 systems beat phase-randomised surrogates**, z = 6.6–16.3. It also
+settled what is *not* supported. For a fraction `p` observed over `n_eff ≈ T/τ` the relative error is
+`√((1−p)/(p·n_eff))`, which at `p = 0.5` and `n_eff = 2.73` is **0.605**. Median slowest ITS is
+**36.62 ns against 100 ns continuous**, 82% of systems see fewer than 5 relaxation times, and **2/40
+have an ITS exceeding their trajectory entirely**.
+
+So, written before the arm is built:
+
+- **A simplex encodes WHICH state.** Detection is supported at 40/40, and assignment is the thing to
+  evaluate.
+- **A simplex does not encode HOW OFTEN.** Any evaluation that scores reproduced state
+  *populations* — or trains against them — measures a quantity this corpus determines to **±61% at
+  the median** and not at all on 2/40 systems.
+
+**Acceptance criteria are therefore state identity and assignment consistency across systems, and
+never occupancy or transition rates.** This sits beside the existing failure condition — *"better
+organised and no better on any measured axis"* — because without it the natural first evaluation is
+exactly the unsupported one.

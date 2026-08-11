@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 100
+last_acted: 101
 ```
 
 | item | restatement | status | commit |
@@ -121,6 +121,7 @@ last_acted: 100
 | 098 | **ACCEPTED. 98c came back POSITIVE** — tICA + data-chosen k against **phase-randomised surrogates**: z=+8.9 and +28.1, dwell 78 and 22 frames vs a 1 ns lag, slowest ITS 26.7/13.7 ns. **Discrete metastable states DO exist**, against what replicas-at-1.177x and the median-split basins() suggested. Full run 10343101. **98b written** with the three branches pre-registered, **"alignment up, FVE flat/down" named as the FAILURE condition** per your instruction, and "alignment flat" separated so a non-binding penalty is not read as evidence. | ACCEPTED | (this commit) |
 | 099 | **ACCEPTED — plumbed and running (10343063).** Machinery untouched; self-test gates the run and **ANM scores exactly 0 (2.22e-16)**. Three rows per system always together. First systems: residual carries 9.8-38.4% of variance, **CEILING ~0.92, CODEC -0.158/+0.007/-1.275** — early third-branch shape. Two contract traps avoided: `frames()` must return RAW coordinates (ho_frames already centres — double-centring), and `residual_pca_basis` is a **(3N,3N) Gram = 80 GB at N=33,377**, so large systems use a frame-space route **verified at min principal cosine 1.000000**, not asserted. | ACCEPTED | (this commit) |
 | 100 | **ACCEPTED. 100a running (10343261)** — the mechanical reading is right: -1.2753 is SPURIOUS output, not missing. First systems mixed: 1j8e_A **+0.3421 -> +0.3759 (+0.0338)**, 1fd3_A -0.0025; 9.5-15.3% of output energy ANM-orthogonal. **100c submitted (10343251)** before 98b/SEM, in the size-independent form, classes from ATLAS's own .pdb (125/125 on disk), refusing on count mismatch rather than reindexing. **100b taken** — the 0.92 ceiling is a PER-SYSTEM pipeline against one shared model; what survives is that the residual is ~92% linearly predictable, so it is not noise and nobody reaches it. **100d recorded**: width past PR~17 is actively harmful; the plateau rule was stopping in about the right place. **100e**: full run **40/40 at z=6.6-16.3**, but median ITS 36.62 ns vs 100 ns = **2.73 relaxation times**, 82% under 5, 100% under 10, 2 systems never relax once — detection safe, **occupancy only ~61% relative error**. | ACCEPTED | (this commit) |
+| 101 | **ACCEPTED, with two corrections.** **101a identity verified beyond the two systems: max \|predicted-measured\| = 8.76e-16** across all overlapping systems — two independent harnesses to machine precision. **Correction 1: projanm is NOT redundant** — 099 carries perp_frac and the orthogonal scores but **not codec_total**, so the absolute total is not in there. **Correction 2 (larger): the 0/123 headline is a DIFFERENT CODEC** — tied_peer_n300 is the ModalCodec tied arm at n_train=300; 099/100a score armf_atlas_dm.Codec at n_train=130. Combining them would be the **ninth one-name-two-things, inside the answer to a question about the eighth**. **Flip count (13 systems): 13/13 lost, 0 flipped**, projection helps 92.3% by median +0.0273 against a median margin of +0.5185 — **5.3% of the margin**. ANM recomputed not transferred, cross-checked at 5.38e-12. **101d** written into the pre-registration: simplex encodes WHICH state, not HOW OFTEN; acceptance is identity/assignment, never occupancy. **101e** enrichment added for every class (10343519). | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1572,3 +1573,39 @@ so n=2 was not the fragile part. But median slowest ITS is **36.62 ns** against 
 **2.73 relaxation times**, with **82% of systems under 5**, **100% under 10**, and **2 systems whose
 ITS exceeds the trajectory entirely**. Detection is safe; **occupancy is determined to only ~61%
 relative error**, so no quantitative claim about state populations is supported here.
+
+## 101 — ACCEPTED, with two corrections that change what is redundant
+
+**101a — the identity is exact and I have verified it beyond the two systems.** Across every
+overlapping system: **max |predicted − measured| = 8.76e-16**, median 2.54e-16. Two independently
+written harnesses agreeing to machine precision is the cross-check, and it has passed.
+
+**101b — CORRECTION 1: `10343261` is not redundant.** 099's rows carry `sst_total`, `sst_perp`,
+`perp_frac` and the three *orthogonal* scores — **not `codec_total`**. ΔFVE is computable from 099;
+the absolute total it must be added to is not. `projanm` is the only run producing `codec_total` for
+this checkpoint, so the flip count needs both. It is labelled a measurement, not a consistency check.
+
+**101b — CORRECTION 2, and it is the larger one: the 0/123 headline is a different codec.** It comes
+from `tied_peer_n300.json`, the **ModalCodec tied arm at n_train=300** (ANM +0.6619, codec +0.1747,
+0.0% wins). 099/100a score `armf_atlas_dm.Codec` at **n_train=130**. Combining 099's FVE⊥ with the
+tied arm's totals would be **one name, two things across two codecs — the ninth instance, inside the
+answer to a question about the eighth.** The flip count is reported for the model actually measured,
+and the same question about the tied arm needs 099 re-run against that checkpoint.
+
+**The flip count itself** (13 overlapping systems so far): codec loses **13/13**; the projection
+flips **0**; it helps **92.3%** of systems by a median **+0.0273** against a median margin to ANM of
+**+0.5185** — **5.3% of the margin**. Exactly the case you named in advance. ANM totals were
+recomputed rather than transferred and cross-checked against `tied_peer_n300` at **5.38e-12**.
+
+**101c — confirmed by the identity.** `sign(ΔFVE) = sign(−FVE⊥)`, and 1fd3_A is still the only system
+with `FVE⊥ > 0` and the only one the projection hurts. Not pooled.
+
+**101d — written into the pre-registration before the arm exists.** A simplex encodes **which state**
+(supported at 40/40); it does not encode **how often** (±61% at the median, and 2/40 systems never
+relax once). Acceptance criteria are **state identity and assignment consistency, never occupancy or
+transition rates** — recorded beside the existing "better organised and no better on any measured
+axis" failure condition, because without it the natural first evaluation is the unsupported one.
+
+**101e — added, and you are right that it would otherwise read as concentration.** Every class now
+reports **population share and enrichment**, not just backbone and buried. Side chains being ~60% of
+heavy atoms makes "60% of the residual is side-chain" the null. `10343519` re-running with it.

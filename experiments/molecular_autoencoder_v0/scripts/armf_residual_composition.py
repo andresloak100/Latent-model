@@ -99,7 +99,16 @@ if __name__ == "__main__":
                 exposed=float(e_atom[~is_bur].sum() / tot),
                 sidechain_exposed=float(e_atom[(~is_bb) & (~is_bur)].sum() / tot),
                 hydrophobic=float(e_atom[np.array([r in HYDROPHOBIC for r in resn])].sum() / tot))
-            share = dict(backbone=float(is_bb.mean()), buried=float(is_bur.mean()))
+            # INBOX 101e. THE POPULATION SHARE OF EVERY CLASS, not just backbone and buried.
+            # Side chains are ~60% of heavy atoms, so "60% of the residual is side-chain" is the
+            # NULL, not a finding. The quantity that carries information is ENRICHMENT -- residual
+            # share divided by population share -- and without it a flat result reads as
+            # concentration.
+            is_hyd = np.array([r_ in HYDROPHOBIC for r_ in resn])
+            share = dict(backbone=float(is_bb.mean()), sidechain=float((~is_bb).mean()),
+                         buried=float(is_bur.mean()), exposed=float((~is_bur).mean()),
+                         sidechain_exposed=float(((~is_bb) & (~is_bur)).mean()),
+                         hydrophobic=float(is_hyd.mean()))
             byres = collections.defaultdict(float)
             for r_, e_ in zip(resn, e_atom): byres[r_] += float(e_)
             byres = {k: v / tot for k, v in byres.items()}
@@ -117,13 +126,18 @@ if __name__ == "__main__":
     if not rows:
         raise SystemExit("\n  NO system scored. Reported as absent, not as a null.")
     print(f"\n=== 100c: RESIDUAL COMPOSITION ACROSS {len(rows)} SYSTEMS ===")
-    print(f"  {'class':>20}{'median share of residual':>26}{'IQR':>20}{'median share of atoms':>24}")
+    print(f"  {'class':>20}{'residual share':>16}{'atom share':>13}{'ENRICHMENT':>13}{'IQR of enrich':>18}")
     for k in ("backbone", "sidechain", "buried", "exposed", "sidechain_exposed", "hydrophobic"):
         v = np.array([r["frac"][k] for r in rows.values()])
-        base = ("backbone" if k == "backbone" else "buried" if k == "buried" else None)
-        b = f"{100*np.median([r['atom_share'][base] for r in rows.values()]):.1f}%" if base else ""
-        print(f"  {k:>20}{100*np.median(v):>25.1f}%"
-              f"{f'[{100*np.percentile(v,25):.1f}, {100*np.percentile(v,75):.1f}]':>20}{b:>24}")
+        a_ = np.array([r["atom_share"][k] for r in rows.values() if k in r["atom_share"]])
+        if len(a_) != len(v):
+            print(f"  {k:>20}{100*np.median(v):>15.1f}%{'-':>13}{'-':>13}{'-':>18}")
+            continue
+        en = v / np.clip(a_, 1e-9, None)
+        print(f"  {k:>20}{100*np.median(v):>15.1f}%{100*np.median(a_):>12.1f}%{np.median(en):>13.2f}x"
+              f"{f'[{np.percentile(en,25):.2f}, {np.percentile(en,75):.2f}]':>18}")
+    print(f"  ENRICHMENT is the column that carries information: 1.00x means the class holds exactly\n"
+          f"  its population share of the residual, which is the null. 101e.")
     bb = np.array([r["frac"]["backbone"] for r in rows.values()])
     bs = np.array([r["atom_share"]["backbone"] for r in rows.values()])
     lift = bb / np.clip(bs, 1e-9, None)
