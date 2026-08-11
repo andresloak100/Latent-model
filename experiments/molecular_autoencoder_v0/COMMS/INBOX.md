@@ -7737,3 +7737,121 @@ water-filled allocation 094 asked for, which is already re-running.
   derived from something else would have been a number nobody could check.
 - **096 audit clean.** `peerrate` on `main-cpu` with no `gres`, `prtrace` at 51% utilisation.
   Three slots in use.
+
+---
+
+## 098 — the simplex-embedding direction, and the two-hour test of its premise that should come first
+
+A research direction has been proposed: replace the codec's unconstrained latent with
+**groups constrained to simplices**, on the argument that our problem is now *basis quality*
+rather than latent dimensionality, and that a simplex prior would push the model toward
+specialised, separable factors — hinge open/closed, pocket open/closed, rotor state — rather
+than arbitrary directions.
+
+Caveat on my side: I am evaluating the **described mechanism**, not the paper. I do not have
+it, and nothing below is a judgement of its results on images.
+
+### 98a. The diagnosis is a live hypothesis, and 97b did not establish it
+
+97b established that **capacity is not the binding constraint**: effective width nearly
+doubled past the stopping point and FVE did not move. That rules out one candidate. It does
+not select *basis quality* from the remaining ones, which include the objective (reconstruction
+MSE may not reward the structure we want), the architecture, the corpus size, and the
+possibility that this task is simply not learnable above ANM at 50–300 systems.
+
+So "our problem is basis quality" is the best current hypothesis and it is **untested**.
+Building an architecture on it is a large bet on an untested premise, and this project has a
+standing rule about that.
+
+### 98b. There is a cheap decisive test of the premise, and it needs no new architecture
+
+**Give the codec ANM's basis and see whether it wins.**
+
+`ModalCodec.basis_of(stat)` already produces a per-atom basis; ANM produces one from the
+reference structure for free. Initialise or regularise the learned basis toward the ANM modes
+and re-run the peer comparison. Then:
+
+- **codec-with-ANM-basis beats codec-with-learned-basis** → basis quality *is* the binding
+  constraint, the diagnosis is confirmed, and a better basis prior is worth building;
+- **it does not** → the basis is not what is costing us, and a simplex prior on the basis will
+  not help either. That result would save the entire cost of the SEM arm.
+
+This is one training run against an existing comparison, with no new architecture, no new
+loss, and no new evaluation. It should precede any inductive-bias work, because it is the
+experiment that tells you whether inductive bias is the right lever at all.
+
+### 98c. The simplex prior may target structure this corpus does not contain
+
+This is the objection I would want answered before committing.
+
+A simplex says *choose among alternatives*. That is a good prior for categorical structure —
+two metastable states, a hinge that is open or shut. The conformational behaviour the proposal
+names (hinge, pocket, rotor) is exactly that kind of structure, and it is exactly the kind of
+structure our data is **least likely to contain**:
+
+- ATLAS is 100 ns per replica, and this project measured between-replica / within-replica RMSD
+  at **1.177** — replicas sit 18% further apart than frames within one replica. The
+  trajectories barely leave where they started.
+- `n_eff` runs **1–7%** of frame count.
+- The propagator found reachable lags of **1–2 ns** and nothing beyond.
+- And `armf_propagator.basins()` is a **median split on the top two modes** — an imposed
+  quadrant partition, not discovered metastable states. The project has never measured whether
+  real discrete states exist in this corpus; it thresholded continuous coordinates and counted
+  crossings of the threshold.
+
+Near-harmonic fluctuation around a single basin is the least categorical signal there is. A
+simplex prior would be asking the model to discover discrete alternatives in data that may
+contain none.
+
+**Measure it before assuming it.** The machinery exists: report, per system, the number of
+*genuine* basin transitions using a state definition that is not a median split — a two-state
+HMM or a tICA-based clustering on the slow coordinates, with the state count chosen by the
+data rather than fixed at four. If most systems show one populated state, the simplex prior has
+nothing to bind to on this corpus, and the honest conclusion is that testing it requires
+longer-timescale data first.
+
+### 98d. Probing for ANM/PCA coordinates is partly circular
+
+The proposed evaluation — freeze the encoder, linearly probe for ANM/PCA/tICA coordinates — has
+a structural problem. **ANM is the comparator we are losing to.** A latent that linearly
+predicts ANM coordinates perfectly scores perfectly on that probe, and what it has demonstrated
+is that it *matches* ANM. It cannot demonstrate that it beats ANM, because the probe's ceiling
+is ANM itself. That is a measurement that cannot express the effect.
+
+The probes that would be informative are the ones ANM does **not** supply: metastable-state
+labels, contact-change events, pocket-opening coordinates, ligand-relative configuration. Those
+are the right targets — and they are the same quantities 98c suspects are absent from this
+corpus. The two objections are the same objection.
+
+### 98e. The four-way design is right and should be kept for anything we test
+
+    continuous baseline   vs   hard discretisation   vs   SEM   vs   argmax(SEM)
+
+That structure has a **built-in negative control**: ordinary hard discretisation is expected to
+hurt, so if it does not, the harness is not measuring what it claims. This project has had to
+retrofit that kind of control repeatedly — the OU power check in 81a is the same shape, and it
+is the reason the propagator's acceptance test is trustworthy. Keeping it here from the start
+is right regardless of which prior is eventually tested.
+
+Two additions, both from things already learned:
+
+- **Match on bits, not on component count.** The static comparison's first answer was wrong for
+  exactly this reason (084) and its correction flipped the result. A simplex group of M
+  alternatives at K groups is not the same rate as K continuous scalars, and comparing them on
+  count would repeat that error.
+- **Pre-register what would count as SEM having failed**, not only what would count as success.
+
+### 98f. Recommendation
+
+Do **98b** first — it is one run, it tests the premise the whole direction rests on, and a
+negative result closes the direction cheaply. Do **98c**'s state-count measurement alongside it,
+since it uses numbers the propagator already computes and it determines whether the corpus can
+support the prior at all.
+
+If basis quality is confirmed *and* the corpus contains discrete structure, the simplex arm is
+well-motivated and 98e is the design. If either comes back negative, we will have learned that
+for the cost of one training run instead of an architecture.
+
+I would not run the SEM arm before both. Not because the idea is weak — the reasoning behind it
+is the right shape, and it targets the correct weakness — but because this project's worst
+outcomes have all come from building on a premise that was plausible and unmeasured.
