@@ -8426,3 +8426,117 @@ measures the link 102c just argued is the smaller half.
 them. But 104 should be **written and self-tested on CPU while they run**, the way 099's
 machinery was, so it is ready to submit the moment a GPU frees. Report the segment count per
 domain and the train/held-out domain split before training anything.
+
+---
+
+## 105. Read OU's xcorr column before you read anything else — at T=32 the negative control is not near zero
+
+103 and 104 were written before `78dc2e77` landed and 104 is now overtaken by it: you built the
+chain, in the basis I was about to propose, with the acceptance test imported. That is the right
+call and the `__main__` guard defect you found by building it is a good catch — a sweep executing
+as a side effect of a function import is the worst possible failure mode because it succeeds.
+
+**103a and 103b are not overtaken and are the reason to be careful with what 102c now licenses.**
+Everything below is about `armf_latent_video_run.py` specifically, and the first item can be read
+off the run's own first printed line.
+
+### 105a. The queue decision — yes, latentvideo first, but not for the reason given
+
+**Prioritise latentvideo. Do not cancel `pretrain1m`; requeue it with `--dependency=afterany`** so
+it keeps its position and the device is not idle between the two. Idle GPU is a scored resource
+here.
+
+But the *reason* matters, because the reason as stated would be the **tenth "one name, two
+things"**. 102c is about `armf_atlas_dm.Codec` — the **dynamics** codec, DM=256, scored on FVE of
+collective motion against ANM. `pretrain1m` trains the **static structure** codec on 1M
+structures, scored on reconstruction RMSD. 102c says nothing whatever about it. We spent 102b
+separating exactly these two, and using 102c to justify cancelling pretrain1m would put them back
+together three items later.
+
+The defensible reason is simpler and does not need 102c at all: **latentvideo is the only
+untested link in the chain and it has a pre-registered question with declared readings, so it
+produces new information within hours. pretrain1m is a scale-up of an axis that already has a
+measured number and no peer win.** Prioritise on information per GPU-hour.
+
+### 105b. `MIN_H = 200` did not come across with the estimator
+
+`armf_propagator.py:290` — `MIN_H = 200 # below this a series cannot carry these statistics at
+all` — and lines 415/424 **refuse to score** below it, writing `UNEVALUABLE` with
+`reason="H_use<MIN_H"`. `armf_latent_video_run.py` sets `T = 32` and scores.
+
+The estimator was imported. **The guard that says when the estimator is meaningless was not.**
+That is the same defect class as the nine, arriving through the half of a module that got left
+behind rather than through a duplicated name. `stats_of` gives a number at any length; the whole
+point of MIN_H is that a number is not the same as a measurement.
+
+### 105c. Measured, not argued: what `stats_of` reports for a control that is exactly zero
+
+OU in the whitened ANM basis is **independent per mode by construction**, so the truth for
+`xcorr`, `amp` and `kurt` is exactly 0. Simulated at your K=64, KEVAL-style draws, mean over
+repeats:
+
+    T      a1=0.5           a1=0.9           a1=0.95   a1=0.99      (xcorr; truth 0)
+      32   0.1783           0.3199           0.3797    0.4020
+      64   0.1278           0.2621
+     128   0.0905           0.2042           0.2651    0.3730
+     256   0.0645           0.1488
+     512   0.0455           0.1061           0.1493    0.2825
+    2048                                     0.0779    0.1658
+
+    T=32, a1=0.9:   xcorr 0.3199   amp 0.2368   kurt -0.5314      truth 0, 0, 0
+
+Whitened ANM slow modes on ATLAS at 40 ps spacing will have lag-1 autocorrelation well above 0.9.
+**At T=32 the negative control does not sit near zero — it sits near a third to four tenths, from
+sampling noise alone.** The mean |off-diagonal correlation| for genuinely independent series is
+about `0.8/sqrt(T)`; it depends on T and **not** on K, so narrowing to fewer modes does not help.
+T is the only lever.
+
+Both sides pass through one estimator, so this is not bias — 77a still holds and it cancels. What
+it destroys is **power**. `consistent()` is an interval-overlap verdict, and the reference's *real*
+cross-mode coupling has to exceed a floor of ~0.32–0.40 before anything can be distinguished from
+it. Below that, every arm overlaps and every arm passes. Family C: an underpowered null believed —
+and here it would be believed as a *positive*, which is worse.
+
+**The run reports its own power on the first system, in the line you already print.** So:
+
+> **If OU is `IN` on `xcorr` and `amp`, the test has no discriminating power at this T and nothing
+> about JOINT may be read from it — including a good result.** 81a's power check exists for exactly
+> this and it fires before any interpretation, not after.
+
+If it fires, the fix is T, and ATLAS can pay for it: 2501 frames per replica leaves 2245 starts at
+T=256, and `latent_video`'s factorised attention is `O(T·R² + R·T²)` at R=8, so T=32 → 256 is
+524k versus 8k temporal-attention operations — 64× on a term that is currently negligible. Cheap.
+T=256 at a1=0.9 puts the floor at 0.149; T=512 at 0.106.
+
+### 105d. Overlapping reference windows move the band in the uncontrolled direction
+
+`segments()` draws `k` random starts from `len(C) - T`. At KEVAL=32 over ~2200 starts the windows
+will overlap, so the 32 reference series are **not independent**, and `band()`'s `[min, max]`
+across them is **narrower** than 32 independent draws would give. That makes `consistent()`
+stricter, partly offsetting 105c — but in an amount nobody has measured, and in the opposite
+direction, so the two do not cancel to something known. Cheapest fix: draw **disjoint** starts
+(`rng.choice(range(0, len(C)-T, T), KEVAL, replace=False)`), which ATLAS can afford at T=256
+(8 disjoint per replica — so draw across held-out replicas, or accept KEVAL=8 and say so).
+
+### 105e. Two small ones
+
+- **`rs` is computed twice** (≈ lines 190–195). The first uses `top2`/`thr` derived from
+  `pool[:len(pool)//2]` and is then **overwritten** by the second, which uses the full-pool
+  `top2`/`thr`. The first is dead — 32 wasted `stats_of` calls per system, and more importantly a
+  leftover from an edit that did not remove the old path, which is how two estimators start.
+- **The header says `ref_windows` is imported** (line 33); line 56 imports `stats_of, band,
+  consistent, METRICS` only, and `segments()` is a local reimplementation. At tau=1 it is
+  behaviourally equivalent, so this is a **false docstring**, not a wrong result — but a docstring
+  claiming a guard that is not in the file is precisely what let 105b through.
+
+### 105f. 103a/103b still stand and now matter more
+
+You are using 102c to fix the basis to ANM. I agree with fixing the basis to ANM — but 103a shows
+the 86% is a closed form in `perp_share` alone, `perp > (1 - FVE_par)/(2 - FVE_par) = 0.4119`,
+whose p75 on your own numbers is 0.4054 — **0.0065 below the threshold** — and 103b shows the 29
+measured systems are the 29 **smallest** of 123 while `perp_share` must rise with N because K is
+fixed at 256 against a growing 3N.
+
+That does not change the latentvideo decision. It does mean **"the learned basis is not the
+differentiator" should be written as holding on the small end of the corpus until 099 and projanm
+finish**, and it should not be the sentence that cancels other work.
