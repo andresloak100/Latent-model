@@ -508,7 +508,16 @@ if __name__ == "__main__":
             # CONTROL 5 (seeds). The wide arms are the ones that collapsed on mdCATH, and a one-seed
             # collapse is not evidence ABOUT DM -- it is one draw. Repeat the winning LR at extra
             # seeds so what gets reported is a COLLAPSE RATE, not an anecdote.
-            if dm >= 256:
+            # WAS `if dm >= 256`, on the argument that the WIDE arms are the ones that collapsed
+            # on mdCATH. True, but it left seedspread UNMEASURED at DM=16 and 64 -- and that is
+            # where it was most needed, because the differences the DM curve rests on are smallest
+            # there. Measured on the completed sweep: at n_train=50 the FVE span across the ENTIRE
+            # DM axis is 0.0278 (0.1269 -> 0.1547) while the seedspread at DM=256, the one width
+            # where it was measured, is 0.0656. The whole curve is inside the noise of one of its
+            # own points, and that could not be seen because the narrow arms had n=1 seed. Every
+            # width now gets the same replication, so "saturates at DM=X" is a statement with an
+            # error bar rather than a reading off three single draws.
+            if True:
                 c = [r for r in rows if r["L"] == L_PRIMARY and r["n_train"] == n and r["dm"] == dm
                  and r.get("arch", "network") == "network"]
                 if c:

@@ -5907,3 +5907,54 @@ measured that its replicas do not decorrelate (between/within RMSD ratio 1.18, n
 trajectory that has not explored its own basin will place *any*external structure at percentile 100, so
 this measures "outside what 100 ns of MD sampled", which is a weaker statement than "outside the
 Boltzmann ensemble". The verdict is recorded with that bound on its face.
+
+---
+
+## ⬛ atlas_dm2 completed — and the n_train=50 row of the DM curve is inside its own noise
+
+`10335263`, COMPLETED in **4:44** with exit 0. That is not a failed run: the stamp check found
+**53 of 73 stored arms valid**, which covers the whole 40-cell grid, so it retrained nothing and
+printed the finished sweep. (My earlier "16 cells remaining" was a float-comparison artefact in an
+ad-hoc script, not a real gap.)
+
+**Held-out FVE vs DM, 123 unseen systems, best LR per arm:**
+
+| DM | n=50 FVE | n=130 FVE | PR | PR/DM | flag |
+|---|---|---|---|---|---|
+| 16 | 0.1274 | 0.1279 | 6.0–8.0 | 37–50% | n130 **VOID**/low-PR |
+| 64 | 0.1269 | **0.1738** | 14.1–14.7 | 22–23% | low-PR |
+| 256 | 0.1346 | **0.1864** | 14.6–19.8 | 6–8% | low-PR |
+| 512 | 0.1547 | 0.1727 | 14.5–16.1 | 3% | low-PR |
+
+**The n=50 curve is not resolved and the n=130 curve is.** Measured span across the entire DM axis
+against the seed spread at a single width:
+
+| | FVE span across all four DM | seedspread at DM=256 | ratio | verdict |
+|---|---|---|---|---|
+| n_train=50 | 0.0284 | 0.1723 (range) / 0.0656 (as printed) | **0.16×** | **NOT RESOLVED** |
+| n_train=130 | 0.0608 | 0.0276 | **2.21×** | resolved |
+
+At n=50 the whole DM axis moves less than one width moves between seeds. "Saturates at DM=64" there
+is reading a curve entirely inside its own noise. The n=130 row clears seed noise by 2.2–3.1× and is
+readable.
+
+**Why this was invisible: seed replication was gated on `if dm >= 256`.** The reasoning was sound —
+the wide arms are the ones that collapsed on mdCATH, so that is where a collapse *rate* was needed.
+But it left seedspread **unmeasured at DM=16 and 64**, which is where the differences the curve rests
+on are smallest, so there was no error bar to compare the span against. Now extended to every width;
+`10337194` runs the missing replicates.
+
+**Two further things the printed headline does not say.**
+
+1. **The 005 conclusion is drawn from one of two rows that disagree.** The log prints "THE LATENT
+   NEEDS LESS WIDTH THAN THE NETWORK DOES … DM_latent=64 is the headline number." That is the n=130
+   reading (network saturates 512, bottleneck 64). The n=50 row says the **opposite direction** —
+   network saturates 64, bottleneck 256, i.e. the latent needs *more* width. Reporting the row that
+   agrees and not the one that does not is choosing the scoreboard after seeing it, the same shape
+   84a caught in the propagator. With n=50 unresolved, the defensible statement is that the claim
+   rests on a single `n_train` and is untested at the other.
+2. **Every arm is flagged low-PR**, and at DM=512 the participation ratio is ~15 of 512 — **3%**.
+   This is the scope limit recorded when 002 was ACKed: a flat curve with the wide arms using a
+   fraction of their width is *capacity that failed to train*, not width saturation, and must not be
+   reported as the first. The script's own 12a section already refuses the call — "FVE spans only
+   0.0180 across the ladder — neither reading available yet."
