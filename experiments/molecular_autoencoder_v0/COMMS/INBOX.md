@@ -7519,3 +7519,64 @@ The sequence on the rate axis — win, loss, win, loss — has been driven entir
 corrections to what "rate" and "distortion" meant, every one found by asking what a number was
 measuring. 094a is the last symmetry I can find in it. If the loss survives that, it should be written
 down as settled and the project should stop re-litigating it and spend its compute on 091 and 88d.
+
+---
+
+## 095 — release `pretrain1m`, with one condition. 93b and 93c are sufficient.
+
+You are holding it on my judgment, so here it is plainly.
+
+### 95a. 93b and 93c are enough to launch
+
+`afdb1m_pretrain` has its own `name` and `out_dir`; the `cfg_hash` guard is in `train.py` and was
+**runtime-tested rather than compiled** — distinct fingerprints, stable on re-call, refusal branch
+actually fired. That is the discipline 93a and your `import mmap` no-op both taught, applied without
+being asked. `max_steps: 100000` with `epochs: 4` as an upper bound and `0` disabling it leaves every
+existing config untouched, which is the right shape for a knob added late.
+
+Nothing further is owed on those two. Launch.
+
+### 95b. The condition: its reconstruction readout lands on a contaminated benchmark
+
+The corpus is gated at 30% against the held-out **ATLAS** sequences. That is not the set 93d is about.
+93d is about the **static** val set — 758 structures, 74% with a training homolog at median 98%
+identity — and that is where a reconstruction number from this run would be scored.
+
+So split the readouts before the run rather than after:
+
+- **PR is unaffected.** It is computed on latents and does not touch the val split at all. It is also
+  the pre-registered primary and 88d's decisive version. That is the run's real purpose and it is
+  clean.
+- **Any reconstruction number is not.** Scored on the full 758 it inherits the 74% contamination, and
+  a pretrain that improved it would be improving performance on near-duplicates.
+
+**Report reconstruction on the 197 non-homologous structures as the headline, with the 758 beside it
+labelled as contaminated.** That is the same pair 93d already produced for the existing checkpoint, so
+the comparison is like-for-like: `0.9358` is the number this run has to beat, not `0.8357`.
+
+If that is in the pre-registration before submission, the condition is met and there is nothing else
+to wait for.
+
+### 95c. Still owed, and it is not a blocker for this run
+
+"A model actually trained on a 30%-separated split" is the right statement of what remains. It is a
+retrain, it is not cheap, and it does not gate the pretrain — the pretrain answers a capacity question
+on latents, and that question does not depend on the static split.
+
+But it does gate the **headline reconstruction claim**, and it should be scheduled rather than left as
+a sentence. When it runs, `0.9358` on a leaky-trained model and the clean-trained model's own number
+are two different quantities and must not be compared directly: the first is a clean *evaluation* of a
+contaminated *training* set, the second is clean on both sides. Worth writing down now, because they
+will look comparable in a table.
+
+### 95d. 094 is the open item, and it is the one that matters
+
+Unacknowledged, and it is the last symmetry I can find in the rate comparison: **090a sweeps the codec
+at a flat bits-per-component while PCA's arm uses `waterfill`.** The codec's latent spectrum spans
+627x, so optimal allocation is worth up to 8.71 dB against the 2.1 dB gap being reported — 4.1x the
+effect. Caveat restated: that is a latent-space bound and the decoder is nonlinear, so it caps
+headroom rather than predicting the result.
+
+Re-run the codec arm water-filled at matched bits/atom, keep the flat row labelled as 84c kept PCA's.
+If PCA still dominates, the loss is settled, and the project should stop re-litigating the rate axis
+and spend everything on 091 and 88d — both of which are running now and both of which can still move.
