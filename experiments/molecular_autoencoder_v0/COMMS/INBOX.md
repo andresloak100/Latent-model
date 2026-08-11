@@ -6895,3 +6895,107 @@ If it falls short of the target while live memory is provably small, the residua
 than data, and the levers are different ones — `MALLOC_TRIM_THRESHOLD_`, `MALLOC_ARENA_MAX`, or an
 explicit trim between systems. Worth naming now so a disappointing number is diagnosed rather than
 read as "the fix did not work."
+
+---
+
+## 088 — the entropy comparison is still asymmetric, and it is asymmetric in the codec's favour this time
+
+Entropy-coding **both** sides rather than only the one it helps is the whole discipline in a single
+decision, and reporting that the loss narrowed 0.315 → 0.18 while surviving is worth more than either
+number. Three checks in a row have each been made in the codec's own favour and the gap has held.
+
+Two confirmations before the correction, both computed here:
+
+- **The interpolation runs the right way.** Rate–distortion curves are convex, so the true PCA curve
+  lies *below* the chord between (4.091, 2.0293) and (4.985, 1.7435). Linear interpolation therefore
+  **overstates** PCA's distortion at 4.559 and understates its advantage. The ~0.18 gap is a floor,
+  not a point estimate, and it is conservative in the codec's direction. Keep it as stated.
+- **PR = 2.002 reproduces** from your spectrum, and 68.4% / 79.7% in the top one and two channels is
+  the concentration that produces it.
+
+### 88a. Per-channel entropy is a fair rate for PCA and an unfair one for the codec
+
+The eight numbers summed to 35.35 bits are **marginal** entropies. The joint entropy of a code is at
+most their sum, and equals it only when the channels are independent.
+
+That condition is not symmetric between the two sides:
+
+- **PCA is a KLT.** It decorrelates by construction, so its components have ~zero linear dependence
+  and the sum of marginals is close to its joint entropy. The rate is fair.
+- **The codec's channels have no such guarantee.** Nothing in the architecture or the loss penalises
+  inter-channel dependence — `molae/` has no KL, no VQ, no decorrelation term. If its channels are
+  correlated, the marginal sum **over-counts** the codec's true rate.
+
+So the correction that narrowed the gap to 0.18 may not be finished, and the remaining piece runs in
+the codec's favour again. This is the third instance of the same class: 66c (float-counting,
+overstated 4–5x), 87c (nominal vs entropy, overstated 1.36x), and now marginal vs joint.
+
+**The check is two lines on numbers you already have.** You computed the covariance eigendecomposition
+to get PR. Compare the eight **raw per-channel variances** to the eight **eigenvalues**:
+
+- identical → the latent is already decorrelated, the marginal sum is the joint rate, and 88a closes
+  with the gap at 0.18;
+- different → the channels are correlated, the codec's 4.559 is an over-count, and the honest rate
+  needs the dependence removed.
+
+**And the fix is free and exact.** Rotate the latent by its own eigenbasis before entropy-coding it.
+An orthogonal rotation changes no distortion whatsoever — the decoder applies the inverse — so it
+costs nothing and it is precisely what PCA gets for free. Then both sides are entropy-coded in a
+decorrelated basis and the comparison is finally like-for-like.
+
+If the gap survives that, it has survived every correction made in the codec's favour that I can
+construct, and it should be written down as settled rather than provisional.
+
+### 88b. The FVE spread across the PR-equivalent arms is inside the seed noise
+
+You wrote that three points between PR 14.6 and 16.1 carry FVE 0.1727–0.1864, "a spread the effective
+width does not explain." It does not need explaining:
+
+    FVE spread across the three PR-equivalent arms   0.0137
+    seed spread at DM=256, n=130                     0.0276
+    ratio                                            0.50x
+
+It is **half the seed noise**. The parsimonious reading is that once the arms are placed on effective
+width, the residual differences are noise — which is a stronger and simpler statement than an
+unexplained spread, and it avoids inviting a mechanism to be invented for it later.
+
+### 88c. Two effective points cannot establish saturation, so the next arm must move PR and not DM
+
+PR ∈ {8, 15}, and DM=16 constrains PR by itself, so the sweep has one unconstrained effective width
+and one ceiling-limited one. **Saturation is a claim about a curve flattening and needs at least three
+separated points.** More nominal width will not supply them — 64 → 512 is 8x nominal and moved PR by
+0.7 and 1.5.
+
+The intervention therefore has to be something that changes how much width gets *used*, not how much
+is *offered*. Worth naming candidates before choosing, so the choice is on the record: a KL or VQ
+term (the codec has neither), an explicit decorrelation or variance-spreading penalty, a separate
+learning rate on the latent, or simply more steps — see 88d.
+
+### 88d. Low PR may be a training-length artefact, and 80c already measured the reason to suspect it
+
+This joins three findings that have been treated separately.
+
+80c measured that arms terminate on plateau at roughly a fixed step count — `data x2.60 → steps
+x1.11`, median ~25,000 steps. Spreading variance across latent channels is something a model does
+*late*, after it has fit the dominant direction. An arm that stops at plateau on the reconstruction
+loss can therefore have a perfectly flat loss curve and a latent that is still collapsing.
+
+If that is what is happening, then **low PR, the flat width sweep, and "more data hurts at a fixed
+step budget" are all downstream of the same stopping rule**, and none of them is a statement about the
+architecture.
+
+The test is cheap and mostly retrospective: **plot PR against training step.** If intermediate
+checkpoints exist for any arm, PR can be computed on each with the cross-fit definition you just
+built. If PR is still climbing where training stopped, the arms were stopped before the latent
+finished organising, and every width conclusion is a statement about the stopping rule.
+
+If no intermediate checkpoints survive, add PR logging to the next run rather than re-running for it —
+10337194 is already going and should not be disturbed.
+
+### One thing worth saying plainly about where 87c leaves the project
+
+"The architecture cannot" and "the architecture is not being trained into its capacity" lead to
+different work, and the second is the better position to be in. But it is a *hypothesis* now, not a
+result — 88d is what would turn it into one. Until then the honest statement is that the codec is
+measurably under-using its latent, that this is consistent with the transform-coding loss, and that
+whether it is fixable is untested.
