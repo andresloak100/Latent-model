@@ -6607,3 +6607,110 @@ One framing point for the writeup either way: PCA is a *linear internal* referen
 is the peer, and 5b's "no surviving peer-comparison win" is untouched by this. What 82b establishes,
 once 84b and 84c are applied, is narrower and still worth having — that the learned part is what buys
 the bits, which is what the centroid bound could not say.
+
+---
+
+## 085 — the retraction is right and understated: it is classical transform coding that beats the codec
+
+Retracting a favourable headline, and doing it *after* making the σ protocol symmetric so the
+retraction could not rest on an estimator asymmetry pointing the other way, is the hardest version of
+this discipline. `2.0566 → 2.0588` moving almost nothing is what makes the retraction load-bearing
+rather than a gesture.
+
+Your correction to my 84c framing is accepted and I had it wrong: water-filling **at matched k is
+worse** (2.7502 vs 2.6304), and the gain comes from extending the basis to 1,117 and zeroing 229. It
+is "more components with variance-proportional bits," not "water-filling is better." I will not
+repeat the wrong form.
+
+**One reframing, because the precise statement is stronger than the one written.** At k=1,117 the
+basis is near its rank cap, so PCA is barely reducing dimension at all — it is close to a complete
+rotation, and essentially all of the compression is coming from the quantiser. So the finding is not
+"PCA beats the codec." It is:
+
+> **A scalar quantiser with variance-proportional bit allocation, applied to KLT coefficients, beats
+> the learned codec at matched bits/atom by 0.315 bits/dim and 2.2 dB.**
+
+That is classical transform coding — the textbook baseline, older than the field — and it is a much
+harder thing to have lost to than "PCA." It also names the bar: the codec has to beat transform
+coding, and it does not.
+
+### 85a. State the cohort each side was scored on, because PCA may not be able to address most of it
+
+This does not rescue the rate claim; it bounds the loss.
+
+PCA needs a **fixed dimension**. 1,117 components near the rank cap points at a 1,200-dimensional
+cohort — 400 atoms × 3 — which matches the truncation flagged in 82b: PCA fitted on the first 400
+atoms of the structures having at least 400. If that is still in place, then
+
+- structures **below** 400 atoms cannot be encoded by this basis at all, and by 82b's own count that
+  was 411 of 758;
+- structures **above** it are scored on a truncated prefix, which is an easier object.
+
+The codec has no such restriction. So please put on the line next to the 0.315: **on what fraction of
+the 758 val structures can this PCA produce a code at all**, and whether both sides were scored on
+identical atoms. If the answer is ~46%, the honest sentence is that transform coding beats the codec
+*on the fixed-size cohort where transform coding is defined*, and is undefined elsewhere. Still a
+loss, still the right thing to report, and a different sentence from the one the table implies.
+
+If both sides were already scored on all 758 via a per-structure basis or padding, say so and this is
+closed.
+
+### 85b. 11 of 28 domains dropped, and the dropping rule is a length threshold
+
+Reporting 61% coverage rather than the 17 alone is right. The next question is whether the missing
+39% are a random 39%.
+
+`H_use = (len(Z)-1) // tau` fails `MIN_H` only when the trajectory is short, so the exclusion is a
+**deterministic function of trajectory length** — the same shape as the AFDB parse drop, arriving
+through a length threshold instead of a regex. It matters if trajectory length correlates with
+anything the result is about, and larger systems are often simulated for fewer frames.
+
+Cheap and decisive: report `nCA` and `len(Z)` for the 11 excluded against the 17 kept, with a KS test,
+exactly as you did for the parse failures. If they separate, the propagator result is conditioned on
+one end of mdCATH and must say so.
+
+### 85c. 72b needs the experimental structure as its comparator — and my objection to it was wrong
+
+I was going to argue that a distance percentile of 100.0 is what high dimensionality does to any
+off-centre point. **I simulated it and the effect runs the other way**: a point at the 80th percentile
+in each of 64 modes lands at the *4th* percentile of total distance, not the 100th, because typical
+frames concentrate at a larger norm than a uniformly moderate point does. Moderate per-mode offsets
+make a point look **more** central in high dimensions. So percentile 100.0 alongside per-mode
+centrality 72–92 is a genuine displacement and the finding stands. Withdrawn before it was sent.
+
+What it still needs is the comparator separating the two things it could mean. "Outside everything
+100 ns sampled" is consistent with *a different conformation* and equally with *a different
+structure-generation process* — predicted models are energy-minimised and carry bond geometry and
+packing conventions no MD frame has, and those add distance without being conformational.
+
+**The control is free and already on disk: the experimental PDB structure each ATLAS trajectory
+started from.** Project it through the identical basis and alignment, report its percentile beside
+the AFDB model's.
+
+- crystal also at ~100 → percentile 100 is what *any* non-MD structure looks like; the finding is
+  about MD-versus-not and says little about AFDB specifically;
+- crystal well inside while AFDB sits at 100 → the displacement is specific to predicted models, and
+  that is the finding the scale-up branch needs.
+
+Family E, and the missing arm is the one comparator the dataset hands you for free.
+
+**The consequence is the reverse of 72b's original worry and less reassuring.** 72b asked whether AFDB
+models are the ensemble's *centre*. They are not — they are outside it. A centre at least lies within
+the region MD occupies; a point outside on every mode means the pretraining distribution and the
+target distribution may be disjoint in exactly the directions the dynamics primary is measured on.
+With your own bound retained, the honest reading is: 1M AFDB structures teach a manifold that 100 ns
+of MD does not visit, and whether that helps is an open empirical question rather than an assumed
+benefit. Pre-register what result would count as the pretrain having helped, before it runs.
+
+### Where this leaves the project, stated plainly
+
+- Peer comparison on reconstruction FVE: **still no win** (5b unchanged).
+- Rate–distortion against a linear reference: **now a loss** of 0.315 bits/dim to classical transform
+  coding.
+- The generative axis: the one place a learned model does something the comparator structurally
+  cannot — coupling, OU at 0/11 by construction — bought at worse agreement elsewhere and 24–41%
+  divergence, on 61% of the corpus.
+
+The third line is the only one pointing anywhere, and 84a's framing still holds: report the whole
+vector. It is a narrow, real, honestly-sized foothold, and it is currently the best one the project
+has.
