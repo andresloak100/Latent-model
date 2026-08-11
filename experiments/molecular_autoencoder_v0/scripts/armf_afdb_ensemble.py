@@ -224,9 +224,40 @@ def analyse(sysid):
     }
 
 
+CONTROL = ("4ued_B", "Q13541")     # 82c: known-good pair, resolved end to end before anything else
+
+
+def positive_control():
+    """INBOX 82c. A ZERO FROM A BROKEN FETCHER AND A ZERO FROM A REAL ABSENCE ARE THE SAME ZERO.
+
+    The 1 KB size floor in fetch() discarded every SIFTS reply -- they are a few hundred bytes -- so
+    each accession lookup failed while the answer sat in the response. Had this run started against
+    that fetcher it would have found ZERO overlapping pairs and reported "no overlap to measure": a
+    clean-looking null manufactured by a broken join, gating an 18 GPU-h decision.
+
+    So the join is proved on a named pair BEFORE the sweep, and a failure ABORTS rather than
+    producing a count. Zero overlap must be provable as absence, not inferred from silence."""
+    sysid, want = CONTROL
+    print(f"  [82c] positive control: resolving {sysid} end to end before any system is counted",
+          flush=True)
+    r = analyse(sysid)
+    if "skip" in r:
+        raise SystemExit(f"  [82c] CONTROL FAILED at: {r['skip']}\n"
+                         f"  ABORTING. A zero overlap from here would be indistinguishable from a "
+                         f"broken join, and this measurement gates an 18 GPU-h decision.")
+    if r["acc"] != want:
+        raise SystemExit(f"  [82c] CONTROL FAILED: {sysid} resolved to {r['acc']}, expected {want}. "
+                         f"The join is wrong, not merely empty. ABORTING.")
+    print(f"  [82c] CONTROL PASSED: {sysid} -> {r['acc']}, {r['n_matched']}/{r['n_ca']} residues "
+          f"matched via ATLAS's own corresp.tsv, AFDB model read. The join works, so a zero "
+          f"elsewhere is a real absence.", flush=True)
+    return r
+
+
 if __name__ == "__main__":
     man = json.load(open(f"{WR}/atlas_manifest.json"))
     ho = man["heldout"]
+    positive_control()
     print(f"[72b] AFDB model vs the ATLAS ensemble it should be a draw from: {len(ho)} held-out "
           f"systems", flush=True)
     print(f"  join = ATLAS's OWN corresp.tsv (UnP_num), not residue index, not my alignment",

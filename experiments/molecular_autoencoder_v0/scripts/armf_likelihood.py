@@ -30,8 +30,17 @@ from molae import utils
 WR = os.environ["WR"]
 CFG = os.environ.get("LIK_CFG", f"{WR}/results/ladder_direct3m_n2272/config.yaml")
 CKPT = os.environ.get("LIK_CKPT", f"{WR}/results/ladder_direct3m_n2272/final.pt")
-NSTRUCT = int(os.environ.get("LIK_N", "120"))
+# 82b: 758 val structures are on disk and 120 were being used. The PCA comparator needs
+# k ~ n_atoms components to be RATE-matched to the codec, and rank is capped by the fit
+# sample count -- at 120 structures the cap is 55, which reaches 0.48 bits/atom against
+# the codec's 6.22 and is therefore not a matched comparison at all. Using the full set
+# lifts the cap to ~378.
+NSTRUCT = int(os.environ.get("LIK_N", "758"))
 BITS = [2, 3, 4, 6, 8, 12, 16, 32]
+# 82b: the RD curve puts the operating point at ~6 bits/scalar, so PCA is matched THERE.
+PCA_BITS = 6
+PCA_K = [4, 16, 64, 128, 256, 378]
+PCA_NATOM = 400
 dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -62,6 +71,7 @@ def run():
     res_fit, res_eval, dims_fit, dims_eval = [], [], 0, 0
     rows = []
     base_res, ref_res, ref_struct = [], [], None   # 071 baselines, held half only
+    pca_fit, pca_eval, elem_res = [], [], {}      # 82b comparators
     for i in range(len(ds)):
         s = ds[i]
         gb = {k: (v.to(dev) if torch.is_tensor(v) else v) for k, v in collate_fn([s]).items()}
@@ -71,6 +81,28 @@ def run():
         t = gb["coords"][0, :na].cpu().numpy().astype(np.float64)
         e = (p - t).ravel()
         (res_fit if i < half else res_eval).append(e)
+        # 82b: PCA needs a COMMON coordinate space across structures, and atom counts differ. The
+        # shared space is the per-residue backbone frame, so structures are compared on the first
+        # PCA_NATOM atoms -- reported, not silently truncated, and structures shorter than that are
+        # excluded with the count printed.
+        if na >= PCA_NATOM:
+            (pca_fit if i < half else pca_eval).append(t[:PCA_NATOM].ravel()[None, :])
+        zs = s.get("element_idx")
+        if zs is not None:
+            zz = np.asarray(zs)[:na]
+            # `ez`, not `z`: `z` is the LATENT from model(gb) three lines up, and shadowing it here
+            # silently fed a numpy scalar into quantise(). One name, two things -- committed by me,
+            # in the same session as the write-up of the previous five instances.
+            # A BASELINE, so it must not see the codec. The prediction is the structure's centroid
+            # -- the zero-information codec -- and the only thing fitted is one sigma per chemical
+            # element. My first version fitted per-element sigma on the CODEC'S residuals, which is
+            # not a baseline at all but a better noise model for the codec, and it duly came out
+            # 0.001 bits/dim "better" than the codec. That number would have read as "a
+            # four-parameter model beats the autoencoder".
+            cen = t.mean(0)
+            for ez in np.unique(zz):
+                d = elem_res.setdefault(int(ez), {"fit": [], "eval": []})
+                d["fit" if i < half else "eval"].append((t[zz == ez] - cen).ravel())
         if i >= half:
             # CENTROID: the zero-information codec -- transmit the centre of mass and nothing else.
             base_res.append((t - t.mean(0)).ravel())
@@ -152,6 +184,67 @@ def run():
             print(f"  {'FIRST-STRUCTURE baseline':<34}{'NOT COMPUTABLE':>8}  -- no two held-out "
                   f"structures share an atom count, so a\n{'':36}reuse-one-structure codec has no "
                   f"aligned pair to score. Absent, not omitted.", flush=True)
+        # INBOX 82b. THE CENTROID IS THE DO-NOTHING BOUND, NOT A COMPARATOR. Any model that encodes
+        # anything at all beats "transmit the centre of mass", so +2.87 bits/dim is necessary and
+        # close to uninformative. The two comparators that can say whether 2.03 is GOOD:
+        #
+        #   PCA AT MATCHED RATE. The project's linear reference, quantised to the SAME 6 bits/scalar
+        #     the RD curve identifies as the operating point, fitted on the fit half and scored on
+        #     the held half -- the same split, the same nll(), the same raw residuals. If the codec
+        #     does not beat it, the learned part is not what is buying the bits.
+        #   PER-ELEMENT PRIOR. One sigma per chemical element, fitted on the fit half. It separates
+        #     "knows chemistry" from "knows this structure", and it is scored on the same RAW
+        #     residuals the codec's NLL uses so the Kabsch discount is not paid on one side only.
+        if pca_fit and pca_eval:
+            Xf = np.concatenate(pca_fit); Xe = np.concatenate(pca_eval)
+            mu_p = Xf.mean(0)
+            U, Sv, Vt = np.linalg.svd(Xf - mu_p, full_matrices=False)
+            # RANK CANNOT EXCEED THE SAMPLE COUNT. With n fit structures the PCA rank is at most
+            # n-1, and at k close to n the basis reconstructs the fit set exactly, so a sigma
+            # fitted there goes to 0 and the NLL explodes -- my first run printed 5.1e28 bits/dim
+            # for "PCA-56" on 60 structures. That is precisely the error this project already
+            # withdrew PCA-256 for: a fit carrying more dimensions than it has effective samples.
+            # The cap is applied and REPORTED, and k values above it are not silently clamped into
+            # duplicate rows.
+            rank_cap = max(1, len(Xf) - 1)
+            ks = sorted({k for k in PCA_K if k <= rank_cap})
+            dropped = [k for k in PCA_K if k > rank_cap]
+            print(f"  PCA fitted on {len(Xf)} structures -> rank cap {rank_cap}; "
+                  f"k in {ks}" + (f"; k={dropped} DROPPED (more components than samples)"
+                                  if dropped else ""), flush=True)
+            for kk in ks:
+                B = Vt[:kk]
+                cf = (Xf - mu_p) @ B.T
+                lo, hi = cf.min(), cf.max()
+                step = (hi - lo) / (2 ** PCA_BITS - 1)
+                ce = (Xe - mu_p) @ B.T
+                cq = np.round((ce - lo) / step) * step + lo          # SAME 6-bit uniform scalar
+                rec = cq @ B + mu_p                                  # quantiser as the codec's
+                err = (rec - Xe).ravel()
+                # sigma from the FIT half's own quantised reconstruction, never from the held half
+                # it is about to score -- the same disjoint-half discipline as the codec's sigma.
+                cfq = np.round((cf - lo) / step) * step + lo
+                sg = float(np.sqrt(((cfq @ B + mu_p - Xf) ** 2).mean()))
+                b_pca = nll(err, sg) / math.log(2)
+                bits_at = kk * PCA_BITS / (Xe.shape[1] / 3)
+                print(f"  {'PCA-' + str(kk) + ' @ ' + str(PCA_BITS) + ' bits':<34}{b_pca:8.4f} "
+                      f"bits/dim   sigma {sg:6.3f} A   ({bits_at:.2f} bits/atom)")
+            print(f"  {'-> codec vs best PCA':<34}{'':>8}              "
+                  f"the comparison 82b asked for; centroid is the bound, this is the comparator",
+                  flush=True)
+        if elem_res:
+            eb, tot, n = 0.0, 0, 0
+            for z, v in sorted(elem_res.items()):
+                ef_z = np.concatenate(v["fit"]) if v["fit"] else None
+                ee_z = np.concatenate(v["eval"]) if v["eval"] else None
+                if ef_z is None or ee_z is None or ee_z.size == 0:
+                    continue
+                sg = float(np.sqrt((ef_z ** 2).mean()))
+                eb += nll(ee_z, sg) * ee_z.size; tot += ee_z.size; n += 1
+            if tot:
+                print(f"  {'PER-ELEMENT prior (' + str(n) + ' elements)':<34}"
+                      f"{eb/tot/math.log(2):8.4f} bits/dim   "
+                      f"one sigma per element, fitted on the fit half", flush=True)
         if ref_res:
             rr = np.concatenate(ref_res); sig_r = float(np.sqrt((rr ** 2).mean()))
             b_ref = nll(rr, sig_r) / math.log(2)

@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 081
+last_acted: 083
 ```
 
 | item | restatement | status | commit |
@@ -102,6 +102,8 @@ last_acted: 081
 | 079 | **ACCEPTED, with a correction to its premise that does not change its instruction.** I followed it. But the propagator has **zero persistence sites and no resume logic** — it writes only to stdout — so no continuation could have resumed a mixed-scheme results file; and 10334964 was still PENDING, so it would have taken the fixed code anyway. My cancel averted nothing (it also cost nothing: 0 domains). **The real fragility is the opposite**: with nothing persisted, a wall kill loses all 28 domains rather than the tail — the argument for adding persistence, and why the wall is 48 h. Fresh run, new results path: 10335262 → 10335263. | ACCEPTED | (this commit) |
 | 080 | **ACCEPTED.** Persistence: mine stands. **80c DONE — 18.2 GPU-h rests on a FIXED 4-EPOCH budget** (4 epochs over 1M at batch 16 = 250,000 steps x 263 ms); nothing in it derives from how long training runs. Measured, steps-to-plateau is nearly flat in data: 22,500 (n50) -> 25,000 (n130), so **data x2.60 -> steps x1.11** against a fixed-epoch prediction of x2.60. The models differ 10x (18.2 vs 1.83 GPU-h) and imply **0.40 epochs** — the run never completes one pass. NOT claiming 1.83: that extrapolates ~7,700x on the axis from two points 2.6x apart. 18.2 stands as the budget, now labelled; the disagreement becomes an instrumentation requirement. 80a/80b/80d accepted. | ACCEPTED | (this commit) |
 | 081 | **ACCEPTED. 81a DONE and it PASSES** — implemented before the queued job ran, so no DDPM number was read without it. Band width per metric and reference coupling print before any arm; OU is read first as a NEGATIVE CONTROL. Measured on 2cndA01 at both lags: **OU lands OUTSIDE on xcorr and amp -> the test HAS power** on the metrics carrying the claim. xcorr_r=0.2483, amp_r=0.1681, so the Gaussian-task branch does not fire. Persisted as a POWER_CHECK row so no table can be read without it. **81b** scope recorded before the numbers (1-2 ns only; large-step claim untested; 20 us needed for tau=100; two points, no slope). **81c** both continuous (500 ns) and aggregate (2.5 us) now on the line, with continuous governing lag reach — 7th one-name-two-things. **81d** reworded to "more data at a fixed step budget"; separating experiment named, result not overturned. **81e** already correct (320 K only), now documented. | ACCEPTED | (this commit) |
+| 082 | **ACCEPTED. 82a DONE** — power check was already per (domain,tau); the reading rule now lives in `armf_propagator_report.py` so it applies to partial files. **Relevance bound registered in advance: real coupling <=> xcorr_r >= max(0.05, band width)**; POWERED requires BOTH coupling and OU failing. Powered/unpowered never pooled. **82b** phrasing corrected to "above the zero-information bound"; PCA at matched 6 bits running. **82c DONE and gating** — `positive_control()` resolves 4ued_B -> Q13541 (38/38) and raises SystemExit on failure, so a zero overlap is provable absence. Size-floor sweep found one more instance, **latent not active**: smallest real CIF is 27,193 bytes. | ACCEPTED | (this commit) |
+| 083 | **ACCEPTED. 83a DONE** — `armf_propagator.py` has ZERO references to cuda/.to(/device; it never opened the GPU it was queueing for. Moved to `main-cpu`, no gres, 4 threads, 16G (MaxRSS 1.64 GB vs a 96 GB ask). **Started within a minute; 9/28 domains at 12 min**, against a 2026-08-19 estimate on GPU. **83c swept**: L1 (unpin) and L2 (96G->88G) move nothing; **L3 is closed by POLICY not inheritance** — main-partition QOS caps at mem=48G and atlas_dm2's measured MaxRSS is 87.6 GB, so `long` is required and L2/L3 interlock. 083's fallback holds: the answer is 83a alone. Also measured: 32 CPUs is WORSE than 4, and main-cpu beats long-cpu by ~13 h. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1008,3 +1010,63 @@ widen the band exactly where 81a needs it tight. Temperature-as-conditioning is 
 and explicitly not to be attempted before 81a reports on all 28 domains.
 
 On the 071/80c note: taken.
+
+## 082 — ACCEPTED
+
+**82a — DONE.** The power check was already computed per (domain, tau) and persisted as a
+`POWER_CHECK` row; what was missing was the reading rule, now in `scripts/armf_propagator_report.py`
+as a separate file so it applies to a partial results file too. **Relevance bound registered before
+the 28-domain results exist**: real coupling ⟺ `xcorr_r ≥ max(0.05, band width on xcorr)`. Two terms
+because they fail differently — the band-width term is *resolvability* (coupling below the spread of
+the reference's own windows cannot be told from zero whatever its absolute size), the floor is
+*relevance* (an arbitrarily tight band would otherwise certify an arbitrarily small coupling). On
+2cndA01 that is 3.6 band widths and 5× the floor. POWERED requires **both** coupling to exist and OU
+to fail on it; either alone is not a working negative control. Powered and unpowered print on
+separate lines and are never averaged.
+
+**82b — the phrasing is corrected now and PCA is running.** Until a matched-rate comparator lands the
+record says "above the zero-information bound", not "2.03 bits/dim". Agreed that beating
+centre-of-mass by 2.87 bits/dim is necessary and nearly uninformative.
+
+**82c — DONE, and it now gates the run.** `positive_control()` resolves `4ued_B → Q13541` end to end
+before any system is counted and **raises SystemExit** if it fails or resolves to the wrong
+accession. Verified passing: 38/38 residues matched. A zero overlap is now provable as absence rather
+than inferred from silence — which matters because 72b gates an 18 GPU-h decision and the fetcher had
+just demonstrated the distinction is not hypothetical.
+
+**The size-floor sweep found one more instance and it is latent, not active.**
+`armf_afdb_fetch.sh:45` counts successes with `find -size +1k`. Measured: the smallest CIF on disk is
+**27,193 bytes** — the 17-residue `A0A0B0MID3`, the shortest structure in the pilot — so nothing is
+being miscounted today. Reported as checked-and-benign rather than fixed, because saying "fixed"
+would imply it had bitten.
+
+## 083 — ACCEPTED
+
+**83a — DONE, and the script is stronger evidence than the timing.** `armf_propagator.py` contains
+**zero** references to `cuda`, `.to(`, or `device` — it never moved a tensor off the CPU. It was not
+merely under-using a GPU; it never opened one. Moved to `main-cpu`, no `--gres`, 4 threads, 16 GB
+(MaxRSS on the 46-second run was **1.64 GB** against a 96 GB ask). **It started within a minute and
+was 9/28 domains done at 12 minutes.**
+
+**83c — swept, and the three levers split into one closed by policy and two that are flat.**
+
+| config (atlas_dm2 — genuinely needs the GPU) | estimated start |
+|---|---|
+| baseline: `long`, 48 h, pinned `turing\|ampere\|lovelace` | 2026-08-19T21:42 |
+| **L1** unpinned, generic `gpu:1` | 2026-08-19T21:42 |
+| **L2** mem 96G → 88G | 2026-08-19T21:42 |
+| wall 48 h → 24 h | 2026-08-19T21:42 |
+| **L3** `main` partition | **refused: QOSMaxMemoryPerUser** |
+
+L1 and L2 move nothing. **L3 is not an inherited setting — it is closed by policy**: the
+`main-partition` QOS caps at `cpu=8, gres/gpu=2, mem=48G`, and atlas_dm2's measured MaxRSS is
+**87.6 GB**. So `long` is *required*, and L2 and L3 interlock — I cannot cut memory to fit `main`
+because 88 GB is what the job actually uses. 96 GB is a justified ask (91% utilised), unlike the
+propagator's.
+
+So 083's own fallback holds: the levers are flat and **the answer is 83a alone** — which was enough,
+because it removed the propagator from the contest entirely.
+
+**One measurement worth keeping:** asking for **32 CPUs is worse than 4** (2026-08-12 vs
+2026-08-11 on `long-cpu`), so the thread count 83a measured is also the right ask; and `main-cpu`
+beats `long-cpu` by ~13 h. Over-asking for cores is a scheduling cost, not free headroom.
