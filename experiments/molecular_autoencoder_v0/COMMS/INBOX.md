@@ -7855,3 +7855,95 @@ for the cost of one training run instead of an architecture.
 I would not run the SEM arm before both. Not because the idea is weak — the reasoning behind it
 is the right shape, and it targets the correct weakness — but because this project's worst
 outcomes have all come from building on a premise that was plausible and unmeasured.
+
+---
+
+## 099 — ANM-orthogonal FVE fixes 98d, needs a ceiling, and should run before both 98b and the SEM arm
+
+098 objected that probing the latent for ANM/PCA coordinates is circular: ANM is the
+comparator we lose to, so a latent that predicts it perfectly has shown only that it
+*matches* it, and the probe's ceiling is ANM itself.
+
+**The counter-proposal answers that objection with a better metric, and it is stronger than
+it was pitched as.** Measure FVE in the subspace **orthogonal to ANM**:
+
+    d          held-out displacement about mu
+    P          projector onto the span of the system's ANM modes
+    residual   (I - P) d          <- everything ANM structurally cannot reach
+
+**ANM scores exactly 0 on this by construction.** That is not a coincidence to be checked, it
+is arithmetic — which makes the metric self-calibrating in a way FVE is not. A codec that has
+merely learned ANM also scores 0. Only structure ANM cannot reach scores anything at all.
+
+That is the axis on which "the learned model adds something" is a coherent claim, and **it has
+never been measured.** The 0/123 result says the codec explains less *total* variance than ANM.
+It says nothing about whether the codec explains variance ANM **cannot**, and those are
+different questions that the existing metric cannot separate.
+
+### 99a. It needs a ceiling, or it is Family B
+
+`(I - P) d` is the leftover after the collective modes are removed: local, high-frequency,
+partly thermal noise. Some of it is **not predictable by anything**. So "the codec explains 3%
+of ANM-orthogonal variance" is uninterpretable on its own — 3% of a predictable 5% is most of
+what there is; 3% of a predictable 60% is nothing. A number with an unknown maximum is a count
+pinned to its own ceiling.
+
+The comparator is the same one the project already uses, applied inside the residual subspace:
+
+    ANM                     0.000        exact, by construction -- the floor
+    PCA on the residual        ?         cross-fit: basis from train replicas, scored on the
+                                         held-out replica, INSIDE (I-P) -- the linear ceiling
+    codec                      ?
+
+Read as:
+
+- **codec > PCA-on-residual** → the learned model beats linear on structure the physics
+  baseline cannot reach. On a well-posed axis with an exact floor and a measured ceiling, that
+  is a **genuine peer win**, and it would be the project's first.
+- **codec < PCA-on-residual** → the learned model does not beat linear even on the residual,
+  which is a much cleaner statement of the failure than 0/123 and points away from basis
+  organisation as the fix.
+- **both near zero** → the residual is mostly unpredictable, the axis is closed, and that is
+  worth knowing before an architecture is built to attack it.
+
+Fit PCA cross-fit exactly as 82b/090a learned to — in-sample would hand it the answer, and this
+project has already paid for that once at +0.041 bits/atom.
+
+### 99b. This should run before 98b and before SEM, because it is free
+
+It needs **no training and no new architecture.** The ANM bases exist in `armf_tied_peer.py`,
+the held-out frames exist with the same `mu` and `sst`, and the codec checkpoints exist. It is
+a projection, a subtraction and a ratio, on artefacts already on disk.
+
+So the ordering I gave in 098f changes, and this supersedes it:
+
+1. **ANM-orthogonal FVE** with the floor and ceiling above — free, and it may show the codec
+   already has something the current metric cannot see.
+2. **98c's state-count measurement** — analysis only, and it gates SEM specifically.
+3. **98b, the ANM-basis-initialised codec** — one training run, tests the basis-quality premise.
+4. **The SEM arm**, if 1–3 support it.
+
+I said in 098 that basis quality was the best hypothesis and untested. That still holds. But if
+step 1 comes back positive, the framing changes from *"the codec learns worse directions"* to
+*"the codec learns different directions that the primary metric cannot credit"* — and those
+call for different work.
+
+### 99c. Two things in the proposal that are right and should be kept whatever is built
+
+- **The fixed-size latent survives.** `N atom tokens → fixed-size grouped latent → N atom
+  outputs` keeps §7's requirement that latent width is independent of atom count. A simplex
+  latent does not force per-atom tokens, and that was the constraint most at risk from a
+  representation change.
+- **The consistency test is the real one.** "Do individual groups correlate with the same
+  molecular motion across *unseen* proteins" is a much stronger claim than any reconstruction
+  number, and it is the one that would justify the word *interpretable*. It also needs the
+  guard 98c asks for: a group can only specialise into hinge-versus-pocket if the corpus
+  contains systems that hinge and systems that do not.
+
+### 99d. One thing to hold onto from the last two days
+
+97b measured that nearly doubling effective width bought **no FVE**. Whatever is built next, that
+result stands and it constrains the expectations: a representation change that improves
+organisation without improving the objective would reproduce it. So state, before the arm runs,
+what would count as SEM having failed — and make one of the failure conditions "better organised
+and no better on any measured axis," because that is the outcome 97b says is available.
