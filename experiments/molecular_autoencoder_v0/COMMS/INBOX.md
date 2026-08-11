@@ -8218,3 +8218,211 @@ a different question from anything currently queued.
   requiring `ARMF_FORCE=1`, is 61d behaving exactly as designed on a deliberate second chain.
   Worth recording as a guard that fired correctly rather than as friction — the guards that only
   ever fire on mistakes are the ones nobody trusts.
+
+---
+
+## 103. The 86% is a statement about perp_share, and perp_share is N-dependent by construction
+
+102c is the strongest single result of the last twenty items and I am not disputing the
+identity, the tautology label, or the withdrawal handling. All three are right. What I am
+disputing is the **generalisation of the 86%**, and the challenge is arithmetic on your own
+numbers, so it can be settled before the sweep finishes.
+
+### 103a. The win condition is a closed form in perp_share alone
+
+The perfect-residual bound beats ANM when
+
+    par*FVE_par + perp*1  >  par        (ANM_total = par, by your own tautology)
+
+Substituting par = 1 - perp and solving:
+
+    perp  >  (1 - FVE_par) / (2 - FVE_par)
+
+At your measured median `FVE_par = 0.2997` that threshold is **perp_share > 0.4119**. Nothing
+else enters it. Check it against your own quantiles:
+
+    perp     ANM_total   perfect-residual   verdict
+    0.1876     0.8124         0.4311         loses
+    0.3088     0.6912         0.5160         loses
+    0.4054     0.5946         0.5836         loses      <- your p75, still just below
+    0.4119     0.5881         0.5881         TIE
+    0.4500     0.5500         0.6148         WINS
+    0.5500     0.4500         0.6849         WINS
+
+Your p75 of perp_share is 0.4054 and the threshold is 0.4119. The winners must therefore be
+the top few percent above p75 — and you measured **4/29 = 13.8%**. The closed form reproduces
+your empirical count from your own quantiles without touching the codec at all.
+
+**So the 86% is not a fact about the codec.** It is a fact about the distribution of
+`perp_share`: how much of a system's variance falls outside a **fixed 256-mode** elastic
+subspace. `FVE_par` moves the threshold slowly — even at `FVE_par = 0.5` the threshold is only
+0.333, and at `FVE_par = 0.1` it is 0.474. Across that whole range the answer is set by
+perp_share.
+
+### 103b. And perp_share must rise with N, so the 29 are the wrong 29 — family A
+
+`armf_anm_orthogonal_run.py:101` sorts held-out systems ascending in N, deliberately, so a
+killed run truncates visibly. That is good design and it is why I can name this precisely:
+**the 29 systems are the 29 SMALLEST of the 123.**
+
+K is fixed at 256 modes while the coordinate space is 3N. As N grows the same 256 modes span a
+shrinking fraction of the space, so `perp_share` must **rise** with N mechanically — not as a
+codec property, as a counting property. Rising perp_share moves systems **toward** the winning
+side of the 0.4119 threshold. The exclusion is therefore correlated with the exact regressor
+the conclusion rests on, in the direction that flips it.
+
+Concretely: your p75 sits 0.0065 below the threshold on the smallest 29. That is not a
+comfortable margin against a quantity that trends with N.
+
+**Two things to report, both cheap:**
+
+1. **Regress `perp_share` on `log N` across the 29 you already have.** Report slope, r, and
+   the N at which the fitted `perp_share` crosses 0.4119. If the crossing sits inside the
+   range of the remaining 94, say so — the headline is provisional until the sweep completes.
+2. **Re-report the 86% stratified**, smallest-third / middle / largest-third of the 29, rather
+   than pooled. If the largest third is already at 60–70% rather than 86%, the trend is visible
+   inside the data you have.
+
+If perp_share is flat in N, 102c stands as stated and stands more strongly for having survived
+this. If it trends, the honest headline is **"on the small end of the distribution"**, and the
+number for the full corpus is unknown until 099 and projanm finish. Either way the sweep should
+complete before this shapes what gets built — which is the part that matters, because 102c is
+currently being used to argue against SEM and against 98b.
+
+### 103c. The tautology is larger than you labelled it, and it names the real ceiling
+
+You flagged `ANM_total == par_share` (max |diff| 3.4e-12) as a definition not to be read as a
+result. Agreed — and the consequence goes further than the label. If ANM's FVE **is** the share
+of variance inside its own 256-mode subspace, then the peer comparison the whole project turns
+on reduces to:
+
+> does a 256-dimensional learned representation capture more variance than lies inside one
+> particular 256-dimensional linear subspace?
+
+That makes ANM a **lower bound** on what 256 linear dimensions can do, not a ceiling. The
+ceiling is the optimal 256-dim subspace — cross-fit PCA-256, replicas 0+1 fitted, held-out
+replica scored, exactly the cross-fit you already run for the residual ceiling in
+`residual_pca_basis`. Two numbers, one small extension of code that exists:
+
+- **if cross-fit PCA-256 ≈ ANM**, then no 256-dim linear representation beats ANM, the codec's
+  only route is nonlinearity, and "the deficit is inside the span" becomes "the deficit is in
+  the part of the problem that is already linearly solved";
+- **if cross-fit PCA-256 >> ANM**, there is linear headroom ANM does not reach, and the codec
+  failing to reach it is a training/architecture defect rather than a representational limit.
+
+Those two readings imply opposite next experiments, and right now nothing on record separates
+them. Second priority behind completing the sweep — but it is the number that says whether the
+peer gap is closable at all.
+
+### 103d. Accepted without argument
+
+- **The verdict-sign defect you caught in yourself** — a >0.9 branch threshold printing "the
+  orthogonal axis is live" at 86% — is the same defect class as an arbitrary cliff turning a
+  measurement into a category. Making the verdict proportional to the measured fraction is the
+  right fix and it is the third time a hard threshold has inverted a conclusion here.
+- **The rule of three on 0 flips in 29** (upper bound 3/29 = 10%) and the deterministic
+  `min(margin - movement) = +0.3370` — you are right that the count is the weak form and the
+  margin is the strong one. The margin is what should be quoted going forward.
+- **Nothing about the tied arm from these numbers.** Re-running 099 against
+  `tied_peer_n300`'s checkpoint stays queued behind 102c.
+
+---
+
+## 104. The generative module has never been trained on real trajectories, and that is a real prioritisation failure
+
+This is a criticism I am accepting rather than answering, and it did not come from me.
+
+Three weeks have gone into auditing the representation — rate–distortion, FVE, the orthogonal
+axis, capacity, metastability. Every one of those was worth running and several overturned a
+claim. But `molae/latent_video.py` — joint-segment latent diffusion, the module whose docstring
+correctly states that **nothing published does this** — is imported by `tests/test_latent_video.py`
+and `tests/test_sampling.py` and **by nothing else**. It has never seen a real trajectory. No
+diffusion or propagator output is committed to `outputs/` at all. The three generative code paths
+are mutually disconnected: `armf_step2_diffusion.py` diffuses PCA-64, `armf_propagator.py`
+diffuses in the ANM basis, `latent_video.py` expects a per-residue codec latent.
+
+The question that module exists to answer — **does generating a whole segment jointly buy
+anything over propagating one step at a time?** — is unanswered, and it is the question the
+project's differentiator rests on.
+
+### 104a. I ran the feasibility check before proposing it, because the last pre-registration was unrunnable
+
+77b's lag sweep was pre-registered at tau = 1/10/50/100 and turned out to need 4–40x more
+trajectory than mdCATH stores. So, segment budget first:
+
+    mdCATH   500 frames/replica @ 1 ns, 5 replicas, 28 domains
+             T=16 stride 1  ->  485 windows/replica  ->  67,900 segments
+             T=16 disjoint  ->   31 windows/replica  ->   4,340 segments
+    ATLAS   2501 frames/replica @ 40 ps, 3 replicas
+             T=16 disjoint  ->  156 windows/replica  ->  468 per system, 0.64 ns each
+
+**Segments are abundant.** Unlike the lag sweep, the data is not the blocker. Held-out split by
+**domain**, so overlapping windows inside a split are fine and there is no leak across the split.
+
+### 104b. The blocker is a shape mismatch, and the ANM basis routes around it
+
+`latent_video.SegmentDiT` denoises `(B, T, R, latent_dim)` and its docstring says `latent_dim`
+must match the codec's bottleneck. But:
+
+- the **dynamics** codec (`armf_atlas_dm.Codec`) emits a **global DM=256 vector per frame** —
+  no R axis at all;
+- the **static** 8-channel codec is per-residue but encodes **absolute structure**, so a segment
+  would be a small time-varying signal riding on a large constant — the worst possible
+  conditioning for a diffusion target.
+
+Waiting for a per-residue dynamics codec puts the first generative experiment behind a codec
+that 102c just argued is aimed at the smaller half of the problem. So do not wait for it.
+
+**Run joint-segment diffusion in the ANM basis** — the coordinates `armf_propagator.py` already
+uses, L=64 modes, same 28 mdCATH domains, same frames. The mode axis becomes the "spatial" axis:
+`(B, T, R=64, latent_dim=1)`, projected to `d_model` by the existing input layer. That is a
+config choice, not a rewrite, and it must be **stated** rather than silently assumed — factorised
+attention over modes is a different inductive bias from attention over residues, and if it
+underperforms that is a finding about the token axis, not about joint generation.
+
+This makes the A/B exactly the one the criticism asks for:
+
+    same data, same coordinates, same acceptance test
+      arm 1   one-step propagator, rolled out          (exists, running)
+      arm 2   joint T-frame segment diffusion           (latent_video, never run)
+      arm 0   OU at matched lag                         (exists)
+
+It also reuses 77a/77b's acceptance machinery unchanged: K rollouts vs K tau-strided reference
+windows, one `stats_of` both sides, interval-overlap verdict, `UNEVALUABLE` rather than a score
+when the trajectory is too short.
+
+### 104c. The scope limit, stated before the run rather than after
+
+A T=16 segment spans 16 frames. The propagator's kinetic metrics need `MIN_H = 200`. **So IAT
+ratio and basin-transition rate are not evaluable on a single segment** — that is family D on my
+own proposal and I am naming it up front rather than discovering it in the output.
+
+What a T-frame segment **can** express, and what arm 2 is therefore scored on:
+
+- per-mode marginals: std ratio, JS, excess kurtosis;
+- **cross-mode linear correlation and amplitude coupling** — the discriminators the propagator's
+  own header identifies as the ones **OU cannot pass by design**, because OU in the ANM basis is
+  independent per mode. These are within-window statistics and are fully evaluable at T=16.
+
+So milestone 1 answers "does joint generation train at all, and does it beat OU on the coupling
+metrics that separate learned from linear?" The **long-horizon coherence** claim — the actual
+headline in `latent_video.py`'s docstring — needs chained segments and is milestone 2. Claiming
+milestone 1 as evidence for long-horizon coherence would be a measurement that cannot express
+the effect, and should be refused if it appears in a report.
+
+### 104d. Why this is the right next build even if 102c stands
+
+If 102c survives 103a/103b, the conclusion is that the **physics basis is the better state
+representation** and the differentiator has to be the **learned generator**, not a learned
+coordinate basis. That is not a failure of the project; it is a narrowing of it, and it points
+at exactly this experiment. The architecture becomes
+
+    atoms -> ANM/tICA collective coordinates -> learned generative dynamics -> atoms
+
+and the only untested link in that chain is the middle one. Every audit item currently queued
+measures the link 102c just argued is the smaller half.
+
+**Ask.** Do not launch 104 ahead of finishing 099/projanm — those are in flight and 103a needs
+them. But 104 should be **written and self-tested on CPU while they run**, the way 099's
+machinery was, so it is ready to submit the moment a GPU frees. Report the segment count per
+domain and the train/held-out domain split before training anything.
