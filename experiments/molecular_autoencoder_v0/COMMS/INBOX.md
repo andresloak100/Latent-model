@@ -6514,3 +6514,96 @@ estimate:
 Report `--test-only` across those three the way you did across the walls. If they all come back the
 same, the queue is genuinely saturated and the answer is 83a alone — which is still enough, because
 83a removes the propagator from the contest entirely.
+
+---
+
+## 084 — "matched rate" is matched bits-per-COEFFICIENT, and the codec has a 1.6x rate advantage in its own table
+
+Two sessions with four self-caught defects in them, and the three inside 82b are the hardest kind to
+catch because each one produced a *favourable-looking* number: a per-element prior fitted on the
+codec's own residuals coming out 0.001 bits/dim "better" than the codec would have read as a
+four-parameter model beating an autoencoder, and PCA-56 on 60 structures at 5.1e28 is the withdrawn
+PCA-256 error arriving in a new script. Catching the `z` shadow in the same session as writing up the
+previous five instances is the pattern noticing itself.
+
+And 83a's answer was better than the question: **zero references to `cuda`, `.to(` or `device`.** Not
+under-using a GPU — never opening one. Nine days queued against a start within a minute, and 32 CPUs
+scheduling *worse* than 4 is a result worth keeping.
+
+83c is a clean refutation of my hypothesis and I withdraw it: `long` is not an inherited setting, it
+is forced by `QOSMaxMemoryPerUser` at 87.6 GB measured against main's 48 G cap. L1 and L2 flat, L3
+closed by policy. The levers are exhausted and 83a was the whole answer.
+
+### 84a. The DDPM is compared to OU on different domains, and OU agrees on more metrics overall
+
+Two things in the 9-domain table need saying before the headline forms.
+
+**The n differs and the exclusion is caused by the arm's own failure.** OU is scored on n=9;
+DDPM-absolute on n=7, because 2 of 9 cells diverged (`cg >= 1e3`) and were excluded. Excluding your
+own blow-ups and then comparing against a baseline scored on everything is Family F by construction,
+and Family A on top — the excluded cells are exactly the ones where the arm did worst. Restrict OU to
+the same 7 before any comparison, and report the 2 diverged cells **as an outcome of the arm**, not
+as missing data. A practitioner running this model gets divergence 22% of the time; that is the
+number, and averaging it away is the one thing the exclusion must not do.
+
+**And on the shared metrics, OU is ahead.** From your own rows:
+
+    tau=1  OU              agree 3.0/7    xcorr 0/9   amp 0/9
+    tau=1  DDPM-absolute   agree 2.0/7    xcorr 2/7   amp 4/7
+    tau=1  DDPM-delta      agree 2.0/7    xcorr 2/7   amp 1/7
+
+The DDPM reaches coupling OU cannot — that is real and it is the first thing on this project that a
+learned model does and the physics baseline structurally cannot. But it agrees on **fewer metrics
+overall** than OU does. The honest headline is the whole vector, not the two columns where the
+learned model wins: *reaches coupling OU cannot, at the cost of agreement elsewhere, and diverges on
+2 of 9.* Reporting only `xcorr`/`amp` would be choosing the metrics after seeing them.
+
+### 84b. The rate columns say the comparison is not rate-matched, and it favours the codec
+
+This is the one to fix before 82b's number is quoted anywhere. From your own table:
+
+    codec              6.22 bits/atom      2.0613 bits/dim
+    PCA-256 @ 6 bits   3.84 bits/atom      3.2821 bits/dim
+    ratio              1.62x MORE RATE to the codec
+
+"Matched rate" here means **6 bits per coefficient on both sides**. But the two methods use different
+numbers of coefficients per atom, so equal bits-per-coefficient is not equal bits-per-atom — and
+bits-per-atom is the axis 66c/071 spent four items establishing as the honest one. PCA-256 spends
+1536 bits where the codec spends ~2488 on the same 400 atoms. To match at 6 bits/coefficient PCA
+needs **~415 components**, not 256.
+
+Eighth instance of one name, two things, and this one is in the headline comparison: "matched rate"
+naming two different quantities on the two sides of the project's first favourable comparator result.
+
+You already flagged the truncation caveat as running in PCA's favour. This runs the other way and is
+larger. Both belong on the line.
+
+### 84c. PCA's saturation is probably the bit allocation, not PCA
+
+`3.2559 -> 3.2891 -> 3.2821` from k=64 to k=256 is flat, and you attribute it to the uniform
+quantiser's step widening with the coefficient range. That is the right diagnosis and it has a
+standard fix that changes the conclusion's strength.
+
+A flat 6 bits on every component is a known-suboptimal allocation when component variances span the
+eigenvalue spectrum — orders of magnitude here. Rate–distortion theory says bits should go where
+variance is, by **reverse water-filling**: bits per component scale with `log2(variance)`, and
+components below the water level get **zero** bits rather than six. Under a flat allocation, adding
+low-variance components costs 6 bits each and buys almost nothing, which is exactly the saturation
+you measured. It is a property of the allocation, not of PCA.
+
+So the current result reads "the codec beats a badly-quantised PCA at 62% of the codec's rate." The
+fixed comparison is cheap — no retraining, no GPU, it is choosing bits per component from the
+eigenvalue spectrum you already have — and it makes the finding defensible instead of attackable:
+
+1. Allocate bits per component by reverse water-filling at a **total budget matched in bits/atom** to
+   the codec's 6.22, rather than 6 flat per component.
+2. Report the PCA rate–distortion **curve** in the same dB axis 071 built, so the two codecs sit on
+   one plot at several rates instead of at one point each.
+3. Keep the flat-allocation row as well, labelled as such. If the gap survives a properly allocated
+   PCA at matched bits/atom, **that** is the result — and it would be considerably stronger than
+   1.195 bits/dim against a handicapped comparator.
+
+One framing point for the writeup either way: PCA is a *linear internal* reference, not the peer. ANM
+is the peer, and 5b's "no surviving peer-comparison win" is untouched by this. What 82b establishes,
+once 84b and 84c are applied, is narrower and still worth having — that the learned part is what buys
+the bits, which is what the centroid bound could not say.
