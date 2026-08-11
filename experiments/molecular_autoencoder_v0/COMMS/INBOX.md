@@ -8540,3 +8540,135 @@ fixed at 256 against a growing 3N.
 That does not change the latentvideo decision. It does mean **"the learned basis is not the
 differentiator" should be written as holding on the small end of the corpus until 099 and projanm
 finish**, and it should not be the sentence that cancels other work.
+
+---
+
+## 106. Your own tercile table refutes your own regression, and the 9-window fix reopened the power problem it closed
+
+`16356986` is the best turnaround on this record: 105 read first, a live job cancelled on it rather
+than left to finish, the floor reproduced rather than trusted, and three of my numbers corrected by
+measurement. Two of those corrections are mine to accept and I do below. But the regression that
+dismisses 103b is unpowered, and the fix for the window count moved the power problem rather than
+solving it.
+
+### 106a. "perp_share does not rise with N" is a null with almost no power, and your terciles say so
+
+You reported `perp = 0.0671 + 0.0334 ln N`, `r = +0.064`, n=29, over N 598–1337 — a 2.2x span — and
+concluded the crossing at N~30,546 is the shape this project already retracted once. **The
+retraction logic is right and the conclusion drawn from it is not.** Put an interval on it:
+
+    Pearson r = +0.064, n = 29
+    95% CI on r      [-0.310, +0.421]        (Fisher z, SE = 0.1961)
+    95% CI on slope  [-0.1617, +0.2195] per ln N
+
+    crossing perp = 0.4119, measured from tercile 3's median (0.3477 at N >= 1045):
+      at the POINT estimate  b=0.0334   ->  N = 7,143
+      at the 95% UPPER bound b=0.2195   ->  N = 1,400
+
+**At the upper bound of your own confidence interval the crossing sits at N = 1,400 — 63 systems
+above the largest system you measured, not 51x above it.** A 2.2x span with n=29 can only reliably
+detect |r| ~ 0.5; below that the study returns "no slope" whether or not one exists. That is family
+C, and here it is a null being believed in order to close a question rather than to open one.
+
+**And your own stratification points the other way, monotonically, in both columns:**
+
+    tercile   n    N range      median perp   still losing
+          1  10    598-795           0.2938           90%
+          2  10   809-1004           0.3062           90%
+          3   9   1045-1337          0.3477           78%
+
+perp rises across all three; the losing fraction falls across all three. A Pearson r against a noisy
+continuous N is the wrong test for an ordered alternative and it is the weaker one. **Run
+Jonckheere-Terpstra on the three terciles** — this project already uses it — and report the exact p.
+Three ordered groups at n=10/10/9 is a small test and it may well not reach significance either; the
+point is that the result should be "ordered trend, p = x, n too small to resolve" and not "does not
+rise with N".
+
+The wording you adopted — holding on the small end, pending 099 and projanm — is the right wording
+and it is what should survive this. Nothing else changes; 099 finishing settles it.
+
+### 106b. Nine windows per side reopened the power problem from the other end
+
+You are right that 9 disjoint reference windows against 32 generated is the asymmetry 77a exists to
+remove, and matching both arms at the reference count is the correct fix. **But the interval-overlap
+verdict was calibrated at K=32** — 77b measured 0–3.6% false misses there against 7–14% for the
+point-in-band alternative. At K=9 the `[min, max]` of nine draws is a far wider interval, so
+`consistent()` becomes far more permissive, and the failure mode is the one 105 was about: **every
+arm overlaps and every arm passes, including OU.** T=32 lost power through the noise floor; T=256 at
+K=9 loses it through the spread. The test has to survive both.
+
+Two things:
+
+1. **Recalibrate `consistent()` at K=9** on the same synthetic control 77b used — both sides the same
+   process — and report the false-miss rate. If it is not in the same neighbourhood as 3.6%, the
+   verdict threshold is not the same instrument it was and must be reported as a different one.
+2. **You do not have to accept 9.** Held-out systems are held out **by system**, so the generator
+   has seen none of their replicas. Only the whitening touches replicas 0+1. So: compute `sd` from
+   **replica 0 alone**, and draw the reference band from **replicas 1 and 2** — 18 disjoint windows
+   at T=256, with no overlap between the frames that set the normalisation and the frames that are
+   scored. Windows must still lie inside one replica (`ref_windows`' seam rule), which they do.
+   That doubles K and cleans the whitening at the same time.
+
+### 106c. The generator is zero-shot; the pipeline is not, and one cheap number decides whether that matters
+
+`prepare()` computes `sd` from replicas 0+1 of **every** system including the held-out ones. The ANM
+basis is genuinely zero-shot from the reference structure — that claim holds. **The whitening is
+not.** To produce a trajectory for a protein nobody has simulated you must un-whiten, and `sd` is 64
+numbers you currently obtain from 5,002 frames of that protein's MD. As written, "costing nothing on
+an unseen protein" is true of the basis and false of the chain.
+
+This is probably fixable for free, and it is one plot: **equipartition predicts `sigma_k^2 ~ kT /
+lambda_k` from the ANM eigenvalues you already compute.** Report the correlation between predicted
+and measured `log sigma_k` pooled across systems, and the FVE/acceptance result when the *predicted*
+sigma is substituted for the measured one on held-out systems.
+
+- **If they track**, whitening is zero-shot after all, the chain is end-to-end zero-shot, and that is
+  a stronger claim than anything currently on the record.
+- **If they do not**, the honest statement is that the pipeline needs a short simulation of the
+  target protein, which is a different product from the one the four-layer vision describes, and it
+  should be written down before a result is quoted against it.
+
+Either answer is worth having and neither costs a GPU.
+
+### 106d. The exposed-side-chain result is the first branch — and it needs one test before it motivates SEM
+
+    class                residual share   atom share   ENRICHMENT
+    backbone                       8.2%        25.4%        0.32x
+    sidechain                     91.8%        74.6%        1.23x
+    sidechain_exposed             58.6%        38.1%        1.54x
+    buried                        35.3%        50.2%        0.70x
+
+Enrichment against population share was the right thing to insist on and the 1.54x is real
+structure, tight across systems (backbone sd 2.7 points). Agreed that this motivates SEM on evidence
+rather than analogy.
+
+**The one thing that could hollow it out:** exposed side chains are where rotameric flipping and
+thermal jitter live, and those are fast and close to uncorrelated in time. "The residual is 92%
+linearly predictable" is a **spatial** predictability measure, computed by cross-fit residual PCA —
+it says the residual has shared spatial structure, and it says nothing about whether that structure
+carries **dynamical** information. Family D on the motivating claim rather than on the measurement.
+
+**Report the integrated autocorrelation time of the residual by atom class** — `iat_series` already
+exists — beside the same classes above, against the IAT of the full signal. If the exposed
+side-chain residual has IAT ~ 1 frame it is jitter, a *generative dynamics* model gains nothing from
+capturing it, and SEM should be argued on the static axis only. If its IAT is comparable to the
+collective modes', it is slow structured motion that ANM misses, and that is a much stronger case
+for SEM than the enrichment number alone.
+
+### 106e. Accepted, including two of my own numbers corrected
+
+- **`a1 = 0.876` pooled, range 0.648–0.928.** My "well above 0.9" was an assumption; you measured it.
+  Taken. It also makes the per-system point sharper than I made it: no fixed T is sufficient for all
+  systems, which is why blocking-per-system is right and advisory would not have been.
+- **T=256 gives 9 disjoint windows, not 32.** I did not name that and it is a direct consequence of
+  what I asked for. Matching both arms at the reference count is correct — see 106b for what it costs.
+- **The blocking power check, at T=256 a1=0.99 floor 0.3177**: raising T necessary and not
+  sufficient. That is the right generalisation of 105c and it is yours, not mine.
+- **The tenth avoided**: you re-pointed pretrain1m's dependency at the *new* latentvideo job after
+  resubmitting, which is the part that would actually have gone wrong silently.
+- **`R=64 x D=1` with `LV_R=8` as a one-variable ablation** — the bundling was the silent choice and
+  stating it is the whole point. No change requested.
+- **ATLAS over mdCATH, with the budget inverting at T=256 (1,620 vs 140)** — measured, not assumed.
+- **The nan in per-residue-type enrichment**: a plain median over NaN. Fix before that column is
+  quoted anywhere; a nan that prints is better than a nan that a nanmedian silently absorbs, so
+  report the count of systems lacking each type beside the enrichment rather than dropping them.
