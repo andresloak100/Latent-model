@@ -7416,3 +7416,106 @@ dynamics axis**, which is true and is the thing to fix.
 2. Pull 93a; it is fixed and tested but you are running the old file.
 3. 93d — re-split at 30% identity and re-score. CPU, uses tooling you already validated.
 4. Then 090's one sentence, 091/092's rate comparison, and 092c's manifest commit.
+
+---
+
+## 094 — the codec is flat-allocated while PCA is water-filled. That asymmetry is 4x the gap being reported.
+
+Two findings in one turn, both large, both the right way round.
+
+Catching that **the codec's distortion was never measured on a quantised latent at all** — `pred, z =
+model(gb)` scores a full-precision reconstruction while billing a 6-bit rate, and PCA's distortion
+*was* on quantised coefficients — is bigger than the question 090a asked. The two sides were never
+comparable on the distortion axis, and that had been true since 084. And catching the re-split defect
+**by the sign of its own answer** — a stricter split cannot make a held-out set easier, so 0.2879 against
+0.8357 was impossible before it was diagnosed — is the strongest self-check on this record.
+
+The rotation finding reconciles cleanly with 092b: I measured it at matched rate on synthetic data and
+saw it help; you measured it at fixed bits-per-component and saw it cost up to 41.6%. Both are true of
+different comparisons and the rate-matched one is the one that counts. No conflict.
+
+### 094a. The corrected comparison is still asymmetric, and this time against the codec
+
+090a's table sweeps the codec at a **flat bits-per-component** — 3, 4, 5, 6, 8 across all eight
+channels. PCA's arm uses `waterfill`, which allocates by variance. So each side is quantised under a
+different allocation rule.
+
+That is **84c's handicap, applied to the other arm.** 84c is the item that established a flat
+allocation is what makes a code look bad when its component variances are spread, and its correction
+is what flipped the static comparison against the codec in the first place. It has not been applied to
+the codec.
+
+The codec's own measured spectrum is spread by **627x**:
+
+    783.9  129.8  112.6  111.6  |  3.54  1.95  1.73  1.25
+
+    arithmetic mean 143.3   geometric mean 19.28   AM/GM 7.43
+    coding gain of optimal allocation over flat = 10*log10(7.43) = 8.71 dB
+
+**090a reports PCA ahead by ~2.1 dB. The allocation asymmetry is worth up to 8.71 dB to the codec —
+4.1x the gap being reported.** Water-filling does not zero any channel here (I said it would; wrong —
+at eight channels the spread is only 4.6 bits, so at 24+ total bits nothing hits the floor). It
+reallocates: at 48 total bits, `[9,8,7,7,5,4,4,4]` instead of `[6,6,6,6,6,6,6,6]`.
+
+**The caveat matters and I will not overstate this.** 8.71 dB is the high-rate Gaussian bound in
+*latent* space. The codec decodes through a nonlinear network, so latent-space coding gain does not map
+one-to-one onto output distortion — it bounds the available headroom, it does not predict the outcome.
+The codec could realise a fraction of it and still lose.
+
+But a comparison where one side has 8.7 dB of unexploited headroom and the other does not is **not yet
+decidable at a 2.1 dB gap**. Re-run the codec arm with `waterfill` over its latent eigenvalues, at the
+same total bits/atom, and report both allocations side by side with the flat row kept and labelled —
+the same way 84c kept PCA's flat row.
+
+If PCA still dominates after that, the result is settled and it has survived the strongest symmetric
+version of itself. That is worth far more than the current number.
+
+### 094b. 0.9358 Å is the generalisation figure and the 197 need one guard
+
+`561 of 758 (74.0%)` with a ≥30% training match, median identity **98.0%**, 47% above 90% — that is
+not marginal leakage, it is a validation set that is three-quarters near-duplicates. `0.8357 → 0.9358`
+on the clean subset, +21.9%, is the number that should appear wherever a generalisation claim is made.
+
+One guard before it is quoted, and it is the same one you applied to the parse failures: **the 197 are
+selected by "has no training homolog", and that is not a random selection.** A protein with no close
+relative in a 2,272-structure training set is plausibly from an under-represented fold class, and
+under-represented folds may be harder for reasons that have nothing to do with homology. Report `nCA`
+and fold-class distribution for the 197 against the 561, with a KS test. If they separate, 0.9358
+mixes a homology effect with a difficulty effect and the split has to say so.
+
+That does not weaken the finding — 0.9358 is still the honest number to quote — it bounds what the
++21.9% can be attributed to.
+
+### 094c. Six collisions, and the seed pair is the one that touches published numbers
+
+`ladder_direct_n2272` `_s1` and `_s2` sharing an `out_dir` is worse than the others because **seed
+variants that resume each other are not independent seeds.** Two consequences, opposite in direction:
+
+- a measured seed spread would be **understated**, since the arms are correlated rather than
+  independent;
+- and every "resolved" verdict computed as `effect / seed spread` is therefore **overstated**, while
+  every "unresolved" one is conservative.
+
+87d's `n=130 resolved at 2.21x` sits on exactly that ratio. So does 88b's reading, where I argued the
+FVE spread across PR-equivalent arms was inside the seed noise — that one is safe in the conservative
+direction, since a larger true spread only strengthens it, but 87d's is not.
+
+The audit is now cheap because `cfg_hash` is stamped: **list every published number whose seed spread
+came from a config pair that shared an `out_dir`.** If the atlas_dm seeds came through
+`ladder_ckpt/{kind}_dm{DM}_lr{lr}_s{sd}_n{N}.pt` — a per-seed filename — they are unaffected and the
+audit closes in one line. If any came through the YAML path, that verdict needs recomputing against a
+spread measured on genuinely independent runs.
+
+### 094d. Where the project stands, stated plainly
+
+- **Rate–distortion vs transform coding: a loss**, now ~0.66 bits/dim — twice the original 0.315 and
+  in the same direction — pending 094a's symmetric re-run.
+- **Reconstruction: 0.9358 Å** on the non-homologous quarter, not 0.8357.
+- **Dynamics vs ANM on FVE: 0/123**, unchanged.
+- **Dynamics vs ANM on rate: running** (10339914), and it is the only cell that could still turn.
+- **Generative axis:** coupling OU cannot reach, on 61% of the corpus, at 24–41% divergence.
+
+The sequence on the rate axis — win, loss, win, loss — has been driven entirely by successive
+corrections to what "rate" and "distortion" meant, every one found by asking what a number was
+measuring. 094a is the last symmetry I can find in it. If the loss survives that, it should be written
+down as settled and the project should stop re-litigating it and spend its compute on 091 and 88d.
