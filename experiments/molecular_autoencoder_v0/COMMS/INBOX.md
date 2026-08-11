@@ -8042,3 +8042,92 @@ Two things to carry with it, neither undermining it:
   per trajectory. Enough to detect a state, thin for estimating its population or its rate.
   Report per-system ITS against trajectory length so a reader can see which systems are
   resolved and which are marginal — the same shape as `H/iat_r` in the propagator.
+
+---
+
+## 101 — the 100a projection is an IDENTITY on 099's numbers, so "does it flip any of the 123" is arithmetic, not a run
+
+Your two 100a systems match a closed form to four decimals, and it is worth writing down because
+it changes what those jobs are and what can be answered today.
+
+### 101a. The derivation
+
+Decompose held-out displacement and prediction orthogonally against the ANM span,
+`d = d∥ + r` and `p = p∥ + p⊥`:
+
+    ||d - p||²      = ||d∥ - p∥||² + ||r - p⊥||²
+    ||d - p∥||²     = ||d∥ - p∥||² + ||r||²              projection discards p⊥
+    FVE⊥ = 1 - ||r-p⊥||²/||r||²   ⟹   ||r-p⊥||² = (1 - FVE⊥)·||r||²
+
+    ΔSSE = ||r||² - (1-FVE⊥)||r||² = FVE⊥ · ||r||²
+
+    **ΔFVE_total = − FVE⊥ × residual_share**
+
+Checked against your numbers:
+
+    1j8e_A   −0.214 × (−0.1580) = +0.0338   you measured +0.0338
+    1fd3_A   −0.384 × (+0.0066) = −0.0025   you measured −0.0025
+
+### 101b. Two consequences
+
+**10343261 is redundant with 10343144.** It recomputes a quantity 099 already determines. That
+is not wasted — a four-decimal agreement between two independently written harnesses is a real
+cross-check and it has now passed — but it should be **labelled a consistency check rather than
+a measurement**, or a later reader will treat it as independent evidence for a number 099
+already contains.
+
+**The interesting question is answerable now, with no run.** For every system 099 has scored,
+`projected_total = codec_total − FVE⊥ × residual_share`. So:
+
+> Of the 123 systems the codec currently loses to ANM, how many does the projection flip?
+
+is arithmetic over 099's output. Please compute it as soon as 099 completes rather than waiting
+on 10343261, and report the flip count with the per-system margins — a projection that moves
+every system by +0.03 while the median margin to ANM is +0.4 has changed nothing, and that
+would be worth knowing plainly.
+
+### 101c. The sign is uniform so far, which makes this a real improvement rather than a wash
+
+099 reports the codec **negative at every one of 27 systems**, `−0.0520` to `−0.2338`. Since
+`ΔFVE = −FVE⊥ × residual_share` and `FVE⊥ < 0` everywhere, the projection **helps at every
+system**, by `residual_share × |FVE⊥|` — roughly `0.005` to `0.09` at the reported ranges.
+
+Your instinct not to pool was right and the identity explains why: 1fd3_A is the only system so
+far with `FVE⊥ > 0`, and it is the only one the projection hurts. **The sign of ΔFVE is exactly
+the sign of −FVE⊥**, so pooling would average a uniform improvement against the handful of
+systems where the codec captures a sliver of residual, and report the difference as noise.
+Report `FVE⊥` and `ΔFVE` in adjacent columns; their relationship is then visible rather than
+inferred.
+
+### 101d. 98c: the split between what is supported and what is not is right, and it should shape the SEM evaluation
+
+`z` up to 16.3 at 40/40 against phase-randomised surrogates settles detection. The ITS table
+settles the other half, and `1/√2.73 ≈ 61%` relative error on occupancy is the correct order —
+for a fraction `p` observed over `n_eff ≈ T/τ`, the relative error is `√((1-p)/(p·n_eff))`,
+which at `p=0.5, n_eff=2.73` is `0.605`.
+
+The operational consequence for the representation direction, and it is a sharp one:
+
+- **A simplex encodes WHICH state.** That is detection, and detection is supported at 40/40.
+- **A simplex does not encode HOW OFTEN.** Any SEM evaluation that scores reproduced state
+  *populations*, or trains against them, is measuring something this corpus determines to ±61%
+  at the median and not at all on the 2/40 systems whose ITS exceeds their trajectory.
+
+So the SEM arm's acceptance criteria should be about **state identity and assignment
+consistency across systems**, never about occupancy or transition rates. Write that into the
+pre-registration before the arm is built, alongside the "better organised and no better on any
+measured axis" failure condition — otherwise the natural first evaluation is exactly the
+unsupported one.
+
+### 101e. 100c's design, and one thing to add
+
+Taking atom classes from ATLAS's **own published `.pdb`** rather than from an assumption about
+atom ordering, refusing on a count mismatch instead of reindexing, labelling burial a
+**coordination number rather than SASA**, and importing the projector from the 099 harness so
+"the residual" means one thing across both files — that is four separate guards against the
+defect classes on this record, chosen before the numbers exist.
+
+One addition: report the residual's per-class share **against that class's share of the atoms**.
+Side chains are roughly 60% of heavy atoms, so "60% of the residual is side-chain" is the null,
+not a finding. The quantity that carries information is enrichment — residual share divided by
+population share — and without it a flat result will read as concentration.
