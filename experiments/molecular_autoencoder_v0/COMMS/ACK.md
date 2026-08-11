@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 093
+last_acted: 096
 ```
 
 | item | restatement | status | commit |
@@ -114,6 +114,9 @@ last_acted: 093
 | 091 | **ACCEPTED — loop written and submitted (10339914).** Data plumbing only; `code_and_score` and `self_test()` untouched and gating. ANM rotate=False (reference structure only), codec rotate=True; ANM's nonzero mode count printed beside its rate per 092a; both readings pre-registered in the docstring. **Scope limit stated:** `code_and_score` reconstructs linearly, so the codec arm uses a least-squares readout — this compares REPRESENTATIONS under a common linear decoder, because giving the codec its nonlinear decoder would break the symmetry self_test() guarantees. Nonlinear decoder owed. | ACCEPTED | (this commit) |
 | 092 | **ACCEPTED. 092c DONE FIRST** (minutes, borrowed account): `data/atlas/` holds atlas_manifest.json + atlas_info.tsv + README with the acquisition command, **STRIDE=4** and **NSEL=825** and their reasons, and the 10 ps → 40 ps frame spacing 81c needs. Raw 282 GB / 289 GB stay unversioned and re-downloadable. Same treatment owed for the 972,849 gated accessions when prep1m lands. 092a folded into 091; 092b answered under 090. | ACCEPTED | (this commit) |
 | 093 | **ACCEPTED, all four verified. pretrain1m 10338752 CANCELLED first.** 93a pulled. **93b fixed and it is SIX collisions across fifteen configs**, worst being `ladder_direct_n2272` sharing an out_dir with its **_s1/_s2 SEED variants** — the arms 87b/87d read seed spread from; afdb1m given its own name/out_dir plus a cfg_hash resume guard, runtime-tested (fingerprints differ, refusal fires). **93c: max_steps added** to config+train.py (none existed; purely epoch-driven), set to 100,000 with epochs as an upper bound. **93d verified and severe: 74.0% of val has a >=30% training homolog at median 98.0% identity, 47% at >=90%**; homolog-free val is **0.9358 A vs the published 0.8357 (+21.9%)**. My own first version re-split and re-scored the existing checkpoint, drawing 76% of new-val from old-TRAIN, and reported a 65% "improvement" — caught by the sign. Owed: a model trained on a 30%-separated split. | ACCEPTED | (this commit) |
+| 094 | **ACCEPTED.** Seed audit CLOSES in one line: `armf_atlas_dm.py:460` writes `..._s{seed}_z{}.pt`, so seeds never shared a path — the `_s1`/`_s2` collision is in `configs/`, used by train.py not armf_atlas_dm.py; **87d's 2.21x stands**. The 197 are **not size-selected**: KS D=0.0883 p=0.191 (residues), D=0.0734 p=0.389 (atoms). Fold class NOT MEASURED (no CATH/SCOP field) — reported absent, not proxied. Water-filled codec arm re-running with flat rows kept. **091's first result NOT readable**: readout fitted on 200 frames for 256 coefficients (underdetermined) — that is the 170-2389 MSE; resubmitted with NFRAME=2400 and a hard refusal below 2x coefficients. | ACCEPTED | (this commit) |
+| 095 | **ACCEPTED — pretrain1m RELEASED (10341681, main, 44G, afterany:prep1m).** Readouts split in the pre-registration BEFORE submission: **PR is the clean primary** (latents only, never touches the val split); reconstruction reported on the **197 non-homologous as headline, 758 beside it labelled contaminated**; **the bar is 0.9358 A, not 0.8357**. PR censoring pre-registered as a lower bound. | ACCEPTED | (this commit) |
+| 096 | **ACCEPTED. Audit clean:** peerrate allocated `cpu=8,mem=44G` with **NO gres/gpu** (main-cpu by design — propagator's mistake not repeated); prtrace **51% GPU utilisation** (33% mem, 7,114 MiB peak), above the 30% threshold. **075's second half adopted**: measured utilisation reported per GPU job, <30% is a defect. Three concurrent slots now in use. **88d answered**: PR 4.5 -> 28.2, **still rising at the cap (+20.2%)** while FVE plateaued — 87b's "one effective width ~15" was the stopping rule. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1429,3 +1432,48 @@ leakage cannot produce. Still owed: a model actually trained on a 30%-separated 
 free energies, kinetics and rates are" belongs in the ROADMAP and I will put it there. And the
 push-back lands where it should: none of this has produced a defended positive result on the dynamics
 axis, which is the thing to fix.
+
+## 094 / 095 / 096 — ACCEPTED
+
+**096a/096b — audited, and the answer is clean on both counts.** `peerrate` allocated
+`cpu=8,mem=44G` with **no `gres/gpu`** — it went to `main-cpu` by design, so the propagator's mistake
+was not repeated. `prtrace` allocated `gres/gpu=1` and SLURM accounting reports **51% GPU
+utilisation**, 33% memory utilisation, 7,114 MiB peak — above your ~30% threshold, so not a defect.
+**075's second half is adopted:** measured utilisation per GPU job is reported beside the 075 line
+from now on, and anything under ~30% is a defect to report. Taken that idle GPU is borrowed against
+the account holder's priority, and that the propagator's 46 s at 0% was a *sample against the
+average*, not merely a wasted allocation. Three concurrent slots now in use.
+
+**095 — RELEASED as `10341681`** (main, 44 GB, `afterany:prep1m`). The readouts are split in
+`PRETRAIN_1M_PREREGISTRATION.md` **before** submission: **PR is the clean primary** (computed on
+latents, never touches the val split); any reconstruction number is reported on the **197
+non-homologous structures as the headline with the 758 beside it labelled contaminated**, and **the
+number to beat is 0.9358 Å, not 0.8357**. Also pre-registered: PR was `censored` at every eval of the
+ATLAS trace, so it is a **lower bound**, and no absolute value may be quoted without that attached.
+
+**88d has returned its first-branch answer.** `prtrace` ran 90,000 steps: **PR 4.5 → 28.2, still
+rising at the cap (+20.2% over the final half)** while FVE plateaued (+0.1465 → +0.1569, last three
+evals 0.1643/0.1524/0.1500). The existing arm stopped at 35,000 steps with PR ≈14.6. **So 87b's "four
+nominal widths, one effective width ≈15" was measuring the stopping rule, not the architecture.**
+
+**094 — the seed audit closes in one line, as you predicted.** `armf_atlas_dm.py:460` writes
+`{CKPT}/L{Lv}_n{n}_dm{dm}_dl{dl}_lr{lr:g}_s{seed}_z{...}.pt` — the **filename carries the seed**, and
+`_s0_`/`_s1_`/`_s2_` are distinct files on disk. The `_s1`/`_s2` `out_dir` collision is in `configs/`,
+which `train.py` consumes and `armf_atlas_dm.py` does not. **The atlas_dm seeds never resumed each
+other, so 87d's 2.21× is not overstated.**
+
+**094 — the 197 are NOT size-selected.** median 81 residues / 652 atoms against the 561's 82 / 632;
+**KS D=0.0883 p=0.191 on residues, D=0.0734 p=0.389 on atoms — indistinguishable.** So the +21.9% is
+not a size artefact. **Fold class is NOT MEASURED**: the `.npz` carries no CATH/SCOP field, and it is
+reported absent rather than approximated by a proxy.
+
+**094 — the water-filled codec arm is re-running** (`codec_rd_wf2.log`), flat rows kept and labelled
+as 84c kept PCA's. The 8.71 dB figure is recorded as a **high-rate Gaussian bound in latent space**
+that caps headroom rather than predicting the outcome, since the decoder is nonlinear.
+
+**091's first result is NOT readable, and the arithmetic says why.** It completed 123/123 with the
+self-test passing, but the codec readout was fitted on **200 frames for 256 coefficients** —
+underdetermined, so `B_cod` was rank-deficient. That is the codec MSE of 170–2389 against ANM's 2.37:
+a broken fit, not a bad representation. ANM's MSE was also **identical at every budget** (2.3713),
+which means truncation dominates quantisation at these rates. Resubmitted as `10341768` with
+NFRAME=2400 (1,200 frames for 256 coefficients) and a hard refusal when `half < 2·n_coeff`.

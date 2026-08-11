@@ -45,6 +45,14 @@ NATOM = int(os.environ.get("PCA_NATOM", "400"))
 NFIT = int(os.environ.get("RD_NFIT", "600"))
 NVAL = int(os.environ.get("RD_NVAL", "400"))
 BUDGETS = [3, 4, 5, 6, 8]
+# INBOX 094. THE FLAT SWEEP ABOVE IS 84c's HANDICAP APPLIED TO THE OTHER ARM. 84c established that a
+# flat bits-per-component allocation makes a spread-variance code look bad, and correcting it is what
+# flipped the static comparison in the first place -- then 090a swept the CODEC flat while PCA's arm
+# used waterfill. The codec's spectrum spans 627x (AM 143.3, GM 19.28), so optimal allocation is worth
+# up to 8.71 dB against the 2.1 dB gap measured -- 4.1x the effect. That is a HIGH-RATE GAUSSIAN BOUND
+# IN LATENT SPACE and the decoder is nonlinear, so it caps the headroom rather than predicting the
+# outcome. The flat rows are kept and labelled, exactly as 84c kept PCA's.
+WF_BUDGETS = [float(x) for x in os.environ.get("RD_WF", "2.6,4.2,5.9,7.6").split(",")]
 dev = torch.device("cpu")
 
 
@@ -145,5 +153,41 @@ if __name__ == "__main__":
               f"sigma {r['sigma']:.4f} A   |   UNROTATED entropy {w['entropy_bits_per_atom']:.3f}, "
               f"sigma {w['sigma']:.4f} A   |   rotation moves MSE "
               f"{100*(r['mse']-w['mse'])/w['mse']:+.1f}%", flush=True)
-    json.dump(rows, open(f"{WR}/codec_rd.json", "w"))
+    # ---- 094: the same codec, WATER-FILLED at matched bits/atom ----
+    from armf_pca_matched import waterfill, quantise_cols
+    print(f"\n  094: WATER-FILLED codec arm at matched bits/atom (flat rows above kept, labelled)",
+          flush=True)
+    print(f"  {'budget b/atom':>14}{'entropy b/atom':>16}{'sigma A':>10}{'bits/dim':>10}{'nonzero':>9}")
+    wf_rows = []
+    var = Ac.var(0) + 1e-12
+    for b in WF_BUDGETS:
+        errs, syms = [], []
+        with torch.no_grad():
+            for i in range(len(ds)):
+                s_ = ds[i]; na = int(s_["n_atoms"])
+                if na < NATOM: continue
+                gb = {k: (v.to(dev) if torch.is_tensor(v) else v)
+                      for k, v in collate_fn([s_]).items()}
+                _, z = model(gb)
+                zn = z[0].cpu().numpy().astype(np.float64)
+                t = gb["coords"][0, :NATOM].cpu().numpy().astype(np.float64)
+                c = (zn - mu) @ U
+                bits = waterfill(var, int(round(b * NATOM)))
+                dq = quantise_cols(c.copy(), bits, lo_r, hi_r)
+                zq = torch.tensor(dq @ U.T + mu, dtype=z.dtype).unsqueeze(0)
+                p = model.decode(zq, gb)[0, :NATOM].cpu().numpy().astype(np.float64)
+                errs.append((p - t).ravel())
+                syms.append(np.stack([np.round((dq[:, j] - lo_r[j]) /
+                            max((hi_r[j]-lo_r[j])/max(2**int(bits[j])-1, 1), 1e-30))
+                            if bits[j] > 0 else np.zeros(len(dq))
+                            for j in range(dq.shape[1])], 1).astype(np.int64))
+        e = np.concatenate(errs); S = np.concatenate(syms)
+        sg = float(np.sqrt((e ** 2).mean()))
+        bpa = ent_bits_cols(S) * (len(S) / (len(errs) * NATOM))
+        bd = math.log2(sg * math.sqrt(2 * math.pi * math.e))
+        nz = int((waterfill(var, int(round(b * NATOM))) > 0).sum())
+        print(f"  {b:>14.2f}{bpa:>16.3f}{sg:>10.4f}{bd:>10.4f}{nz:>9}", flush=True)
+        wf_rows.append(dict(budget=b, entropy_bits_per_atom=bpa, sigma=sg, bits_per_dim=bd,
+                            nonzero=nz))
+    json.dump(dict(flat=rows, waterfilled=wf_rows), open(f"{WR}/codec_rd.json", "w"))
     print(f"\n  -> {WR}/codec_rd.json", flush=True)

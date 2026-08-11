@@ -52,7 +52,7 @@ LR = os.environ.get("PEER_LR", "0.0001")
 NT = int(os.environ.get("PEER_NTRAIN", "130"))
 SEED = int(os.environ.get("PEER_SEED", "0"))
 CUTOFF = float(os.environ.get("PEER_CUTOFF", "5.0"))
-NFRAME = int(os.environ.get("PEER_NFRAME", "400"))     # frames per side, strided
+NFRAME = int(os.environ.get("PEER_NFRAME", "2400"))     # frames per side, strided
 RES = os.environ.get("PEER_RATE_RES", f"{WR}/peer_rate.json")
 CKPT = f"{WR}/atlas_dm_ckpt/L1_n{NT}_dm{DM}_dl{DM}_lr{LR}_s{SEED}_z0.pt"
 dev = D.dev
@@ -113,6 +113,15 @@ if __name__ == "__main__":
             # ---- CODEC arm: latent, with a least-squares readout as its linear basis ----
             Z = codec_coeffs(mdl, d, X.reshape(len(X), N, 3))
             Z_tr, Z_ho = Z[:half], Z[half:]
+            # INBOX 094/091 DEFECT, caught by the size of the answer. At NFRAME=400 the readout was
+            # fitted on 200 frames for 256 coefficients -- UNDERDETERMINED, so B_cod was rank
+            # deficient and could not generalise. That is the codec MSE of 170-2389 against ANM's
+            # 2.37: a broken fit, not a bad representation. NFRAME is now 2,400 so the fit has
+            # 1,200 frames against 256 coefficients, and the run refuses rather than reporting a
+            # rank-deficient readout.
+            if half < 2 * Z.shape[1]:
+                raise ValueError(f"readout underdetermined: {half} frames for {Z.shape[1]} "
+                                 f"coefficients -- raise PEER_NFRAME")
             B_cod, *_ = np.linalg.lstsq(Z_tr, X_tr, rcond=None)     # (comps, 3N), fitted on TRAIN
 
             row = {"N": N, "n_frames": len(X), "dm": DM, "anm_modes": int(B_anm.shape[0]),

@@ -49,3 +49,32 @@ run rather than argued afterwards.
   **100** from the MD mean on the median system — neither the ensemble centre nor a typical draw. So
   this pretrain can be claimed to teach geometry, packing and secondary structure, and **cannot** be
   claimed to teach fluctuation directions, which is what the dynamics primary is scored on.
+
+---
+
+## The two readouts are NOT equally clean, and they are split here BEFORE submission (INBOX 095)
+
+The corpus is gated at 30% identity against **held-out ATLAS sequences**. That is not the set 93d is
+about. 93d is the **static val split**, and that is where any reconstruction number from this run
+lands. So the two readouts have different standing and must not share a headline.
+
+**PRIMARY — PR. Clean.** Computed on latents, cross-fit basis from train tokens. It never touches the
+val split, so 93d's contamination cannot reach it. This is the pre-registered primary and 88d's
+decisive version, and 88d has now returned its first-branch answer on ATLAS: PR rose **4.5 → 28.2**
+over 90,000 steps and was **still rising at the cap (+20.2% over the final half)** while FVE plateaued.
+So the question this run answers is whether 1M structures move PR the same way more steps did.
+
+**SECONDARY — reconstruction RMSD. Contaminated, and reported as two numbers.**
+
+| set | n | status |
+|---|---|---|
+| **no training homolog** | **197** | **the headline. The number to beat is 0.9358 Å.** |
+| all val | 758 | reported beside it, **labelled contaminated** — 74.0% have a ≥30% training homolog at median 98.0% identity |
+
+**0.8357 Å is not the bar.** Quoting it would compare this run against a figure inflated 21.9% by
+homologs the split rule failed to separate.
+
+**PR is censored and that is stated in advance.** `participation_ratio` flags `censored` when
+`n_obs < 2·DM`, and it flagged at **every** eval of the ATLAS trace. A censored PR is a **lower
+bound**, not a measurement. A rising lower bound is still a rise, so 88d's answer holds; but no
+absolute PR value from either run may be quoted without the bound attached.
