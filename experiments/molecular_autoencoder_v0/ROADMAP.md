@@ -6284,3 +6284,39 @@ one basin":
 **States are present and are metastable relative to the 1 ns lag.** This is the opposite of what the
 project's other measurements suggested, and it is the branch that keeps the representation direction
 open. Full 40-system run submitted as `10343101`.
+
+---
+
+## 100b: the 099 ceiling is a PER-SYSTEM pipeline; the codec is one shared model
+
+The 0.92 residual-PCA ceiling is fitted on **that system's own train replicas**. The codec is **one
+model shared across every system**, and it sees **no frames from the system it is scored on**. So
+"ANM + residual-PCA reaches 97.6–99.2% of held-out variance" describes a **per-system classical
+pipeline with access to that system's own trajectory** — it is not "classical beats learned 98 to 19".
+`armf_tied_peer.py` already carries this asymmetry for ANM's basis, and the same wording applies here.
+
+**What the ceiling establishes is the load-bearing part, and the asymmetry does not weaken it:** the
+residual is **~92% linearly predictable from that system's own frames**, so it is **not noise**. The
+axis is open, it carries 10–38% of held-out variance, and **nobody is reaching it** — the shared codec
+scores at or below zero inside it.
+
+## 100e: the states are real; their POPULATIONS are not measurable at this trajectory length
+
+98c's full run: **40/40 systems beat phase-randomised surrogates**, z = 6.6–16.3 across k = 2–6. The
+states exist. The timescale guard, in the same shape as `H/iat_r`:
+
+| | median | min | max |
+|---|---|---|---|
+| slowest implied timescale | **36.62 ns** | 12.28 | 219.63 |
+| relaxation times observed in 100 ns | **2.73** | 0.46 | 8.14 |
+
+| | systems |
+|---|---|
+| ITS **exceeds** the trajectory | 2/40 (5%) |
+| fewer than 5 relaxation times | **33/40 (82%)** |
+| fewer than 10 | **40/40 (100%)** |
+
+**Detection is safe; population estimation is not.** A state observed for 2.73 relaxation times has
+its occupancy determined to roughly `1/√2.73 ≈ 61%` relative error, and **two systems never relax
+once**. A simplex prior therefore has something real to encode, and any *quantitative* claim about
+state occupancies from this corpus is unsupported at 100 ns — the continuous figure, per 81c.

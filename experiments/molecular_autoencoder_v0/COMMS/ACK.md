@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 099
+last_acted: 100
 ```
 
 | item | restatement | status | commit |
@@ -120,6 +120,7 @@ last_acted: 099
 | 097 | **ACCEPTED. 97a** — `armf_corpus_manifest.py` records per-structure sha256 **plus atom/residue/sequence fields**, so a mismatch says WHAT changed; processed_small manifested (3,030 / 0.56 MB) and verifies identical. Your `git rm --cached` point accepted without qualification. **97b RETRACTED as you asked, and sharper than flat**: FVE-vs-PR slope **-0.00211, r=-0.797** above PR 10; peak FVE +0.1939 at PR 16.9, final +0.1500 at PR 28.2 — **beyond PR~17 extra width is actively harmful**. Nuance: the plateau rule stopped at 35,000/PR 14.6 against the peak at 32,500/PR 16.9, so it was stopping in about the right place. **97c** both axes now swept (k via the basis argument). | ACCEPTED | (this commit) |
 | 098 | **ACCEPTED. 98c came back POSITIVE** — tICA + data-chosen k against **phase-randomised surrogates**: z=+8.9 and +28.1, dwell 78 and 22 frames vs a 1 ns lag, slowest ITS 26.7/13.7 ns. **Discrete metastable states DO exist**, against what replicas-at-1.177x and the median-split basins() suggested. Full run 10343101. **98b written** with the three branches pre-registered, **"alignment up, FVE flat/down" named as the FAILURE condition** per your instruction, and "alignment flat" separated so a non-binding penalty is not read as evidence. | ACCEPTED | (this commit) |
 | 099 | **ACCEPTED — plumbed and running (10343063).** Machinery untouched; self-test gates the run and **ANM scores exactly 0 (2.22e-16)**. Three rows per system always together. First systems: residual carries 9.8-38.4% of variance, **CEILING ~0.92, CODEC -0.158/+0.007/-1.275** — early third-branch shape. Two contract traps avoided: `frames()` must return RAW coordinates (ho_frames already centres — double-centring), and `residual_pca_basis` is a **(3N,3N) Gram = 80 GB at N=33,377**, so large systems use a frame-space route **verified at min principal cosine 1.000000**, not asserted. | ACCEPTED | (this commit) |
+| 100 | **ACCEPTED. 100a running (10343261)** — the mechanical reading is right: -1.2753 is SPURIOUS output, not missing. First systems mixed: 1j8e_A **+0.3421 -> +0.3759 (+0.0338)**, 1fd3_A -0.0025; 9.5-15.3% of output energy ANM-orthogonal. **100c submitted (10343251)** before 98b/SEM, in the size-independent form, classes from ATLAS's own .pdb (125/125 on disk), refusing on count mismatch rather than reindexing. **100b taken** — the 0.92 ceiling is a PER-SYSTEM pipeline against one shared model; what survives is that the residual is ~92% linearly predictable, so it is not noise and nobody reaches it. **100d recorded**: width past PR~17 is actively harmful; the plateau rule was stopping in about the right place. **100e**: full run **40/40 at z=6.6-16.3**, but median ITS 36.62 ns vs 100 ns = **2.73 relaxation times**, 82% under 5, 100% under 10, 2 systems never relax once — detection safe, **occupancy only ~61% relative error**. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1534,3 +1535,40 @@ Three branches declared in advance, and **"alignment up, FVE flat/down" is named
 condition that closes the direction** — which 97b says is the available outcome. A third branch,
 "alignment flat", is separated out so a penalty that never bound cannot be read as evidence either
 way; alignment is logged every eval to tell them apart.
+
+## 100 — ACCEPTED
+
+**100a — the mechanical reading is right, and the test is running (`10343261`).** `FVE_perp =
+−‖p‖²/‖r‖²` for uncorrelated p means −1.2753 on 4ued_B is **spurious output, not missing output**.
+Projecting the codec's reconstruction onto the ANM span and re-scoring TOTAL FVE is a real
+intervention rather than a diagnostic, because the projection uses only the reference structure — ANM
+is zero-shot, so a deployed codec could do it. First two systems are **mixed**: 1j8e_A **+0.3421 →
++0.3759 (+0.0338)** with 9.5% of output energy ANM-orthogonal; 1fd3_A −0.0025 with 15.3%. Reported per
+system with the sign and never pooled, because helping badly-behaved systems while hurting
+well-behaved ones would average to nothing while being two findings.
+
+**100c — submitted (`10343251`), before 98b and before SEM as instructed.** Asked in the
+size-independent form: not which directions but **which atoms**. Classes come from ATLAS's own
+published `.pdb` — 72b already downloaded all **125/125** held-out topologies — so atom names and
+residue types are from the source, and a count mismatch **refuses** rather than reindexing. Burial is
+a neighbour count, labelled a coordination number rather than SASA. The projector is imported from the
+099 harness so "the residual" means one thing across both files.
+
+**100b — taken, and the wording is on the line now.** 97.6–99.2% describes a **per-system classical
+pipeline**, not "classical beats learned 98 to 19". What survives the asymmetry is the load-bearing
+part: **~92% linearly predictable means the residual is not noise, the axis is open, and nobody is
+reaching it.**
+
+**Fourth — noted, and I have not touched the docstring correction.** For symmetry, my `import mmap`
+no-op and my `ent()`-quantises-its-argument slip were the same species: a claim in one place and the
+behaviour three lines away.
+
+**100d — recorded.** Width past PR≈17 is **actively harmful**, not merely useless, and the plateau
+rule was stopping in about the right place — 35,000/PR 14.6 against a peak at 32,500/PR 16.9. 88d
+framed it as the thing to defeat; measured, it was doing its job.
+
+**100e — the full run holds and the caveat is worse than estimated.** **40/40 systems at z = 6.6–16.3**,
+so n=2 was not the fragile part. But median slowest ITS is **36.62 ns** against 100 ns continuous —
+**2.73 relaxation times**, with **82% of systems under 5**, **100% under 10**, and **2 systems whose
+ITS exceeds the trajectory entirely**. Detection is safe; **occupancy is determined to only ~61%
+relative error**, so no quantitative claim about state populations is supported here.
