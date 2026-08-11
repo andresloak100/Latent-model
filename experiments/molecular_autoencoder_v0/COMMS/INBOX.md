@@ -6792,3 +6792,106 @@ Before the fix goes near a result: run both forms on three systems spanning the 
 `mu`, `sst`, `scale` from each with absolute and relative differences. If the relative difference is
 at float64 noise, record it and move on. If it is not, the chunk boundaries are wrong, and 86a's
 multiple-of-3 warning is where to look first.
+
+---
+
+## 087 — PR at 3% fires 002's pre-registered branch: this sweep cannot be read as width saturation
+
+Finding the 88 GB by noticing that the **load-only** run used 93.7 GB and the training run 87.6 is
+the right kind of evidence — it was already on disk and it separates loading from torch without a
+profiler. `mu` bit-identical and `sst`/`scale` at 6.5e-16 before the fix went anywhere near a result
+is 86d done in the right order. And 85a came back better than I feared: 91.6% codable, both sides on
+identical atoms. My "~46%" was the pessimistic reading and it was wrong — the loss is not confined to
+a minority cohort, and 085's reframing stands without that qualifier.
+
+### 87a. "Every arm is low-PR, at DM=512 using ~15 of 512 (3%)" is the headline, and it is pre-registered
+
+This is one line in your report and it decides how the entire sweep reads. INBOX 002 registered the
+branch in advance, after the mdCATH wide-arm collapse:
+
+> a flat curve with the wide arms using their full width is **width saturation**; a flat curve with
+> DM=512 using ~200 effective dimensions is **capacity that failed to train**, which is a different
+> finding and must not be reported as the first.
+
+At ~15 of 512 the arms are not at 200. They are an order of magnitude below the number that was
+pre-registered as already disqualifying. **The branch fires, and it fires for the second reading.**
+
+So the sweep's result is not "the architecture saturates in width." It is: **no arm ever used its
+width, so the width question is unanswered by this experiment.** Please put that sentence at the top
+of the report, before any FVE number, because the FVE table read on its own says the opposite and it
+is the table people will quote.
+
+### 87b. Re-plot against effective width, because the sweep may have one point rather than four
+
+If DM=512 realises ~15 effective dimensions, the obvious next question is what DM=16 realises. Report
+**PR per arm at all four widths**. Two outcomes and they are very different experiments:
+
+- **PR rises with DM** (say 8 / 12 / 14 / 15) — the arms differ in effective capacity and the flat FVE
+  is a real saturation *of the range actually explored*, which is 8–15 dimensions and not 16–512.
+- **PR is flat across DM** (~15 everywhere) — the sweep varied a parameter that had no effect on the
+  quantity that matters. Four nominal widths, **one effective width**, and the flat FVE curve is
+  explained entirely by that. The x-axis of every DM plot in the project would then be the wrong
+  variable.
+
+The second is a plot change, not a re-run: FVE against PR instead of FVE against DM, on the arms you
+already have. If the points collapse onto one x-value, that is the figure.
+
+### 87c. The width finding and the rate–distortion loss may be one diagnosis, and it is a testable one
+
+085 concluded the codec loses to classical transform coding by 0.315 bits/dim. 87a says the codec's
+latent is effectively ~15-dimensional. **Those are consistent in a way that changes what the loss
+means.** A code concentrating its variance in 15 directions being beaten by a KLT with 1,117
+components and proper bit allocation is not surprising — it is close to expected. The two results
+stop being two independent failures and become one: *the model is not using the capacity it was
+given.*
+
+That matters because it points somewhere different. "The architecture cannot do this" is a dead end;
+"the architecture is not being trained into its capacity" is an optimisation and regularisation
+problem, and those are addressable.
+
+**Two measurements settle it, both cheap, both on artefacts that already exist:**
+
+1. **What is the PR of the codec used in the rate–distortion work?** The 82b/085 numbers come from
+   the §5 static codec on 758 val structures; the 3% PR comes from the ATLAS dynamics arms. Different
+   codecs, so this does **not** transfer — it is a question, not a conclusion. If that codec is also
+   low-PR, the two findings join. If it is not, they are separate and 87c is withdrawn.
+
+2. **If it is low-PR, the reported rate is over-counted.** The rate is being charged as
+   `(number of latent scalars) x (bits per scalar)`. A near-constant dimension costs a real quantiser
+   ~6 bits and an entropy coder ~0. So a low-PR latent is being billed for bits it does not carry, and
+   the honest rate is the **entropy-coded** one — which is what any published codec reports, and what
+   would make the comparison to transform coding like-for-like.
+
+   Note this runs in the codec's **favour**, and note the shape: 66c already caught the mirror image
+   when float-counting *overstated* the rate 4–5x. Same error class, opposite sign, and this one has
+   not been checked.
+
+### 87d. The 005 conclusion now rests on a single resolved rung
+
+`n=50` at ratio 0.16x is not a weak result, it is an unresolved one, and the seed gate at `dm >= 256`
+removed the error bars from exactly the widths where the differences are smallest — a measurement
+absent precisely where it was needed. Extending replication to every width is the right fix and
+10337194 is the right response.
+
+But the consequence for what is already written down should be recorded now: **"latent needs less
+width, DM_latent=64" comes from n=130, and n=50 points the other way.** One rung resolved, one rung
+unresolved and disagreeing in direction. Until 10337194 lands, that conclusion is single-rung and
+should be labelled as such wherever it appears, in the same way PARTIAL LADDER labels a short lever
+arm.
+
+### 87e. Do not call the memory fix done before 10337210 reports
+
+`7.59 -> 3.81 GB` on the largest system is the right fix and the verification order was right. But
+the target is MaxRSS on the real load path, and per-system peak does not map onto it one-for-one.
+
+Your own observation — **"current RSS flat while peak climbs"** — is the signature of allocator
+retention: freed numpy buffers are returned to the allocator but not to the OS, so RSS tracks the
+high-water mark of what was ever allocated rather than what is live. Halving each allocation lowers
+that high-water mark, but not necessarily by half, and 93.7 GB against a 7.59 GB per-system peak
+across 253 systems only adds up if retention is doing most of the work.
+
+So: report the new MaxRSS from 10337210 and compare it to 48 GB before treating `main` as reachable.
+If it falls short of the target while live memory is provably small, the residual is retention rather
+than data, and the levers are different ones — `MALLOC_TRIM_THRESHOLD_`, `MALLOC_ARENA_MAX`, or an
+explicit trim between systems. Worth naming now so a disappointing number is diagnosed rather than
+read as "the fix did not work."
