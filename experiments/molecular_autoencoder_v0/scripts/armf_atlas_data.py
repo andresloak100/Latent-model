@@ -17,7 +17,7 @@ but materialises a 1.61 GB Vt (53 s, 7.55 GB peak RSS, measured). The pure FRAME
 forms any 3N-sized array: G = Xtr Xtr^T (2000x2000), eigh, then ho @ V_k = (ho Xtr^T) U_k / s_k.
 MEASURED at the ATLAS worst case: 8.5 s, largest array 32 MB, agreeing with economy SVD to 2.6e-18
 -- 6.2x faster. Always use this route."""
-import os, glob, json, numpy as np
+import os, glob, json, mmap, numpy as np
 from armf_anm import modes as anm_modes
 
 
@@ -155,6 +155,22 @@ def sysdata(store, i):
         oh = np.zeros((N, len(ELEMS) + 1), np.float32)
         for k, e in enumerate(el): oh[k, ELEMS.index(int(e)) if int(e) in ELEMS else -1] = 1.0
         rp = ((ref - ref.mean(0)) / (ref.std() + 1e-6)).astype(np.float32)
+        # INBOX 088 STEP 1. DROP THE PAGES, NOT THE OBJECT. sysdata reads the WHOLE file through the
+        # mapping three times -- replicas 0 and 1 for mu, replica 2 for sst, replica 0 again for ss0
+        # -- and resident pages of a file mapping count toward the cgroup accounting SLURM reports as
+        # MaxRSS while being invisible to an in-process tracker. Measured: the 123 held-out .npy
+        # files total 57.78 GB and the job's MaxRSS was 57.95 GB, a ratio of 1.00x. MaxRSS was
+        # simply every byte read. The returned dict holds `path`, not the array, so the memmap
+        # OBJECT was already released -- the pages were not, and no allocator setting can touch
+        # them, which is why MALLOC_TRIM_THRESHOLD_/MALLOC_ARENA_MAX was the wrong lever.
+        try:
+            a._mmap.madvise(mmap.MADV_DONTNEED)
+        except (AttributeError, OSError):
+            try:
+                fd = os.open(m["path"], os.O_RDONLY)
+                os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED); os.close(fd)
+            except OSError:
+                pass
         store.loaded.add(m["pdb"])
         return dict(pdb=m["pdb"], N=N, F=F, ref=ref, scale=scale, mu=mu, path=m["path"],
                     stat=np.concatenate([oh, rp], 1).astype(np.float32),

@@ -4117,6 +4117,58 @@ codec's 2.0588 and 16.82 dB. The codec loses by 0.315 bits/dim and 2.2 dB.**
 from letting the basis extend to 1,117 components and having water-filling zero out 229 of them. The
 right statement is "more components, with bits allocated by variance", not "water-filling is better".
 
+### ⬛ 088 RETRACTS 084/085: counted correctly, the codec BEATS classical transform coding
+
+**The codec's channels are correlated, so its entropy rate was a third over-count.** 088's argument:
+a sum of *marginal* entropies is the joint rate only under independence. PCA is a KLT and decorrelates
+by construction; the codec has no decorrelation term anywhere — no KL, no VQ. Measured, the two
+spectra are nothing alike:
+
+| | spread | values |
+|---|---|---|
+| raw per-channel variances | **6.9×** | 77.0, 75.7, 56.4, 45.1, 44.0, 35.4, 24.6, 11.2 |
+| eigenvalues (cross-fit) | **627×** | 783.9, 129.8, 112.6, 111.6, 3.54, 1.95, 1.73, 1.25 |
+
+Mean |off-diagonal correlation| **0.3983**, max **0.8317**. So the channels are heavily correlated and
+the 35.35 bits/token were marginal.
+
+**Rotating into the latent's own eigenbasis before entropy coding** — an orthogonal transform the
+decoder undoes exactly, changing no distortion, and precisely what PCA gets free — with the basis
+fitted on **train** tokens and applied to **val**, the same cross-fit discipline PCA's basis got:
+
+| the codec's rate | bits/atom | over-count vs corrected |
+|---|---|---|
+| billed (8 channels × 6 bits) | 6.191 | 1.92× |
+| marginal entropy (87c) | 4.559 | 1.42× |
+| **joint, rotated, cross-fit (088)** | **3.221** | — |
+
+In-sample rotation gives 3.180, so the cross-fit optimism is **+0.041 bits/atom**; residual
+off-diagonal correlation after rotation is 0.0194.
+
+**The corrected comparison, both sides entropy-coded, both bases cross-fit:**
+
+| | rate (bits/atom) | bits/dim | SNR dB |
+|---|---|---|---|
+| **CODEC** | **3.221** | **2.0588** | **16.82** |
+| PCA | 3.304 | 2.4030 | 14.72 |
+| PCA | 4.091 | 2.0293 | 17.05 |
+
+**At 2.5% LESS rate the codec delivers 0.344 bits/dim and 2.1 dB BETTER distortion.** Interpolating
+PCA to the codec's exact 3.221 bits/atom gives ≈2.446 bits/dim and ≈14.46 dB, so the codec's margin at
+matched rate is **≈0.39 bits/dim and ≈2.4 dB**.
+
+**So 084/085's retraction is itself retracted.** "Classical transform coding beats the learned codec"
+was an artefact of billing the codec for bits an entropy coder would not spend, and the fix was found
+by 088's argument rather than mine. The sequence on this one number: billed 6.191 → marginal 4.559
+(87c) → joint 3.221 (088), **1.92× over-counted in total**, every step in the codec's favour and every
+step found by someone asking what the rate actually meant.
+
+**What does NOT change.** The rotation is a *coding-side* accounting fix, not a model change: the
+codec as trained still has no decorrelation term, and 87c's finding that it uses **PR = 2.00 of 8
+channels** stands untouched. A code that concentrates 68.4% of its variance in one direction and wins
+anyway is winning despite its capacity use, not because of it — which sharpens rather than weakens
+88d's question about whether the stopping rule is what set that width.
+
 ### 87c: the two failures are ONE diagnosis, and the entropy-coded rate does not rescue the codec
 
 **87c.1 — the static codec is also low-PR, so the findings join.** Measured with the project's own
@@ -4137,7 +4189,7 @@ KLT with 1,117 components and variance-proportional bits is close to expected. T
 from *"the architecture cannot"* — a dead end — to *"the architecture is not being trained into its
 capacity"*, which is an optimisation and regularisation problem, and is addressable.
 
-**87c.2 — the rate was over-counted, and correcting it is not enough.** Billing every dimension the
+**87c.2 — the rate was over-counted, and correcting it is not enough** *(superseded by 088: a second over-count, from channel correlation, reverses the conclusion — see above)*. Billing every dimension the
 full 6 bits charges a near-constant dimension what an entropy coder would give away. Per-channel
 entropies are 4.32, 4.68, 4.89, 4.49, 4.49, 4.06, 4.90, 3.52 — **35.35 bits per token against 48
 billed, 74%**:

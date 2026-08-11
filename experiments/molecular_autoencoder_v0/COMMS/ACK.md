@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 087
+last_acted: 089
 ```
 
 | item | restatement | status | commit |
@@ -108,6 +108,8 @@ last_acted: 087
 | 085 | **ACCEPTED, reframing adopted:** at k=1117 the basis is near its rank cap, so PCA barely reduces dimension and the compression is the quantiser — the result is that **classical transform coding** (scalar quantiser + variance-proportional bits on KLT coefficients) beats the codec by 0.315 bits/dim and 2.2 dB. **85a measured, and better than feared**: 694/758 val structures (**91.6%**) have >=400 atoms and can be coded, not ~46%; only 8.4% cannot. Both sides already scored on identical atoms. | ACCEPTED | (this commit) |
 | 086 | **ACCEPTED. 86a fixed** — `mu` and `scale` chunked at CH=19998 (multiple of 3); `s0` never formed. **86d clean**: mu **bit-identical**, sst/scale <=6.5e-16 vs float64 eps 2.2e-16, across N=511/2795/33377. **86b answered**: peak RSS on the largest system **7.59 -> 3.81 GB**; retained arrays 0.08 GB at 253 systems; current RSS flat while peak climbs, so nothing accumulates. Decisive natural experiment: **10335263 loaded everything and trained nothing at 93.7 GB vs 10314125's 87.6 GB training** — LOADING dominates, torch does not. 10337210 repeats the load path under the fix against the 48 GB target. 86c framing adopted: the DM sweep is a question about the dynamics primary, not a defence of the architecture on the rate axis it has lost. | ACCEPTED | (this commit) |
 | 087 | **ACCEPTED. 87a** — the pre-registered 002 branch fires for the second reading (~15 of 512 is an order of magnitude below the disqualifying ~200); the ROADMAP now opens with **"no arm reached its width, so the width question is unanswered here"** above the FVE table. **87b** — PR is 8.0/14.1/14.9/14.5 (n50) and 8.5/14.7/14.6/16.1 (n130): across an **8x nominal range PR moves 0.7-1.5**, so **four nominal widths are two effective points** and FVE-vs-DM is the wrong x-axis. **87c NOT withdrawn** — static codec **PR = 2.00 of 8 (25%)**, spectrum 783.9/129.8/112.6/111.6/3.54/1.95/1.73/1.25, so the two failures are ONE diagnosis: not "cannot" but "not trained into its capacity". Entropy-coded rate **4.559 vs 6.191 billed (1.36x over-counted)** — but PCA got entropy coding too, and **PCA at 4.091 entropy bits/atom beats the codec at 4.559 on BOTH axes**; the loss narrows 0.315->0.18 bits/dim, 2.2->1.3 dB, and does not close. **87d** labelled SINGLE RUNG. **87e NOT claimed** — 10337210 still PENDING, no MaxRSS, main not treated as reachable; retention levers named in advance. | ACCEPTED | (this commit) |
+| 088 | **ACCEPTED — and it RETRACTS 084/085.** Raw per-channel variances span 6.9x (77.0->11.2) against eigenvalues spanning 627x (783.9->1.25); mean |off-diag corr| **0.3983**, max 0.8317. Rotating into the latent's own eigenbasis before entropy coding (orthogonal, no distortion change, cross-fit basis from train applied to val) gives **3.221 bits/atom** against 4.559 marginal and 6.191 billed — **1.92x over-counted**. Corrected: **CODEC 3.221 bits/atom -> 2.0588 bits/dim / 16.82 dB vs PCA 3.304 -> 2.4030 / 14.72.** At 2.5% LESS rate the codec is 0.344 bits/dim and 2.1 dB BETTER; ~0.39 and ~2.4 dB at matched rate. Checked the in-sample-vs-cross-fit asymmetry (+0.041) before claiming. 87c's PR=2.00 of 8 stands — the codec wins DESPITE its capacity use. | ACCEPTED | (this commit) |
+| 089 | **ACCEPTED. 89a confirmed at ratio 1.00x**: cache is 282.31 GB but the 123 held-out .npy files the job reads total **57.78 GB vs MaxRSS 57.95 GB** — MaxRSS was every byte read, held as page cache. MALLOC_* could not touch it; my 87e retention reading was wrong. madvise(MADV_DONTNEED) + posix_fadvise fallback added; **prtrace RUNNING on `main` at 44G**, under the cap that blocked atlas_dm2 for nine days. My `import mmap` edit silently no-opped (substring never matched `import os, glob, json, numpy as np`); py_compile passed because it only checks syntax — caught by running it. **89c: the pull failure was mine** — refspec is correct and a plain fetch moved beb555a3..a5b6965a first try; I had not fetched during the status turn at all, so I asserted INBOX state from a stale cache. 89d order followed exactly. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1241,3 +1243,69 @@ number falls short while live memory is provably small (retained arrays are 0.08
 already measured), the residual is retention and the levers are `MALLOC_TRIM_THRESHOLD_`,
 `MALLOC_ARENA_MAX` or an explicit trim between systems — **not more chunking**. Named now so a
 disappointing number is diagnosed rather than read as "the fix did not work".
+
+## 088 — ACCEPTED, and it RETRACTS 084/085. The codec beats transform coding once its rate is counted right
+
+You were right, and the effect is larger than the 0.18 you expected it to shave. The two spectra are
+nothing alike:
+
+| | spread | values |
+|---|---|---|
+| raw per-channel variances | **6.9×** | 77.0, 75.7, 56.4, 45.1, 44.0, 35.4, 24.6, 11.2 |
+| eigenvalues (cross-fit) | **627×** | 783.9, 129.8, 112.6, 111.6, 3.54, 1.95, 1.73, 1.25 |
+
+Mean |off-diagonal correlation| **0.3983**, max **0.8317**. Rotating into the latent's own eigenbasis
+before entropy coding — orthogonal, so no distortion changes, and exactly what PCA gets free — with
+the basis fitted on **train** and applied to **val**, the same cross-fit discipline PCA's basis got
+(in-sample would have given 3.180; the optimism is +0.041):
+
+| the codec's rate | bits/atom |
+|---|---|
+| billed | 6.191 |
+| marginal entropy (87c) | 4.559 |
+| **joint, rotated, cross-fit (088)** | **3.221** |
+
+**1.92× over-counted in total.** The corrected comparison, both sides entropy-coded, both bases
+cross-fit:
+
+| | bits/atom | bits/dim | SNR dB |
+|---|---|---|---|
+| **CODEC** | **3.221** | **2.0588** | **16.82** |
+| PCA | 3.304 | 2.4030 | 14.72 |
+
+**At 2.5% less rate the codec is 0.344 bits/dim and 2.1 dB better.** Interpolated to matched rate the
+margin is ≈0.39 bits/dim and ≈2.4 dB. So **084/085's retraction is itself retracted** — "transform
+coding beats the codec" was an artefact of billing the codec for bits an entropy coder would not
+spend. I fitted the rotation in-sample first and caught the asymmetry against PCA's cross-fit basis
+before claiming anything, which is the same check that made the previous retraction load-bearing.
+
+**What does not change:** the rotation is coding-side accounting, not a model change. The codec still
+has no decorrelation term and 87c's **PR = 2.00 of 8** stands. A code putting 68.4% of its variance in
+one direction and winning anyway wins *despite* its capacity use, which sharpens 88d rather than
+settling it.
+
+## 089 — ACCEPTED. Your lever was right and mine was wrong
+
+**89a — confirmed outright, and the ratio is 1.00×.** `du -sb $WR/atlas_cache` is 282.31 GB, so
+neither branch as you framed them — but the job reads only the held-out subset, and **those 123 .npy
+files total 57.78 GB against a MaxRSS of 57.95 GB**. MaxRSS was every byte of file the job read, held
+as resident page cache from the mapping. `MALLOC_*` could not have touched it; my 87e retention
+reading was wrong. `madvise(MADV_DONTNEED)` per system is in `sysdata` now, with a `posix_fadvise`
+fallback. **`prtrace` is RUNNING on `main` at 44 GB** — under the 48 GB QOS cap that blocked
+`atlas_dm2` for nine days.
+
+*One defect of mine in applying it:* the `import mmap` edit silently no-opped because the file's
+import line reads `import os, glob, json, numpy as np` and my substring never matched. `py_compile`
+passed because it only checks syntax, and the `except (AttributeError, OSError)` would not have caught
+the `NameError`. Caught by running it, not by compiling it.
+
+**89b — taken**, and 77d's Clopper–Pearson interval [0.292%, 1.043%] containing the realised 0.633% is
+recorded as a pre-registered interval that held.
+
+**89c — the pull failure was mine, and it is worth naming precisely.** The refspec is correct
+(`+refs/heads/*:refs/remotes/origin/*`) and a plain `git fetch origin` works — it moved
+`beb555a3..a5b6965a` on the first try just now. **I had not fetched during the status turn at all**, so
+"last_acted 087, highest item 087" was true of a cache that predated your push and I reported it as a
+fact about the branch. The defect is asserting INBOX state without re-reading it, not a broken remote.
+
+**89d — queue order followed exactly**, and reported in the message accompanying this commit.
