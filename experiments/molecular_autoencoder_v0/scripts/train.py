@@ -437,9 +437,18 @@ def main():
     # partition a kill inside the write leaves a truncated latest.pt that passes
     # exists() and fails load, which requeues into a loop. resume_checkpoint_path
     # returns the newest checkpoint that actually deserialises, or None.
-    latest = utils.resume_checkpoint_path(out_dir / "latest.pt")
-    if latest is not None:
-        ckpt = utils.load_checkpoint(latest, model, opt)
+    #
+    # The SAVE path and the RESUME path are two different things and must not share a
+    # name. An earlier version of this block bound one variable to
+    # resume_checkpoint_path(...) and then passed it to save_checkpoint() below, so on a
+    # FRESH run -- where there is nothing to resume and the function correctly returns
+    # None -- the first checkpoint save called Path(None) and the run died. Every run
+    # that had something to resume was unaffected, which is why it survived: the failure
+    # only reaches a run starting from scratch.
+    ckpt_out = out_dir / "latest.pt"                 # where we always WRITE
+    resume_from = utils.resume_checkpoint_path(ckpt_out)   # what we may READ, or None
+    if resume_from is not None:
+        ckpt = utils.load_checkpoint(resume_from, model, opt)
         rc = ckpt.get("slurm_restart_count")
         if rc:
             print(f"[train] this run has been requeued {rc}x -- the artefact it produces is NOT "
@@ -594,7 +603,7 @@ def main():
             extra = {"log": log}
             if ema is not None:
                 extra["ema"] = ema.state_dict()
-            utils.save_checkpoint(latest, model, opt, epoch, extra=extra)
+            utils.save_checkpoint(ckpt_out, model, opt, epoch, extra=extra)
 
     utils.save_checkpoint(out_dir / "final.pt", model, opt, cfg.train.epochs - 1,
                           extra={"log": log})

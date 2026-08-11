@@ -7314,3 +7314,105 @@ claim nobody can check.
 
 The 237 result JSONs in `outputs/` are versioned and that is right. The inputs that select them are
 not, and that is the asymmetry worth closing.
+
+---
+
+## 093 — an external read-only review found four real defects. One is mine and is fixed. Do not launch the 1M pretrain.
+
+An outside review of `22c2e720` raised four blocking items. **I verified all four and all four are
+real.** Three are in the repository; one I introduced. Nothing here is speculative — every claim below
+was checked against the file.
+
+### 93a. `train.py` crashed every FRESH run at its first checkpoint. My defect, from the 73a fix. FIXED.
+
+`resume_checkpoint_path()` correctly returns `None` when there is nothing to resume. I bound its
+result to `latest` and then passed the same variable to `save_checkpoint()`, so a run starting from
+scratch called `Path(None)` and died at the first save.
+
+It survived review because **it only reaches a run that starts from scratch** — every resumed run
+found a checkpoint, got a real path back, and worked. The 1M pretrain is a fresh run.
+
+Fixed on the branch: the save target and the resume source are now two names, `ckpt_out` and
+`resume_from`, with a comment saying why they must never be one. Tested end to end — fresh run saves,
+second run resumes and keeps `.prev`, corrupted `latest.pt` falls back and still writes to the right
+place, no orphaned `.tmp`.
+
+That is the second time a 73a-era change needed a runtime test to find what compiling could not; the
+first was your no-op `import mmap`.
+
+### 93b. `afdb1m_pretrain.yaml` is the ladder config wearing a new filename — and my fix makes it WORSE
+
+    afdb1m_pretrain.yaml        name: ladder_direct3m_n2272
+                                out_dir: outputs/ladder/ladder_direct3m_n2272
+    ladder_direct3m_n2272.yaml  name: ladder_direct3m_n2272
+                                out_dir: outputs/ladder/ladder_direct3m_n2272
+
+Identical. Byte for byte on the fields that matter.
+
+This is the eighth instance of one name, two things, and it is the most dangerous one yet **because of
+93a's own fix**: `resume_checkpoint_path` will find the ladder's `latest.pt` sitting in that
+directory, load it successfully, and the 1M pretrain will silently continue a different experiment's
+weights and report the result under the 1M name. Before my resume hardening it would more likely have
+crashed. Robustness made this failure quieter.
+
+Give it its own `name` and `out_dir`, and add the guard the project already knows it needs: refuse to
+start when `out_dir` contains a checkpoint whose stamped config hash does not match the current one.
+`armf_stamp.py` already has the machinery.
+
+### 93c. The config asks for 4,260x the pre-registered training
+
+    epochs: 1704, batch 16, 972,849 structures  ->  103,608,418 optimizer steps
+    PRETRAIN_1M_PREREGISTRATION.md expects ~0.40 epoch  ->      24,321 steps
+
+It would hit the wall long before finishing and produce a run whose step count nobody chose. Set
+`max_steps` explicitly and delete `epochs` as the controlling quantity — 80c already established that
+these arms terminate on plateau rather than on epochs, so an epoch count was never the right knob.
+
+### 93d. The static held-out split is exact-sequence dedup, not family separation — and this one is scientific
+
+`prepare_dataset.py:240`:
+
+    method = "similarity" if n <= 400 else "exact"
+
+The static corpus is ~3,030 structures, far above 400, so `auto` selected **`exact`**. The held-out
+set is deduplicated by exact sequence match, which does not separate homologs: a val structure 90%
+identical to a training structure is a legitimate member of the val set under that rule.
+
+**The project applies a stricter standard to its pretraining corpus than to its own headline
+evaluation.** The AFDB gate is MMseqs2 at 30% identity, chosen deliberately and self-tested. The set
+that produces 0.8357 Å is split by exact match. That asymmetry is not defensible and it was invisible
+because the threshold lives behind an `auto` that silently changes rule at n=400.
+
+This does not invalidate the reconstruction number, and I am not claiming it does. It means the
+number's generalisation claim is **unmeasured**, in the same way and for the same reason the AFDB leak
+was before 072a. The fix is the tool you already installed and validated: re-split at 30% identity
+with MMseqs2 — `similarity_split` is quadratic and that is why `auto` avoids it at scale, but MMseqs2
+is not — re-score on the new held-out set, and report both numbers side by side. If they agree, the
+concern closes permanently. If they do not, better to know it from us.
+
+### 93e. What the review got right about the shape of the project, and one place I would push back
+
+Right, and worth absorbing: no untouched test set; the dynamics codec loses 123/123; the propagator
+covers 17/28 domains, diverges in 24–41% of cells, and tests only 1–2 ns; complexes are 5–6 Å;
+reactions are out of scope because topology and atom count are fixed and there is no
+force/energy/charge model. All of that matches the record.
+
+Its central correction is also right and belongs in the ROADMAP: **MD is chaotic, so reproducing an
+exact atom-by-atom future is not the target.** Distributions, free energies, kinetics and rates are.
+Much of this project's measurement apparatus already points that way — the propagator's acceptance
+test is distributional — but the framing is not written down that plainly anywhere.
+
+One push-back. "91 commits in 72 hours, 54 documentation-only, velocity exceeds validated progress" is
+fair on its face and misreads what those commits are. The INBOX items *are* the review process, and
+they produced the retraction of 82b, its un-retraction, the 1.92x rate correction, the parse-failure
+diagnosis and the pre-registrations. That is not documentation trailing work; it is the work. What the
+criticism does land on is that **none of it has yet produced a defended positive result on the
+dynamics axis**, which is true and is the thing to fix.
+
+### 93f. Order
+
+1. **Do not launch the 1M pretrain.** 93b and 93c first — new `name`/`out_dir`, config-hash guard,
+   explicit `max_steps`.
+2. Pull 93a; it is fixed and tested but you are running the old file.
+3. 93d — re-split at 30% identity and re-score. CPU, uses tooling you already validated.
+4. Then 090's one sentence, 091/092's rate comparison, and 092c's manifest commit.
