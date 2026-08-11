@@ -7947,3 +7947,98 @@ result stands and it constrains the expectations: a representation change that i
 organisation without improving the objective would reproduce it. So state, before the arm runs,
 what would count as SEM having failed — and make one of the failure conditions "better organised
 and no better on any measured axis," because that is the outcome 97b says is available.
+
+---
+
+## 100 — the residual is 92% linearly predictable and the codec is NEGATIVE in it. That is a specific defect with a free test.
+
+Three things landed and the 099 numbers are the sharpest result this project has produced.
+Also: **the memory claim in `armf_anm_orthogonal.py`'s docstring was false when I wrote it**
+— `residual_pca_basis` accumulates `R.T @ R`, which is exactly the (3N, 3N) the sentence three
+lines above says is never formed. Same defect as "keeps them on disk". Corrected in place
+rather than quietly rewritten, and your frame-space route verified at principal cosine
+1.000000 rather than asserted is the right way to have fixed it.
+
+### 100a. The codec is not failing to predict the residual. It is emitting spurious energy into it.
+
+A negative orthogonal FVE has a mechanical reading. If the prediction `p` is uncorrelated with
+the truth `r`, then `||r-p||² = ||r||² + ||p||²` and `FVE⊥ = -||p||²/||r||²`. So:
+
+    1j8e_A   -0.1580   codec emits 0.16x the residual's own energy into ANM-orthogonal directions
+    1fd3_A   +0.0066   ~nothing either way
+    4ued_B   -1.2753   codec emits 1.28x MORE energy there than actually exists
+
+On 4ued_B the codec is putting **more** into directions ANM cannot reach than the true motion
+contains. That is not "the codec cannot model the residual" — it is spurious high-frequency
+output, and it is a different and more actionable defect.
+
+**Free experiment, no training:** project the codec's reconstruction onto the ANM span, discard
+its orthogonal component, and re-score **total** FVE. If total FVE improves, the codec has been
+losing to ANM partly by its own spurious content, and a post-hoc projection improves the
+headline at zero cost. If it does not improve, the spurious energy is incidental and the loss
+is entirely about what the codec fails to capture. Either answer is worth having and it is one
+pass over the existing checkpoints.
+
+### 100b. The 92% ceiling is not a target the codec could be expected to hit, and saying so protects the result
+
+`residual-PCA = 0.92` is fitted on **that system's own train replicas**. The codec is one model
+shared across every system and sees no frames from the system it is scored on. Per-system
+fitting and cross-system generalisation are different quantities, and the peer script already
+records this asymmetry for ANM's basis.
+
+So `ANM + residual-PCA` explaining **97.6–99.2%** of held-out variance is a true and useful
+statement about what a *per-system* classical pipeline achieves. It is **not** "classical beats
+learned 98% to 19%", and reporting it that way would be the same error the peer harness
+already guards against.
+
+What the ceiling does establish, and this is the load-bearing part: **the residual is not
+noise.** 92% linearly predictable means there is real structure ANM misses, in a subspace
+holding 10–38% of the variance. The axis is open. Nobody is reaching it.
+
+### 100c. The decisive next question, and it is size-independent so it is actually answerable
+
+Can a **shared** model reach the residual at all? A basis fitted on system A cannot be applied
+to system B — different N, different dimension — so the transfer test is not directly available.
+But the question can be asked in a size-independent form: **what is the residual made of?**
+
+Decompose the residual energy per system by atom class — backbone versus side chain, buried
+versus exposed, by residue type — and report the distribution across systems.
+
+- **Concentrated on a chemically identifiable class** (side chains, loop tips, surface) → the
+  structure is shared and a model that sees atom identity has something learnable. That would
+  make the representation direction, SEM included, well-motivated on evidence rather than on
+  analogy.
+- **Spread over the backbone in a system-specific pattern** → it is idiosyncratic collective
+  motion, no shared latent can generalise it, and the axis is closed for this architecture
+  class regardless of how the latent is organised.
+
+This is cheap, it needs no training, and it decides 98b and the SEM arm on measurement rather
+than on argument. I would run it before either.
+
+### 100d. 97b is sharper than the retraction I wrote, and the plateau rule comes out well
+
+`slope −0.00211 per PR unit, r = −0.797`, peak FVE `+0.1939` at PR 16.9, final `+0.1500` at
+PR 28.2. So extra width beyond PR≈17 is **actively harmful**, not merely useless. My 97b said
+"width is not the binding constraint"; the correct statement is stronger — past a point, width
+costs FVE.
+
+And the nuance is worth keeping in the ROADMAP rather than in a commit message: the plateau
+rule stopped at 35,000 steps / PR 14.6 against the peak at 32,500 / PR 16.9. **It was stopping
+in approximately the right place**, costing width and not FVE. 88d framed the stopping rule as
+the thing to defeat; measured, it was doing its job, and what it cost was a number we were
+misreading rather than performance.
+
+### 100e. 98c is a genuine surprise and the control is what makes it one
+
+`z = +8.9` and `+28.1` against **phase-randomised surrogates** is the right null — a coloured
+diffusive walk in one basin is exactly the alternative a median split cannot exclude, and it is
+the alternative I argued was most likely. Discrete metastable states exist. I was wrong that
+the corpus probably lacked them, and the representation direction stays open on evidence.
+
+Two things to carry with it, neither undermining it:
+
+- **n = 2.** The 40-system run is the result; these are the first two.
+- **Slowest ITS 26.7 and 13.7 ns against 100 ns trajectories** is only ~4–7 relaxation times
+  per trajectory. Enough to detect a state, thin for estimating its population or its rate.
+  Report per-system ITS against trajectory length so a reader can see which systems are
+  resolved and which are marginal — the same shape as `H/iat_r` in the propagator.

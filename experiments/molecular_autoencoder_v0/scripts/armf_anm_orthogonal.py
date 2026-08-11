@@ -38,10 +38,20 @@ it.
 The PCA basis MUST be cross-fit. Fitting it on the frames it is scored on hands it the
 answer; this project has already paid for that once, at +0.041 bits/atom in 088.
 
-MEMORY. Nothing of shape (3N, 3N) is ever formed, and neither is (F, 3N) in float64 --
-at N=33,377 those are 80 GB and 2 GB. Frames are streamed in chunks and only (chunk, 3N)
-and (3N, K) are ever resident, which is the discipline 86a had to retrofit into
-`armf_atlas_data.sysdata`.
+MEMORY -- AND A SENTENCE IN THIS DOCSTRING THAT WAS FALSE WHEN IT WAS WRITTEN.
+
+`orthogonal_fve` and `residual_energy` do stream: only (chunk, 3N) and (3N, K) are ever
+resident. `residual_pca_basis` DOES NOT. It accumulates `R.T @ R`, which is (3N, 3N) --
+80 GB at N=33,377 -- and an earlier version of this docstring asserted that nothing of
+that shape is ever formed, three lines above the code that forms it.
+
+The cluster agent hit it and routed large systems through a frame-space Gram instead
+(`R @ R.T`, (chunk, chunk), eigenvectors mapped back), verifying the two agree at minimum
+principal cosine 1.000000 rather than assuming they do.
+
+Same defect as claiming `git rm --cached` "keeps them on disk": a description asserting a
+property the code does not have. Left corrected in place rather than quietly rewritten,
+because the false sentence is the part worth remembering.
 """
 import numpy as np
 
