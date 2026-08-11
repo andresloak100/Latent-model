@@ -122,16 +122,34 @@ def sysdata(store, i):
         if R < 3: return None
         ref = np.asarray(a[0, 0]).astype(np.float64)
         # per-system mean over TRAIN replicas only, streamed
-        mu = np.zeros(3*N)
-        for r in (0, 1): mu += np.asarray(a[r]).reshape(F, -1).astype(np.float64).sum(0)
+        # INBOX 86a. This line said "streamed" and was not: `.astype(np.float64)` on the FULL
+        # replica materialises (F,3N) = 2.00 GB at N=33,377, twice. That is the exact allocation the
+        # sst loop below exists to avoid, and the comment there states the reason -- an OOM here
+        # kills the LARGEST systems first, an N-correlated failure truncating the axis under test.
+        # Same reduction shape as sst: slice the memmap first, astype only the chunk.
+        CH = 19998                                      # multiple of 3, so a chunk never splits an
+        mu = np.zeros(3*N)                              # atom's xyz triple (86a)
+        for r in (0, 1):
+            for c0 in range(0, 3*N, CH):
+                c1 = min(c0 + CH, 3*N)
+                mu[c0:c1] += np.asarray(a[r]).reshape(F, -1)[:, c0:c1].astype(np.float64).sum(0)
         mu /= (2*F)
         sst = 0.0                                       # STREAMED: (F,3N) is 1.0 GB at N=33,377,
-        for c0 in range(0, 3*N, 20000):                 # and 125 of those would OOM -- killing the
-            c1 = min(c0 + 20000, 3*N)                   # LARGEST systems first, i.e. an N-correlated
+        for c0 in range(0, 3*N, CH):                    # and 125 of those would OOM -- killing the
+            c1 = min(c0 + CH, 3*N)                      # LARGEST systems first, i.e. an N-correlated
             sst += float(((np.asarray(a[2]).reshape(F, -1)[:, c0:c1].astype(np.float64)
                            - mu[c0:c1]) ** 2).sum())    # failure truncating the axis under test.
-        s0 = np.asarray(a[0]).reshape(F, -1).astype(np.float64) - mu
-        scale = float(np.sqrt((s0 ** 2).reshape(F, N, 3).sum(-1).mean()) + 1e-6)
+        # INBOX 86a. `s0` was the worse of the two: it materialised 2.00 GB AND bound it to a name,
+        # so it stayed live while `scale` was computed from it. `scale` needs only a total sum of
+        # squares -- (x**2).reshape(F,N,3).sum(-1).mean() is (x**2).sum()/(F*N), since summing the
+        # xyz triple and then averaging over F*N entries is the same total either way -- so it
+        # accumulates chunked and `s0` is never formed.
+        ss0 = 0.0
+        for c0 in range(0, 3*N, CH):
+            c1 = min(c0 + CH, 3*N)
+            ss0 += float(((np.asarray(a[0]).reshape(F, -1)[:, c0:c1].astype(np.float64)
+                           - mu[c0:c1]) ** 2).sum())
+        scale = float(np.sqrt(ss0 / (F * N)) + 1e-6)
         el = np.array(m["elem"][:N])
         ELEMS = [1, 6, 7, 8, 16, 15, 9, 17]
         oh = np.zeros((N, len(ELEMS) + 1), np.float32)

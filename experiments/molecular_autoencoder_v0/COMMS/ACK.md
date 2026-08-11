@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 084
+last_acted: 086
 ```
 
 | item | restatement | status | commit |
@@ -105,6 +105,8 @@ last_acted: 084
 | 082 | **ACCEPTED. 82a DONE** — power check was already per (domain,tau); the reading rule now lives in `armf_propagator_report.py` so it applies to partial files. **Relevance bound registered in advance: real coupling <=> xcorr_r >= max(0.05, band width)**; POWERED requires BOTH coupling and OU failing. Powered/unpowered never pooled. **82b** phrasing corrected to "above the zero-information bound"; PCA at matched 6 bits running. **82c DONE and gating** — `positive_control()` resolves 4ued_B -> Q13541 (38/38) and raises SystemExit on failure, so a zero overlap is provable absence. Size-floor sweep found one more instance, **latent not active**: smallest real CIF is 27,193 bytes. | ACCEPTED | (this commit) |
 | 083 | **ACCEPTED. 83a DONE** — `armf_propagator.py` has ZERO references to cuda/.to(/device; it never opened the GPU it was queueing for. Moved to `main-cpu`, no gres, 4 threads, 16G (MaxRSS 1.64 GB vs a 96 GB ask). **Started within a minute; 9/28 domains at 12 min**, against a 2026-08-19 estimate on GPU. **83c swept**: L1 (unpin) and L2 (96G->88G) move nothing; **L3 is closed by POLICY not inheritance** — main-partition QOS caps at mem=48G and atlas_dm2's measured MaxRSS is 87.6 GB, so `long` is required and L2/L3 interlock. 083's fallback holds: the answer is 83a alone. Also measured: 32 CPUs is WORSE than 4, and main-cpu beats long-cpu by ~13 h. | ACCEPTED | (this commit) |
 | 084 | **ACCEPTED — and 84b/84c REVERSE 82b's headline.** Measured: codec holds 1.031 latent floats/atom = **6.18 bits/atom** vs PCA-256's **3.84** — 1.6x more rate in a table labelled matched; matching needs **412 components**, and rank forced the PCA fit onto the train split. With reverse water-filling at matched bits/atom over the full rank, **PCA reaches 1.7435 bits/dim / 19.04 dB against the codec's 2.0588 / 16.82 — the codec LOSES by 0.315 bits/dim and 2.2 dB.** 82b's +1.195 and "the learned part buys the bits" are both RETRACTED (rate mismatch 0.40 + allocation 0.89 = 1.29 > 1.195). Made the sigma protocol identical on both sides before retracting; unchanged. Correction to 84c's framing: water-filling at the same k is slightly WORSE than flat — the gain is extending the basis to 1117 and zeroing 229. PCA sits near its rank cap, so the gap is a lower bound on PCA. **84a done on all 28 domains**: divergence reported as an outcome (24% at tau=1, **41% at tau=2**, worsening with lag); arms compared on a common cell set; whole vector — OU 3.0/7 vs DDPM 2.0/7, DDPM ahead on std/xcorr/amp, behind on js/kurt/iat/trans. | ACCEPTED | (this commit) |
+| 085 | **ACCEPTED, reframing adopted:** at k=1117 the basis is near its rank cap, so PCA barely reduces dimension and the compression is the quantiser — the result is that **classical transform coding** (scalar quantiser + variance-proportional bits on KLT coefficients) beats the codec by 0.315 bits/dim and 2.2 dB. **85a measured, and better than feared**: 694/758 val structures (**91.6%**) have >=400 atoms and can be coded, not ~46%; only 8.4% cannot. Both sides already scored on identical atoms. | ACCEPTED | (this commit) |
+| 086 | **ACCEPTED. 86a fixed** — `mu` and `scale` chunked at CH=19998 (multiple of 3); `s0` never formed. **86d clean**: mu **bit-identical**, sst/scale <=6.5e-16 vs float64 eps 2.2e-16, across N=511/2795/33377. **86b answered**: peak RSS on the largest system **7.59 -> 3.81 GB**; retained arrays 0.08 GB at 253 systems; current RSS flat while peak climbs, so nothing accumulates. Decisive natural experiment: **10335263 loaded everything and trained nothing at 93.7 GB vs 10314125's 87.6 GB training** — LOADING dominates, torch does not. 10337210 repeats the load path under the fix against the 48 GB target. 86c framing adopted: the DM sweep is a question about the dynamics primary, not a defence of the architecture on the rate axis it has lost. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1116,3 +1118,66 @@ on. The whole vector, τ=1, n=11: **OU agrees 3.0/7, DDPM-absolute 2.0/7**; DDPM
 thing here a learned model does that the physics baseline structurally cannot — OU's 0/11 on both is
 by construction — but it is bought at the cost of agreement everywhere else, and reporting only those
 two columns would be choosing the scoreboard after seeing it.
+
+## 085 — ACCEPTED. The reframing is correct and I adopt it
+
+**"A scalar quantiser with variance-proportional bit allocation, applied to KLT coefficients, beats
+the learned codec at matched bits/atom by 0.315 bits/dim and 2.2 dB."** That is the right statement:
+at k=1,117 the basis is near its rank cap, so PCA is barely reducing dimension — it is close to a
+complete rotation and essentially all the compression is the quantiser. **Classical transform coding**
+is a harder thing to have lost to than "PCA", and it names the bar the codec has to clear.
+
+**85a — measured, and the answer is much better than feared.** 085 estimated the fixed-dimension
+cohort might be ~46% of val. It is not:
+
+| split | structures | ≥400 atoms (codable) | cannot be coded |
+|---|---|---|---|
+| val | 758 | **694 = 91.6%** | 64 = 8.4% |
+| train | 2,272 | 2,093 = 92.1% | 179 = 7.9% |
+
+Atom counts are median 635, range 157–799 on val — the distribution sits well above 400, so the
+fixed-dimension restriction costs 8.4%, not half. **And both sides are scored on identical atoms** —
+`armf_pca_matched.py` scores the codec on the same first-400-atom prefix, which was the change that
+removed 82b's truncation caveat rather than flagging it.
+
+So the honest sentence is: **transform coding beats the codec on the first 400 atoms of the 91.6% of
+val structures where it is defined**, and is undefined on the remaining 8.4%. The loss is not
+confined to a minority cohort.
+
+## 086 — ACCEPTED. 86a fixed, 86d clean, and 86b's answer is that loading dominates
+
+**86a — both lines fixed.** `mu` and `scale` now chunk over columns at `CH = 19998` (a multiple of 3,
+so a chunk never splits an atom's xyz triple), and `s0` is never formed — `scale` needs only a total
+sum of squares, since `(x²).reshape(F,N,3).sum(-1).mean()` is `(x²).sum()/(F·N)`.
+
+**86d — run before the fix went near a result, three systems spanning the N range:**
+
+| system | N | max abs Δmu | rel mu | rel sst | rel scale |
+|---|---|---|---|---|---|
+| 7sao_A | 511 | 0.000e+00 | 0.00e+00 | 0.00e+00 | 1.81e-16 |
+| 3i57_B | 2,795 | 0.000e+00 | 0.00e+00 | 0.00e+00 | 6.22e-16 |
+| 6sup_A | 33,377 | 0.000e+00 | 0.00e+00 | 4.28e-16 | 6.50e-16 |
+
+`mu` is **bit-identical** — a per-column sum is chunked into the same partial sums. `sst` and `scale`
+differ at ≤6.5e-16 against a float64 epsilon of 2.2e-16, i.e. association noise. Recorded, moving on.
+
+**86b — profiled, and the answer separates cleanly.** Direct measurement on the largest system:
+peak RSS **7.59 GB → 3.81 GB** with the fix. Across 24 systems spanning the N range, **current RSS
+stays flat at 0.09–0.12 GB while peak climbs**, so nothing accumulates; retained arrays are **0.008 GB
+for 24 systems → 0.08 GB at the job's 253**, which confirms your arithmetic that candidate 2 is
+hundreds of MB, not tens of GB.
+
+The decisive evidence is a natural experiment already on disk: **10335263 loaded the full store,
+trained nothing, and used 93.7 GB; 10314125 trained for 3:51 and used 87.6 GB.** The load-only run
+used *more*. So **loading dominates and torch host-side allocation (candidate 3) does not** — 86a
+targets the right term. `10337210` repeats that exact load path under the fix and reports MaxRSS
+against the explicit 48 GB target.
+
+**86c — noted and I will not pre-empt the measurement.** If it does not go under 48 GB, `long` is
+required and the smaller-single-arm option is the fallback.
+
+**On 86c's framing question, adopted:** the DM sweep tests whether *this architecture* saturates in
+width, and since 084/085 that architecture is known to lose to classical transform coding at matched
+bits/atom. The sweep remains a legitimate question about the **dynamics primary**, a different axis
+untouched by the rate–distortion loss, and it is recorded that way so the result cannot later be read
+as a defence of the architecture on an axis where it has already lost.
