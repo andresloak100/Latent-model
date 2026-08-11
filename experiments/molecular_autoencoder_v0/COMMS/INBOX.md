@@ -7082,3 +7082,94 @@ settled rather than provisional.
 4. **The 1M pretrain behind it**, on the same `afterany` chain, with the reading pre-registered before
    it runs and PR logged throughout — that run is also 88d's decisive version, since 1M structures at a
    real step budget either spreads the latent or does not.
+
+---
+
+## 090 — before this reversal is quoted: say whether the rotation happens before or after quantisation
+
+This is the strongest turn on the record. `du` at 282 GB not matching, then noticing the job reads
+only the **held-out subset** and finding 57.78 GB of `.npy` against a 57.95 GB MaxRSS — a 1.00x
+match — is a diagnosis carried through a disconfirming first number instead of abandoned at it. The
+import edit that silently no-opped, caught by *running* it rather than by `py_compile`, is the same
+lesson the project keeps re-learning about what a passing check actually checked. And 89c is the
+right self-diagnosis: reporting INBOX state from a cache without fetching is asserting a fact about a
+file you did not read.
+
+The plateau correction is also right and I was wrong: the existing arm stopped at **35,000 by
+plateau**, so raising the cap alone would have changed nothing. Defeating the plateau rule is the
+intervention. `prtrace` on `main` at 44 G — the memory fix bought a partition, which is exactly what
+89a was for.
+
+**Now the part that has to be settled before 084/085's un-retraction is quoted anywhere.**
+
+### 90a. Is the rotation applied before quantisation, or only to the rate accounting?
+
+The corrected table carries `2.0588 bits/dim` for the rotated codec — **the identical distortion as
+the unrotated 87c row**. That is correct under exactly one of two readings and wrong under the other,
+and the report does not say which:
+
+- **Rate accounting only.** The latent is quantised in its original basis, exactly as before, and the
+  rotation is used solely to make a sum of marginals a tighter estimate of the joint entropy of those
+  symbols. Nothing about the code changes, so carrying the distortion forward is right. ✓
+- **Rotate, then quantise.** The rotation is applied to the continuous latent and quantisation happens
+  in the rotated basis. Then the distortion **must be re-measured**. An orthogonal rotation preserves
+  total squared error *in the latent*, but the decoder is a neural network, not an isometry — it
+  amplifies some latent directions more than others, so moving the quantisation error into different
+  directions changes the reconstruction error even at identical latent-space error. ✗ as reported.
+
+"Orthogonal, so no distortion changes" is true of the latent and not automatically true of the output.
+If it is the second reading, `2.0588` is a carried-over number and the comparison is not yet made.
+
+One sentence settles it. If it is the first, 90a closes and the result stands as written.
+
+### 90b. Both sides' rates are upper bounds, and that is fine — but say so
+
+Rotation removes **linear** dependence, not all dependence, so a sum of marginals in the rotated basis
+is still an upper bound on the true joint entropy. That holds for the codec at 3.221 and for PCA at
+3.304 alike, computed the same way on both sides, so the comparison is fair and both numbers are
+conservative — the true rates are lower on both sides.
+
+Worth one line in the writeup, because "3.221 bits/atom" reads as achieved and it is an estimate of an
+achievable bound.
+
+**And there is a way to make it achieved rather than estimated**, cheap and decisive: run the quantised
+symbols from **both** sides through the same real general-purpose compressor — `zstd -19` or `xz -9`
+on the byte stream. That is a rate anyone can reproduce without trusting an entropy calculation. If a
+real coder lands near 3.221 and 3.304, the estimate is realisable. If it lands well above both, the
+estimated rates are theoretical and the honest headline is the achieved pair.
+
+### 90c. The matched-rate margin is an EXTRAPOLATION, and it runs in the right direction
+
+The codec's 3.221 sits **below both** measured PCA points (3.304, 4.091), so "interpolated to matched
+rate" is extrapolation past the end of the measured range. The chord gives 2.4424 against the codec's
+2.0588, margin 0.3836 — which reproduces your ~0.39.
+
+The direction is safe: R–D curves are convex, and a chord *extended* beyond its interval lies **below**
+the true curve, so real PCA at 3.221 is worse than 2.4424 and the margin is a **floor**. Conservative
+against the codec, which is the right way round.
+
+But it should be labelled an extrapolation, and it does not need to be one — **measure PCA at 3.221**.
+You already have the machinery: pick the component count and allocation that lands there and report
+the point. One row removes the only estimated quantity from the headline.
+
+### 90d. What this does and does not change, in the terms the project uses
+
+`billed 6.191 → marginal 4.559 → joint 3.221` is a **1.92x** total over-count, every step of it found
+by asking what the rate meant, and every step in the codec's favour. That is the mirror of 66c, where
+the same question ran 4–5x the other way. The lesson is not "the codec is good after all" — it is that
+this project has now twice discovered that its own rate axis was measuring something other than what
+it claimed, in both directions.
+
+Your own closing point is the one to keep at the front: **the rotation is coding-side accounting, not a
+model change.** The codec as trained still has no decorrelation term, PR is still 2.00 of 8, and 68.4%
+of variance is still in one direction. A code winning *despite* that is a sharper version of 88d, not
+a resolution of it — and it makes `prtrace` more interesting rather than less, because if PR is
+recoverable the same architecture should win by more.
+
+### 90e. One thing to guard on the pre-registration
+
+Recording that the corpus is AFDB predictions, that 72b measured them at distance percentile 100 from
+the MD mean, and that the run can therefore claim geometry and packing but **not** fluctuation
+directions — before submission — is the right shape. Add one line if it is not already there: what
+result would count as the pretrain having **failed**. Three readings declared is good; a declared
+failure condition is what stops the third from expanding to cover whatever arrives.
