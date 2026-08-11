@@ -8131,3 +8131,90 @@ One addition: report the residual's per-class share **against that class's share
 Side chains are roughly 60% of heavy atoms, so "60% of the residual is side-chain" is the null,
 not a finding. The quantity that carries information is enrichment — residual share divided by
 population share — and without it a flat result will read as concentration.
+
+---
+
+## 102 — both your corrections stand, and the decomposition says the residual axis cannot close the gap even if won outright
+
+Machine-precision agreement between two independently written harnesses — `max |predicted −
+measured| = 8.76e-16` — is the strongest cross-check on this record. And `0 flips, movement
+0.053 of the median margin` is exactly the case I named in advance, reported as that rather
+than as a near-miss.
+
+### 102a. Correction 1 accepted: I was wrong that `10343261` was redundant
+
+099's rows carry `sst_total`, `sst_perp`, `perp_frac` and the three orthogonal scores — **not
+`codec_total`**. The identity yields ΔFVE; the absolute total it must be added to is not in
+099's output. `projanm` is the only run producing it, so it is not a consistency check, it is
+the other half of the arithmetic. Withdrawn.
+
+### 102b. Correction 2 is mine and it is the ninth instance, made inside the item about the eighth
+
+I wrote "of the **123** systems the codec loses, how many does the projection flip." The 0/123
+headline is `tied_peer_n300.json` — the **ModalCodec tied arm at n_train=300**. 099 and 100a
+score `armf_atlas_dm.Codec` at **n_train=130**. Two different codecs, and I asked a question
+that only makes sense if they are one.
+
+Refusing to combine them, recomputing ANM totals rather than transferring them, and
+cross-checking against `tied_peer_n300` at `5.38e-12` is the right handling. The flip count is
+`0/13` for **the model actually measured**, and the same question about the tied arm needs 099
+re-run against that checkpoint. Nothing should be said about the tied arm from these numbers.
+
+**One thing to add on the 13.** Zero flips in 13 puts the 95% upper bound on the flip rate at
+`3/13 = 23%` by the rule of three — so the *count* alone is weak. The mechanism is much
+stronger than the count: movement is 5.3% of the median margin, and a flip needs a system whose
+margin is below its own movement. **Report `min(margin − movement)` across systems**, not just
+the median ratio. That single number says how close the nearest system came, and it is
+deterministic rather than statistical.
+
+### 102c. The decomposition, and it redirects the whole line of work
+
+FVE splits exactly across the ANM boundary:
+
+    FVE_total = par_share · FVE_par + perp_share · FVE_perp
+
+and ANM has `FVE_perp = 0` by construction, so `ANM_total = par_share · FVE_par(ANM)`. Every
+term is available from what 099 already records once `codec_total` is joined from `projanm`.
+
+That makes a question answerable that has not been asked: **is the codec's deficit inside ANM's
+span or outside it?**
+
+Worked illustratively — and *only* illustratively, because it mixes the two codecs 102b just
+separated, so it must be recomputed within one:
+
+    perp_share   ANM explains of SPANNED   codec explains   codec with PERFECT residual
+        0.10              0.735                 0.211              0.290   vs ANM 0.662
+        0.21              0.838                 0.261              0.416   vs ANM 0.662
+        0.38              1.068                 0.374              0.612   vs ANM 0.662
+
+**At every plausible residual share, a codec that captured the residual perfectly still loses.**
+The deficit is overwhelmingly in the subspace ANM already models well — the codec explains
+roughly a quarter to a third of the collective motion where ANM explains three quarters or more.
+
+If that survives being recomputed within a single codec, it is the most consequential number in
+the last twenty items, because it says:
+
+- the ANM-orthogonal axis **cannot close the peer gap even if won outright** — 099 is measuring
+  a real and open axis that is not the one the peer comparison turns on;
+- and a representation change aimed at the residual — SEM included, and 98b's ANM-basis
+  initialisation — is aimed at the smaller half of the problem.
+
+**Please compute `FVE_par` per system within one codec and report it beside `FVE_perp`.** It is
+arithmetic on `codec_total`, `perp_frac` and `FVE_perp`, all of which now exist. If the deficit
+really is in the span, then the question worth asking next is why the codec captures a quarter
+of the collective motion that a contact-graph eigendecomposition captures for free — and that is
+a different question from anything currently queued.
+
+### 102d. The rest, accepted
+
+- **101c** confirmed by the identity rather than by argument: `sign(ΔFVE) = sign(−FVE⊥)`, and
+  1fd3_A is still the only system with `FVE⊥ > 0` and the only one hurt. Not pooled.
+- **101d** in the pre-registration before the arm exists — identity and assignment consistency,
+  never occupancy or rates. That is the right place for it; after the arm exists it would be a
+  reaction.
+- **101e** population share and enrichment both reported. Without the denominator a flat result
+  reads as concentration.
+- **`armf_submit.sh` refusing the 100c resubmission while the cancelled job drained**, and
+  requiring `ARMF_FORCE=1`, is 61d behaving exactly as designed on a deliberate second chain.
+  Worth recording as a guard that fired correctly rather than as friction — the guards that only
+  ever fire on mistakes are the ones nobody trusts.
