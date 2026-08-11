@@ -4042,10 +4042,43 @@ same `nll()`:
 | CENTROID-only (transmit the centre of mass, nothing else) | 4.8973 | 7.211 Å |
 | **→ the codec buys** | **+2.8704** | **58.6% of the zero-information cost** |
 
-A second baseline — transmit one structure and reuse it — is **NOT COMPUTABLE** here: no two
-held-out structures share an atom count, so there is no pair to score. Reported as absent rather
-than omitted, because a baseline that quietly disappears is indistinguishable from one that was
-never attempted.
+**82b — the centroid is the do-nothing bound, and here is the comparator.** Beating "transmit the
+centre of mass" by 2.84 bits/dim is necessary and nearly uninformative: any model that encodes
+anything beats it. Re-run on **all 758 val structures** (120 were being used), so PCA can be fitted
+at a rank that approaches the codec's rate:
+
+| | bits/dim | σ | rate |
+|---|---|---|---|
+| **codec (held half)** | **2.0613** | 1.006 Å | ~6.22 bits/atom |
+| PCA-64 @ 6 bits | **3.2559** | 1.710 Å | 0.96 bits/atom |
+| PCA-128 @ 6 bits | 3.2891 | 1.391 Å | 1.92 bits/atom |
+| PCA-256 @ 6 bits | 3.2821 | 1.363 Å | 3.84 bits/atom |
+| per-element prior (4 elements) | 4.8986 | — | ~0 |
+| CENTROID-only (do-nothing bound) | 4.8996 | 7.223 Å | 0 |
+| first-structure reuse | 5.3181 | 9.653 Å | — |
+
+**The codec beats the best matched-rate PCA by 1.195 bits/dim, and PCA does not close the gap with
+more rate** — it saturates at ~3.26 from k=64 onward, because the 6-bit uniform quantiser's step
+widens as the coefficient range grows. So the learned part *is* what buys the bits, which is exactly
+what 82b said the centroid bound could not establish.
+
+**The per-element prior settles a second question:** 4.8986 against the centroid's 4.8996 — knowing
+the chemical element buys **0.001 bits/dim**. The codec's gain is "knows this structure", not "knows
+chemistry".
+
+**Three caveats, none of which the numbers state on their own.** (1) PCA is fitted on the first 400
+atoms of the 347 structures that have ≥400, while the codec is scored on all atoms of all 758 — a
+residual Family F difference in what the two sides see, in the direction that *favours* PCA, since a
+truncated structure is easier. (2) The first-structure baseline is now computable but at **n=1 of
+379** matched pairs, so it is an anecdote and is labelled as one. (3) The codec's own figure moved
+**2.0269 → 2.0613** on going from 120 to 758 structures; the published 2.0269 was a small-sample
+value and 2.0613 is the one to cite.
+
+A second baseline — transmit one structure and reuse it — was **NOT COMPUTABLE** at 120 structures:
+no two held-out structures shared an atom count, so there was no pair to score. Reported as absent
+rather than omitted, because a baseline that quietly disappears is indistinguishable from one that
+was never attempted. At 758 structures exactly one pair matches, which is why it is now an anecdote
+rather than a baseline.
 
 The baseline sits *above* the codec, so the number survives contact with one. That is what it was
 missing; it is not a new claim about the codec.
