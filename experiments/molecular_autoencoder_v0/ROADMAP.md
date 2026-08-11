@@ -4117,7 +4117,68 @@ codec's 2.0588 and 16.82 dB. The codec loses by 0.315 bits/dim and 2.2 dB.**
 from letting the basis extend to 1,117 components and having water-filling zero out 229 of them. The
 right statement is "more components, with bits allocated by variance", not "water-filling is better".
 
-### ⬛ 088 RETRACTS 084/085: counted correctly, the codec BEATS classical transform coding
+### ⬛ 090a RETRACTS 088. The codec's latent was never quantised, and once it is, PCA dominates at every rate
+
+**090a asked one question and it found two defects, both mine, both flattering the codec.**
+
+**(1) The 088 rotation preceded quantisation.** `ent(X)` quantises its argument and I passed the
+*rotated* latent, so 3.221 bits/atom is the rate of a code quantised in the eigenbasis — while the
+distortion it was paired with, 2.0588 bits/dim, came from a code that was never rotated. A rotated
+rate cannot carry an unrotated code's distortion.
+
+**(2) Worse, and not what 090a asked about: the codec's distortion was measured with the latent never
+quantised at all.** `armf_pca_matched.py` does `pred, z = model(gb)` and scores `pred − coords`; `z`
+is not quantised anywhere on that path. So the codec was billed a 6-bit rate while being scored at
+full float precision, while PCA's distortion *was* measured on quantised coefficients. **The two
+sides were never comparable on the distortion axis, and that has been true since 084.**
+
+**Measured properly** — `z → centre → rotate → QUANTISE → dequantise → unrotate → decode →
+distortion`, rate from the symbols actually transmitted, basis and ranges cross-fit from train:
+
+| bits/comp | rotated rate (b/atom) | σ (Å) | unrotated rate | σ (Å) | rotation's effect on MSE |
+|---|---|---|---|---|---|
+| 3 | 2.630 | 2.6238 | 3.024 | 2.2050 | **+41.6%** |
+| 4 | 4.198 | 1.5754 | 4.720 | 1.3913 | **+28.2%** |
+| 5 | 5.890 | 1.1781 | 6.438 | 1.1136 | +11.9% |
+| 6 | 7.584 | 1.0485 | 8.139 | 1.0297 | +3.7% |
+| 8 | 10.943 | 1.0030 | 11.501 | 1.0022 | +0.2% |
+
+**092b predicted the rotation would cost distortion via estimation noise, then retracted that and
+measured it improving by 1–15%. At fixed bits-per-component it costs, and by more: up to +41.6%.**
+At matched *rate* it helps slightly — 4.198 b/atom at σ 1.5754 against the unrotated curve
+interpolated to ≈1.64 — so both readings are true of different comparisons, and the rate-matched one
+is the one that counts.
+
+**And the 088 rate itself was wrong by more than a factor of two.** 3.221 b/atom came from quantising
+over a **global** range across all eight channels; per-column ranges give finer steps and far more
+entropy. At 6 bits/component the rotated rate is **7.584 b/atom, not 3.221**.
+
+**The comparison, both sides quantised-then-scored, on one distortion axis**
+(σ converts as `bits/dim = log₂(σ√(2πe))`, which is exactly what `nll_bits` computes at the MLE σ, so
+the two are the same estimator):
+
+| CODEC rate | bits/dim | | PCA rate | bits/dim |
+|---|---|---|---|---|
+| 2.630 | 3.4388 | | **2.567** | **2.7805** |
+| 4.198 | 2.7028 | | **4.091** | **2.0293** |
+| 5.890 | 2.2836 | | **4.985** | **1.7435** |
+| 7.584 | 2.1154 | | | |
+| 10.943 | 2.0515 | | | |
+
+**PCA dominates at every rate, by ≈0.66 bits/dim — more than double the 0.315 originally claimed,
+and in the same direction.** At ~5 b/atom PCA reaches 1.7435 where the codec needs 5.890 to reach
+2.2836: *less rate and better distortion*.
+
+**So 088's un-retraction is retracted and 084/085 stands, stronger than before.** The sequence on this
+number is now: 084/085 said transform coding wins → 087/088 said the codec wins once its rate is
+counted correctly → **090a shows that rate was never paired with its own distortion, and transform
+coding wins by a wider margin than first measured.** Each step was found by someone asking what the
+number actually meant, and this one was found by 090a.
+
+**87c's PR = 2.00 of 8 stands and now reads consistently:** a code that puts 68.4% of its variance in
+one direction is not carrying a competitive rate–distortion tradeoff, and it does not.
+
+### ⬛ ~~088 RETRACTS 084/085: counted correctly, the codec BEATS classical transform coding~~ — RETRACTED by 090a, above
 
 **The codec's channels are correlated, so its entropy rate was a third over-count.** 088's argument:
 a sum of *marginal* entropies is the joint rate only under independence. PCA is a KLT and decorrelates

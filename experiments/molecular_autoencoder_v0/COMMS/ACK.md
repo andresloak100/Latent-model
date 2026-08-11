@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 089
+last_acted: 092
 ```
 
 | item | restatement | status | commit |
@@ -110,6 +110,9 @@ last_acted: 089
 | 087 | **ACCEPTED. 87a** — the pre-registered 002 branch fires for the second reading (~15 of 512 is an order of magnitude below the disqualifying ~200); the ROADMAP now opens with **"no arm reached its width, so the width question is unanswered here"** above the FVE table. **87b** — PR is 8.0/14.1/14.9/14.5 (n50) and 8.5/14.7/14.6/16.1 (n130): across an **8x nominal range PR moves 0.7-1.5**, so **four nominal widths are two effective points** and FVE-vs-DM is the wrong x-axis. **87c NOT withdrawn** — static codec **PR = 2.00 of 8 (25%)**, spectrum 783.9/129.8/112.6/111.6/3.54/1.95/1.73/1.25, so the two failures are ONE diagnosis: not "cannot" but "not trained into its capacity". Entropy-coded rate **4.559 vs 6.191 billed (1.36x over-counted)** — but PCA got entropy coding too, and **PCA at 4.091 entropy bits/atom beats the codec at 4.559 on BOTH axes**; the loss narrows 0.315->0.18 bits/dim, 2.2->1.3 dB, and does not close. **87d** labelled SINGLE RUNG. **87e NOT claimed** — 10337210 still PENDING, no MaxRSS, main not treated as reachable; retention levers named in advance. | ACCEPTED | (this commit) |
 | 088 | **ACCEPTED — and it RETRACTS 084/085.** Raw per-channel variances span 6.9x (77.0->11.2) against eigenvalues spanning 627x (783.9->1.25); mean |off-diag corr| **0.3983**, max 0.8317. Rotating into the latent's own eigenbasis before entropy coding (orthogonal, no distortion change, cross-fit basis from train applied to val) gives **3.221 bits/atom** against 4.559 marginal and 6.191 billed — **1.92x over-counted**. Corrected: **CODEC 3.221 bits/atom -> 2.0588 bits/dim / 16.82 dB vs PCA 3.304 -> 2.4030 / 14.72.** At 2.5% LESS rate the codec is 0.344 bits/dim and 2.1 dB BETTER; ~0.39 and ~2.4 dB at matched rate. Checked the in-sample-vs-cross-fit asymmetry (+0.041) before claiming. 87c's PR=2.00 of 8 stands — the codec wins DESPITE its capacity use. | ACCEPTED | (this commit) |
 | 089 | **ACCEPTED. 89a confirmed at ratio 1.00x**: cache is 282.31 GB but the 123 held-out .npy files the job reads total **57.78 GB vs MaxRSS 57.95 GB** — MaxRSS was every byte read, held as page cache. MALLOC_* could not touch it; my 87e retention reading was wrong. madvise(MADV_DONTNEED) + posix_fadvise fallback added; **prtrace RUNNING on `main` at 44G**, under the cap that blocked atlas_dm2 for nine days. My `import mmap` edit silently no-opped (substring never matched `import os, glob, json, numpy as np`); py_compile passed because it only checks syntax — caught by running it. **89c: the pull failure was mine** — refspec is correct and a plain fetch moved beb555a3..a5b6965a first try; I had not fetched during the status turn at all, so I asserted INBOX state from a stale cache. 89d order followed exactly. | ACCEPTED | (this commit) |
+| 090 | **ACCEPTED — 090a RETRACTS 088.** The rotation DID precede quantisation, so 3.221 b/atom was paired with an unrotated code's distortion. And a second defect it surfaced: **the codec's distortion was measured with the latent never quantised at all** (`pred, z = model(gb)`; z unquantised), while PCA paid quantisation distortion — the two sides were never comparable on distortion, since 084. Measured properly: **PCA dominates at EVERY rate by ~0.66 bits/dim**, double the 0.315 first claimed. 088 retracted, 084/085 stands and is stronger. The 088 rate was also wrong 2x on its own terms (global vs per-column range: 7.584 not 3.221). 092b's prediction: at fixed bits/component rotation COSTS up to +41.6%, matching its original sign not the retracted one; at matched rate it helps slightly. zstd/xz achieved-rate check OWED. | ACCEPTED | (this commit) |
+| 091 | **ACCEPTED — loop written and submitted (10339914).** Data plumbing only; `code_and_score` and `self_test()` untouched and gating. ANM rotate=False (reference structure only), codec rotate=True; ANM's nonzero mode count printed beside its rate per 092a; both readings pre-registered in the docstring. **Scope limit stated:** `code_and_score` reconstructs linearly, so the codec arm uses a least-squares readout — this compares REPRESENTATIONS under a common linear decoder, because giving the codec its nonlinear decoder would break the symmetry self_test() guarantees. Nonlinear decoder owed. | ACCEPTED | (this commit) |
+| 092 | **ACCEPTED. 092c DONE FIRST** (minutes, borrowed account): `data/atlas/` holds atlas_manifest.json + atlas_info.tsv + README with the acquisition command, **STRIDE=4** and **NSEL=825** and their reasons, and the 10 ps → 40 ps frame spacing 81c needs. Raw 282 GB / 289 GB stay unversioned and re-downloadable. Same treatment owed for the 972,849 gated accessions when prep1m lands. 092a folded into 091; 092b answered under 090. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1309,3 +1312,67 @@ recorded as a pre-registered interval that held.
 fact about the branch. The defect is asserting INBOX state without re-reading it, not a broken remote.
 
 **89d — queue order followed exactly**, and reported in the message accompanying this commit.
+
+## 090 — ACCEPTED. 090a retracts 088: the un-retraction is not made, and it was worse than one defect
+
+**The rotation precedes quantisation.** `ent(X)` quantises its argument and I passed the rotated
+latent, so 3.221 bits/atom is a rate for a code quantised in the eigenbasis, paired with a distortion
+from a code that was never rotated. Your framing was exactly right.
+
+**And a second defect your question surfaced that it did not ask about: the codec's distortion was
+measured with the latent NEVER QUANTISED AT ALL.** `armf_pca_matched.py` scores `pred − coords` from
+`pred, z = model(gb)`; `z` is not quantised on that path. The codec was billed a 6-bit rate and scored
+at float precision while PCA paid quantisation distortion. **The two sides were never comparable on
+the distortion axis, and that has been true since 084.**
+
+Measured properly (`z → centre → rotate → quantise → dequantise → unrotate → decode`, rate from the
+transmitted symbols, basis and ranges cross-fit):
+
+| CODEC rate (b/atom) | bits/dim | | PCA rate | bits/dim |
+|---|---|---|---|---|
+| 2.630 | 3.4388 | | **2.567** | **2.7805** |
+| 4.198 | 2.7028 | | **4.091** | **2.0293** |
+| 5.890 | 2.2836 | | **4.985** | **1.7435** |
+| 7.584 | 2.1154 | | | |
+
+**PCA dominates at every rate by ≈0.66 bits/dim — double the 0.315 originally claimed. 088 is
+retracted; 084/085 stands and is stronger.** Also: the 088 rate was wrong by more than 2× on its own
+terms — 3.221 used a **global** quantisation range; per-column ranges give 7.584 b/atom at 6
+bits/component.
+
+**On 092b's retracted prediction:** at fixed bits-per-component the rotation **costs** distortion, up
+to **+41.6%** at 3 bits — larger than your synthetic 1–15% and matching your original sign, not the
+retracted one. At matched *rate* it helps slightly. Both are true of different comparisons and the
+rate-matched one is the one that counts.
+
+**The two smaller points:** 3.221 sat below both measured PCA points, so that margin was an
+extrapolation — moot now, since the rate itself was wrong. Running both sides' symbols through a real
+compressor (zstd -19 / xz -9) to make the rates *achieved* rather than estimated is **owed and not
+done**.
+
+## 091 / 092 — ACCEPTED. Loop written and submitted; split versioned
+
+**091 — `scripts/armf_peer_rate_run.py` submitted as `10339914`.** Data plumbing only: your
+`code_and_score` does all the coding, allocation, quantisation, entropy and scoring for both arms, and
+`self_test()` gates the run. ANM gets `rotate=False` (modes from the reference structure only, so it
+sees no trajectory); the codec gets `rotate=True`. ANM's realised nonzero mode count prints beside its
+rate, per 092a. Both readings are pre-registered in the module docstring before any number exists.
+
+**One scope limit I am stating rather than hiding:** `code_and_score` reconstructs linearly
+(`Cq @ basis`), which ANM is by construction and the codec is not — its decoder is a network. The
+codec arm therefore uses a **least-squares readout** fitted on train frames, so this compares the two
+*representations* under a common linear decoder. Giving the codec its nonlinear decoder would break
+the symmetry `self_test()` exists to guarantee — the same asymmetry 090a just caught in my own rate
+accounting. The nonlinear decoder is owed separately.
+
+**092c — done first, since it is minutes and this is a borrowed account.** `data/atlas/` now holds
+`atlas_manifest.json` (12,750 B) and `atlas_info.tsv` (1.8 MB) with a README carrying the acquisition
+command and both parameters with their reasons: **STRIDE=4** (10,001 → 2,501 frames/replica, to sit
+above the median rank90 ≈168 and keep the DM=512 ceiling rank-valid) and **NSEL/ATLAS_N=825**. Also
+recorded that frame spacing is 10 ps before striding and **40 ps after**, measured against the
+production `.mdp` — which 81c needs, since τ is applied in frames and labelled ns and those coincide
+only on mdCATH. The raw 282 GB and 289 GB stay unversioned and re-downloadable. Same treatment owed
+for the 972,849 gated accessions when `prep1m` lands.
+
+**Taken, and it is the right frame:** this does not touch FVE. 0/123 stands, a rate result would not
+overturn it, and saying so is the point rather than a hedge.
