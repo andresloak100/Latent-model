@@ -7245,3 +7245,72 @@ closer to what the two-stage architecture actually needs from stage one.
 
 It also does not depend on 90a. If the rotation turns out to be pre-quantisation and the static
 result needs re-measuring, this comparison is built the same way on both sides and moves with it.
+
+---
+
+## 092 — the harness for 091 is written and self-tested; and the ATLAS split manifest is not in the repo
+
+Two things. The second is the one I would fix today.
+
+### 92a. `scripts/armf_peer_rate.py` — measurement machinery only, tested, yours to plumb
+
+I wrote the part that can be checked without the cluster and left the part that cannot. The split is
+deliberate: when we both wrote propagator persistence we collided and I discarded mine, so this file
+contains **no data plumbing**. The per-system loop is yours — you have the cache, the checkpoints and
+the paths, and I would be writing blind against interfaces I can only read.
+
+What is in it:
+
+- `code_and_score(...)` — one arm at one budget. Allocation, quantisation and entropy accounting are
+  **imported from `armf_pca_matched`** (`waterfill`, `quantise_cols`) rather than re-derived, so the
+  two arms cannot drift apart the way the static comparison did. `entropy_bits` is copied verbatim
+  with a comment saying so, because it is nested in `score()` and cannot be imported — if you change
+  one, change both.
+- `self_test()` — 82c's shape, and it **raises `SystemExit`** so a result cannot come out of a harness
+  that treats its sides differently. It runs both arms over identical coefficients through an
+  identical basis and requires bit-identical output, then checks the rotation fold algebraically
+  (`(C@V) @ (V.T@basis) == C@basis`, exact to 6.2e-15).
+
+### 92b. Writing the test produced a result, and it retracts a direction I asserted
+
+I wrote a comment predicting the rotation would **cost** distortion through estimation noise. Then I
+ran it. It does the opposite — **MSE falls 1–15%**, even on synthetic data whose population
+covariance is already diagonal, because the eigendecomposition sorts and spreads the sample spectrum
+so water-filling concentrates bits harder. Direction retracted in the file; the numbers stand.
+
+**And it makes 090a a measured concern rather than a pedantic one.** If rotating *before*
+quantisation moves MSE by up to 15% on synthetic data, then a rotated rate **cannot** carry the
+distortion figure measured on the unrotated code. So the 088 table's `2.0588 bits/dim` is right under
+exactly one reading:
+
+- rotation is **rate accounting only** — symbols quantised in the original basis, rotation used only
+  to make a marginal sum a tighter estimate of their joint entropy — distortion genuinely unchanged;
+- rotation **precedes quantisation** — distortion must be re-measured, and by up to the size of the
+  effect above.
+
+One sentence still settles it, and now there is a number attached to getting it wrong.
+
+The same file also settles the design question for 091 by construction: ANM and PCA are already
+orthogonal and pass `rotate=False`; only the learned latent passes `rotate=True`, and the rotation is
+folded into the basis so the reconstruction is exactly the same object.
+
+### 92c. The ATLAS split manifest exists only on scratch, and this is a borrowed account
+
+`armf_atlas_dm.py:61` reads `MAN = f"{WR}/atlas_manifest.json"`. There is **no `atlas_manifest.json`
+and no `atlas_info.tsv` anywhere in the repository** — I checked. That file defines which systems are
+train and which are the 123 held-out, and every ATLAS number on the record is conditioned on it: the
+0/123 peer result, the ladder, the DM sweep, 91's proposed comparison.
+
+The raw data should not be in git — the cache is 282 GB and the corpus 289 GB, both re-downloadable.
+**The split is not data, it is a decision**, it is a few kilobytes, and it is not reproducible from
+anything that is versioned. If scratch goes away on an account we are borrowing, every ATLAS result
+becomes a number nobody can regenerate, and "which 123 systems" has no answer.
+
+Commit `atlas_manifest.json` and `atlas_info.tsv`, plus a one-line note of the acquisition command and
+`STRIDE`/`NSEL` that produced them. Same for the 1M corpus once `prep1m` lands: not the structures,
+but the **accession list that survived the 30% gate** — 972,849 IDs, and the leak-gate threshold and
+query set beside them. That list is the difference between "we removed 6,202 leaked structures" and a
+claim nobody can check.
+
+The 237 result JSONs in `outputs/` are versioned and that is right. The inputs that select them are
+not, and that is the asymmetry worth closing.
