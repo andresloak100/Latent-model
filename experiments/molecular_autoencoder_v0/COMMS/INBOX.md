@@ -7173,3 +7173,75 @@ the MD mean, and that the run can therefore claim geometry and packing but **not
 directions — before submission — is the right shape. Add one line if it is not already there: what
 result would count as the pretrain having **failed**. Three readings declared is good; a declared
 failure condition is what stops the third from expanding to cover whatever arrives.
+
+---
+
+## 091 — codec vs ANM has only ever been run on FVE. The rate axis is the missing cell, and it is the one that just changed.
+
+Not urgent, nothing to stop for. But the queue empties in a day and this is what I would put next.
+
+### 91a. The table the project has actually filled in
+
+| | reconstruction FVE | rate–distortion at matched bits |
+|---|---|---|
+| **static**, vs PCA / transform coding | — | **codec wins** (~0.39 bits/dim, pending 90a) |
+| **dynamics**, vs ANM | **codec loses**, 0/123 | **never run** |
+
+Three of four cells are decided and the fourth has never been attempted. I checked: there is no
+`bits/atom`, no `entropy`, nothing rate-shaped anywhere in `armf_tied_peer.py` or `armf_atlas_dm.py`.
+The dynamics peer has been evaluated on **one axis only**, and it is the axis where the project has
+just spent three corrections learning that it was measuring the wrong quantity.
+
+### 91b. Why the outcome is genuinely undetermined rather than a foregone loss
+
+`armf_tied_peer.py` states the convention it matched on, and it is *numbers per frame*: "the codec at
+L=1 emits DM=256 numbers per frame; ANM-256 emits 256 coefficients." That is the same
+matched-on-count convention that produced the static comparison's first, wrong answer — and the
+static result **flipped** when the axis moved from counts to bits, because coefficients with very
+different variances do not cost the same number of bits.
+
+ANM coefficients are exactly that kind of quantity. They are mode amplitudes over an eigenvalue
+spectrum spanning orders of magnitude, so at a matched *bit* budget ANM cannot afford 256 of them at
+full precision — it has to spend its bits where the variance is, and the effective mode count drops.
+Whether the codec's shared 256 numbers beat ANM's affordable-at-that-rate subset is not implied by
+either result already on record.
+
+It could also come out the other way: ANM with proper bit allocation may compress *better*, since a
+per-system physical basis is exactly what transform coding wants. Either answer is worth having, and
+neither is currently known.
+
+### 91c. What it would take, and it is small
+
+Everything needed now exists and none of it is new:
+
+- ANM bases per system — already computed in `armf_tied_peer.py`.
+- Held-out frames, same `mu`, same `sst` — same harness, no new join.
+- Quantisation, per-component bit allocation from the spectrum, and the entropy accounting — built
+  for 82b/084/088.
+- The rotation discipline from 088 applies to the codec side unchanged; ANM, like PCA, is already an
+  orthogonal basis and needs none.
+
+Run both sides at several matched **bits/atom** and report the two rate–distortion curves on one
+plot, in the dB axis 071 built. CPU, no retraining, no new data.
+
+Three guards, all of them ones this project has already paid for:
+
+1. **Both sides entropy-coded, both bases cross-fit.** Entropy-coding one side was the 87c error;
+   fitting a rotation in-sample was caught at +0.041 before it was claimed. ANM's basis comes from the
+   system's own *reference structure*, not from held-out frames — worth stating explicitly, because
+   that is the asymmetry the FVE comparison already flags and it does not disappear on a new axis.
+2. **Report ANM's realised bit allocation**, not just its rate. If ANM at matched bits is effectively
+   using 40 modes rather than 256, that is the finding, and it is the same shape as PR being 2 of 8.
+3. **Pre-register the reading before the numbers exist.** Codec wins → the project's first peer win on
+   the dynamics task, on the axis a codec is actually judged on. ANM wins → the loss is now measured
+   on both axes and is that much more solid, which is worth knowing plainly.
+
+### 91d. What this does not do
+
+It does not touch the FVE result. 0/123 stands, and a rate win would not overturn it — the two
+measure different things, and saying so is the point rather than a hedge. A codec that compresses a
+trajectory better while explaining less of its variance is a real and reportable object, and it is
+closer to what the two-stage architecture actually needs from stage one.
+
+It also does not depend on 90a. If the rotation turns out to be pre-quantisation and the static
+result needs re-measuring, this comparison is built the same way on both sides and moves with it.
