@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 086
+last_acted: 087
 ```
 
 | item | restatement | status | commit |
@@ -107,6 +107,7 @@ last_acted: 086
 | 084 | **ACCEPTED — and 84b/84c REVERSE 82b's headline.** Measured: codec holds 1.031 latent floats/atom = **6.18 bits/atom** vs PCA-256's **3.84** — 1.6x more rate in a table labelled matched; matching needs **412 components**, and rank forced the PCA fit onto the train split. With reverse water-filling at matched bits/atom over the full rank, **PCA reaches 1.7435 bits/dim / 19.04 dB against the codec's 2.0588 / 16.82 — the codec LOSES by 0.315 bits/dim and 2.2 dB.** 82b's +1.195 and "the learned part buys the bits" are both RETRACTED (rate mismatch 0.40 + allocation 0.89 = 1.29 > 1.195). Made the sigma protocol identical on both sides before retracting; unchanged. Correction to 84c's framing: water-filling at the same k is slightly WORSE than flat — the gain is extending the basis to 1117 and zeroing 229. PCA sits near its rank cap, so the gap is a lower bound on PCA. **84a done on all 28 domains**: divergence reported as an outcome (24% at tau=1, **41% at tau=2**, worsening with lag); arms compared on a common cell set; whole vector — OU 3.0/7 vs DDPM 2.0/7, DDPM ahead on std/xcorr/amp, behind on js/kurt/iat/trans. | ACCEPTED | (this commit) |
 | 085 | **ACCEPTED, reframing adopted:** at k=1117 the basis is near its rank cap, so PCA barely reduces dimension and the compression is the quantiser — the result is that **classical transform coding** (scalar quantiser + variance-proportional bits on KLT coefficients) beats the codec by 0.315 bits/dim and 2.2 dB. **85a measured, and better than feared**: 694/758 val structures (**91.6%**) have >=400 atoms and can be coded, not ~46%; only 8.4% cannot. Both sides already scored on identical atoms. | ACCEPTED | (this commit) |
 | 086 | **ACCEPTED. 86a fixed** — `mu` and `scale` chunked at CH=19998 (multiple of 3); `s0` never formed. **86d clean**: mu **bit-identical**, sst/scale <=6.5e-16 vs float64 eps 2.2e-16, across N=511/2795/33377. **86b answered**: peak RSS on the largest system **7.59 -> 3.81 GB**; retained arrays 0.08 GB at 253 systems; current RSS flat while peak climbs, so nothing accumulates. Decisive natural experiment: **10335263 loaded everything and trained nothing at 93.7 GB vs 10314125's 87.6 GB training** — LOADING dominates, torch does not. 10337210 repeats the load path under the fix against the 48 GB target. 86c framing adopted: the DM sweep is a question about the dynamics primary, not a defence of the architecture on the rate axis it has lost. | ACCEPTED | (this commit) |
+| 087 | **ACCEPTED. 87a** — the pre-registered 002 branch fires for the second reading (~15 of 512 is an order of magnitude below the disqualifying ~200); the ROADMAP now opens with **"no arm reached its width, so the width question is unanswered here"** above the FVE table. **87b** — PR is 8.0/14.1/14.9/14.5 (n50) and 8.5/14.7/14.6/16.1 (n130): across an **8x nominal range PR moves 0.7-1.5**, so **four nominal widths are two effective points** and FVE-vs-DM is the wrong x-axis. **87c NOT withdrawn** — static codec **PR = 2.00 of 8 (25%)**, spectrum 783.9/129.8/112.6/111.6/3.54/1.95/1.73/1.25, so the two failures are ONE diagnosis: not "cannot" but "not trained into its capacity". Entropy-coded rate **4.559 vs 6.191 billed (1.36x over-counted)** — but PCA got entropy coding too, and **PCA at 4.091 entropy bits/atom beats the codec at 4.559 on BOTH axes**; the loss narrows 0.315->0.18 bits/dim, 2.2->1.3 dB, and does not close. **87d** labelled SINGLE RUNG. **87e NOT claimed** — 10337210 still PENDING, no MaxRSS, main not treated as reachable; retention levers named in advance. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1181,3 +1182,62 @@ width, and since 084/085 that architecture is known to lose to classical transfo
 bits/atom. The sweep remains a legitimate question about the **dynamics primary**, a different axis
 untouched by the rate–distortion loss, and it is recorded that way so the result cannot later be read
 as a defence of the architecture on an axis where it has already lost.
+
+## 087 — ACCEPTED. The branch fires, the sweep has one effective width, and the two failures are one
+
+**87a — done, and the sentence is now above the FVE table.** At ~15 of 512 the arms are an order of
+magnitude below the ~200 that 002 pre-registered as already disqualifying, so the branch fires for
+the second reading. The ROADMAP section now opens with a block quote saying **the result of this
+sweep is not that the architecture saturates in width — it is that no arm reached its width, so the
+width question is unanswered here**, before any FVE number.
+
+**87b — measured, and it is your second branch.** PR at all four widths, best-LR arm:
+
+| n_train | DM=16 | DM=64 | DM=256 | DM=512 |
+|---|---|---|---|---|
+| 50 | 8.0 | 14.1 | 14.9 | 14.5 |
+| 130 | 8.5 | 14.7 | 14.6 | 16.1 |
+
+Across an **8× nominal range** (64→512) PR moves by **0.7** at n=50 and **1.5** at n=130. Only DM=16
+differs, and 16 constrains PR by itself. **Four nominal widths, two effective points: PR≈8 and
+PR≈15.** FVE-vs-DM is the wrong x-axis — three of its four points share an x-value once the axis is
+effective width. The FVE-vs-PR table is recorded; at n=130 three points between PR 14.6 and 16.1
+carry FVE from 0.1727 to 0.1864, a spread the effective width does not explain.
+
+**87c — NOT withdrawn. The static codec is also low-PR, so the two findings join.** Cross-fit, the
+project's own definition, 46,164 train tokens → basis, 59,177 val tokens → eigenvalues:
+**PR = 2.00 of 8 channels (25%)**, spectrum 783.9 / 129.8 / 112.6 / 111.6 / 3.54 / 1.95 / 1.73 /
+1.25, top channel 68.4% of variance. Four channels carry signal, four are noise. So 87a's unused
+width and 085's loss are **one diagnosis**, and the reading moves from "the architecture cannot" to
+"the architecture is not being trained into its capacity".
+
+**The entropy-coded rate: over-counted 1.36×, and it does not rescue the codec.** 35.35 bits/token
+against 48 billed → **4.559 entropy bits/atom against 6.191 billed**. But entropy-coding one side
+only would be the same error facing the other way, so PCA got it too and was swept against entropy
+rate:
+
+| | entropy bits/atom | bits/dim | SNR dB |
+|---|---|---|---|
+| **PCA** | **4.091** | **2.0293** | **17.05** |
+| **CODEC** | **4.559** | 2.0588 | 16.82 |
+| PCA | 4.985 | 1.7435 | 19.04 |
+
+**PCA at 4.091 beats the codec at 4.559 on both axes — 10% less rate and better distortion.**
+Interpolated to the codec's own rate, PCA reaches ≈1.88 bits/dim and ≈18.1 dB. The loss narrows from
+0.315 → ≈0.18 bits/dim and 2.2 → ≈1.3 dB, and **does not close**. 085 survives a correction made in
+the codec's favour.
+
+**87d — labelled.** "Latent needs less width, DM_latent=64" is marked **SINGLE RUNG** in the ROADMAP,
+in the same way PARTIAL LADDER labels a short lever arm: n=130 resolved, n=50 unresolved at 0.16×
+seed noise *and pointing the other way*. Not a refuted claim — an unreplicated one, pending
+`10337194`.
+
+**87e — NOT claimed. `10337210` is still PENDING, so there is no MaxRSS to report and I am not
+treating `main` as reachable.** Your allocator-retention reading is taken and recorded in advance: the
+"current RSS flat while peak climbs" signature means RSS tracks the high-water mark of what was ever
+allocated rather than what is live, so halving each allocation need not halve MaxRSS, and 93.7 GB
+against a 7.59 GB per-system peak across 253 systems only adds up if retention dominates. If the
+number falls short while live memory is provably small (retained arrays are 0.08 GB at 253 systems,
+already measured), the residual is retention and the levers are `MALLOC_TRIM_THRESHOLD_`,
+`MALLOC_ARENA_MAX` or an explicit trim between systems — **not more chunking**. Named now so a
+disappointing number is diagnosed rather than read as "the fix did not work".

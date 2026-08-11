@@ -185,7 +185,27 @@ if __name__ == "__main__":
     Cf = (Xf - mu) @ Vt.T
     Cv = (Xv - mu) @ Vt.T
     rows = []
-    print(f"\n  {'scheme':<40}{'k':>6}{'bits/atom':>11}{'bits/dim':>10}{'SNR dB':>9}{'nonzero':>9}")
+    print(f"\n  {'scheme':<40}{'k':>6}{'bits/atom':>11}{'entropy':>11}{'bits/dim':>10}"
+          f"{'SNR dB':>9}{'nonzero':>9}")
+
+    def entropy_bits(Cq, bits, lo, hi):
+        """Empirical entropy of the quantised symbols, summed over components. 87c asks for the
+        entropy-coded rate on the CODEC side because a near-constant dimension costs a uniform
+        quantiser its full allocation and an entropy coder ~0. Giving that to the codec and not to
+        PCA would be the same error facing the other way, so both sides get it."""
+        tot = 0.0
+        for j in range(Cq.shape[1]):
+            if bits[j] <= 0:
+                continue
+            levels = 2 ** int(bits[j]) - 1
+            step = (hi[j] - lo[j]) / max(levels, 1)
+            if step <= 0:
+                continue
+            sym = np.round((Cq[:, j] - lo[j]) / step).astype(np.int64)
+            _, cnt = np.unique(sym, return_counts=True)
+            pj = cnt / cnt.sum()
+            tot += float(-(pj * np.log2(pj)).sum())
+        return tot
 
     def score(label, kk, bits, lo, hi, note=""):
         Cq = quantise_cols(Cv[:, :kk].copy(), bits, lo, hi)
@@ -197,10 +217,12 @@ if __name__ == "__main__":
         mse = float((err ** 2).reshape(-1, 3).sum(-1).mean())
         db = 10 * math.log10(sig_pow / mse)
         bpa = float(bits.sum()) / NATOM
+        ebpa = entropy_bits(Cq, bits, lo, hi) / NATOM
         nz = int((bits > 0).sum())
-        print(f"  {label:<40}{kk:>6}{bpa:>11.2f}{b:>10.4f}{db:>9.2f}{nz:>9}  {note}", flush=True)
-        rows.append(dict(scheme=label, k=int(kk), bits_per_atom=bpa, bits_per_dim=b, snr_db=db,
-                         nonzero=nz))
+        print(f"  {label:<40}{kk:>6}{bpa:>11.2f}{ebpa:>11.2f}{b:>10.4f}{db:>9.2f}{nz:>9}  {note}",
+              flush=True)
+        rows.append(dict(scheme=label, k=int(kk), bits_per_atom=bpa, entropy_bits_per_atom=ebpa,
+                         bits_per_dim=b, snr_db=db, nonzero=nz))
         return db, b
 
     # ROW 1: what 82b did -- flat 6 bits, GLOBAL range, k=256. Kept and labelled.
@@ -219,6 +241,35 @@ if __name__ == "__main__":
         score(f"84c: WATER-FILLING, per-component range", kmax, b_wf, lo, hi,
               "<- rate-matched, proper allocation")
 
+    # 87c, second half. The codec's ENTROPY-coded rate is 4.559 bits/atom against its billed 6.19,
+    # because its latent is low-PR (2.00 of 8 channels) and near-constant dimensions cost a uniform
+    # quantiser their full allocation and an entropy coder almost nothing. Matching on BILLED bits
+    # therefore leaves the comparison mismatched in the OPPOSITE direction to 84b's -- PCA spends
+    # 4.99 entropy-coded against the codec's 4.559. So the budget is swept and the PCA curve is
+    # reported against ENTROPY-coded rate, letting the codec's operating point be read off it.
+    print(f"\n  PCA SWEPT AGAINST ENTROPY-CODED RATE (87c) -- the codec sits at "
+          f"{'%.3f' % 0.0 if False else 'its own'} entropy rate, read off this curve:", flush=True)
+    print(f"  {'budget bits/atom':>18}{'entropy bits/atom':>19}{'bits/dim':>10}{'SNR dB':>9}",
+          flush=True)
+    kmax = min(len(Xf) - 1, Vt.shape[0])
+    lo_s, hi_s = Cf[:, :kmax].min(0), Cf[:, :kmax].max(0)
+    ent_rows = []
+    for frac in (0.55, 0.70, 0.85, 1.0):
+        bud = budget * frac
+        bw = waterfill(var[:kmax], bud)
+        Cq = quantise_cols(Cv[:, :kmax].copy(), bw, lo_s, hi_s)
+        rec = Cq @ Vt[:kmax] + mu
+        err = (rec - Xv)
+        Cqf = quantise_cols(Cf[:, :kmax].copy(), bw, lo_s, hi_s)
+        sg = float(np.sqrt(((Cqf @ Vt[:kmax] + mu - Xf) ** 2).mean()))
+        bd = nll_bits(err.ravel(), sg)
+        mse = float((err ** 2).reshape(-1, 3).sum(-1).mean())
+        db = 10 * math.log10(sig_pow / mse)
+        eb = entropy_bits(Cq, bw, lo_s, hi_s) / NATOM
+        print(f"  {bud/NATOM:>18.2f}{eb:>19.3f}{bd:>10.4f}{db:>9.2f}", flush=True)
+        ent_rows.append(dict(budget_bpa=bud/NATOM, entropy_bpa=eb, bits_per_dim=bd, snr_db=db))
+    ENT = ent_rows
+
     best = min(r["bits_per_dim"] for r in rows if abs(r["bits_per_atom"] - CODEC_BPA) < 0.5) \
         if any(abs(r["bits_per_atom"] - CODEC_BPA) < 0.5 for r in rows) else None
     print(f"\n  CODEC {cod_bits:.4f} bits/dim, {cod_db:.2f} dB at {CODEC_BPA:.2f} bits/atom")
@@ -226,5 +277,5 @@ if __name__ == "__main__":
         print(f"  BEST RATE-MATCHED PCA {best:.4f} bits/dim  ->  codec advantage "
               f"{best - cod_bits:+.4f} bits/dim", flush=True)
     json.dump(dict(codec=dict(bits_per_dim=cod_bits, snr_db=cod_db, bits_per_atom=CODEC_BPA),
-                   pca=rows, natom=NATOM, n_fit=len(Xf), n_val=len(Xv)), open(RES, "w"))
+                   pca=rows, entropy_sweep=ENT, natom=NATOM, n_fit=len(Xf), n_val=len(Xv)), open(RES, "w"))
     print(f"  -> {RES}", flush=True)

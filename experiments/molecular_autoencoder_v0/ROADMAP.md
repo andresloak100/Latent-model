@@ -4117,6 +4117,58 @@ codec's 2.0588 and 16.82 dB. The codec loses by 0.315 bits/dim and 2.2 dB.**
 from letting the basis extend to 1,117 components and having water-filling zero out 229 of them. The
 right statement is "more components, with bits allocated by variance", not "water-filling is better".
 
+### 87c: the two failures are ONE diagnosis, and the entropy-coded rate does not rescue the codec
+
+**87c.1 — the static codec is also low-PR, so the findings join.** Measured with the project's own
+cross-fit definition (basis from 46,164 train tokens, eigenvalues from 59,177 val tokens projected
+onto it — never in-sample, which is the error retracted for rank90):
+
+| | value |
+|---|---|
+| latent | 8 channels per token |
+| **PR** | **2.00 of 8 = 25% of the width** |
+| eigenvalue spectrum | 783.9, 129.8, 112.6, 111.6, **3.54, 1.95, 1.73, 1.25** |
+| variance in top channel | **68.4%**; top two 79.7% |
+
+Four channels carry real variance and four are near-noise. **So the §5 static codec is low-PR too,
+and 87c is not withdrawn: 87a's unused width and 085's loss to transform coding are one diagnosis
+rather than two failures.** A code concentrating variance in ~2 effective directions being beaten by a
+KLT with 1,117 components and variance-proportional bits is close to expected. The reading changes
+from *"the architecture cannot"* — a dead end — to *"the architecture is not being trained into its
+capacity"*, which is an optimisation and regularisation problem, and is addressable.
+
+**87c.2 — the rate was over-counted, and correcting it is not enough.** Billing every dimension the
+full 6 bits charges a near-constant dimension what an entropy coder would give away. Per-channel
+entropies are 4.32, 4.68, 4.89, 4.49, 4.49, 4.06, 4.90, 3.52 — **35.35 bits per token against 48
+billed, 74%**:
+
+| | billed | entropy-coded |
+|---|---|---|
+| codec rate | 6.191 bits/atom | **4.559 bits/atom** |
+
+**over-counted by 1.36×**, running in the codec's favour — the mirror of 66c's float-counting error,
+same class, opposite sign.
+
+**But entropy-coding one side only would be that same error facing the other way**, so PCA gets it
+too, and PCA is then swept against *entropy-coded* rate so the codec's operating point can be read
+off the curve:
+
+| PCA budget (bits/atom) | **entropy bits/atom** | bits/dim | SNR dB |
+|---|---|---|---|
+| 3.40 | 2.567 | 2.7805 | 12.43 |
+| 4.33 | 3.304 | 2.4030 | 14.72 |
+| **5.26** | **4.091** | **2.0293** | **17.05** |
+| 6.18 | 4.985 | 1.7435 | 19.04 |
+| **CODEC** | **4.559** | **2.0588** | **16.82** |
+
+**The cleanest statement: PCA at 4.091 entropy bits/atom beats the codec at 4.559 on both axes —
+10% less rate, and better on distortion (2.0293 vs 2.0588 bits/dim; 17.05 vs 16.82 dB).**
+Interpolated to the codec's own 4.559, PCA reaches ≈1.88 bits/dim and ≈18.1 dB.
+
+**So entropy coding narrows the loss from 0.315 to ≈0.18 bits/dim and from 2.2 to ≈1.3 dB, and does
+not close it.** 085's conclusion survives the correction that runs in the codec's favour — which is
+the direction that makes it worth having checked.
+
 **Bounds on the retraction.** PCA at k=1117 is near its rank cap (1,118 fit structures), so a larger
 fit set could push it further — the gap is a lower bound on PCA, not an upper one. And PCA is a
 **linear internal reference, not the peer**: ANM is the peer, and 5b's "no surviving peer-comparison
@@ -5910,7 +5962,62 @@ Boltzmann ensemble". The verdict is recorded with that bound on its face.
 
 ---
 
-## ⬛ atlas_dm2 completed — and the n_train=50 row of the DM curve is inside its own noise
+## ⬛ atlas_dm2 completed — and the width question is UNANSWERED by this experiment (87a)
+
+> **READ THIS BEFORE THE FVE TABLE.** No arm in this sweep used its width. At DM=512 the
+> participation ratio is **~15 of 512 — 3%**. INBOX 002 pre-registered the branch after the mdCATH
+> wide-arm collapse: *a flat curve with the wide arms using their full width is width saturation; a
+> flat curve with DM=512 using ~200 effective dimensions is capacity that failed to train, which is a
+> different finding and must not be reported as the first.* At ~15 the arms sit **an order of
+> magnitude below the number already registered as disqualifying**. The branch fires, and it fires
+> for the second reading.
+>
+> **The result of this sweep is therefore not that the architecture saturates in width. It is that no
+> arm reached its width, so the width question is unanswered here.** The FVE table below, read on its
+> own, says the opposite — and it is the table that gets quoted.
+
+### 87b: four nominal widths, essentially one effective width
+
+Participation ratio per arm, best-LR arm at each width — the measurement that decides which of 87b's
+two branches applies:
+
+| n_train | DM | FVE | **PR** | PR/DM |
+|---|---|---|---|---|
+| 50 | 16 | 0.1274 | 8.0 | 50% |
+| 50 | 64 | 0.1269 | 14.1 | 22% |
+| 50 | 256 | 0.1553 | 14.9 | 6% |
+| 50 | 512 | 0.1547 | 14.5 | **3%** |
+| 130 | 16 | 0.1256 | 8.5 | 53% |
+| 130 | 64 | 0.1738 | 14.7 | 23% |
+| 130 | 256 | 0.1864 | 14.6 | 6% |
+| 130 | 512 | 0.1727 | 16.1 | **3%** |
+
+**PR is flat from DM=64 upward.** Across an 8× nominal range (64 → 512) it moves 14.1 → 14.9 → 14.5
+at n=50, a spread of **0.7**, and 14.7 → 14.6 → 16.1 at n=130, a spread of **1.5**. Only DM=16
+differs (8.0–8.5), and 16 is small enough to constrain PR by itself.
+
+So the sweep has **two effective points, not four**: PR ≈ 8 at DM=16, and PR ≈ 15 at DM = 64, 256 and
+512 alike. **This is 87b's second branch: the sweep varied a parameter with no effect on the quantity
+that matters.** FVE-vs-DM is the wrong x-axis — three of its four points share an x-value once the
+axis is the effective width.
+
+**FVE against effective width**, which is the plot 87b asks for:
+
+| n_train | PR (effective) | FVE | nominal DM |
+|---|---|---|---|
+| 50 | 8.0 | 0.1274 | 16 |
+| 50 | 14.1 | 0.1269 | 64 |
+| 50 | 14.5 | 0.1547 | 512 |
+| 50 | 14.9 | 0.1553 | 256 |
+| 130 | 8.5 | 0.1256 | 16 |
+| 130 | 14.6 | 0.1864 | 256 |
+| 130 | 14.7 | 0.1738 | 64 |
+| 130 | 16.1 | 0.1727 | 512 |
+
+At n=130 the three points between PR 14.6 and 16.1 carry FVE from 0.1727 to 0.1864 — a spread of
+0.014 at essentially constant effective width, which the effective width therefore does not explain.
+
+## ⬛ atlas_dm2: the n_train=50 row of the DM curve is inside its own noise
 
 `10335263`, COMPLETED in **4:44** with exit 0. That is not a failed run: the stamp check found
 **53 of 73 stored arms valid**, which covers the whole 40-cell grid, so it retrained nothing and
@@ -5946,7 +6053,16 @@ on are smallest, so there was no error bar to compare the span against. Now exte
 
 **Two further things the printed headline does not say.**
 
-1. **The 005 conclusion is drawn from one of two rows that disagree.** The log prints "THE LATENT
+1. **The 005 conclusion is SINGLE-RUNG (87d), and labelled as such.** The claim *"the latent needs
+   less width than the network does; DM_latent=64 is the headline number"* is the **n=130** reading
+   (network saturates 512, bottleneck 64). The **n=50 row points the other way** — network saturates
+   64, bottleneck 256, i.e. the latent needing *more* width — and n=50 is not merely weaker, it is
+   **unresolved** at 0.16× seed noise. One rung resolved, one rung unresolved and disagreeing in
+   direction. **Until `10337194` lands, this conclusion carries the same status as PARTIAL LADDER
+   does for a short lever arm: SINGLE RUNG — not a refuted claim, an unreplicated one**, and it must
+   be labelled wherever it appears. The original wording of this item follows.
+
+   **The 005 conclusion is drawn from one of two rows that disagree.** The log prints "THE LATENT
    NEEDS LESS WIDTH THAN THE NETWORK DOES … DM_latent=64 is the headline number." That is the n=130
    reading (network saturates 512, bottleneck 64). The n=50 row says the **opposite direction** —
    network saturates 64, bottleneck 256, i.e. the latent needs *more* width. Reporting the row that
