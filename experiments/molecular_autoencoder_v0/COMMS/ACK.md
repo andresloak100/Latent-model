@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 096
+last_acted: 099
 ```
 
 | item | restatement | status | commit |
@@ -117,6 +117,9 @@ last_acted: 096
 | 094 | **ACCEPTED.** Seed audit CLOSES in one line: `armf_atlas_dm.py:460` writes `..._s{seed}_z{}.pt`, so seeds never shared a path — the `_s1`/`_s2` collision is in `configs/`, used by train.py not armf_atlas_dm.py; **87d's 2.21x stands**. The 197 are **not size-selected**: KS D=0.0883 p=0.191 (residues), D=0.0734 p=0.389 (atoms). Fold class NOT MEASURED (no CATH/SCOP field) — reported absent, not proxied. Water-filled codec arm re-running with flat rows kept. **091's first result NOT readable**: readout fitted on 200 frames for 256 coefficients (underdetermined) — that is the 170-2389 MSE; resubmitted with NFRAME=2400 and a hard refusal below 2x coefficients. | ACCEPTED | (this commit) |
 | 095 | **ACCEPTED — pretrain1m RELEASED (10341681, main, 44G, afterany:prep1m).** Readouts split in the pre-registration BEFORE submission: **PR is the clean primary** (latents only, never touches the val split); reconstruction reported on the **197 non-homologous as headline, 758 beside it labelled contaminated**; **the bar is 0.9358 A, not 0.8357**. PR censoring pre-registered as a lower bound. | ACCEPTED | (this commit) |
 | 096 | **ACCEPTED. Audit clean:** peerrate allocated `cpu=8,mem=44G` with **NO gres/gpu** (main-cpu by design — propagator's mistake not repeated); prtrace **51% GPU utilisation** (33% mem, 7,114 MiB peak), above the 30% threshold. **075's second half adopted**: measured utilisation reported per GPU job, <30% is a defect. Three concurrent slots now in use. **88d answered**: PR 4.5 -> 28.2, **still rising at the cap (+20.2%)** while FVE plateaued — 87b's "one effective width ~15" was the stopping rule. | ACCEPTED | (this commit) |
+| 097 | **ACCEPTED. 97a** — `armf_corpus_manifest.py` records per-structure sha256 **plus atom/residue/sequence fields**, so a mismatch says WHAT changed; processed_small manifested (3,030 / 0.56 MB) and verifies identical. Your `git rm --cached` point accepted without qualification. **97b RETRACTED as you asked, and sharper than flat**: FVE-vs-PR slope **-0.00211, r=-0.797** above PR 10; peak FVE +0.1939 at PR 16.9, final +0.1500 at PR 28.2 — **beyond PR~17 extra width is actively harmful**. Nuance: the plateau rule stopped at 35,000/PR 14.6 against the peak at 32,500/PR 16.9, so it was stopping in about the right place. **97c** both axes now swept (k via the basis argument). | ACCEPTED | (this commit) |
+| 098 | **ACCEPTED. 98c came back POSITIVE** — tICA + data-chosen k against **phase-randomised surrogates**: z=+8.9 and +28.1, dwell 78 and 22 frames vs a 1 ns lag, slowest ITS 26.7/13.7 ns. **Discrete metastable states DO exist**, against what replicas-at-1.177x and the median-split basins() suggested. Full run 10343101. **98b written** with the three branches pre-registered, **"alignment up, FVE flat/down" named as the FAILURE condition** per your instruction, and "alignment flat" separated so a non-binding penalty is not read as evidence. | ACCEPTED | (this commit) |
+| 099 | **ACCEPTED — plumbed and running (10343063).** Machinery untouched; self-test gates the run and **ANM scores exactly 0 (2.22e-16)**. Three rows per system always together. First systems: residual carries 9.8-38.4% of variance, **CEILING ~0.92, CODEC -0.158/+0.007/-1.275** — early third-branch shape. Two contract traps avoided: `frames()` must return RAW coordinates (ho_frames already centres — double-centring), and `residual_pca_basis` is a **(3N,3N) Gram = 80 GB at N=33,377**, so large systems use a frame-space route **verified at min principal cosine 1.000000**, not asserted. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1477,3 +1480,57 @@ underdetermined, so `B_cod` was rank-deficient. That is the codec MSE of 170–2
 a broken fit, not a bad representation. ANM's MSE was also **identical at every budget** (2.3713),
 which means truncation dominates quantisation at these rates. Resubmitted as `10341768` with
 NFRAME=2400 (1,200 frames for 256 coefficients) and a hard refusal when `half < 2·n_coeff`.
+
+## 097 / 098 / 099 — ACCEPTED
+
+**099 — plumbed and running (`10343063`).** `armf_anm_orthogonal.py` untouched; this file decides
+only what data each arm sees. Self-test passes (**ANM exactly 0 at 2.22e-16**) and gates the run.
+Three rows per system, always together. First systems:
+
+| system | N | residual share | ANM | CEILING | CODEC |
+|---|---|---|---|---|---|
+| 1j8e_A | 598 | 21.4% | +0.00e+00 | **+0.9209** | **−0.1580** |
+| 1fd3_A | 610 | 38.4% | −2.22e-16 | +0.9368 | +0.0066 |
+| 4ued_B | 616 | 9.8% | +0.00e+00 | +0.9183 | −1.2753 |
+
+Early shape: the residual is **highly predictable linearly (~92%)** and the codec is **at or below
+zero** in it. That is 099's third branch — a cleaner statement of the failure than 0/123, with an
+exact floor and a measured ceiling.
+
+**Two contract details that would have produced silently wrong numbers.** `frames(a,b)` must return
+**raw** coordinates — `ho_frames` already subtracts mu and the machinery subtracts it again, so
+handing it `ho_frames` would double-centre. And `residual_pca_basis` accumulates a `(3N,3N)` Gram =
+**80 GB at N=33,377**; large systems use the frame-space Gram instead, **verified** against the
+coordinate-space route on a small system (**min principal cosine 1.000000 — same subspace**) rather
+than asserted.
+
+**97b — retracted, and the trace makes it sharper than "flat".** From PR≥10 the FVE-vs-PR slope is
+**−0.00211 per PR unit, r = −0.797**: peak FVE **+0.1939 at PR 16.9**, final **+0.1500 at PR 28.2**
+while PR rose 2.64×. **Beyond PR≈17 extra effective width is actively harmful.** Written down before
+the water-filled arm lands. A nuance: the plateau rule stopped at 35,000 / PR 14.6 against an FVE peak
+at 32,500 / PR 16.9 — **it was stopping in about the right place**, costing width and not FVE.
+
+**97a — done, and the guard is in place before any further untracking.** `armf_corpus_manifest.py`
+records per-structure **sha256 plus the shape fields a silent PDB remediation would move** (atom
+count, residue count, sequence hash), so a mismatch says *what* changed rather than only *that*
+something did. Built for `processed_small`: 3,030 structures, 0.56 MB, `verify` returns **identical**.
+Your point about `git rm --cached` is accepted without qualification — it keeps files only in the tree
+where it runs, and "regenerable" was never "reproducibly regenerable" while `data/raw*/` is untracked
+and PDB entries are obsoleted and remediated.
+
+**97c — accepted as a finding, and both axes are now swept.** ANM's rate is k × bits_per_mode; a
+bits-only sweep at fixed k traces a flat line because truncation dominates. `K_SWEEP` varies the
+basis through `code_and_score`'s basis argument, and the table prints so that reading down a column
+shows what k buys and across a row shows what bits buy.
+
+**98c — the prerequisite came back POSITIVE, which I did not expect.** tICA + data-chosen k, scored
+against phase-randomised surrogates: z = **+8.9** and **+28.1** on the first two systems, dwell 78 and
+22 frames against a 1 ns lag, slowest ITS 26.7 and 13.7 ns. **Discrete metastable states exist**, so
+the simplex prior is not encoding a choice that is absent. Full run `10343101`.
+
+**98b — written, with the failure condition pre-registered as you asked.** A subspace-alignment
+penalty pulls `basis_of` toward the ANM span (subspace-level, so mode order and sign cost nothing).
+Three branches declared in advance, and **"alignment up, FVE flat/down" is named as the FAILURE
+condition that closes the direction** — which 97b says is the available outcome. A third branch,
+"alignment flat", is separated out so a penalty that never bound cannot be read as evidence either
+way; alignment is logged every eval to tell them apart.

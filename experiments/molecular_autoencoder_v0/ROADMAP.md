@@ -6234,3 +6234,53 @@ favourable number that gets published before it gets checked.
 
 **Still owed:** a model actually *trained* on a 30%-separated split. The partition measures the
 leakage in the existing evaluation; it does not produce a clean-split model.
+
+---
+
+## ⬛ 97b RETRACTED: width is not the binding constraint — FVE *declines* as PR rises
+
+88d confirmed the **diagnosis**: PR rose **4.5 → 28.2** over 90,000 steps with the plateau rule
+disabled, so 87b's "four nominal widths, one effective width ≈15" was measuring the stopping rule.
+It **refutes the remedy**. Measured on the same trace:
+
+| PR band | evals | median PR | median FVE | step range |
+|---|---|---|---|---|
+| 0–8 | 2 | 6.0 | 0.0611 | 2,500–5,000 |
+| 8–12 | 2 | 9.6 | 0.1321 | 7,500–10,000 |
+| **12–16** | 7 | **14.6** | **0.1875** | 12,500–27,500 |
+| 16–20 | 8 | 18.1 | 0.1810 | 30,000–47,500 |
+| 20–24 | 8 | 21.9 | 0.1687 | 50,000–67,500 |
+| 24–40 | 9 | 25.9 | 0.1581 | 70,000–90,000 |
+
+**From PR ≥ 10: slope −0.00211 FVE per PR unit, r = −0.797.** PR rose **2.64×** while FVE fell.
+Peak FVE **+0.1939 at PR 16.9 (step 32,500)**; final **+0.1500 at PR 28.2**.
+
+So it is not merely flat — **beyond PR ≈ 17 the extra effective width is actively harmful.** The
+reading in 88d that a recovered PR should make "the same architecture win by more" is **withdrawn**.
+87c/94's framing of the transform-coding loss as a code "not trained into its capacity" — a fixable
+story — has lost its support, and the water-filled arm must not be read through it.
+
+**A nuance worth keeping:** the original plateau rule stopped at 35,000 steps with PR ≈14.6, and the
+FVE peak is at 32,500 / PR 16.9. **The stopping rule was stopping at approximately the right place.**
+It cost effective width and did not cost FVE.
+
+## ⬛ 98c: discrete conformational states DO exist in this corpus (early, 2 systems)
+
+A simplex prior encodes "choose among alternatives", so 98c asks whether alternatives exist before
+anything is built. Everything else the project measured pointed away — replicas at 1.177×, n_eff
+1–7%, and `armf_propagator.basins()` is a **median split** on the top two modes, an imposed partition
+that returns four occupied quadrants whether or not a state exists.
+
+Measured properly — tICA for the slow coordinates, k-means with k chosen by the data, scored against
+**phase-randomised surrogates** that preserve each coordinate's power spectrum (hence its
+autocorrelation) and destroy only the joint structure, so the null is "a coloured diffusive walk in
+one basin":
+
+| system | slowest ITS | best k | silhouette | surrogate | z | dwell |
+|---|---|---|---|---|---|---|
+| 1j8e_A | 26.69 ns | 3 | +0.383 | +0.051 | **+8.9** | 78.1 fr (3.1 ns) |
+| 1fd3_A | 13.72 ns | 2 | +0.224 | +0.028 | **+28.1** | 22.1 fr (0.9 ns) |
+
+**States are present and are metastable relative to the 1 ns lag.** This is the opposite of what the
+project's other measurements suggested, and it is the branch that keeps the representation direction
+open. Full 40-system run submitted as `10343101`.

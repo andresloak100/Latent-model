@@ -52,6 +52,12 @@ LR = os.environ.get("PEER_LR", "0.0001")
 NT = int(os.environ.get("PEER_NTRAIN", "130"))
 SEED = int(os.environ.get("PEER_SEED", "0"))
 CUTOFF = float(os.environ.get("PEER_CUTOFF", "5.0"))
+# INBOX 97c. ANM's MSE was IDENTICAL at every budget (2.3713 at 1,2,3,4,6,8 bits/atom). That is not
+# just a diagnostic -- it is a finding: at a FIXED mode count, TRUNCATION dominates quantisation, so
+# sweeping bits alone traces a flat line and measures nothing on ANM's side. ANM's rate is
+# k x bits_per_mode, so BOTH must move. code_and_score takes the basis as an argument, so k is the
+# caller's to vary, which is what this does.
+K_SWEEP = [int(x) for x in os.environ.get("PEER_K", "16,32,64,128,256").split(",")]
 NFRAME = int(os.environ.get("PEER_NFRAME", "2400"))     # frames per side, strided
 RES = os.environ.get("PEER_RATE_RES", f"{WR}/peer_rate.json")
 CKPT = f"{WR}/atlas_dm_ckpt/L1_n{NT}_dm{DM}_dl{DM}_lr{LR}_s{SEED}_z0.pt"
@@ -125,13 +131,23 @@ if __name__ == "__main__":
             B_cod, *_ = np.linalg.lstsq(Z_tr, X_tr, rcond=None)     # (comps, 3N), fitted on TRAIN
 
             row = {"N": N, "n_frames": len(X), "dm": DM, "anm_modes": int(B_anm.shape[0]),
-                   "codec_comps": int(Z.shape[1]), "arms": {}}
+                   "codec_comps": int(Z.shape[1]), "arms": {}, "anm_k": {}}
             for b in BUDGETS:
                 r_a = code_and_score(C_anm_tr, C_anm_ho, B_anm, X_ho, N, b, rotate=False)
                 r_c = code_and_score(Z_tr, Z_ho, B_cod, X_ho, N, b, rotate=True)
                 row["arms"][str(b)] = {
                     "anm":   dict(rate=r_a[0], mse=r_a[1], nonzero=r_a[2]),
                     "codec": dict(rate=r_c[0], mse=r_c[1], nonzero=r_c[2])}
+            # 97c: the SECOND axis. Truncating the basis is what actually moves ANM's distortion,
+            # so k is swept against bits and the pair is reported rather than bits alone.
+            for kk in K_SWEEP:
+                if kk > B_anm.shape[0]: continue
+                Bk = B_anm[:kk]
+                Ck_tr, Ck_ho = X_tr @ Bk.T, X_ho @ Bk.T
+                for b in BUDGETS:
+                    r = code_and_score(Ck_tr, Ck_ho, Bk, X_ho, N, b, rotate=False)
+                    row["anm_k"][f"{kk}@{b}"] = dict(k=kk, budget=b, rate=r[0], mse=r[1],
+                                                     nonzero=r[2])
             rows[pdb] = row
             a1 = row["arms"][str(BUDGETS[len(BUDGETS)//2])]
             print(f"  [{i}/{len(ho_ids)}] {pdb:10s} N={N:>6}  @{BUDGETS[len(BUDGETS)//2]:g} b/atom  "
@@ -155,6 +171,19 @@ if __name__ == "__main__":
         nz = np.array([r["arms"][str(b)]["anm"]["nonzero"] for r in rows.values()])
         print(f"  {b:>10.1f}{np.median(A):>11.4f}{np.median(C):>11.4f}"
               f"{(C < A).mean():>11.1%}{f'{np.median(nz):.0f}/{DM}':>16}")
+    print(f"\n=== 97c: ANM's DISTORTION AGAINST BOTH AXES (k modes x bits) ===")
+    print(f"  {'k':>6}" + "".join(f"{('b=' + str(b)):>12}" for b in BUDGETS))
+    for kk in K_SWEEP:
+        cells = []
+        for b in BUDGETS:
+            v = [r["anm_k"][f"{kk}@{b}"]["mse"] for r in rows.values() if f"{kk}@{b}" in r["anm_k"]]
+            cells.append(f"{np.median(v):.4f}" if v else "-")
+        if any(c != "-" for c in cells):
+            print(f"  {kk:>6}" + "".join(f"{c:>12}" for c in cells))
+    print(f"  Reading DOWN a column shows what k buys; reading ACROSS a row shows what bits buy.\n"
+          f"  A flat row is truncation-dominated: at that k the basis, not the quantiser, sets the\n"
+          f"  error, and a bits-only sweep there measures nothing.", flush=True)
+
     print(f"\n  A codec win is the first peer win on the dynamics task and does NOT overturn 0/123:\n"
           f"  FVE and rate-distortion measure different things. An ANM win means the loss is\n"
           f"  measured on both axes.", flush=True)
