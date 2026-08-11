@@ -1,5 +1,69 @@
 # Molecular Structure Autoencoder (v0)
 
+> **Status, measured.** This README describes what the project is *for*. For what it has
+> *shown*, read this block and `ROADMAP.md` §5b. Numbers here are the current measured
+> values, including the ones that went the wrong way.
+
+## Repository map
+
+    experiments/molecular_autoencoder_v0/
+      molae/          library: model, losses, alignment, metrics, dataset, config
+      scripts/        entry points. armf_*.py are cluster experiments, each run
+                      directly by sbatch -- nothing imports them, so "unreferenced"
+                      does not mean unused
+      configs/        one YAML per run. `name` and `train.out_dir` are a run's
+                      IDENTITY; two configs sharing them will resume each other
+      COMMS/          the two-agent protocol. INBOX.md is the numbered instruction
+                      log, ACK.md records `last_acted`. Read INBOX.md tail-first --
+                      it is the project's actual reasoning record
+      outputs/        committed results (JSON + markdown). Checkpoints are ignored
+                      except the Stage A benchmark
+      data/           splits, manifests and index files ONLY. The preprocessed
+                      corpora are regenerable via scripts/prepare_dataset.py and are
+                      not tracked
+      slurm/          submission wrappers
+      tests/          unit tests
+    ROADMAP.md        the long-form record. §5b is the exclusion table -- what has
+                      been ruled out, and what each exclusion rests on
+
+## What has actually been measured
+
+| line | result |
+|---|---|
+| Static reconstruction, non-homologous held-out (n=197) | **0.9358 Å** median all-atom |
+| Static reconstruction, full held-out (n=758) | 0.8357 Å — **74% of this set has a ≥30% training homolog at median 98% identity**, so it is not a generalisation figure |
+| Rate–distortion vs classical transform coding | **a loss**, ≈0.66 bits/dim, pending a symmetric re-run (INBOX 094) |
+| Dynamics vs ANM, reconstruction FVE | **0 wins in 123** held-out systems; 95% upper bound on the win rate 2.4% |
+| Dynamics vs ANM, matched bit rate | never measured until now — running (INBOX 091) |
+| Learned propagator vs Ornstein–Uhlenbeck | reaches cross-mode coupling OU cannot reach by construction, on 61% of the corpus, at 24–41% divergence and worse agreement on other metrics |
+| Latent capacity | participation ratio **2.00 of 8** channels; 68.4% of variance in one direction |
+
+There is currently **no surviving peer-comparison win**. The compression result against
+transform coding has been retracted, un-retracted and retracted again, each time by a
+correction to what "rate" or "distortion" was measuring; the sequence is in INBOX
+084 → 085 → 088 → 090a → 094.
+
+## How this repository is worked
+
+Two agents share this branch. A planning agent reads results and appends numbered items
+to `COMMS/INBOX.md`; a cluster agent runs the jobs, reports in commit messages, and
+records `last_acted` in `COMMS/ACK.md`. Full reports live in **commit messages**, not in
+files — `git log` is the primary record.
+
+Claims are audited against six recurring failure modes, recorded in `ROADMAP.md`:
+
+- **A** an exclusion correlated with a regressor
+- **B** a count pinned to its own measurement ceiling
+- **C** an underpowered null believed
+- **D** a measurement that cannot express the effect
+- **E** an unswept comparator
+- **F** a comparator computed on different data
+
+Most corrections on this record are one of those six, and several are the same defect in
+a new place: a rule that named one specific thing while new things arrived with slightly
+different names.
+
+
 A **minimal, reproducible** autoencoder that compresses protein **atomic
 coordinates** into a small latent representation and reconstructs the
 structure. This is a research prototype testing the *first* technical

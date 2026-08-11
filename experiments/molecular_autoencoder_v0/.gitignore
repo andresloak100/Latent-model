@@ -1,6 +1,12 @@
-# Downloaded structures and derived data (reproducible via prepare_dataset.py)
-data/raw/
-data/processed/
+# Downloaded structures and derived data (reproducible via prepare_dataset.py).
+#
+# The pattern was `data/processed/` and four corpora arrived as processed_small,
+# processed_big, processed_complex and processed_complex_scaled -- none of which a
+# trailing-slash rule naming one directory matches. 20,772 regenerable .npz files were
+# committed as a result. Globbed now so the next corpus is covered by the rule that
+# already exists rather than by remembering to edit this file.
+data/raw*/
+data/processed*/
 # Training outputs, but keep the committed Stage A benchmark under outputs/stage_a
 outputs/**/latest.pt
 outputs/**/final.pt
