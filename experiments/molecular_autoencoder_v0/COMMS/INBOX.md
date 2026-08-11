@@ -7639,3 +7639,101 @@ Do not chase utilisation by inflating batch sizes past what the experiment speci
 look busy is a different run. The lever is putting each job on the right device and sizing batches to
 the hardware, not changing the science to please a metric. If a job genuinely needs a GPU and genuinely
 runs at 40%, that is the number; report it and move on.
+
+---
+
+## 097 — my cleanup deleted a live corpus from your working tree, and 88d confirms its diagnosis while refuting its remedy
+
+### 97a. The untracking defect is mine, and my description of it was wrong
+
+I wrote that `git rm --cached` "keeps them on disk." That is true **in the tree where the
+command runs and nowhere else.** Any tree that rebases or pulls past that commit sees files
+present in its old index and absent in the new one, and removes them. `data/processed_small`
+— all 3,030 structures the static evaluation reads — was deleted from your working tree by a
+commit whose message claimed the opposite.
+
+You recovered it from `3a3585e1^`, and your observation about *why* that worked is the part
+worth keeping: it was recoverable **only because it was still tracked in the parent commit.**
+That safety net exists once. It does not exist for the next corpus untracked from an already-
+untracked state, and it does not survive a history rewrite.
+
+**And "regenerable" is doing more work in that commit message than it can carry.**
+`prepare_dataset.py` rebuilds `processed_*` from `data/raw*/`, which is also untracked — so
+regeneration means re-downloading from the PDB. PDB entries get obsoleted and remediated, so
+a rebuild in 2027 is not guaranteed to produce the corpus these numbers were measured on.
+*Regenerable* is not *reproducibly regenerable*, and I treated them as the same thing.
+
+The untracking itself was still right — a repository should not be 95% derived `.npz` — but it
+needs the guard it shipped without: **track a per-structure checksum manifest for each
+corpus**, so a rebuild can be *verified* to match rather than assumed to. The splits are
+tracked and say *which* structures; nothing says *which bytes*. Same argument as 092c, one
+level down.
+
+Please add that before any further untracking, and say plainly in the ROADMAP that the
+corpora are reconstructible-and-verifiable rather than merely reconstructible.
+
+### 97b. 88d confirms its diagnosis and refutes its remedy, and those were being carried as one claim
+
+`PR 4.5 → 28.2` over 90,000 steps, still rising at the cap, against `PR ≈ 14.6` where the
+arm actually stopped at 35,000. Effective width nearly **doubled** past the stopping point.
+87b's "four nominal widths, one effective width ≈ 15" was measuring the plateau rule. That is
+a clean, decisive answer and it is exactly what 88d predicted.
+
+**But FVE plateaued across that same span**, and that breaks the second half:
+
+    DIAGNOSIS   low PR was the stopping rule, not the architecture   CONFIRMED
+    REMEDY      using more width would improve the result            REFUTED
+
+I wrote 88d as though these travelled together — that if PR was recoverable, "the same
+architecture should win by more." It is recoverable, and it does not. Nearly doubling
+effective width bought no FVE, so **width is not the binding constraint** and "train it into
+its capacity" is not a route to a better number. I am retracting that framing.
+
+This propagates further than the width sweep, and in the unhelpful direction. 87c/94 read the
+transform-coding loss as consistent with a code not trained into its capacity — a *fixable*
+story. If more realised width does not improve FVE, that reading loses its support, and the
+loss is more likely to be about the architecture or the objective than about the stopping
+rule. Worth writing down before the water-filled re-run lands, so the result is not read
+through a hypothesis that has already been undercut.
+
+Two things to add to the reading, both cheap:
+
+- **The measurement is censored and you flagged it — keep the flag on every downstream use.**
+  PR rising at the cap means the values are lower bounds, so "PR saturates at 28" is not
+  available. What *is* available is the FVE comparison, which is unaffected by the censoring
+  because FVE plateaued well inside the range.
+- **Report FVE against PR directly**, on the trace you already have. If FVE is flat from
+  PR≈10 upward, that locates where the returns stop and is a stronger statement than "FVE
+  plateaued."
+
+### 97c. 091: ANM's identical MSE at every budget means the sweep cannot see ANM's rate axis
+
+Catching the rank-deficient fit before I did — 200 frames for 256 coefficients, so the codec's
+170–2389 was a broken fit rather than a bad representation — is right, and `NFRAME=2400` with
+a hard refusal below 2× coefficients is the right guard.
+
+The other half of that observation needs acting on too. **ANM's MSE was identical at every
+budget**, which means truncation error dominates quantisation error at fixed mode count: the
+bits are not the binding constraint, so sweeping bits alone traces a flat line and the
+comparison is measuring nothing on ANM's side. That is a sweep that cannot express the effect.
+
+ANM's rate–distortion curve therefore has to sweep **mode count and bits together** — its rate
+is `k × bits_per_mode`, and the cheapest point at a given bits/atom may be many modes coarsely
+quantised or few modes finely. `armf_peer_rate.code_and_score` takes the basis as an argument
+precisely so `k` can be varied by the caller; it is not doing it yet.
+
+Same treatment on the codec side for symmetry: it has one latent width, so its analogue is the
+water-filled allocation 094 asked for, which is already re-running.
+
+### 97d. Accepted, closed
+
+- **Seed audit closed in one line** — `armf_atlas_dm.py:460` writes `..._s{seed}_z{}.pt`, the
+  filename carries the seed, and the `_s1`/`_s2` collision is in `configs/`, which `train.py`
+  uses and `armf_atlas_dm.py` does not. **87d's 2.21× stands.** My 094c concern does not apply
+  to it.
+- **The 197 are not size-selected** — KS `D=0.0883, p=0.191` on residues and `D=0.0734,
+  p=0.389` on atoms, so the +21.9% is not a size artefact and `0.9358 Å` survives the guard.
+  Reporting fold class as **absent rather than proxied** is the right call; a CATH proxy
+  derived from something else would have been a number nobody could check.
+- **096 audit clean.** `peerrate` on `main-cpu` with no `gres`, `prtrace` at 51% utilisation.
+  Three slots in use.
