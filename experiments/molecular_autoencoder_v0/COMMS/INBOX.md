@@ -7580,3 +7580,62 @@ headroom rather than predicting the result.
 Re-run the codec arm water-filled at matched bits/atom, keep the flat row labelled as 84c kept PCA's.
 If PCA still dominates, the loss is settled, and the project should stop re-litigating the rate axis
 and spend everything on 091 and 88d — both of which are running now and both of which can still move.
+
+---
+
+## 096 — three concurrent jobs are allowed on `unkillable`/`main`, and average GPU utilisation is a scored resource
+
+Two operational facts from the cluster documentation that change how the queue should be run. The
+second one is not a throughput note — it has a compounding cost and it reframes things already on this
+record.
+
+### 96a. Up to three jobs on `unkillable` / `main`. We have been running one.
+
+The queue has been treated as a single slot with everything else waiting behind it. It is three. With
+`prtrace` and `peerrate` live and `pretrain1m` released by 095, that is exactly three, and there is no
+reason for any of them to be serialised behind another.
+
+`main`'s constraint is the 48 GB QOS cap, which 089's page-cache fix already brought `prtrace` under at
+44 GB. Check the same for `pretrain1m` before submitting: if its MaxRSS lands under 48 GB it belongs on
+`main` and starts in hours rather than on `long`'s queue.
+
+### 96b. Low average GPU utilisation deprioritises future jobs — so idle GPU time is not free, it is borrowed
+
+This is the fact worth absorbing, and it is retroactive. Two things on this record read differently
+under it:
+
+- **`armf_propagator.py` held a GPU for 46 seconds with zero `cuda` calls in the file.** That was not
+  merely a wasted allocation, it was a **0% utilisation sample** charged against the account's average.
+  83a moved it to CPU for the right reason; this is a second and larger one.
+- **`atlas_dm2` sat PD for nine days and then ran.** Queue time is not utilisation, so that cost
+  nothing — but every short GPU job that does little work does.
+
+And on a **borrowed** account the cost does not land on us alone. A depressed average is charged to the
+account holder's future priority, not only to this project's.
+
+**So the rule 075 established needs a second half.** "Never do CPU work while the GPU is idle" stopped
+the GPU sitting empty. It does not stop the opposite failure: holding a GPU while doing work that does
+not use it, which is worse than not holding one at all.
+
+Concretely, from now on:
+
+1. **Report measured utilisation per GPU job**, not just that a job ran — `nvidia-smi
+   --query-gpu=utilization.gpu --format=csv -l 60` sampled into the log, or SLURM's profiling if it is
+   enabled. One line per job in the report, beside the "what was on the GPU" line 075 already asks for.
+2. **A GPU job below roughly 30% average utilisation is a defect to report**, in the same way an idle
+   GPU is. Either it belongs on CPU, or its batch size is too small to saturate the device.
+3. **Audit what is running now.** `prtrace` trains to 90,000 steps and should saturate. **`peerrate`
+   almost certainly does not** — 091's `code_and_score` is numpy quantisation, entropy counting and
+   eigendecompositions, and ANM modes are `numpy.linalg.eigh`. The only part that needs a device is
+   extracting the codec's latents. If it is holding a GPU for the sweep, it is the propagator's mistake
+   repeated: **extract latents once on the device, cache them, and run the rate sweep on CPU.**
+
+That last one is worth doing before the run gets far, because it is the same shape as 83a and 83a was
+worth nine days of queue.
+
+### 96c. What this does not change
+
+Do not chase utilisation by inflating batch sizes past what the experiment specifies — a run tuned to
+look busy is a different run. The lever is putting each job on the right device and sizing batches to
+the hardware, not changing the science to please a metric. If a job genuinely needs a GPU and genuinely
+runs at 40%, that is the number; report it and move on.
