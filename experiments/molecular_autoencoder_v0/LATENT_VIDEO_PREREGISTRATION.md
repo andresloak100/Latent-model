@@ -103,3 +103,33 @@ should also score ~100% on `xcorr_top8`. **If it does, that statistic cannot sep
 one-step at all**, and the joint-vs-one-step question falls entirely to `iat` and `trans` — the only
 two metrics that see time. Saying so now removes the option of reading a tie on `xcorr_top8` as
 support for either arm.
+
+---
+
+## Coupling statistic for `onestep_diff` — pre-registered before that run exists (INBOX 114 item 1)
+
+**The data refuted the reasoning that set the current headline.** 107a argued real coupling is sparse
+— concentrated in the slowest handful — so pooling over 2,016 pairs dilutes it and top-8 should be
+the gate. Measured on `lv_r8`:
+
+| statistic | sign p | n_pos/n | |
+|---|---|---|---|
+| xcorr pooled-64 | **0.0003** | 3/24 | most sensitive |
+| xcorr_top16 | **0.0003** | 3/24 | |
+| **xcorr_top8** | 0.0639 | 7/24 | **pre-registered, LEAST sensitive** |
+
+**The deficit is broad, not sparse.** The model under-couples across the whole mode set, so top-8
+discards signal. The 107a simulation was right about detecting a *sparse injected* coupling and wrong
+about the shape of the *real* effect.
+
+**The `lv_r8` headline is NOT swapped.** `xcorr_top8` was pre-registered for that run and is reported
+as **marginal, p=0.0639, with a negative median difference** — reporting it that way is what makes it
+a pre-registration rather than a choice among outcomes.
+
+**For `onestep_diff`, pre-registered now:**
+- **`xcorr` pooled-64 is the PRIMARY coupling statistic.**
+- **`xcorr_top8` and `xcorr_top16` are retained and reported beside it.**
+- Reason recorded: the real deficit is broad, measured on `lv_r8`, and the sparse-coupling premise
+  that motivated top-8 was refuted by that same data.
+- The verdict is the **paired sign test across systems** (113d), with per-system interval overlap
+  reported beside it, since overlap caught 0/24 at every synthetic error size.
