@@ -30,6 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import armf_anm_orthogonal as AO
 from armf_atlas_data import AtlasStore, sysdata
 from armf_anm import modes as anm_modes
+from armf_propagator import iat_series
 import armf_atlas_dm as D
 import armf_io
 
@@ -87,8 +88,14 @@ if __name__ == "__main__":
             tot = float(e_atom.sum()) + 1e-12
 
             ref = d["ref"]
-            dd = np.linalg.norm(ref[:, None, :] - ref[None, :, :], axis=-1)
-            nb = (dd < BURIED_R).sum(1) - 1                      # coordination number
+            # CHUNKED. The pairwise (N,N,3) array is 27 GB at N=33,377 and OOM-killed the run at
+            # 118/125 -- the same class of allocation the 099 harness needed a frame-space route
+            # for, and it fails on the LARGEST systems, which is an N-correlated exclusion.
+            nb = np.zeros(len(ref), np.int64)
+            for c0 in range(0, len(ref), 2048):
+                c1 = min(c0 + 2048, len(ref))
+                dchunk = np.linalg.norm(ref[c0:c1, None, :] - ref[None, :, :], axis=-1)
+                nb[c0:c1] = (dchunk < BURIED_R).sum(1) - 1       # coordination number
             thr = np.quantile(nb, BURIED_Q)
             is_bb = np.array([n in BB for n in names])
             is_bur = nb >= thr
@@ -114,7 +121,39 @@ if __name__ == "__main__":
             byres = {k: v / tot for k, v in byres.items()}
             cnt = collections.Counter(resn)
             enrich = {k: (byres[k] / max(cnt[k] / len(resn), 1e-9)) for k in byres}
-            rows[pdb] = dict(N=d["N"], frac=frac, atom_share=share, by_res=byres, enrich=enrich)
+            # INBOX 106d. THE ONE TEST THAT GATES SEM. "92% linearly predictable" is a SPATIAL
+            # measure from cross-fit residual PCA -- it says the residual has shared spatial
+            # structure and NOTHING about whether that structure carries dynamical information.
+            # Exposed side chains are where rotameric flipping and thermal jitter live, and those
+            # are fast and close to uncorrelated in time. Family D on the motivating claim rather
+            # than on the measurement.
+            #   IAT ~ 1 frame  -> jitter; a GENERATIVE DYNAMICS model gains nothing from capturing
+            #                     it, and SEM should be argued on the static axis only
+            #   IAT ~ the collective modes' -> slow structured motion ANM misses, which is a far
+            #                     stronger case for SEM than the enrichment number alone
+            # Per atom: the residual's own dominant direction gives a scalar series, so the IAT is
+            # of the motion rather than of an arbitrary Cartesian axis.
+            iat_cls = {}
+            sel = np.arange(0, d["N"], max(1, d["N"] // 400))     # subsample atoms, not frames
+            ia = np.full(d["N"], np.nan)
+            for j in sel:
+                ri = R[:, j, :] - R[:, j, :].mean(0)
+                _, _, Vt3 = np.linalg.svd(ri, full_matrices=False)   # ONE decomposition, not two
+                ia[j] = iat_series(ri @ Vt3[0])
+            m = ~np.isnan(ia)
+            for lab, msk in (("backbone", is_bb), ("sidechain", ~is_bb),
+                             ("buried", is_bur), ("exposed", ~is_bur),
+                             ("sidechain_exposed", (~is_bb) & (~is_bur))):
+                mm = m & msk
+                iat_cls[lab] = float(np.median(ia[mm])) if mm.any() else float("nan")
+            # The COLLECTIVE-MODE reference: IAT of the ANM coefficients on the same frames.
+            Cc = (X - d["mu"]) @ V
+            iat_cls["collective_modes"] = float(np.median(
+                [iat_series(Cc[:, k]) for k in range(min(16, Cc.shape[1]))]))
+            iat_cls["n_atoms_scored"] = int(m.sum())
+            rows[pdb] = dict(N=d["N"], frac=frac, atom_share=share, by_res=byres, enrich=enrich,
+                             iat=iat_cls,
+                             res_present={k: int(v) for k, v in cnt.items()})
             print(f"  [{i}/{len(ho)}] {pdb:10s} N={d['N']:>6}  backbone {100*frac['backbone']:4.1f}% "
                   f"(of {100*share['backbone']:4.1f}% of atoms)  sidechain {100*frac['sidechain']:4.1f}%"
                   f"  buried {100*frac['buried']:4.1f}%  ({time.time()-t0:.0f}s)", flush=True)
@@ -144,11 +183,49 @@ if __name__ == "__main__":
     print(f"\n  BACKBONE ENRICHMENT (share of residual / share of atoms): median {np.median(lift):.2f}x")
     print(f"  spread of the backbone share ACROSS systems: sd {100*bb.std():.1f} points "
           f"(range {100*bb.min():.1f}-{100*bb.max():.1f}%)")
+    # 106e: a plain median over NaN printed nan wherever ANY system lacked a residue type. The
+    # count of systems carrying each type is reported BESIDE the enrichment rather than the
+    # absent systems being silently dropped -- a printed nan beats a nan a nanmedian absorbs.
     allres = sorted({k for r in rows.values() for k in r["enrich"]})
-    med = {k: np.median([r["enrich"].get(k, np.nan) for r in rows.values()]) for k in allres}
-    top = sorted(med, key=lambda k: -med[k])[:6]
-    print(f"  most enriched residue types (energy share / count share, median across systems):")
-    print("    " + "  ".join(f"{k} {med[k]:.2f}x" for k in top))
+    med, npres = {}, {}
+    for k in allres:
+        v = [r["enrich"][k] for r in rows.values() if k in r["enrich"]]
+        med[k] = float(np.median(v)) if v else float("nan")
+        npres[k] = len(v)
+    top = sorted([k for k in allres if npres[k] >= 0.5 * len(rows)], key=lambda k: -med[k])[:6]
+    print(f"  most enriched residue types (energy share / count share), median across the systems")
+    print(f"  that CONTAIN the type, with that count:")
+    print("    " + "  ".join(f"{k} {med[k]:.2f}x (n={npres[k]})" for k in top))
+    rare = [k for k in allres if npres[k] < 0.5 * len(rows)]
+    if rare:
+        print(f"    excluded as present in <50% of systems: "
+              + ", ".join(f"{k} (n={npres[k]})" for k in sorted(rare, key=lambda k: npres[k])))
+
+    print(f"\n=== 106d: IS THE RESIDUAL SLOW, OR IS IT JITTER? (integrated autocorrelation time) ===")
+    print(f"  {'class':>20}{'median IAT (frames)':>22}{'IQR':>18}")
+    for k in ("backbone", "sidechain", "buried", "exposed", "sidechain_exposed",
+              "collective_modes"):
+        v = np.array([r["iat"][k] for r in rows.values() if k in r.get("iat", {})], float)
+        v = v[~np.isnan(v)]
+        if not len(v): continue
+        print(f"  {k:>20}{np.median(v):>22.2f}"
+              f"{f'[{np.percentile(v,25):.2f}, {np.percentile(v,75):.2f}]':>18}")
+    se = np.array([r["iat"]["sidechain_exposed"] for r in rows.values() if "iat" in r], float)
+    cm = np.array([r["iat"]["collective_modes"] for r in rows.values() if "iat" in r], float)
+    ok = ~np.isnan(se) & ~np.isnan(cm)
+    if ok.any():
+        ratio = np.median(se[ok] / np.clip(cm[ok], 1e-9, None))
+        print(f"\n  exposed-side-chain residual IAT / collective-mode IAT: median {ratio:.3f}")
+        if np.median(se[ok]) < 2.0:
+            print(f"  -> IAT ~ {np.median(se[ok]):.2f} frames: THIS IS JITTER. A generative dynamics\n"
+                  f"     model gains nothing from capturing it, and the 1.54x enrichment motivates\n"
+                  f"     SEM on the STATIC axis only.")
+        elif ratio > 0.3:
+            print(f"  -> the residual is SLOW, comparable to the collective modes. That is structured\n"
+                  f"     motion ANM misses, and a far stronger case for SEM than enrichment alone.")
+        else:
+            print(f"  -> the residual is FASTER than the collective modes by {1/ratio:.1f}x but not\n"
+                  f"     jitter. Intermediate: reported as such rather than pushed to either branch.")
     conc = np.median([max(r["frac"]["backbone"], r["frac"]["sidechain"]) for r in rows.values()])
     if np.median(lift) > 1.15 or conc > 0.75:
         print(f"\n  -> CONCENTRATED ON A CHEMICAL CLASS. There is shared, size-independent structure\n"
