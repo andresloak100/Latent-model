@@ -8799,3 +8799,118 @@ Accepted without argument: 106a in full including that it was yours to find; JT 
 with the still-losing column correctly called uninformative for JT; 106b.2; the Rayleigh-quotient
 correction for `modes()` discarding `w`; batch 8 chosen by arithmetic; and the nan fix reporting
 counts of systems lacking each residue type.
+
+---
+
+## 108. Four of the seven acceptance metrics are EXACTLY invariant to the sigma error, so 106c/107d do not touch the pre-registered question
+
+Second run cancelled mid-flight on an incoming item, the 107d split run honestly against its own
+attractive branch, the dependency guard runtime-tested to the point of surfacing two bugs in itself
+(`JOBNAME` undefined, `$ARMF_FORCE` unbound under `set -u`) — that is the guard-testing discipline
+working exactly as intended, and the gradient-accumulation note that OU has no optimisation budget
+and is therefore not budget-matched is the right kind of honesty about an arm that cannot be.
+
+This item pushes back on one conclusion, in the project's favour, and it is arithmetic.
+
+### 108a. The whitening error cannot reach `xcorr` or `amp`. It is mathematically incapable of it
+
+107d concluded the miss is within-system shape, so a scalar cannot rescue it, so **"needs a short
+simulation of the target protein" stands**. The measurement is right. **The conclusion is drawn about
+the wrong claim**, because a per-mode sigma error cannot touch the metrics the experiment gates on.
+
+Look at what the seven metrics are made of:
+
+- `xcorr` = `offdiag(corrcoef(X.T))` — a **correlation**; rescaling mode k by any positive constant
+  leaves it unchanged;
+- `amp` = `offdiag(corrcoef(abs(X).T))` — `|c·x| = c·|x|` for `c > 0`, so also unchanged;
+- `kurt` — `excess_kurt` divides by `X.std(0)` before the fourth moment, so unchanged;
+- `iat` — `iat_series` normalises the autocorrelation by `v = (x*x).mean()`, so unchanged;
+- `std` = `X.std(0).mean()` — **directly proportional** to the error;
+- `js` — `marg_js` bins on the joint min/max of gen and pool, so a rescaled gen is compared in the
+  wrong units;
+- `trans` — `basins` thresholds against `thr` taken from the **pool**, so a rescaled gen crosses
+  different quadrant boundaries.
+
+Measured, injecting a per-mode multiplicative error of the size your r = 0.74 implies
+(`c = exp(N(0, 0.45))`), T=256, K=64:
+
+    metric   correct sigma   wrong sigma   relative change
+       std        1.009128      1.212692        20.17%   AFFECTED
+        js        0.022225      0.064255       189.11%   AFFECTED
+     trans      780.392157    764.705882         2.01%   AFFECTED
+     xcorr        0.052011      0.052011         0.00%   invariant
+       amp        0.049644      0.049644         0.00%   invariant
+      kurt        0.004273      0.004273         0.00%   invariant
+       iat        1.140977      1.140977         0.00%   invariant
+
+Zero to machine precision on four of seven, and those four include **both metrics the power check
+gates on**.
+
+**Two consequences.**
+
+1. **A free correctness check on the substitution run, stated before it exists.** Substituting
+   predicted sigma must change `std`, `js` and `trans` and must leave `xcorr`, `amp`, `kurt`, `iat`
+   bit-identical up to sampling. **If it moves `xcorr` or `amp`, there is a bug** — the substitution
+   has leaked into something it cannot reach by arithmetic. Pre-register this before running it.
+
+2. **106c and 107d were answering a different question than the one the experiment asks.** Two
+   separate claims got merged:
+
+   - *"can this chain emit a physical Angstrom trajectory for a protein nobody has simulated?"* —
+     **no**, and 107d is the reason: you need sigma to un-whiten, and equipartition gets 55% of it;
+   - *"does joint segment modelling beat one-step propagation?"* — the pre-registered question,
+     gated on `xcorr` and `amp`, both **exactly** sigma-invariant. **This one is answerable
+     zero-shot** and the whitening result does not bear on it.
+
+   The record currently reads as if the second inherited the first's verdict. It should say: the
+   generative comparison is zero-shot; the decode to Angstroms is not.
+
+### 108b. "A short simulation" is unquantified, and sigma is a variance, so it should converge fast
+
+Before "needs a short simulation of the target protein" hardens into a product limitation, measure
+how short. sigma is a per-mode standard deviation over frames — variances converge much faster than
+the kinetic quantities this project has been fighting.
+
+**Compute sigma from the first 1%, 2%, 5%, 10%, 25% of a replica and correlate against the
+full-replica sigma**, per system, and report the fraction of frames at which per-system r exceeds
+0.95 and 0.99. ATLAS replicas are 2,501 frames at 40 ps, so 1% is **1 ns**.
+
+- If 1 ns reaches r ≈ 0.99, the claim becomes **"needs ~1 ns of the target"** — cheap enough that it
+  barely qualifies as a limitation, and a materially different product statement;
+- if it needs 25%, the limitation is real and should be written that way.
+
+CPU-only, no GPU, and it converts a qualitative caveat into a number. Nothing currently on record
+distinguishes 1 ns from 100 ns.
+
+### 108c. Gating on a single M is an arbitrary cliff — report the profile and let the data choose
+
+Your reproduction puts top-16 at marginal where mine had it detected. **That disagreement is the
+finding, not a discrepancy to resolve**: the answer depends on the *form* of the injected coupling,
+which is a guess on both sides, and nobody knows the form of the real one. Choosing M by simulation
+therefore picks a threshold from an assumption. Gating on top-8 is the conservative call and I accept
+it as the gate — but a single M is the same shape as the `>0.9` branch that inverted 102c's verdict.
+
+**Report the profile.** For each held-out system, report reference-vs-OU separation at
+`M in {8, 16, 32, 64}` — one loop over a slice, same estimator throughout. That measures where the
+coupling actually lives instead of assuming it, and if the separation peaks at M=8 it also confirms
+the gate rather than merely asserting it.
+
+**And read `reference vs OU` before you read `JOINT` at all.** The blocking check is currently
+phrased as "if OU is inside, that system is unpowered", which is right. The stronger and more useful
+form is that **the reference's excess over OU, at the best M, is the experiment's own feasibility
+number**. If real ATLAS trajectories show no cross-mode coupling above the floor at any M, then there
+is nothing for a discriminator to discriminate — and that is a finding about the corpus, publishable
+as such, not a failed run. Make it the first line of output.
+
+### 108d. Accepted
+
+- **107a reproduced with a different top-16 verdict, and the conservative gate taken.** Right call;
+  see 108c for the only thing I would add.
+- **`10345384` cancelled rather than allowed to finish on pooled-64.** Second live job killed on an
+  incoming item. That is the behaviour that makes the loop worth running.
+- **Gradient accumulation, 4 micro-steps at batch 8, samples-seen logged per arm**, and the note that
+  OU has no optimisation budget so that arm is not budget-matched and is not claimed to be.
+- **`RC_DESC` descending pass, and the 27 GB pairwise matrix chunked.** Both fixes, not one.
+- **107d's split, including that it kills the B-factor branch.** Removing per-system mean log sigma
+  moving r by +0.005 is clean evidence and it went against the more attractive answer. The
+  substitution run stays owed; 108a says what it must and must not show.
