@@ -9959,3 +9959,121 @@ whether milestone 4's demo is reachable at all.
   drifting back.
 - **`10350959` at 99% GPU the whole time**, with the queue stacked behind it and its own in-run
   SHUFFLE set to confirm the 9/11 independently.
+
+---
+
+## 117. Coverage depends on how many frames you generate; fidelity does not. Only one of the two smoke results survives that
+
+The pair disagreeing with itself on the first system tried is the whole argument for reporting two
+numbers, and adding the SHUFFLE arm *because* they are set metrics — putting the invariance on the
+page instead of in a caveat — is the right instinct applied before anyone asked. The checkpoint rescue
+is the tenth "one name, two things" and the first one that would have destroyed the artefact behind a
+published headline.
+
+**But the two halves of that disagreement are not equally trustworthy, and the difference is
+measurable.**
+
+### 117a. Measured: coverage moves 24% on sample count alone, fidelity does not move at all
+
+Same distribution on both sides — a **perfect** model — varying only how many frames it emits,
+K=64 with an ANM-like spectrum, 2,000 reference frames:
+
+    n_gen    coverage   fidelity
+       10      3.3461     2.6004
+       32      3.0543     2.5758
+      100      2.8938     2.5640
+      320      2.7584     2.5842
+     1000      2.6478     2.5828
+     3200      2.5318     2.5698
+
+**Coverage falls monotonically with `n_gen` for an unchanged model — 24% across that range.**
+Fidelity is flat to within noise. The asymmetry is structural, not empirical:
+
+- **coverage** is `mean over REFERENCE frames of min distance to the generated SET`, so every extra
+  generated frame can only help — it is a function of the generated set's size;
+- **fidelity** is `mean over GENERATED frames of min distance to the reference set`, an average of a
+  per-frame quantity that does not know how many siblings it has — the count divides out.
+
+**So of your two smoke findings, one is robust and one is not:**
+
+    JOINT fidelity 6.716 beats OU 7.941      count-invariant -- STANDS
+    JOINT coverage 8.898 loses to OU 7.911   count-dependent -- meaningless unless n_gen matched
+
+And the gap you observed is **12%**, comfortably inside the 24% that sample count alone can move.
+**Report `n_gen` per arm.** If OU emitted more frames than JOINT, that result is an artefact.
+
+This also explains a number that should otherwise have been alarming: the FLOOR's coverage of
+**3.912 A exceeds the paired `rmsd_floor` of 3.009 A**, which is impossible for the same frames since
+a nearest-neighbour distance cannot exceed a paired one. At 10 steps the floor arm holds very few
+frames, so it cannot cover 2,501 reference frames. The instrument is behaving exactly as it should —
+worth noting as a passed sanity check rather than leaving as an unexplained inversion.
+
+### 117b. So: matched `n_gen`, and coverage as a curve
+
+Family F — a comparator computed on different data — arriving through set size rather than through a
+join. Three things, all cheap:
+
+1. **Match `n_gen` across every arm**, including OU and SHUFFLE, and **subsample the FLOOR to the same
+   count**. Print it in the table as a column, not in the log.
+2. **Report coverage at two budgets** — say `n_gen` and `4 * n_gen` — so the reader can see the slope.
+   A model whose coverage barely improves with 4x the samples has collapsed; one that keeps improving
+   was merely under-sampled. That distinction is invisible at a single budget and it is exactly the
+   difference between "mode collapse" and "needs a longer rollout".
+3. **Fidelity needs none of this** and should be labelled count-invariant where it is reported, so the
+   next reader does not apply the coverage caveat to both.
+
+### 117c. Coverage and fidelity are CONFORMATIONAL, not dynamical — and the taxonomy is now three tiers
+
+`SHUFFLE` at `3.69e-06 A` is not a defect, it is the definition: a permuted reference is the same
+**set**. You put it on the page, which is right. The consequence should be written beside it, because
+the suite now has three kinds of metric and only one kind bears on the pre-registered question:
+
+    time-blind, distributional     std, js, kurt, xcorr, amp and variants    9 of 11
+    TIME-SENSITIVE                 iat, trans                                2 of 11
+    set metrics, also time-blind   coverage, fidelity                        the new pair
+
+Coverage and fidelity **do** see cross-mode coupling — a frame with the wrong joint structure is a
+different structure, so its nearest neighbour is further away — which makes them a genuine addition on
+the conformational axis. They see **nothing** about ordering. **The temporal claim still rests
+entirely on `iat` and `trans`**, exactly as after 115a, and the new pair does not change that however
+it comes out.
+
+### 117d. The FLOOR is a reconstruction, not a resample — so it is not what a perfect model scores
+
+The FLOOR arm reconstructs the *same frames*, so its coverage and fidelity measure the decode's error
+and nothing else. A perfect **generative** model does not reproduce frame `t`; it draws fresh samples
+from the same distribution, and in my simulation above a perfect model scores fidelity **2.57, not
+zero**. Without that row, `JOINT fidelity 6.716` has no scale — it is 2.6x a floor that measures a
+different thing.
+
+**Add the row you already have the data for: reference replica against reference replica.** Two
+independent replicas of the same protein are two independent samples of the same dynamics, which is
+precisely what a perfect generator produces. Subsample replica 1 to `n_gen` frames and score it against
+replica 2 exactly as an arm:
+
+    FLOOR            decode error only -- what rank-64 costs
+    REF-vs-REF       what a PERFECT generator scores at this n_gen   <- missing
+    OU / JOINT / SHUFFLE
+
+Then `JOINT 6.716` can be read as a fraction of the gap between REF-vs-REF and OU, which is a number
+that means something. Held-out systems have all three replicas unseen by the generator, so this costs
+nothing and leaks nothing.
+
+### 117e. Accepted
+
+- **The checkpoint rescue.** `CKPT` without `R` in the name while `RES` was per-arm, so the running
+  R=64 job was about to overwrite the checkpoint behind the `lv_r8` headline. Tenth "one name, two
+  things", first one in a filename, and **verified by shape** (`net.inp.weight` is `(256,8)`) rather
+  than by the name it was saved under — which is the only check that would have caught a wrong
+  preservation.
+- **`nan` sorts as the safest row.** That is a better statement of the defect than mine: I said it
+  reads as not-significant, and sorting is worse because it puts the unevaluable row at the top of any
+  ranked table. `fires()` refusing a non-float is the right shape, and `UNEVALUABLE` beats `1.0000`.
+- **`n_eff` as the denominator with a `[SMALL n_eff=k of 24]` flag below 12**, and **115a re-run under
+  all of it unchanged** — 9/11, `trans` 23/23 at +205.88. Re-running the confirmation after changing
+  the rule that produced it is the step that is usually skipped.
+- **K=0 as the first row**, and **107d's scale match applied within each rank** so a rank-k row is a
+  self-consistent zero-shot prediction rather than one rescaled by a 64-mode constant. I did not ask
+  for the second and it is what makes the sweep readable.
+- **`b2cb0240`** recording the prediction before `predsigma` runs, with the GAP column named in advance
+  as the replacement for `+0.528 A`. Fourth pre-registration in a separate commit.
