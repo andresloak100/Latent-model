@@ -6440,12 +6440,27 @@ PCA. Exposed side chains are where rotameric flipping and thermal jitter live, a
 the residual's IAT ≈ 1 frame it is jitter, a generative *dynamics* model gains nothing, and the
 enrichment motivates SEM on the static axis only.
 
-| class | median IAT (frames) | IQR | ns @ 40 ps |
+| class | median IAT (units) | IQR | **ns** |
 |---|---|---|---|
-| backbone (residual) | 17.83 | [13.08, 27.81] | 0.71 |
-| side chain (residual) | 13.48 | [10.69, 19.44] | 0.54 |
-| **exposed side chain (residual)** | **15.19** | [11.61, 19.64] | **0.61** |
-| **collective ANM modes** | **24.52** | [16.06, 36.48] | **0.98** |
+| backbone (residual) | 17.83 | [13.08, 27.81] | **4.28** |
+| side chain (residual) | 13.48 | [10.69, 19.44] | **3.24** |
+| **exposed side chain (residual)** | **15.19** | [11.61, 19.64] | **3.65** |
+| **collective ANM modes** | **24.52** | [16.06, 36.48] | **5.88** |
+
+**CORRECTION — the ns column was 6× too small when first published (commit `e5c8fae2`).**
+`armf_residual_composition.py:89` sets `step = d["F"] // NFRAME = 2501 // 400 = 6`, so **one IAT unit
+is 240 ps, not 40 ps.** The ratio 0.679 is unaffected because both sides share the stride, so the
+conclusion stands — but every absolute figure in that column was wrong. Worth noting the corrected
+**5.88 ns sits far closer to 100e's independently measured ITS of 12–220 ns** than 0.98 ns did, which
+is a consistency check the wrong number was failing silently.
+
+**FAMILY B on the collective side.** 77a's own docstring says an IAT cannot be resolved much above a
+tenth of its series; at 400 points the ceiling is ~40 units. Collective median 24.52 = **61.3%** of
+ceiling, p75 36.48 = **91.2%**; exposed residual 15.19 = **38.0%**. **23 of 123 systems (19%) sit
+above the ceiling entirely.** Excluding them the ratio moves **0.679 → 0.713** — *up*, not down, so
+the compression does not weaken "not jitter" in practice, but the collective IAT is genuinely
+unresolved on a fifth of the corpus. `rescompFULL` re-runs 20 systems at `RC_NFRAME=2501` (no
+striding, ceiling ~250 units) to settle it.
 
 **Ratio 0.679.** The residual is **not jitter** — it decorrelates on 68% of the collective modes'
 timescale, which is the same order, not orders of magnitude faster. **That is structured slow motion

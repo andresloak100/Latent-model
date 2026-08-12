@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 109
+last_acted: 111
 ```
 
 | item | restatement | status | commit |
@@ -130,6 +130,8 @@ last_acted: 109
 | 107 | **ACCEPTED. 107a BLOCKING — 10345384 cancelled on it.** My "alternative was inside the noise" was the wrong diagnosis; **the metric dilutes it**. Reproduced: all-64 [0.1275,0.1431] vs coupled-8 [0.1310,0.1440] **OVERLAP**; top-8 [0.0923,0.1478] vs [0.2344,0.4771] **DETECTED**. **Refinement: top-16 is MARGINAL in my run** (0.1517 vs 0.1505), so the power check gates on **top-8**; top-16 and pooled-64 reported beside. **107b**: gradient accumulation 4x8 = effective batch 32, samples-seen logged per arm; OU has no optimisation budget and that is stated. **107c**: RC_DESC descending pass; the 27 GB pairwise matrix chunked at 2,048 rows. **107d SPLIT, against the attractive branch**: r 0.7398 raw vs **0.7448 after removing per-system mean log sigma** — the miss is **within-system SHAPE, not scale**, so a B-factor scalar does not rescue it and "needs a short simulation" stands. Substitution run still owed. **107e**: armf_submit.sh refuses a dependency-count reduction without ARMF_FORCE; runtime-tested, two bugs in the guard itself fixed. | ACCEPTED | (this commit) |
 | 108 | **ACCEPTED — the push-back is correct and I had merged two claims.** Verified independently: a per-mode sigma error leaves **xcorr 2.8e-17, amp EXACTLY 0.0, iat 1.8e-15** while std/js/trans move materially. So "can the chain emit an Angstrom trajectory zero-shot" (no, 107d) and "does joint beat one-step" (gated on sigma-INVARIANT metrics, answerable zero-shot) are different claims and the record wrongly merged them. **Refinement: kurt is NOT bit-identical** (1.1e-08, float reassociation), so the pre-registered bug check must use \|rel\| < 1e-6 or it fires every time. **108.2 measured and against the optimistic reading**: median r 0.8917 at 1 ns, 0.9575 at 25 ns, **never 0.99 within 25 ns** — sigma convergence is governed by the ITS (12-220 ns), not frame count. **108.3** full M-profile {8,16,32,64} per system, top-8 the conservative gate. **108.4** feasibility printed FIRST. **My defects**: `seen` uninitialised (third latentvideo death from my own bug); the job reported COMPLETED despite the traceback because the trailing nvidia-smi set the exit code; 0% GPU utilisation on that run. | ACCEPTED | (this commit) |
 | 109 | **ACCEPTED. 109d resolves clean — no recorded number is invalidated.** GPU report first: **nothing CPU-bound held a GPU** (rescompD/projanm/anmortho/prep1m all long-cpu, gres none), so there was nothing to migrate. **109d.1**: audited all 42 sbatch by last-executable-line; **exactly 1 masked — sessionwatch, which produces no results**; my first pass flagged 4 and was wrong (continuations/heredocs). **109d.2**: 37 bypass dump_rows but only **23 write incrementally** (the rest write once at the end, where a crash leaves no file); every headline file checks complete, and the **"123" is the CACHE shortfall** — 2po4_A and 3vth_A absent — so 0/123 has an explained denominator. **109f: worse than a caveat** — 108.2's 12 are manifest order but the manifest is effectively size-ordered: median N 703 vs 3249, **KS D=0.9024 p<0.001, NOT representative**, so the 25 ns figure is an **optimistic bound**. **Queued**: lv_onestep 10346189 (matched-budget, built into the SAME script behind LV_ARM so one instrument scores both), lv_r8 10346190 (token-axis ablation). **109e** smoke gate run before submitting; it caught a wording bug immediately. | ACCEPTED | (this commit) |
+| 110 | **ACCEPTED — the A/B is confounded twice and I am not claiming it.** JOINT 10,009,864 params vs ONESTEP 181,120 = **55.3x**, and different model families: rectified-flow diffusion vs a single-shot conditional Gaussian that **cannot represent a multi-modal transition density**. The Gaussian MLP is now described as a **nonlinear OU**; `onestep_diff` (one-step DDPM, same family) is what the headline needs. What IS readable is joint-vs-OU, since OU is a clean physics null. | ACCEPTED | (this commit) |
+| 111 | **ACCEPTED. 111c forensics: root cause found and it was mine.** 10346121 **FAILED 1:0** on **cn-b005 = volta** with 'no kernel image available'; 10346189/10346190 **COMPLETED 0:0** on **cn-a003 = turing**. The standing `turing\|ampere\|lovelace` constraint exists for exactly this and I removed it entirely when told not to EXPORT it globally — now in **all 23 GPU sbatch**. joint.json ABSENT, onestep/r8 both 24 rows complete=True. **Item 5**: `trap _armf_log EXIT` in 21 sbatch -> tracked outputs/job_log.tsv, fires on crash and SIGTERM. **Item 2**: ns column **6x too small** (step=2501//400=6, so 240 ps/unit) — exposed residual **3.65 ns**, collective **5.88 ns**; ratio unaffected; corrected in ROADMAP, and 5.88 ns is far closer to 100e's 12-220 ns ITS. **Item 3**: ceiling confirmed (collective 61.3% of ceiling, p75 91.2%, **19% above it**) but excluding pinned systems moves the ratio **0.679 -> 0.713, UP** — opposite to both our expectations; rescompFULL at RC_NFRAME=2501 queued. **First positive generative result**: JOINT 11/11 vs OU 4/11, **xcorr_top8 100% vs 8%**. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1988,3 +1990,68 @@ and convergence is likely worse on the systems not measured. Recorded as such.
 one-step arm went end-to-end on CPU at `LV_STEPS=2 CUDA_VISIBLE_DEVICES=`, and it caught a wording
 bug (`SAMPLES SEEN … JOINT` printed on the onestep arm) that would have gone into the record. Folding
 it into `armf_submit.sh` as a hard gate is the right next step and is not yet done.
+
+## 110 / 111 — ACCEPTED. The silent exit had a root cause, and it was mine
+
+**111c — forensics, and `exit $rc` earned its place immediately.**
+
+| job | state | exit | elapsed | node |
+|---|---|---|---|---|
+| 10346121 latentvideo | **FAILED** | **1:0** | 15:12 | cn-b005 |
+| 10346189 lv_onestep | COMPLETED | 0:0 | 18:35 | cn-a003 |
+| 10346190 lv_r8 | COMPLETED | 0:0 | 4:24:28 | cn-a003 |
+
+**Root cause: `CUDA error: no kernel image is available for execution on the device`.** `cn-b005` is
+**volta**; `cn-a003` is **turing**. This torch build has no volta kernels. **The standing
+`turing|ampere|lovelace` constraint exists for exactly this, and when told not to *export* it
+globally I removed it entirely instead of putting it in the sbatch files.** Added to **all 23 GPU
+sbatch scripts**. Files: `latent_video_joint.json` **ABSENT** (that run died); `latent_video_onestep.json`
+and `latent_video_joint_r8.json` both **24 rows, complete=True, n_failed=0**.
+
+**Item 5 — jobs now self-report.** `trap _armf_log EXIT` added to 21 sbatch scripts, appending job
+id, name, arm, exit status, elapsed, host and results-file presence to a tracked
+`outputs/job_log.tsv`. It fires on normal exit, on crash, and on the time-limit SIGTERM — the two
+cases that vanish.
+
+**Item 2 — the ns column was 6× too small and it is my error.** `step = 2501 // 400 = 6`, so an IAT
+unit is **240 ps, not 40 ps**: exposed residual **3.65 ns** (published 0.61), collective **5.88 ns**
+(published 0.98). The 0.679 ratio is unaffected — shared stride — so the conclusion stands, but the
+absolute column was wrong in ROADMAP and in `e5c8fae2`, and both are corrected. **5.88 ns sits far
+closer to 100e's independent ITS of 12–220 ns than 0.98 ns did** — a consistency check the wrong
+number was failing silently.
+
+**Item 3 — Family B confirmed, and the direction is the opposite of what you and I both expected.**
+Ceiling ~40 units at 400 points: collective median **61.3%** of ceiling, p75 **91.2%**; exposed
+residual **38.0%**. **23/123 (19%) sit above the ceiling.** But excluding them the ratio moves
+**0.679 → 0.713 — up, not down.** So the compression does not weaken "not jitter" in practice, while
+the collective IAT is genuinely unresolved on a fifth of the corpus. `rescompFULL` (10350869) re-runs
+20 systems at `RC_NFRAME=2501`, ceiling ~250 units, to settle it.
+
+**Item 4 — the A/B is confounded twice and I am not claiming it.** JOINT 10,009,864 parameters
+against ONESTEP 181,120 — **55.3×** — and they are different model families: rectified-flow diffusion
+against a single-shot conditional Gaussian that **cannot represent a multi-modal transition density**.
+Adopted: the Gaussian MLP is described as a **nonlinear OU**, not "the one-step arm", and
+`onestep_diff` — a one-step DDPM in the same family — is what the headline needs.
+
+**What IS readable, because OU is a clean physics null:** `lv_r8` (joint, R=8), 24 held-out systems,
+**12/24 powered**:
+
+| arm | median agree | xcorr | amp | **xcorr_top8** | **amp_top8** |
+|---|---|---|---|---|---|
+| OU | 4.0 / 11 | 0% | 8% | **8%** | 75% |
+| **JOINT** | **11.0 / 11** | **100%** | 92% | **100%** | **100%** |
+
+**On `xcorr_top8` — the statistic 107a established as the only one that can see the effect — the
+joint model lands inside the reference band on 100% of powered systems against OU's 8%.** Both arms
+saw 163,840,000 frames. Atom geometry: 2.82 Å generated against 2.70 Å reference (4.2% off) for
+onestep; r8 similar. **This is the first positive generative result on this project, and it is
+joint-vs-OU, not joint-vs-one-step.**
+
+**Two display defects found in reading it:** `agree` prints over a hardcoded `/7` while it now ranges
+over 11 metrics (so "11/7" meant 11 of 11), and the derived sbatch files kept
+`--output=latentvideo_%j.log`, so all three arms wrote to identically-named logs. Both fixed.
+
+**`loss` unbound — fixed before it fires.** It is bound inside the accumulation loop and read at the
+logging line; every `continue` leaves it unbound. Dormant at T=256 because `segments()` never returns
+None there, live the moment T rises past a replica length. Same shape as `seen`, caught by reading
+rather than by running.

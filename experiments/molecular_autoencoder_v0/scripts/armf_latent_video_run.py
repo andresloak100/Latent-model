@@ -306,7 +306,11 @@ if __name__ == "__main__":
         # as much". Family E introduced by a memory fix. ACCUM micro-steps at BATCH give effective
         # batch 32 at unchanged memory.
         opt.zero_grad()
-        for _ in range(ACCUM):
+        loss = None                      # INBOX 111: `loss` is bound INSIDE the accumulation loop
+        for _ in range(ACCUM):           # and read at the logging line. Every `continue` in that
+                                         # loop leaves it unbound -- dormant at T=256 because
+                                         # segments() never returns None there, live the moment T
+                                         # rises past a replica length. Same shape as `seen`.
             sysd = TR[rng.integers(len(TR))]
             seg = segments(sysd["C_tr"], T, BATCH, rng)
             if seg is None: continue
@@ -316,6 +320,10 @@ if __name__ == "__main__":
             seen += BATCH * T
         opt.step()
         if st % 2000 == 0:
+            if loss is None:
+                print(f"    step {st:>6}: every micro-step was skipped -- no segment available at "
+                      f"T={T}. Reported rather than logged as a loss.", flush=True)
+                continue
             log.append(dict(step=st, loss=float(loss.detach()), samples_seen=seen,
                             eff_batch=BATCH * ACCUM, secs=time.time() - t0))
             print(f"    step {st:>6}: flow MSE {float(loss.detach()):.5f}  "
@@ -389,7 +397,7 @@ if __name__ == "__main__":
             j = arms[ARM.upper()]; o = arms["OU"]
             print(f"  [{i}/{len(HO)}] {sysd['pdb']:10s} N={sysd['N']:>6} "
                   f"{'POWERED' if powered else 'NO POWER'}  "
-                  f"JOINT {j['agree']}/7  OU {o['agree']}/7   "
+                  f"JOINT {j['agree']}/{len(XMETRICS)}  OU {o['agree']}/{len(XMETRICS)}   "
                   f"xcorr {'IN' if j['inside']['xcorr'] else '--'}/"
                   f"{'IN' if o['inside']['xcorr'] else '--'}  "
                   f"bond {bm:.2f}A vs ref {rm:.2f}A  n={keval}  ({time.time()-t0:.0f}s)",
