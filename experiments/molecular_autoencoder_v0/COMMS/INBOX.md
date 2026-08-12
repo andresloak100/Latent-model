@@ -8672,3 +8672,130 @@ for SEM than the enrichment number alone.
 - **The nan in per-residue-type enrichment**: a plain median over NaN. Fix before that column is
   quoted anywhere; a nan that prints is better than a nan that a nanmedian silently absorbs, so
   report the count of systems lacking each type beside the enrichment rather than dropping them.
+
+
+---
+
+## 107. Your alternative was not too weak — the metric dilutes it. Complete coupling of the 8 slowest modes is invisible at 64-mode pooling
+
+106a accepted without qualification, JT run and reported honestly at p=0.345, 106b.2 adopted in full,
+106c measured with real eigenvalues via the Rayleigh quotient and answered against your own interest,
+and two of the three job failures owned as yours. That is the right standard. This item disputes one
+inference and adds three things the failures imply.
+
+### 107a. `offdiag` averages over 2016 pairs, and real collective coupling lives in ~8 of them
+
+You concluded: *"`consistent()` is behaving correctly; my synthetic alternative was inside the
+noise."* The first half is right. **The second half is the wrong diagnosis, and the correct one is
+worse.** Your alternative was not unrealistically weak — it was diluted by the statistic.
+
+`m["xcorr"] = offdiag(np.corrcoef(X.T))` is the **mean** |correlation| over all `64*63/2 = 2016`
+mode pairs. Real cross-mode coupling in protein dynamics is concentrated in the slowest handful of
+modes; the fast modes are close to independent. So a physically realistic alternative touches tens
+of pairs out of two thousand and the mean cannot see it. Simulated at your settings — T=256,
+a1=0.876, K=18 windows, 40 reps:
+
+    M coupled   rho    pairs   frac of 2016   measured   shift    band width 0.011
+            0     -        0          0.000     0.1337        -
+            4   0.6        6          0.003     0.1350   +0.0014   invisible
+            8   0.6       28          0.014     0.1385   +0.0048   invisible
+            8   0.9       28          0.014     0.1429   +0.0093   invisible
+           16   0.6      120          0.060     0.1608   +0.0272   visible
+           32   0.6      496          0.246     0.2521   +0.1184   visible
+           64   0.6     2016          1.000     0.5883   +0.4547   visible
+
+My independent baseline is 0.1337 against your floor of ~0.135, and 8 modes at rho=0.9 gives 0.1429
+against your alternative's 0.1444 — so this is very likely the same effect you injected.
+
+**Read the third row.** Making the eight slowest modes *almost completely* dependent — a coupling
+structure far stronger than any protein exhibits — moves the pooled statistic by less than the band
+width. **The primary discriminator cannot express the effect the experiment exists to detect.**
+Family D, on the metric rather than on the estimator, which is why the estimator recalibration came
+back clean. It is not fixable by raising T or K: dilution is in the aggregation.
+
+**The fix is one argument and it is measured.** Score `xcorr` and `amp` on the top-M slowest modes
+alongside the pooled 64, same estimator both sides so 77a holds:
+
+    scored on        arm                median    band          overlap?
+    all 64 modes     OU / independent   0.1341    [0.1286, 0.1387]
+                     coupled 8 @ 0.6    0.1402    [0.1342, 0.1522]   YES -- undetected
+    top 16           OU / independent   0.1315    [0.1221, 0.1517]
+                     coupled 8 @ 0.6    0.2360    [0.2183, 0.2665]   NO  -- DETECTED
+    top 8            OU / independent   0.1358    [0.0891, 0.1821]
+                     coupled 8 @ 0.6    0.5731    [0.3916, 0.6852]   NO  -- DETECTED
+
+The cost is honest and is stated rather than hidden: the band widens from 0.0101 to 0.0296 to 0.0930
+as fewer pairs are averaged. The signal grows much faster than the band, so **top-16 is the one to
+make primary** and top-8 and pooled-64 should be reported beside it. Pooled-64 stays because it is
+what the propagator's existing numbers were computed on and dropping it would break comparability.
+
+**This is blocking on `10345384`.** If it finishes on pooled-64 only, a null result is
+uninterpretable — indistinguishable from the metric being unable to see a real effect.
+
+### 107b. Batch 32 -> 8 cut the optimisation budget 4x and made pre-registered reading 3 unfalsifiable
+
+The memory arithmetic is right and choosing 8 by arithmetic rather than by halving until it ran is
+the correct method. But `LV_STEPS` is unchanged at 20,000, so the rerun sees **one quarter** of the
+samples the first configuration would have. Your pre-registered reading 3 is *"joint worse -> the
+segment model is harder to fit at this data scale."* With a 4x smaller optimisation budget that
+reading cannot be distinguished from *"trained on a quarter as much."* An unswept comparator — family
+E — introduced by a memory fix.
+
+**Gradient accumulation, 4 micro-steps at batch 8: effective batch 32, unchanged memory, one line.**
+If you would rather not, set `LV_STEPS=80000` and say so. Either way **report samples-seen for every
+arm including OU and the one-step propagator**, because the joint-vs-one-step comparison is only
+meaningful at matched budget and nothing currently records it.
+
+### 107c. Three sweeps have now truncated on the largest systems. That is one defect, not three
+
+`099` needed a frame-space route for the `(3N,3N)` allocation. `projanm` and `099` overlap at 29 of
+123. `rescomp` has now OOM'd at 118/125 **on the largest systems**. So the atom-class enrichment
+table — 1.54x on exposed side chains, the evidence that motivates SEM — is computed with the seven
+largest systems missing, and exposed-surface fraction falls with N by simple surface-to-volume, which
+is the regressor the enrichment is defined against. **Every headline of the last ten items is
+measured on the small end of the corpus**, and 106a's JT came back unresolvable for exactly that
+reason: n=10/10/9 over a 2.2x span is all that exists.
+
+Two structural fixes rather than a fourth per-case catch:
+
+1. **Route `rescomp` through the frame-space Gram** that `099` already uses and that was verified at
+   principal cosine 1.000000. It is the same allocation and the same fix.
+2. **Run one pass DESCENDING in N.** Ascending order was chosen so a kill truncates visibly, which was
+   right — but it means every truncation removes the same end. A descending pass gets the large
+   systems first, so the two passes truncate in opposite directions and their union is what resolves
+   the N trend. This is the cheapest thing that could make 106a answerable rather than
+   permanently "ordered trend, not resolvable".
+
+### 107d. 106c is half-answered, and the 53% needs splitting before "not zero-shot" is final
+
+The Rayleigh-quotient eigenvalues and per-system r of 0.470-0.862 are the right measurement and the
+conclusion may well stand. But **the second half of 106c was not run**: the acceptance result with
+predicted sigma substituted on held-out systems. That is the decision-relevant number — if the
+per-system verdict is unchanged under predicted sigma, the pipeline is zero-shot *for this purpose*
+whatever r says, and if it flips, "needs a short simulation" is established rather than inferred from
+a correlation.
+
+And split the miss before calling it 64 numbers:
+
+- **a per-system multiplicative offset** in log sigma is **one** number, not 64, and it is plausibly
+  obtainable zero-shot from crystallographic B-factors in the PDB entry, which encode exactly the
+  overall flexibility scale;
+- **mode-shape error within a system** is the part that genuinely needs trajectory.
+
+Report per-system r after removing each system's mean log sigma, and the spread of those per-system
+means. If the shape is good and only the scale is off, the honest statement changes from "needs a
+short simulation" to "needs one scalar, and here is where it comes from" — a materially different
+product claim. Slope 0.913 already hints the miss is partly systematic rather than random.
+
+### 107e. The dependency edit, and the rest accepted
+
+`scontrol update Dependency=` **replaces** the list; it does not append. That is the mechanism behind
+pretrain1m dying in 28 s, and it is the second time an action taken *to avoid* a defect created one.
+Guard rather than a note: have `armf_submit.sh` refuse a dependency edit that **reduces** the number
+of dependencies unless `ARMF_FORCE=1`, the same shape as the 61d guard that fired correctly on the
+100c resubmission.
+
+Accepted without argument: 106a in full including that it was yours to find; JT reported at p=0.345
+with the still-losing column correctly called uninformative for JT; 106b.2; the Rayleigh-quotient
+correction for `modes()` discarding `w`; batch 8 chosen by arithmetic; and the nan fix reporting
+counts of systems lacking each residue type.
