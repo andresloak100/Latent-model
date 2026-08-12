@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 113
+last_acted: 114
 ```
 
 | item | restatement | status | commit |
@@ -134,6 +134,7 @@ last_acted: 113
 | 111 | **ACCEPTED. 111c forensics: root cause found and it was mine.** 10346121 **FAILED 1:0** on **cn-b005 = volta** with 'no kernel image available'; 10346189/10346190 **COMPLETED 0:0** on **cn-a003 = turing**. The standing `turing\|ampere\|lovelace` constraint exists for exactly this and I removed it entirely when told not to EXPORT it globally — now in **all 23 GPU sbatch**. joint.json ABSENT, onestep/r8 both 24 rows complete=True. **Item 5**: `trap _armf_log EXIT` in 21 sbatch -> tracked outputs/job_log.tsv, fires on crash and SIGTERM. **Item 2**: ns column **6x too small** (step=2501//400=6, so 240 ps/unit) — exposed residual **3.65 ns**, collective **5.88 ns**; ratio unaffected; corrected in ROADMAP, and 5.88 ns is far closer to 100e's 12-220 ns ITS. **Item 3**: ceiling confirmed (collective 61.3% of ceiling, p75 91.2%, **19% above it**) but excluding pinned systems moves the ratio **0.679 -> 0.713, UP** — opposite to both our expectations; rescompFULL at RC_NFRAME=2501 queued. **First positive generative result**: JOINT 11/11 vs OU 4/11, **xcorr_top8 100% vs 8%**. | ACCEPTED | (this commit) |
 | 112 | **ACCEPTED. Item 5 written at 09:00 elapsed of 10350867**, before any number existed: R=64xD=1 PRIMARY, R=8xD=8 ABLATION, disagreement is itself a finding. **Item 1 verified independently: 9 of 11 metrics are TIME-BLIND**, including xcorr_top8 (0.00% change under row permutation); only iat (92.57%) and trans (269.81%) see time. Claim restated as **instantaneous cross-mode covariance**, not trajectory modelling; and pre-registered that onestep_diff should also hit ~100% on xcorr_top8, in which case the question falls entirely to iat/trans. **Item 2 SHUFFLE arm added** — on the smoke it scores 10/11 failing only `iat`, so **trans does not discriminate either** and iat carries the whole temporal signal. **Item 3**: OU's 8% was the selection restated (powered *because* OU failed); OU now quoted over ALL systems, JOINT reported as 12/12 with rule-of-three CI [75%, 100%]. **Item 4**: bond_stats measured every N//200-th ATOM, a different physical distance per system (Family F) that cannot detect broken chemistry; now CA by atom name — smoke gives **3.69 A vs 3.56 A ref** against the true 3.80 A, so 2.70 A was the artefact. 10350867 cancelled at 12:37 and resubmitted as 10350959 so items 1-2 are IN the run. | ACCEPTED | (this commit) |
 | 113 | **ACCEPTED — 113d immediately qualifies the joint result.** Applied to lv_r8: the model is **systematically BELOW the reference on every coupling metric** — xcorr, amp, xcorr_top16 all at **p=0.0003** where interval overlap passed — and **above on trans (18/24, p=0.0227, +80.4)**. The pre-registered headline **xcorr_top8 does NOT fire (p=0.0639) but is marginal with a negative median diff**, so it survives only just and is recorded that way. **Verified 113.1/113.2**: per-system overlap catches **0/24 at every error size** (3.7x, 2x, 1.5x, 1.2x); my iat recovers 34% of truth at T=256 vs 113's 13%, and my paired power is weaker at 2x/1.5x though identical at 3.7x — null does not fire either way. **113.4 implemented as a post-hoc reader** so finished runs are covered without re-running. **113.5**: true frames **3.842 A**, mu alone **3.299 (-14.1%)**, rank-64 recon **3.566 (-7.2%)** — the 3.56 A reference is the DECODE, not the data. The proposed mechanism for generated>reconstruction is **not supported**: std is 12/24, p=1.0, median diff -0.018, so no amplitude excess; recorded as unexplained. | ACCEPTED | (this commit) |
+| 114 | **ACCEPTED — the data refutes the 107a reasoning that set the headline.** Deficit is **broad, not sparse**: pooled-64 p=0.0003 vs top-8 p=0.0639. **Headline NOT swapped** (that is what makes it a pre-registration); pooled xcorr pre-registered as PRIMARY for onestep_diff, committed before that run exists. **Item 4**: NOT identical — xcorr/amp share 3 systems, xcorr_top16 swaps one; intersection 2, union 4; one effect, count it once. **Item 6**: all eleven reported — **iat negative (tilt's prediction)**, **kurt negative and fires (rules OUT the heavy-tail route)**. **Item 5 MDE**: xcorr_top8's \|diff\|=0.0592 **exceeds** its MDE 0.0510 yet does not fire — a near-miss, not agreement; std's MDE is **5.6x** its difference, so 'matched' is weak and std fails twice (blind AND underpowered). **Item 2 submitted (10351118)** with the prediction written first. **109c DONE**: predicted sigma costs **+0.528 A, +15.5%, worse on 100%** — 'needs a short simulation' is now established, not inferred. **108.1's bug check caught a defect in my own harness**: trans flagged as LEAK because I applied an unwhitened threshold to a whitened series; fixed, all seven now behave as predicted. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -2168,3 +2169,69 @@ unexplained rather than attributed.
 
 **Still owed, unchanged:** 109c's Ångström error under predicted sigma — the number that decides
 whether a zero-shot demo is possible at all.
+
+## 114 — ACCEPTED. Your 107a reasoning is refuted by the data it produced
+
+**Item 1 — pre-registered before `onestep_diff` exists, committed separately.** The measurement
+refutes the argument that set the headline: the deficit is **broad, not sparse**, so pooled-64 is the
+most sensitive statistic and top-8 discards signal. **The `lv_r8` headline is NOT swapped** —
+`xcorr_top8` stays reported as marginal (p=0.0639, negative median difference), which is what makes
+it a pre-registration. For `onestep_diff`: **pooled `xcorr` is PRIMARY**, top-8 and top-16 retained,
+reason recorded, verdict by the paired sign test.
+
+**Item 4 — measured, and they are NOT identical.** `xcorr` and `amp` fire on the same three
+(`1ab1_A`, `2gkr_I`, `3lpe_B`); `xcorr_top16` swaps `1ab1_A` for `1fd3_A`. **Intersection 2, union
+4.** So: one effect seen five ways, largely the same systems, and a reader should count one.
+
+**Item 6 — all eleven reported, and two rows bear on item 2:**
+
+| metric | n_pos/n | p | median diff |
+|---|---|---|---|
+| std | 12/24 | 1.0000 | −0.0181 |
+| js | 17/24 | 0.0639 | +0.0145 |
+| **kurt** | 5/24 | **0.0066** | **−0.0351** |
+| **iat** | 7/24 | 0.0639 | **−2.2269** |
+
+**`iat` is negative** — generated is *shorter*, which is the tilt's prediction. **`kurt` is negative
+and fires** — generated marginals are *lighter*-tailed, which **rules out the heavy-tail route** to
+an inflated E|·| that item 2 mentioned as an alternative.
+
+**Item 5 — the MDE column changes how two rows read.** A sign test at n=24 needs ≥18 or ≤6, i.e. a
+shift moving 75% of systems, so MDE ≈ 0.674·sd:
+
+| metric | \|median diff\| | MDE | reading |
+|---|---|---|---|
+| **xcorr_top8** | **0.0592** | **0.0510** | **\|diff\| EXCEEDS MDE yet does not fire — a near-miss, not agreement** |
+| std | 0.0181 | 0.1016 | MDE is **5.6×** the difference: "matched" is weak evidence |
+| iat | 2.23 | 3.82 | genuinely underpowered |
+
+**Item 2 — submitted as `10351118`**, with the prediction written into the file before the numbers:
+deficit in slow, excess in fast, total unchanged; flat blocks kill the hypothesis and leave the CA
+anomaly open. The `iat` breakdown runs in the same job. Your std point is sharper than stated: std is
+**blind by construction** *and* **underpowered** — MDE 5.6× the observed difference — so it fails
+twice.
+
+**Item 3 — noted, and withdrawing a mechanism after simulating it is the same move I should make more
+often.** +0.039 Å against +0.124 Å needed is not sufficient, and 114d can fail, which this could not.
+
+**Item 5's definitional point accepted:** for AR(1) the integrated autocorrelation time is
+(1+a)/(1−a) ≈ 2τ, so at τ=147 the truth is ~293 and 37.1/293 = 13%. Both of us get **0/24 caught at
+every error size** and neither null fires, so 113d stands.
+
+**109c — DONE, and it settles the zero-shot question against us.** Smoke on 4 systems:
+
+| | median |
+|---|---|
+| RMSD, measured sigma | 3.009 Å |
+| RMSD, **predicted sigma** | **3.537 Å** |
+| **cost** | **+0.528 Å, +15.5%, worse on 100% of systems** |
+
+So **"needs a short simulation of the target" is established rather than inferred from a
+correlation.** Full 24-system run submitted as `predsigma`.
+
+**108.1's pre-registered bug check ran and caught a defect in my own harness.** It flagged `trans` as
+a LEAK — `trans` must move under a per-mode rescale and did not. Cause: I computed `thr` from the
+**unwhitened** coefficients and applied it to the **whitened** series, so every frame fell in one
+basin and `trans` was identically zero on both arms. Fixed; `trans` now moves at 1.0e-01 and all
+seven behave as 108.1 predicted — std 4.3e-02 and js 4.9e+00 move, kurt 1.3e-08, xcorr 7.1e-17, amp
+and iat exactly 0.0.
