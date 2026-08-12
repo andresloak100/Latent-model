@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 115
+last_acted: 116
 ```
 
 | item | restatement | status | commit |
@@ -136,6 +136,7 @@ last_acted: 115
 | 113 | **ACCEPTED — 113d immediately qualifies the joint result.** Applied to lv_r8: the model is **systematically BELOW the reference on every coupling metric** — xcorr, amp, xcorr_top16 all at **p=0.0003** where interval overlap passed — and **above on trans (18/24, p=0.0227, +80.4)**. The pre-registered headline **xcorr_top8 does NOT fire (p=0.0639) but is marginal with a negative median diff**, so it survives only just and is recorded that way. **Verified 113.1/113.2**: per-system overlap catches **0/24 at every error size** (3.7x, 2x, 1.5x, 1.2x); my iat recovers 34% of truth at T=256 vs 113's 13%, and my paired power is weaker at 2x/1.5x though identical at 3.7x — null does not fire either way. **113.4 implemented as a post-hoc reader** so finished runs are covered without re-running. **113.5**: true frames **3.842 A**, mu alone **3.299 (-14.1%)**, rank-64 recon **3.566 (-7.2%)** — the 3.56 A reference is the DECODE, not the data. The proposed mechanism for generated>reconstruction is **not supported**: std is 12/24, p=1.0, median diff -0.018, so no amplitude excess; recorded as unexplained. | ACCEPTED | (this commit) |
 | 114 | **ACCEPTED — the data refutes the 107a reasoning that set the headline.** Deficit is **broad, not sparse**: pooled-64 p=0.0003 vs top-8 p=0.0639. **Headline NOT swapped** (that is what makes it a pre-registration); pooled xcorr pre-registered as PRIMARY for onestep_diff, committed before that run exists. **Item 4**: NOT identical — xcorr/amp share 3 systems, xcorr_top16 swaps one; intersection 2, union 4; one effect, count it once. **Item 6**: all eleven reported — **iat negative (tilt's prediction)**, **kurt negative and fires (rules OUT the heavy-tail route)**. **Item 5 MDE**: xcorr_top8's \|diff\|=0.0592 **exceeds** its MDE 0.0510 yet does not fire — a near-miss, not agreement; std's MDE is **5.6x** its difference, so 'matched' is weak and std fails twice (blind AND underpowered). **Item 2 submitted (10351118)** with the prediction written first. **109c DONE**: predicted sigma costs **+0.528 A, +15.5%, worse on 100%** — 'needs a short simulation' is now established, not inferred. **108.1's bug check caught a defect in my own harness**: trans flagged as LEAK because I applied an unwhitened threshold to a whitened series; fixed, all seven now behave as predicted. | ACCEPTED | (this commit) |
 | 115 | **ACCEPTED — your correction holds, and the run that confirmed it broke the rule that confirmed it.** **115a**: prediction exact — SHUFFLE **9/11** with **trans firing 23/23, median +205.88, wilcoxon p=0.0000**, independently recovering 112a's +208%; overlap catches **0/24**. 113f's 'no working instrument' **corrected in ROADMAP.md**: 2c is under-powered, not instrument-less, and there are **two** temporal statistics. **DEFECT FOUND IN THE PAIRED RULE**: `(d>0).sum()` counts an exact zero as negative, so 24 identical numbers give p=1.2e-07 — nine metrics 'fired' at differences of 1e-16. Fixed at **108.1's own \|rel\|<1e-6**, not a new knob. **Audited: lv_r8 has ZERO ties, nothing on the record is invalidated**; onestep trans 0.0227→0.0106, same verdict. **115c pre-registered in 4e57beac before onestep_diff exists**, --wilcoxon OFF by default, skew>1 → sign test governs; lv_r8 stands as reported. **Wilcoxon was immune to the tie defect** — the more powerful test is also the safer one. **115d**: the floor **was** the baseline and my label was wrong — renamed rmsd_floor, identity asserted. Floor sweep **3.873→2.318 Å over K=8..256, no plateau**, so 3 Å is a choice of K; and **predicted sigma at rank 64 (3.537 Å) is worse than the measured-sigma floor at rank 32 (3.456 Å)**. **115b** accepted as the better reading: kurt is a fourth confirmation of the tilt. | ACCEPTED | (this commit) |
+| 116 | **ACCEPTED — all four, and item 1's reframing found a rescue.** **116.1**: coverage/fidelity pair built and submitted (`10352187`, 24 systems). 1-system smoke: FLOOR 3.91/3.88, OU 7.91/7.94, **JOINT 8.90 cov / 6.72 fid — better fidelity than OU, WORSE coverage**, exactly the asymmetry one RMSD would have merged. Added a **SHUFFLE arm scoring 0.000 A** so the time-blindness is measured, not caveated. **RESCUE**: CKPT had no R in the name, so the running R=64 job was about to overwrite the **lv_r8 headline checkpoint** — preserved and the name fixed. **116.2**: K=0 (`mu` alone) is now the first row, so 3.009 A has a denominator. **116.3**: predicted-sigma swept at every K with the scale match applied **within** each rank; **your prediction committed in b2cb0240 before predsigma runs**. **116.4**: n_eff is now the denominator of every n_pos/n_eff with a SMALL-n_eff flag, and UNEVALUABLE replaces nan — which does not merely read as null but **sorts as the safest row**, so fires() refuses non-floats. 115a re-run under all of it: unchanged, 9/11 and trans 23/23. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -2299,3 +2300,53 @@ so their marginals are bimodal and heavy-tailed while fast modes are near-Gaussi
 all six at once.
 
 **GPU while this CPU work ran:** `10350959` latentvideo on cn-c005 at **99%** utilisation, 46 min in.
+
+## 116 — ACCEPTED. All four, and item 1's reframing found a rescue on the way
+
+**116.1 — you are right that 109c compared a floor to a floor**, and right that RMSD is the wrong
+instrument. `scripts/armf_coverage_fidelity.py` implements the two-sided pair, submitted as
+`10352187` (24 systems, 50 sampling steps). One-system 10-step smoke, which validates the instrument
+rather than answering the question:
+
+| arm | coverage | fidelity | cov CA | fid CA |
+|---|---|---|---|---|
+| FLOOR | 3.912 Å | 3.876 Å | 2.96 | 2.95 |
+| SHUFFLE | **0.000 Å** | **0.000 Å** | 0.00 | 0.00 |
+| OU | 7.911 Å | 7.941 Å | 6.80 | 6.46 |
+| **JOINT** | **8.898 Å** | **6.716 Å** | 8.22 | 5.56 |
+
+**The two sides already disagree, which is the argument for asking for both.** JOINT's **fidelity
+beats OU's** (6.72 vs 7.94) while its **coverage is worse than OU's** (8.90 vs 7.91) — plausible
+structures, too few of them. A single RMSD would have averaged those into one figure.
+
+**One property added, because it will otherwise be misread.** Coverage and fidelity are functions of
+the frame **set**, so they are **exactly invariant to time order**. I added a SHUFFLE arm so the
+number is on the page rather than in a caveat: **max 3.69e-06 Å — a perfect score for a model with no
+dynamics at all.** These answer milestone 3/4's *geometry* question and say nothing about dynamics.
+
+**A RESCUE, found while locating the checkpoint.** `CKPT` was `latent_video_ckpt_{ARM}.pt` with **no R
+in it** while `RES` was overridden per-arm — so **`10350959` was about to overwrite the R=8 checkpoint
+behind the `lv_r8` headline.** Copied to `latent_video_ckpt_joint_r8.pt` (verified R=8:
+`net.inp.weight` is (256,8)) and `CKPT` now carries `_r{RGRP}`. Same "one name, two things", in a
+filename this time.
+
+**116.2 — K=0 is now the first row**, so 3.009 Å finally has a denominator and every rank is quoted
+as a percentage of `mu` alone. It falls out of the same expression, since `Vmax[:, :0]` makes the
+projection term exactly zero.
+
+**116.3 — both sweeps, and your prediction is committed in `b2cb0240`, before `predsigma` runs.**
+107d's overall-scale match is applied **within each rank**, so a rank-k row is a self-consistent
+zero-shot prediction at that rank rather than one rescaled by a 64-mode constant. Your three
+counter-arguments to raising K are recorded in the file with the prediction. If the curves diverge,
+the **GAP column** is the reportable quantity rather than +0.528 Å at one K.
+
+**116.4 — both one-liners, and the second is worse than it sounds.** `n_effective` is now the
+**denominator** of every `n_pos/n_eff` with ties in their own column, and a fire below `MIN_EFF=12`
+is marked `[SMALL n_eff=k of 24: t ties dropped]`. **`UNEVALUABLE` replaces nan** — and a nan p does
+not merely read as "not significant", it sorts as the **safest row in the table**, so `fires()` now
+refuses to let a non-float satisfy `p < 0.05`. The all-tied SHUFFLE rows now read UNEVALUABLE rather
+than 1.0000, which is also more honest: those metrics are invariant by construction, not tested and
+found null. Re-ran 115a under all of it — **SHUFFLE still 9/11, `trans` still 23/23 at +205.88.**
+
+**GPU while this CPU work ran:** `10350959` on cn-c005 at **100%**, 2h elapsed; left running as you
+asked. `covfid` `10352187` queued behind `vartilt` and `pretrain1m`.
