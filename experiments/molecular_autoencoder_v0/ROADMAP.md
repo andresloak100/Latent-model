@@ -6427,3 +6427,51 @@ count is weak evidence**. The mechanism is not:
 
 A flip needs `margin − movement < 0`. **The nearest system is 0.3370 away** — deterministic rather
 than statistical, and a far stronger statement than the rule-of-three bound.
+
+---
+
+## ⬛ 106d: the ANM-orthogonal residual is SLOW, not jitter — the strong case for SEM
+
+`armf_residual_composition.py`, **123/123 systems** (the chunked neighbour count fixed the OOM that
+truncated the previous pass at 118/125, which had removed the seven largest systems).
+
+**The gate 106d set:** "92% linearly predictable" is a **spatial** measure from cross-fit residual
+PCA. Exposed side chains are where rotameric flipping and thermal jitter live, and those are fast. If
+the residual's IAT ≈ 1 frame it is jitter, a generative *dynamics* model gains nothing, and the
+enrichment motivates SEM on the static axis only.
+
+| class | median IAT (frames) | IQR | ns @ 40 ps |
+|---|---|---|---|
+| backbone (residual) | 17.83 | [13.08, 27.81] | 0.71 |
+| side chain (residual) | 13.48 | [10.69, 19.44] | 0.54 |
+| **exposed side chain (residual)** | **15.19** | [11.61, 19.64] | **0.61** |
+| **collective ANM modes** | **24.52** | [16.06, 36.48] | **0.98** |
+
+**Ratio 0.679.** The residual is **not jitter** — it decorrelates on 68% of the collective modes'
+timescale, which is the same order, not orders of magnitude faster. **That is structured slow motion
+ANM misses**, and it is the branch 106d identified as "a far stronger case for SEM than the
+enrichment number alone."
+
+**Composition at 123 systems** (enrichment = residual share ÷ population share; 1.00× is the null):
+
+| class | residual share | atom share | **enrichment** | IQR |
+|---|---|---|---|---|
+| backbone | 8.3% | 25.5% | **0.33×** | [0.28, 0.41] |
+| side chain | 91.7% | 74.5% | 1.23× | [1.21, 1.25] |
+| **side chain + exposed** | **58.8%** | 38.0% | **1.54×** | [1.43, 1.66] |
+| buried | 34.9% | 50.2% | 0.69× | [0.60, 0.80] |
+| hydrophobic | 41.8% | 45.8% | 0.92× | [0.84, 0.99] |
+
+**Most enriched residue types**, median over the systems containing each (101e's count fix — a plain
+median over NaN previously printed `nan`): **ARG 1.34× (n=120), LYS 1.19× (n=119), HIS 1.14×
+(n=115), GLN 1.14× (n=116)**. Long, flexible, charged side chains — chemically coherent rather than
+an artefact of the classing.
+
+**So both halves now hold:** the residual is **concentrated on a chemical class** (1.54×, tight
+across systems at sd 2.7 points) **and it is slow** (0.68× the collective timescale). SEM is
+motivated on evidence rather than on analogy to image models.
+
+**One bound that stays on the line:** this is the **ascending** pass. The descending pass
+(`rescompD`) is running, and exposed-surface fraction falls with N by surface-to-volume — which is
+the regressor the enrichment is defined against — so the two passes' union is what settles whether
+1.54× holds at the large end.
