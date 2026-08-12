@@ -6490,3 +6490,96 @@ motivated on evidence rather than on analogy to image models.
 (`rescompD`) is running, and exposed-surface fraction falls with N by surface-to-volume — which is
 the regressor the enrichment is defined against — so the two passes' union is what settles whether
 1.54× holds at the large end.
+
+---
+
+## ⬛ 115a: milestone 2c is UNDER-POWERED, not instrument-less — `trans` is a working temporal discriminator
+
+**This corrects "2c has no working instrument", which was too pessimistic and rested on a reading of
+the verdict rule rather than of the statistic.** 112b saw `SHUFFLE 10/11, failing only iat` on two
+gate systems and concluded that `trans` does not discriminate and `iat` carries the entire temporal
+signal. Read through the paired rule on all 24 held-out systems:
+
+| metric | n_pos/n | ties | sign p | wilcoxon p | median diff | overlap caught |
+|---|---|---|---|---|---|---|
+| **trans** | **23/23** | 1 | **0.0000** | **0.0000** | **+205.88** | **0/24** |
+| iat | 0/24 | 0 | 0.0000 | 0.0000 | −18.67 | 24/24 |
+| the other nine | 0/0 | **24** | 1.0000 | 1.0000 | 0.0000 | 0/24 |
+
+**`trans` fires against the shuffle on 23 of 23 untied systems, at a median shift of +205.9** —
+independently recovering 112a's measured `231.37 → 713.73`, **+208%**. It failed to flag the shuffle
+in 112b because the *verdict* was per-system interval overlap, which caught **0/24 here** and which
+113d had already measured as catching 0/24 at a 3.7× timescale error. **The metric was never the
+problem. The rule was, and it is the rule 113d replaced.**
+
+**The shuffle scores 9/11 under the paired rule, exactly as 115a predicted before the run**, with
+`trans` firing. So there are **two** working temporal discriminators, not one, and the nine static
+metrics come back **ALL TIED** — which converts 112a's asserted invariance ("corrcoef, moments and
+histograms are order-blind") into a measured one across 24 systems.
+
+### The run that produced this also found a defect in the paired rule itself
+
+`(d > 0).sum()` counts an **exact zero as a negative**. A difference vector of 24 zeros therefore
+gives `n_pos = 0` and `binomtest(0, 24, 0.5) = 1.2e-07` — **the most extreme p obtainable, on 24
+identical numbers.** Before the fix, nine of the eleven metrics "fired" against the shuffle:
+
+    js       all 24 differences EXACTLY 0.0                    sign p = 0.0000
+    xcorr    max |diff| 1.1e-16 vs reference value 0.229       sign p = 0.0066
+    amp      max |diff| 2.8e-17 vs reference value 0.137       sign p = 0.0000
+
+**The tolerance is not a new knob:** 108.1 already fixed `|rel| < 1e-6` as this project's meaning of
+"this statistic did not move", and that threshold is what `paired()` now applies, dropping ties and
+reporting the count (Wilcoxon's own convention).
+
+**AUDITED AGAINST EVERYTHING ALREADY REPORTED, AND NOTHING IS INVALIDATED.** `lv_r8` has **zero ties
+on all eleven metrics**, so no headline number moves. `latent_video_onestep`'s `trans` has one tie
+and goes p 0.0227 → 0.0106 — the same verdict. **The defect can only bite where the true difference
+is zero**, which is why the SHUFFLE — the first arm whose metrics are invariant *by construction* —
+is what exposed it, and why no model arm ever could.
+
+**Wilcoxon was immune to it throughout** (p = 0.30, 0.18, nan on the three above), because
+`zero_method="wilcox"` drops exact zeros. The test pre-registered in 115c for its power turns out to
+be the safer one as well — not the reason it was chosen, and worth recording as such.
+
+---
+
+## ⬛ 115d: the 3.009 Å baseline IS the floor, and the floor is buyable with rank
+
+**A label of mine was wrong.** `rec_meas = ((C / sd_meas) * sd_meas) @ V.T + mu` is algebraically
+`C @ V.T + mu` — **the rank-64 projection of the true frames, with no generative model in it at
+all.** Calling it "RMSD with measured sigma" implied one was involved. The row is now `rmsd_floor`
+and the identity is asserted in code so the two names cannot drift apart again.
+
+So 115d's floor **was already the baseline**, and it is 100% of it. **Milestone 4's demo is capped at
+~3 Å by ANM truncation regardless of the generator or of where σ comes from.** But that raises the
+question neither of 115d's two readings covers — **is the floor buyable?**
+
+| K | median floor RMSD | vs previous |
+|---|---|---|
+| 8 | 3.873 Å | |
+| 16 | 3.655 Å | −5.7% |
+| 32 | 3.456 Å | −5.4% |
+| **64** | **3.009 Å** | **−12.9%** |
+| 128 | 2.678 Å | −11.0% |
+| 256 | 2.318 Å | −13.5% |
+
+**It falls steadily and does not plateau** — so 3 Å is a *choice of K*, not a limit of the linear ANM
+subspace. And that gives the sharpest available reading of the σ penalty, in units the project
+already uses: **predicted σ at rank 64 (3.537 Å) is worse than the measured-σ floor at rank 32
+(3.456 Å).** The σ error costs more than halving the rank.
+
+*(4-system smoke; the 24-system run is `predsigma`.)*
+
+---
+
+## ⬛ 115b: `kurt` is a fourth confirmation of the variance tilt, not only a ruling-out
+
+I read `kurt` at p = 0.0066, median **−0.0351** as ruling out the heavy-tail route to an inflated
+`E|·|`. It does. But the more useful reading is that it is **positive evidence for the tilt**: 98c
+found real metastable states on **40/40** systems, and it is the **slow** ANM modes that visit them,
+so their marginals are bimodal and **heavy**-tailed, while fast modes are near-Gaussian thermal
+noise. **A slow→fast variance tilt lowers excess kurtosis**, which is the sign measured.
+
+Six observations, one mechanism: `xcorr` low, `trans` high, `iat` short (7/24, −2.2269), `kurt`
+light (5/24, p = 0.0066), CA spacing long, `std` flat (blind to a tilt *and* 5.6× underpowered).
+`10351118` confirms or kills it; **flat blocks mean all six need separate explanations.**

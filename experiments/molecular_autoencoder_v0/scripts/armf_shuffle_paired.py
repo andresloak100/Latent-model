@@ -37,6 +37,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 from armf_latent_video_run import (prepare, segments, stats_ext, XMETRICS, K, T, RGRP, DLAT,
                                    KEVAL, NEVAL)
 from armf_propagator import band, consistent, MIN_H
+from armf_paired_verdict import paired
 from armf_atlas_data import AtlasStore
 import armf_atlas_dm as D
 import armf_io
@@ -88,24 +89,24 @@ if __name__ == "__main__":
 
     if not rows: raise SystemExit("  nothing scored")
     print(f"\n=== 115a: SHUFFLE, per-system OVERLAP vs the PAIRED rule ({len(rows)} systems) ===")
-    print(f"  {'metric':>13}{'n_pos/n':>10}{'sign p':>10}{'wilcoxon p':>12}{'skew':>8}"
+    print(f"  Ties are dropped at 108.1's own |rel| < 1e-6 -- see armf_paired_verdict.paired(). The")
+    print(f"  UNFIXED sign test fired on nine of these metrics at differences of 1e-16, because it")
+    print(f"  counted an exact zero as a negative. This arm is what exposed that.")
+    print(f"  {'metric':>13}{'n_pos/n':>10}{'ties':>6}{'sign p':>10}{'wilcoxon p':>12}{'skew':>8}"
           f"{'median diff':>14}{'overlap caught':>16}  time?")
-    fired_overlap, fired_paired = 0, 0
+    fired_paired = 0
     for m in XMETRICS:
         d = np.array([r["med"][m] - r["ref_med"][m] for r in rows.values()])
+        ref = [r["ref_med"][m] for r in rows.values()]
         caught = sum(1 for r in rows.values() if not r["inside"][m])
-        npos = int((d > 0).sum())
-        p_sign = st.binomtest(npos, len(d), 0.5).pvalue
-        try: p_wil = float(st.wilcoxon(d, zero_method="wilcox").pvalue)
-        except ValueError: p_wil = 1.0
-        sk = float(st.skew(d))
+        npos, nk, p_sign, p_wil, sk, skewed, nt = paired(d, ref)
         # 115c's rule, fixed in advance: |skew| > 1 and the sign test governs.
-        p = p_sign if abs(sk) > 1.0 else p_wil
-        if caught > len(d) / 2: fired_overlap += 1
+        p = p_sign if skewed else p_wil
         if p < 0.05: fired_paired += 1
         note = "  <-- PAIRED FIRES, overlap did not" if (p < 0.05 and caught == 0) else ""
-        if abs(sk) > 1.0: note += "  [SKEWED: sign test governs]"
-        print(f"  {m:>13}{f'{npos}/{len(d)}':>10}{p_sign:>10.4f}{p_wil:>12.4f}{sk:>8.2f}"
+        if skewed: note += "  [SKEWED: sign test governs]"
+        if nt == len(d): note += "  [ALL TIED: invariant by construction]"
+        print(f"  {m:>13}{f'{npos}/{nk}':>10}{nt:>6}{p_sign:>10.4f}{p_wil:>12.4f}{sk:>8.2f}"
               f"{np.median(d):>14.4f}{f'{caught}/{len(d)}':>16}  "
               f"{'TIME' if m in TIME_AWARE else 'static'}{note}")
     print(f"\n  SHUFFLE passes {len(XMETRICS)-fired_paired}/{len(XMETRICS)} under the PAIRED rule")

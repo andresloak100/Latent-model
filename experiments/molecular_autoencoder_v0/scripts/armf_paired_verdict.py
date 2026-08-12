@@ -68,17 +68,41 @@ def load(p):
     return d.get("rows", d)
 
 
-def paired(d):
+def paired(d, ref=None):
     """Both tests on one set of per-system differences, plus the symmetry check that decides which
-    governs. Returned together so a caller cannot take the signed-rank p without its skew."""
-    npos = int((d > 0).sum())
-    p_sign = st.binomtest(npos, len(d), 0.5).pvalue
+    governs. Returned together so a caller cannot take the signed-rank p without its skew.
+
+    115a FOUND A DEFECT IN THE SIGN TEST AS 113d INSTALLED IT: `(d > 0).sum()` counts an EXACT ZERO
+    as a negative, so a difference vector of all zeros gives n_pos = 0 and binomtest(0, 24, 0.5) =
+    1.2e-07 -- the most extreme p obtainable, on 24 identical numbers. It surfaced on the SHUFFLE
+    arm, where 9 of 11 metrics are invariant to row permutation BY CONSTRUCTION, so their true
+    difference is zero and the observed one is float rounding: xcorr fired at p = 0.0066 on a
+    difference of 1.1e-16 against a reference value of 0.229.
+
+    THE TOLERANCE IS NOT A NEW KNOB. 108.1 already fixed |rel| < 1e-6 as this project's meaning of
+    "this statistic did not move", and that is the threshold applied here. Ties are DROPPED and their
+    count reported, which is Wilcoxon's own convention, so the test is run on the differences that
+    exist rather than on rounding noise.
+
+    AUDITED AGAINST EVERYTHING ALREADY REPORTED: lv_r8 has ZERO ties on all eleven metrics, so no
+    headline number changes. latent_video_onestep's `trans` has one tie and moves p 0.0227 -> 0.0106,
+    the same verdict. Nothing on the record is invalidated by this fix.
+    """
+    d = np.asarray(d, dtype=float)
+    scale = np.maximum(np.abs(np.asarray(ref, dtype=float)), 1e-12) if ref is not None else 1.0
+    keep = np.abs(d) > 1e-6 * scale
+    nt = int((~keep).sum())
+    k = d[keep]
+    if len(k) == 0:                        # every difference is a tie: invariant, not significant
+        return 0, 0, 1.0, 1.0, float("nan"), False, nt
+    npos = int((k > 0).sum())
+    p_sign = st.binomtest(npos, len(k), 0.5).pvalue
     try:
-        p_wil = float(st.wilcoxon(d, zero_method="wilcox").pvalue)
-    except ValueError:                     # all differences zero
+        p_wil = float(st.wilcoxon(k, zero_method="wilcox").pvalue)
+    except ValueError:
         p_wil = 1.0
-    sk = float(st.skew(d))
-    return npos, p_sign, p_wil, sk, (abs(sk) > 1.0)
+    sk = float(st.skew(k)) if len(k) > 2 else float("nan")
+    return npos, len(k), p_sign, p_wil, sk, (abs(sk) > 1.0 if sk == sk else False), nt
 
 
 if __name__ == "__main__":
@@ -99,20 +123,20 @@ if __name__ == "__main__":
         print(f"  PRIMARY VERDICT: {'WILCOXON signed-rank (115c)' if WIL else 'SIGN TEST'}"
               f"{'; sign test beside it as the conservative check' if WIL else ''}")
         head = f"{'wilcoxon p':>12}{'skew':>8}" if WIL else ""
-        print(f"  {'arm':>10}{'metric':>13}{'n_pos/n':>10}{'sign p':>10}{head}"
+        print(f"  {'arm':>10}{'metric':>13}{'n_pos/n':>10}{'ties':>6}{'sign p':>10}{head}"
               f"{'median diff':>14}{'overlap caught':>16}  time?")
         for arm in arms:
             if arm == "OU": continue
             for m in XMETRICS:
-                d, caught = [], 0
+                d, ref, caught = [], [], 0
                 for r in rows.values():
                     a = r["arms"].get(arm, {})
                     if m not in a.get("med", {}) or m not in r.get("ref_med", {}): continue
-                    d.append(a["med"][m] - r["ref_med"][m])
+                    d.append(a["med"][m] - r["ref_med"][m]); ref.append(r["ref_med"][m])
                     if not a.get("inside", {}).get(m, True): caught += 1
                 if len(d) < 4: continue
                 d = np.array(d)
-                npos, p_sign, p_wil, sk, skewed = paired(d)
+                npos, nk, p_sign, p_wil, sk, skewed, nt = paired(d, ref)
                 # 115c: where the differences are badly skewed the signed-rank assumption fails and
                 # the SIGN TEST governs, decided by |skew| > 1 fixed in advance.
                 p = p_wil if (WIL and not skewed) else p_sign
@@ -120,8 +144,9 @@ if __name__ == "__main__":
                 star = " <-- paired test fires where overlap did not" \
                     if (p < 0.05 and caught == 0) else ""
                 if WIL and skewed: star += " [SKEWED: sign test governs]"
+                if nt == len(d): star += " [ALL TIED: invariant, not significant]"
                 extra = f"{p_wil:>12.4f}{sk:>8.2f}" if WIL else ""
-                print(f"  {arm:>10}{m:>13}{f'{npos}/{len(d)}':>10}{p_sign:>10.4f}{extra}"
+                print(f"  {arm:>10}{m:>13}{f'{npos}/{nk}':>10}{nt:>6}{p_sign:>10.4f}{extra}"
                       f"{np.median(d):>14.4f}{f'{caught}/{len(d)}':>16}  {flag}{star}")
         print(f"\n  The paired test uses each system's DIFFERENCE from its own reference, so 77a's"
               f"\n  same-length one-estimator discipline is untouched; only the ACROSS-SYSTEM"

@@ -12,6 +12,20 @@ sigma COSTS IN ANGSTROMS on held-out systems: if the per-system reconstruction i
 unchanged, the pipeline is zero-shot FOR THIS PURPOSE whatever r says; if it degrades materially,
 "needs a short simulation" is established rather than inferred.
 
+INBOX 115d, AND IT CORRECTS A LABEL OF MINE. 115d asks for the rank-64 reconstruction of TRUE frames
+as a floor beneath the 3.009 A baseline. That floor was already the baseline and I had mislabelled
+it: `rec_meas = ((C / sd_meas) * sd_meas) @ V.T + mu` is algebraically `C @ V.T + mu`, the rank-64
+projection of the true frames, with NO generative model anywhere in it. Calling it "RMSD with
+measured sigma" implied a model was involved. The row is renamed `rmsd_floor` and the identity is
+asserted in code, so the two names cannot drift apart again.
+
+That makes 115d's second reading the one that holds: the floor is the WHOLE of the 3.009 A, so the
+sigma penalty is an increment on top of a truncation error that is already 3 A. Milestone 4's demo
+is capped there regardless of the generator or of where sigma comes from -- which raises the
+question 115d's two readings do not cover: IS the floor buyable? So the floor is swept over
+K = 8..256 on the same frames and the same basis. If it falls steeply, 3 A is a K choice; if it
+plateaus, 3 A is what a linear ANM subspace can represent and no amount of K fixes it.
+
 108.1's PRE-REGISTERED BUG CHECK APPLIES HERE AND IS RUN. A sigma error is a per-mode SCALE, so it
 MUST move std, js and trans and MUST leave xcorr, amp, kurt and iat unchanged to |rel| < 1e-6 --
 not to zero, because kurt sits at 1.1e-08 from float reassociation. If xcorr or amp moves, there is
@@ -33,6 +47,9 @@ NEVAL = int(os.environ.get("PS_NEVAL", "24"))
 NFRAME = int(os.environ.get("PS_NFRAME", "400"))
 RES = os.environ.get("PS_RES", f"{WR}/predicted_sigma.json")
 kT = 0.593
+# 115d: the floor sweep. KMAX bounds the one basis every rank is sliced from.
+KSWEEP = [int(x) for x in os.environ.get("PS_KSWEEP", "8,16,32,64,128,256").split(",")]
+KMAX = max(KSWEEP + [K])
 
 
 def ca_index(pdb, N):
@@ -53,8 +70,12 @@ if __name__ == "__main__":
     for i, p in enumerate(ho, 1):
         try:
             d = sysdata(store, have[p])
-            V, _, _ = anm_modes(d["ref"], K, CUTOFF)
-            if V is None: continue
+            # 115d: one basis computed at KMAX and sliced, so every rank in the sweep is the SAME
+            # modes truncated -- a rank-k row is not a separately-fitted basis.
+            kmax = min(KMAX, 3 * d["N"] - 6)
+            Vmax, _, _ = anm_modes(d["ref"], kmax, CUTOFF)
+            if Vmax is None: continue
+            V = Vmax[:, :K]
             H = hessian(d["ref"], CUTOFF)
             lam = np.clip([float(V[:, k] @ (H @ V[:, k])) for k in range(V.shape[1])], 1e-12, None)
             a = np.load(d["path"], mmap_mode="r")
@@ -70,8 +91,19 @@ if __name__ == "__main__":
             rec_meas = ((C / sd_meas) * sd_meas) @ V.T + d["mu"]
             rec_pred = ((C / sd_meas) * sd_pred) @ V.T + d["mu"]
             truth = X + d["mu"]
-            e_meas = float(np.sqrt(((rec_meas - truth) ** 2).reshape(len(X), -1, 3).sum(-1).mean()))
-            e_pred = float(np.sqrt(((rec_pred - truth) ** 2).reshape(len(X), -1, 3).sum(-1).mean()))
+
+            def rmsd(P):
+                return float(np.sqrt(((P - truth) ** 2).reshape(len(X), -1, 3).sum(-1).mean()))
+
+            e_meas = rmsd(rec_meas)
+            e_pred = rmsd(rec_pred)
+            # 115d: the measured-sigma round trip IS the rank-K reconstruction of true frames --
+            # ((C/sd)*sd) @ V.T is C @ V.T. Asserted so the floor and the baseline cannot drift into
+            # two names for one number again.
+            assert abs(rmsd(C @ V.T + d["mu"]) - e_meas) < 1e-6 * max(e_meas, 1e-12)
+            # IS THE FLOOR BUYABLE? Same frames, same basis, rank truncated.
+            sweep = {k: rmsd((X @ Vmax[:, :k]) @ Vmax[:, :k].T + d["mu"])
+                     for k in KSWEEP if k <= kmax}
             ca = ca_index(p, d["N"])
             def span(P):
                 if ca is None or len(ca) < 2: return float("nan")
@@ -86,10 +118,11 @@ if __name__ == "__main__":
             A = stats_of(Cw[:256], top2, thr, Cw)
             B = stats_of((Cw * (sd_pred / sd_meas))[:256], top2, thr, Cw)
             moved = {m: abs(B[m] - A[m]) / max(abs(A[m]), 1e-30) for m in METRICS}
-            rows[p] = dict(N=d["N"], rmsd_meas=e_meas, rmsd_pred=e_pred,
+            rows[p] = dict(N=d["N"], rmsd_floor=e_meas, rmsd_meas=e_meas, rmsd_pred=e_pred,
+                           kmax=kmax, sweep={str(k): v for k, v in sweep.items()},
                            ca_truth=span(truth), ca_meas=span(rec_meas), ca_pred=span(rec_pred),
                            moved=moved)
-            print(f"  [{i}/{len(ho)}] {p:10s} N={d['N']:>6}  RMSD measured-sigma {e_meas:6.3f} A  "
+            print(f"  [{i}/{len(ho)}] {p:10s} N={d['N']:>6}  rank-{K} FLOOR {e_meas:6.3f} A  "
                   f"predicted-sigma {e_pred:6.3f} A  ({e_pred-e_meas:+.3f})  "
                   f"({time.time()-t0:.0f}s)", flush=True)
         except Exception as e:
@@ -100,10 +133,21 @@ if __name__ == "__main__":
     em = np.array([r["rmsd_meas"] for r in rows.values()])
     ep = np.array([r["rmsd_pred"] for r in rows.values()])
     print(f"\n=== 109c: WHAT PREDICTED SIGMA COSTS ({len(rows)} systems) ===")
-    print(f"  RMSD with MEASURED sigma : median {np.median(em):.3f} A")
-    print(f"  RMSD with PREDICTED sigma: median {np.median(ep):.3f} A")
+    print(f"  rank-{K} reconstruction of TRUE frames (THE FLOOR): median {np.median(em):.3f} A")
+    print(f"    -- 115d: this IS the measured-sigma row. ((C/sd)*sd) @ V.T is C @ V.T, so no")
+    print(f"       generative model enters it. The old label 'RMSD with measured sigma' implied one.")
+    print(f"  same frames, PREDICTED sigma                     : median {np.median(ep):.3f} A")
     print(f"  cost: {np.median(ep-em):+.3f} A median, {100*np.median((ep-em)/em):+.1f}% relative; "
           f"worse on {100*(ep>em).mean():.0f}% of systems")
+    print(f"\n  115d: IS THE FLOOR BUYABLE? Same frames, one basis, rank truncated:")
+    prev = None
+    for k in KSWEEP:
+        v = [r["sweep"][str(k)] for r in rows.values() if str(k) in r.get("sweep", {})]
+        if not v: continue
+        med = float(np.median(v))
+        drop = f"{100*(prev-med)/prev:+6.1f}% vs previous" if prev else "".ljust(21)
+        print(f"    K={k:>4}  median RMSD {med:6.3f} A   {drop}   ({len(v)}/{len(rows)} systems)")
+        prev = med
     print(f"\n  108.1 PRE-REGISTERED BUG CHECK -- a per-mode scale MUST move std/js/trans and MUST")
     print(f"  leave xcorr/amp/kurt/iat below |rel| < 1e-6:")
     for m in METRICS:
