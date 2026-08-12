@@ -6638,3 +6638,85 @@ the whole reason 116.1 asks for the pair. *(`4ued_B` only, at 10 sampling steps 
 headline.** Copied to `latent_video_ckpt_joint_r8.pt` — verified genuinely R=8, `net.inp.weight` is
 (256, 8) — and `CKPT` now carries `_r{RGRP}`. The same "one name, two things", this time in a
 filename.
+
+---
+
+## ⬛ 117: coverage is count-dependent, the FLOOR is not a resample, and REF is a TWO-SIDED target
+
+**117.1 — reproduced independently before the redesign was trusted.** A perfect model (same
+distribution both sides, K=64, ANM-like spectrum, 2,000 reference frames), varying only `n_gen`:
+
+| n_gen | coverage | fidelity |
+|---|---|---|
+| 10 | 2.3805 | 1.8366 |
+| 100 | 2.1040 | 1.8692 |
+| 1000 | 1.9259 | 1.8797 |
+| 3200 | 1.8475 | 1.8784 |
+
+**Coverage falls 22.4% on sample count alone; fidelity moves 2.3%.** Structural: coverage is a mean
+over reference frames of the min distance to the generated *set*, so every extra frame can only help,
+while fidelity averages a per-frame quantity and the count divides out.
+
+**Checked against the smoke rather than assumed: `n_gen` was already matched at 128 on all four arms,
+so the 12% coverage gap was not a count artefact** — but it was inferred from code, not reported, so
+`n_gen` is now a printed per-arm column and fidelity is labelled count-invariant.
+
+**The 3.912 Å FLOOR coverage was never an inversion, and not for the reason offered.** `4ued_B`'s
+*own* paired `rmsd_floor` is **5.103 Å** — the 3.009 Å was a 4-system median. A nearest-neighbour
+distance below a paired one on the same frames is required, and 3.912 < 5.103 holds.
+
+### 117.3 — REF, and a guard the arm needs
+
+**REF** = replica 1 subsampled to `n_gen`, scored against replica 2. Two independent replicas are two
+independent samples of the same dynamics — what a perfect generator produces. FLOOR and SHUFFLE are
+built from **the same replica-1 frames**, so three arms differ from each other by exactly one thing.
+
+**But REF is only a meaningful bar where the replicas sample the same region, and on `4ued_B` they do
+not:**
+
+| | 4ued_B | 7lp1_A |
+|---|---|---|
+| mean(rep1) vs mean(rep2), as stored | 9.586 Å | 1.719 Å |
+| **after Kabsch superposition** | **8.939 Å** | 1.696 Å |
+| within-replica spread | 7.571 Å | 2.781 Å |
+| pooled `mu` vs mean(rep2) | 8.849 Å | 1.490 Å |
+
+**Not rigid-body — superposition removes 0.65 Å of 9.59 Å.** The replicas genuinely occupy different
+regions, further apart than one replica is wide. On such a system a null centred on the pooled `mu`
+(8.849 Å from replica 2's mean) covers replica 2 **better than replica 1's own mean does** (9.586 Å),
+so **OU can beat a perfect generator by blurring to the centre.** Recorded per system, with the count
+of systems where separation exceeds spread, so an anomalous median can be read off rather than
+inferred. *(Both smokes were run on `4ued_B` — the pathological system, chosen by being first.)*
+
+### REF is a TWO-SIDED target, and the first draft of the summary got this wrong
+
+"% of the way from REF to OU" assumes the null is the far end. **OU's fidelity came out BELOW REF's**,
+because an OU centred on the pooled mean sits closer to every reference frame than a real independent
+sample does. Scoring below REF is therefore **not "better than perfect" — it is under-dispersion.**
+A perfect generator *matches* REF on both sides, so the reported quantity is the signed deviation:
+
+| arm | coverage − REF | fidelity − REF |
+|---|---|---|
+| FLOOR | −0.288 Å | −0.340 Å |
+| OU | −2.075 Å | −0.498 Å |
+| **JOINT** | **−0.444 Å** | **−0.645 Å** |
+
+**FLOOR is under-dispersed too**, because the rank-64 projection strips variance orthogonal to the
+ANM span. So JOINT's −0.645 Å reads against the decode's own −0.340 Å: **the model contributes about
+0.31 Å of additional collapse beyond what the decode already causes.** *(2-system, 8-step smoke;
+`10352325` runs 24 systems at 50 steps.)*
+
+### 117.4 — the suite is three tiers, and the third is time-blind
+
+`shuffle_delta` is **exactly 0.000e+00** across systems and budgets: SHUFFLE is REF's frames
+permuted, and a set metric returns identical numbers. **This required a fix — permuting before
+subsampling selected a different subset (delta 1.6e-01), so the control was measuring the subsample
+rather than the time order.** Permuting the already-subsampled frames is the invariance being tested.
+
+    nine time-blind distributional metrics
+    TWO time-sensitive: iat, trans
+    coverage / fidelity -- ALSO time-blind
+
+Coverage and fidelity **do** see cross-mode coupling, so they are a genuine addition on the
+**conformational** axis. They see nothing about ordering. **The temporal claim rests entirely on
+`iat` and `trans`, however this pair comes out.**
