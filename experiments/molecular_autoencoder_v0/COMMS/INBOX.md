@@ -10197,3 +10197,134 @@ being deferred a fourth time behind the more expensive half.
 - **`10352187` cancelled while still PENDING** because the arm set changed, and `10352325` picking up
   every fix before starting. Cancelling your own pending job costs nothing and is the cheapest
   correction available; taking it is still a choice.
+
+---
+
+## 119. Separate global mechanics from local chemistry — a reference origin and a deliberately SMALL local residual decoder
+
+This is an architectural item, not a poll response. It does not disturb anything running: 119a and
+119b are CPU-only and 119c is a build to be written and self-tested while the GPU queue drains.
+
+### 119a. The diagnosis: atoms are wrong before the generator does anything
+
+    true frames                3.842 A CA-CA
+    mu alone                   3.299 A     -14.1%
+    rank-64 reconstruction     3.566 A      -7.2%
+
+The decode is the bottleneck, not the model. **And a correction to how I first put this:** a rank-64
+linear subspace **can approximate** bond constraints; what it cannot do is **enforce** them. The
+distinction matters, because it is the difference between "raise K until it is close enough" — which
+buys RMSD with stiffer, more `CUTOFF`-dependent modes and still enforces nothing — and "add a term
+whose job is the constraint". The evidence supports testing a **nonlinear, local correction**, not
+assuming rank fixes chemistry.
+
+### 119b. Stop using `mu` as the origin, and measure what that costs
+
+`mu` is the mean of a fluctuating trajectory, and averaging contracts distances — the entire −14.1%.
+The mean structure is **not a valid conformation**, so every generated structure inherits broken local
+geometry from its origin.
+
+Use `X_ref` — the structure ANM already builds its contact graph from, which makes the decode
+internally consistent for the first time.
+
+**State the trade rather than selling it: `mu` is L2-optimal for RMSD and pessimal for chemistry.**
+Switching origins may cost RMSD. Measure both, at matched rank, and report the cost. If it is large,
+that is a finding about how far the frames sit from the reference, not a reason to go back.
+
+### 119c. The architecture
+
+    X_t  =  X_ref  +  V a_t  +  f_theta( a_t , sequence , local graph , X_ref )
+
+- `X_ref` — a chemically valid origin;
+- `V a_t` — ANM supplies global collective deformation, free and zero-shot;
+- `f_theta` — learns **only** the atom-level residual ANM cannot reconstruct;
+- `a_{1:T}` remains the temporal generator's job, unchanged.
+
+Global mechanics from physics, local chemistry from learning, instead of one network rediscovering
+both. Initialise `f_theta` to zero so it is provably no worse than linear at the start and its
+contribution is measurable rather than entangled.
+
+**The evidence that `f_theta` has something to learn is already on the record** — 106d: the
+ANM-orthogonal residual is concentrated on **exposed side chains** (1.54x, tight at sd 2.7 points
+across all 123 systems), enriched in ARG/LYS/HIS/GLN, and **slow** (0.679, rising to 0.713 with the
+ceiling-pinned systems excluded). Chemically identifiable, spatially concentrated, not thermal noise.
+
+### 119d. The comparison, and the one thing that makes it clean
+
+Three decode arms, **at identical ANM rank and fed IDENTICAL generated coefficients**:
+
+    1  linear decode, mu origin                    (what exists)
+    2  linear decode, X_ref origin                 (119b alone)
+    3  X_ref origin + learned residual             (119c)
+
+**Cache `a_t` once and decode it three ways.** If each arm regenerates its own coefficients the
+comparison is family F and measures the generator's sampling noise as much as the decode.
+
+**And run the panel twice**, because training on true coefficients and applying to generated ones is a
+distribution shift — generated `a_t` are under-coupled and possibly tilted:
+
+    f_theta on TRUE a_t        the decode's own ceiling
+    f_theta on GENERATED a_t   what the pipeline actually delivers
+
+A large gap means `f_theta` is brittle to the generator's known defects, which is worth discovering
+before it is built into the chain rather than after.
+
+### 119e. Evaluate chemistry, not Cartesian RMSD
+
+RMSD is currently the only atom-level number and it is the one least able to express the failure.
+The panel, all standard and all cheap, each reported for **true frames** and for **`X_ref`** so every
+row has a floor:
+
+    bond-length error        by bond type, mean AND worst
+    bond-angle error         same
+    steric clashes           COUNT of non-bonded pairs inside contact, not a mean distance --
+                             a mean looks fine with fifty severe clashes
+    backbone torsions        Ramachandran validity fraction
+    chirality                count of inverted centres, which is a hard error not a soft one
+    contact preservation     two-sided: reference contacts KEPT, and spurious contacts CREATED
+    per-atom error           distribution, so it can be crossed with 106d's atom classes
+
+Counts, not means, wherever the failure is a discrete violation.
+
+### 119f. The safeguard, and it is the most important line here
+
+**Do not let `f_theta` become another full molecular model in disguise.** Pre-register both budgets as
+numbers, before training:
+
+- **parameter budget**: `f_theta` <= 1M, about a tenth of the generator's 10,009,864;
+- **receptive field**: strictly local — atoms within a fixed radius in `X_ref`'s contact graph, or a
+  fixed sequence window — and **no global attention**.
+
+Then run the ablation that tests the safeguard directly: `f_theta` at **local vs global** receptive
+field, and at the budget vs 10x it. Declare the readings in advance:
+
+    local + small WORKS          global dynamics from physics, local atomic correction from learning
+                                 -- the result worth having
+    needs global + large         you have rebuilt the codec that 102c already retired, and the honest
+                                 conclusion is that the split does not exist
+
+The second is a real possible outcome and should be written down as one now.
+
+### 119g. Pre-registration, in the separate-commit form
+
+> **At matched ANM rank and on held-out proteins, the residual decoder must materially improve
+> atom-level chemical validity over the `X_ref`-origin linear decoder, without degrading the
+> dynamical quantities carried by the ANM coefficients. Improvements confined to aligned RMSD do not
+> count as validation.**
+
+Commit that before `f_theta` trains, the way `b1e2d73a` and `4e57beac` were. The second clause is the
+one that will be tempting to soften: a residual that fixes bonds by damping the collective motion has
+traded the thing the project is about for the thing it is measuring, and the coefficient-level metrics
+must be re-run after decode to catch it.
+
+### 119h. Two things this item deliberately does not do
+
+- **SEM stays behind this.** The same 106d side-chain evidence motivates both, but the residual
+  decoder attacks a **demonstrated** bottleneck — atoms coming out geometrically wrong — while SEM
+  introduces a new latent representation and does not automatically fix that. Order by demonstrated
+  failure, not by which idea is more interesting.
+- **No priority claim.** I earlier described "physics basis plus learned decode" as something nobody
+  is doing. **That is a literature claim and it has not been checked**, so it goes nowhere near a
+  report, a README or a deck until someone has searched properly. The architecture is supported by
+  our own measurements regardless of who else has built it, and that is the only justification it
+  needs here.
