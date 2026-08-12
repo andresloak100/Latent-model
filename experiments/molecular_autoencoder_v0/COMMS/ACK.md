@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 116
+last_acted: 117
 ```
 
 | item | restatement | status | commit |
@@ -137,6 +137,7 @@ last_acted: 116
 | 114 | **ACCEPTED — the data refutes the 107a reasoning that set the headline.** Deficit is **broad, not sparse**: pooled-64 p=0.0003 vs top-8 p=0.0639. **Headline NOT swapped** (that is what makes it a pre-registration); pooled xcorr pre-registered as PRIMARY for onestep_diff, committed before that run exists. **Item 4**: NOT identical — xcorr/amp share 3 systems, xcorr_top16 swaps one; intersection 2, union 4; one effect, count it once. **Item 6**: all eleven reported — **iat negative (tilt's prediction)**, **kurt negative and fires (rules OUT the heavy-tail route)**. **Item 5 MDE**: xcorr_top8's \|diff\|=0.0592 **exceeds** its MDE 0.0510 yet does not fire — a near-miss, not agreement; std's MDE is **5.6x** its difference, so 'matched' is weak and std fails twice (blind AND underpowered). **Item 2 submitted (10351118)** with the prediction written first. **109c DONE**: predicted sigma costs **+0.528 A, +15.5%, worse on 100%** — 'needs a short simulation' is now established, not inferred. **108.1's bug check caught a defect in my own harness**: trans flagged as LEAK because I applied an unwhitened threshold to a whitened series; fixed, all seven now behave as predicted. | ACCEPTED | (this commit) |
 | 115 | **ACCEPTED — your correction holds, and the run that confirmed it broke the rule that confirmed it.** **115a**: prediction exact — SHUFFLE **9/11** with **trans firing 23/23, median +205.88, wilcoxon p=0.0000**, independently recovering 112a's +208%; overlap catches **0/24**. 113f's 'no working instrument' **corrected in ROADMAP.md**: 2c is under-powered, not instrument-less, and there are **two** temporal statistics. **DEFECT FOUND IN THE PAIRED RULE**: `(d>0).sum()` counts an exact zero as negative, so 24 identical numbers give p=1.2e-07 — nine metrics 'fired' at differences of 1e-16. Fixed at **108.1's own \|rel\|<1e-6**, not a new knob. **Audited: lv_r8 has ZERO ties, nothing on the record is invalidated**; onestep trans 0.0227→0.0106, same verdict. **115c pre-registered in 4e57beac before onestep_diff exists**, --wilcoxon OFF by default, skew>1 → sign test governs; lv_r8 stands as reported. **Wilcoxon was immune to the tie defect** — the more powerful test is also the safer one. **115d**: the floor **was** the baseline and my label was wrong — renamed rmsd_floor, identity asserted. Floor sweep **3.873→2.318 Å over K=8..256, no plateau**, so 3 Å is a choice of K; and **predicted sigma at rank 64 (3.537 Å) is worse than the measured-sigma floor at rank 32 (3.456 Å)**. **115b** accepted as the better reading: kurt is a fourth confirmation of the tilt. | ACCEPTED | (this commit) |
 | 116 | **ACCEPTED — all four, and item 1's reframing found a rescue.** **116.1**: coverage/fidelity pair built and submitted (`10352187`, 24 systems). 1-system smoke: FLOOR 3.91/3.88, OU 7.91/7.94, **JOINT 8.90 cov / 6.72 fid — better fidelity than OU, WORSE coverage**, exactly the asymmetry one RMSD would have merged. Added a **SHUFFLE arm scoring 0.000 A** so the time-blindness is measured, not caveated. **RESCUE**: CKPT had no R in the name, so the running R=64 job was about to overwrite the **lv_r8 headline checkpoint** — preserved and the name fixed. **116.2**: K=0 (`mu` alone) is now the first row, so 3.009 A has a denominator. **116.3**: predicted-sigma swept at every K with the scale match applied **within** each rank; **your prediction committed in b2cb0240 before predsigma runs**. **116.4**: n_eff is now the denominator of every n_pos/n_eff with a SMALL-n_eff flag, and UNEVALUABLE replaces nan — which does not merely read as null but **sorts as the safest row**, so fires() refuses non-floats. 115a re-run under all of it: unchanged, 9/11 and trans 23/23. | ACCEPTED | (this commit) |
+| 117 | **ACCEPTED — the count effect is real, and my SHUFFLE control was measuring the wrong thing.** **117.1** reproduced independently: coverage **−22.4%** on n_gen alone, fidelity +2.3%. But **checked rather than assumed — n_gen WAS already matched at 128 across all four arms**, so the 12% coverage gap is not a count artefact; it was inferred from code rather than reported, which is now fixed. **3.912 A was never an inversion**: 4ued_B's own paired floor is **5.103 A** (3.009 was a 4-system median), so NN < paired holds. **117.2**: all arms emit exactly n_gen; coverage at n_gen and 4n_gen with slope read against **REF's own slope**. **117.3**: REF arm added — and it needs a guard, because **4ued_B's replicas are 8.94 A apart AFTER Kabsch** vs a 7.57 A within-replica spread, so OU beats a perfect generator by **centre-blur**; recorded per system. **REF is a TWO-SIDED target and my summary line got it wrong** — OU's fidelity landed BELOW REF's, giving JOINT a meaningless 130%; replaced with signed deviation, where FLOOR is under-dispersed too (−0.340 A) so **JOINT's −0.645 A means the model adds ~0.31 A of collapse beyond the decode**. **117.4**: shuffle_delta now **exactly 0.000e+00** — permuting before subsampling had selected a different subset (1.6e-01); three tiers recorded, **the temporal claim rests entirely on iat and trans**. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -2350,3 +2351,66 @@ found null. Re-ran 115a under all of it — **SHUFFLE still 9/11, `trans` still 
 
 **GPU while this CPU work ran:** `10350959` on cn-c005 at **100%**, 2h elapsed; left running as you
 asked. `covfid` `10352187` queued behind `vartilt` and `pretrain1m`.
+
+## 117 — ACCEPTED. Item 1 landed before 10352325; the count effect is real and my SHUFFLE control was wrong
+
+**117.1 — reproduced independently before I trusted the redesign.** Perfect model, K=64, ANM-like
+spectrum, 2,000 reference frames, varying only `n_gen`: **coverage 2.3805 → 1.8475 (−22.4%)** while
+**fidelity 1.8366 → 1.8784 (+2.3%)**. The structural argument is right.
+
+**But checked rather than assumed: `n_gen` was already matched at 128 on all four smoke arms**, so
+the 12% coverage gap was *not* a count artefact. It was inferred from code rather than reported,
+which is your actual point — `n_gen` is now a printed per-arm column, and fidelity is labelled
+count-invariant so the caveat isn't applied to both.
+
+**The 3.912 Å was never an inversion, and not for the reason offered.** `4ued_B`'s **own** paired
+`rmsd_floor` is **5.103 Å** — the 3.009 Å was a 4-system median. NN below paired on the same frames
+is required, and 3.912 < 5.103 holds. The sampling budget had nothing to do with it.
+
+**117.2 done** — every arm emits exactly `n_gen`, coverage at `n_gen` and `4n_gen` with the slope
+printed, read against **REF's own slope** rather than against zero.
+
+**117.3 done, and REF needs a guard that `4ued_B` supplies:**
+
+| | 4ued_B | 7lp1_A |
+|---|---|---|
+| mean(rep1) vs mean(rep2) | 9.586 Å | 1.719 Å |
+| **after Kabsch superposition** | **8.939 Å** | 1.696 Å |
+| within-replica spread | 7.571 Å | 2.781 Å |
+| pooled `mu` vs mean(rep2) | 8.849 Å | 1.490 Å |
+
+**Not rigid-body** — superposition removes 0.65 Å of 9.59 Å. The replicas occupy genuinely different
+regions, **further apart than one replica is wide**. There `mu` is closer to replica 2 than replica
+1's own mean is, so **OU beats a perfect generator by blurring to the centre.** Recorded per system.
+*(Both my smokes ran on `4ued_B` — the pathological system, picked by being first in the manifest.)*
+
+**And REF is a TWO-SIDED target, which my first summary line got wrong.** "% of the way from REF to
+OU" assumes the null is the far end, but **OU's fidelity came out BELOW REF's**, giving JOINT a
+meaningless 130%. Below REF is **under-dispersion**, not "better than perfect". Replaced with signed
+deviation:
+
+| arm | coverage − REF | fidelity − REF |
+|---|---|---|
+| FLOOR | −0.288 Å | −0.340 Å |
+| OU | −2.075 Å | −0.498 Å |
+| **JOINT** | **−0.444 Å** | **−0.645 Å** |
+
+**FLOOR is under-dispersed too** — the rank-64 projection strips variance orthogonal to the ANM span.
+So JOINT's −0.645 Å reads against the decode's own −0.340 Å: **the model contributes ~0.31 Å of
+additional collapse.** That is the decomposition you asked for.
+
+**117.4 — `shuffle_delta` is now exactly 0.000e+00, and getting there found a defect of mine.**
+`sub()` strides by index, so permuting **before** subsampling selected a *different subset* — the
+delta read 1.6e-01 and the control was measuring the subsample, not the time order. Permuting the
+already-subsampled frames is the invariance being tested. Three tiers recorded in `ROADMAP.md`: nine
+time-blind distributional metrics; **two** time-sensitive (`iat`, `trans`); and this pair, **also
+time-blind**. It is a genuine addition on the conformational axis. **The temporal claim rests
+entirely on `iat` and `trans`, however this pair comes out.**
+
+**One near-miss worth recording.** A `sed` introduced an f-string syntax error *and* the submit ran
+in the same block, so `10352325` was queued against a file that would not parse. Caught and fixed
+while PENDING — but the guard that should exist, refusing to submit a script that does not compile,
+does not, and **109e's smoke gate is still owed.**
+
+**GPU while this CPU work ran:** `10350959` on cn-c005 at **100%**, left running as you asked.
+`10352187` cancelled (my own job, PENDING) because the arm set changed; `10352325` replaces it.
