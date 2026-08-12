@@ -99,7 +99,11 @@ T = int(os.environ.get("LV_T", "256"))        # frames per segment; ATLAS gives 
 NTRAIN = int(os.environ.get("LV_NTRAIN", "60"))
 NEVAL = int(os.environ.get("LV_NEVAL", "24"))
 STEPS = int(os.environ.get("LV_STEPS", "20000"))
-BATCH = int(os.environ.get("LV_BATCH", "32"))
+# OOM at batch 32. The temporal attention is B*H*R*T^2 = 4.29 GB per LAYER at T=256, R=64, and
+# R=64 makes that term 64x what R=8 would -- the cost 106 named, paid in memory rather than time.
+# Batch 8 is ~8.1 GB across six layers, which fits with headroom on a 46 GB device. Chosen by
+# arithmetic rather than by halving until it ran.
+BATCH = int(os.environ.get("LV_BATCH", "8"))
 LR = float(os.environ.get("LV_LR", "3e-4"))
 CUTOFF = float(os.environ.get("LV_CUTOFF", "5.0"))
 KEVAL = int(os.environ.get("LV_KEVAL", "32"))  # segments per side, per system
@@ -127,12 +131,25 @@ def prepare(store, have, ids, n):
             V, _, _ = anm_modes(d["ref"], K, CUTOFF)
             if V is None: continue
             a = np.load(d["path"], mmap_mode="r")
-            tr = np.concatenate([np.asarray(a[r]).astype(np.float64).reshape(d["F"], -1)
-                                 for r in (0, 1)]) - d["mu"]
-            C_tr = tr @ V
-            sd = C_tr.std(0) + 1e-8
+            # INBOX 106b.2/106c. sd COMES FROM REPLICA 0 ALONE. It used to come from replicas 0+1 of
+            # EVERY system including the held-out ones, so the frames that set the normalisation
+            # overlapped the frames that were scored. Held-out is by SYSTEM, so the generator saw
+            # none of these replicas -- but the whitening did, and that is a leak in the PIPELINE
+            # claim even though the generator is clean.
+            r0 = np.asarray(a[0]).astype(np.float64).reshape(d["F"], -1) - d["mu"]
+            C0 = r0 @ V
+            sd = C0.std(0) + 1e-8
+            # The reference band is drawn from replicas 1 AND 2 -- 18 disjoint windows at T=256
+            # instead of 9, with no overlap against the frames that set sd. Windows still lie inside
+            # ONE replica, so ref_windows' seam rule holds and no window crosses a join.
+            C_ref = np.stack([coeffs(d, 1, V, d["mu"], sd), coeffs(d, 2, V, d["mu"], sd)])
+            lam = None
+            try:
+                _, lam = anm_modes(d["ref"], K, CUTOFF)[0], None
+            except Exception:
+                pass
             out.append(dict(pdb=p, N=d["N"], F=d["F"], V=V, mu=d["mu"], sd=sd, scale=d["scale"],
-                            ref=d["ref"], C_tr=(C_tr / sd).astype(np.float32),
+                            ref=d["ref"], C_tr=(C0 / sd).astype(np.float32), C_ref=C_ref,
                             C_ho=coeffs(d, 2, V, d["mu"], sd)))
         except Exception as e:
             print(f"    {p}: prepare FAIL {type(e).__name__}: {e}", flush=True)
@@ -234,15 +251,18 @@ if __name__ == "__main__":
                 print(f"  [{i}/{len(HO)}] {sysd['pdb']}: UNEVALUABLE -- T={T} < MIN_H={MIN_H}; "
                       f"the estimator cannot carry these statistics at this length", flush=True)
                 continue
-            refw = segments(sysd["C_ho"], T, KEVAL, rng, disjoint=True)
-            if refw is None: continue
+            # 106b.2: reference windows from BOTH held-out replicas, disjoint within each.
+            parts = [segments(c, T, KEVAL, rng, disjoint=True) for c in sysd["C_ref"]]
+            parts = [x for x in parts if x is not None]
+            if not parts: continue
+            refw = np.concatenate(parts)
             # MATCH n ON BOTH SIDES. 2,501 held-out frames give only (2501-1)//256 = 9 DISJOINT
             # windows, not the 32 requested, and `consistent()` compares two SPREADS -- an interval
             # from 9 draws against one from 32 is not the same estimator on both sides, which is the
             # asymmetry 77a exists to remove. The generated side is therefore drawn at the reference
             # count, and that count is reported rather than assumed.
             keval = len(refw)
-            pool = sysd["C_ho"]
+            pool = np.concatenate(list(sysd["C_ref"]))
             # ONE computation of the reference statistics. The first of the two was dead -- it built
             # top2/thr inline, then both were rebuilt and rs recomputed, so the first result was
             # discarded unused. Removed rather than left as a second definition of the same thing.

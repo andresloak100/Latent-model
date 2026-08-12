@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 105
+last_acted: 106
 ```
 
 | item | restatement | status | commit |
@@ -126,6 +126,7 @@ last_acted: 105
 | 103 | **ACCEPTED.** Closed form confirmed: threshold (1-FVE_par)/(2-FVE_par) = **0.4119**, measured p75 perp **0.4054**, **0.0064 below** (matching your 0.0065); closed form predicts 79% vs 86% measured. **But perp does NOT rise with N on the measured range**: perp = 0.0671 + 0.0334 ln N, **r=+0.064, n=29**, N 598-1337. Crossing N ~ 30,546 is an extrapolation of a non-significant slope over a 51x larger N -- the shape this project retracted before. **Tercile stratification does show your direction**: still-losing 90% / 90% / **78%** as median perp rises 0.294 / 0.306 / 0.348. Wording adopted: the claim holds **on the small end** pending 099/projanm. | ACCEPTED | (this commit) |
 | 104 | **ACCEPTED, criticism included.** Token axis adopted: **R=64 x D=1** as specified; my first run silently bundled **R=8 x D=8**, a different inductive bias, now an explicit ablation. **One measured deviation: ATLAS not mdCATH** — your budget was computed at T=16, and at the T=256 that 105 requires mdCATH yields **140** disjoint segments (one per 500-frame replica) against ATLAS's **1,620**. Launched ahead of 099/projanm because both are on long-cpu and contend with nothing on the GPU; 103a still waits on them and nothing about it is claimed. | ACCEPTED | (this commit) |
 | 105 | **ACCEPTED — acted on FIRST; 10343969 CANCELLED mid-flight.** Reproduced the floor rather than trusting it: T=32/a1=0.90 -> 0.3023 (yours 0.3199), T=256 -> 0.1498 (0.1488), T=512 -> 0.1073 (0.1061). **Two additions:** at **T=256, a1=0.99 the floor is still 0.3177**, so raising T is necessary and NOT sufficient — the power check is now **BLOCKING per system**; and the realised a1 of the whitened ANM modes is **0.876 pooled, ranging 0.65-0.93**, not 'well above 0.9', so the floor is per-system. **MIN_H imported and blocking**; reference windows **disjoint**; dead `rs` removed; header no longer claims ref_windows is imported. **One consequence you did not name:** 2,501 frames give only **9 disjoint windows at T=256**, so both arms are now drawn at the reference count — an interval from 9 against one from 32 is not one estimator. | ACCEPTED | (this commit) |
+| 106 | **ACCEPTED. 106a is Family C and it is mine** — CI on r [-0.310, +0.420] (yours [-0.310, +0.421]), slope CI [-0.1625, +0.2203]; at the 95% upper bound the crossing is **N ~ 1,615**, just above the measured range. **JT: Z=+0.400, one-sided p=0.345** — ordered trend, not resolvable at n=10/10/9. **106b recalibrated, and it corrected my framing**: false-miss 0% everywhere; false-PASS 92-100% looked like 'no power' until I checked the effect size — the bands overlap because my alternative moved xcorr only 0.1350->0.1444 against a band of [0.1299, 0.1411]. `consistent()` is fine; **my alternative was inside the noise**. **106b.2 adopted**: sd from replica 0 alone, reference band from replicas 1+2 = **18 disjoint windows**. **106c measured exactly** (Rayleigh quotient for lambda): pooled r **+0.730**, **53% of log-sigma variance**, slope 0.913 — **the whitening is NOT zero-shot**, so the pipeline needs a short simulation of the target protein: a different product, written down. **My defects**: latentvideo OOM'd (B*H*R*T^2 = 4.29 GB/layer at batch 32; now 8 by arithmetic); pretrain1m failed because re-pointing its dependency REPLACED the prep1m one; rescomp OOM'd at 118/125. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1753,3 +1754,69 @@ with the backbone share tight across systems (sd 2.7 points). That is shared, si
 structure a model seeing atom identity can use, so **SEM is motivated on evidence rather than
 analogy**. One defect: the per-residue-type enrichment prints `nan` where a system lacks a type —
 a plain median over NaN. To fix before that column is quoted.
+
+## 106 — ACCEPTED. 106a is Family C and it is mine; 106c says the chain is NOT zero-shot
+
+**106a — accepted without qualification, and my CI reproduces yours to three decimals.**
+r = +0.064, n = 29, **95% CI on r [−0.310, +0.420]** (yours [−0.310, +0.421]); **95% CI on slope
+[−0.1625, +0.2203]** (yours [−0.1617, +0.2195]). At the 95% upper bound the crossing is **N ≈ 1,615**
+from tercile 3's baseline — just above the largest system measured, not 51× above it. **My "does not
+rise with N" was a null believed in order to close a question. Family C, and it is mine.**
+
+**Jonckheere–Terpstra on the three terciles, as asked:**
+
+| quantity | JT U | Z | one-sided p | tercile medians |
+|---|---|---|---|---|
+| perp_share | 150.0 | **+0.400** | **0.345** | 0.2938 / 0.3062 / 0.3477 |
+
+**Ordered trend in the predicted direction, p = 0.345, n = 10/10/9 — not resolvable.** That is the
+statement that survives, exactly as you framed it. (The still-losing column is binary and all three
+tercile medians are 1.0, so JT on it is uninformative; the *rates* 90/90/78% are the readable form
+and they are reported as rates.)
+
+**106b — recalibrated, and the answer corrects my own framing rather than confirming it.** False-miss
+on identical processes is **0% at every (K, T)** tested, so that is not the discriminator. I then
+measured the **false-PASS** rate against injected coupling and it passed 92–100% everywhere — I was
+about to report "no power at any K". **The check I ran to verify it caught me:** the bands overlap
+because my synthetic alternative was too weak. Median xcorr moves **0.1350 → 0.1444** for coupling
+0.6, against a band of **[0.1299, 0.1411]** at K=18, T=256. **`consistent()` is behaving correctly;
+my alternative was inside the noise.** The decision-relevant numbers are therefore the **floor
+(≈0.135 at a1=0.876, T=256)** and the **band width (≈0.011 at K=18)** — and the per-system blocking
+power check decides, which is why it is blocking.
+
+**106b.2 adopted in full.** `sd` now comes from **replica 0 alone**; the reference band is drawn from
+**replicas 1 and 2**, giving **18 disjoint windows** at T=256 with no overlap between the frames that
+set the normalisation and the frames that are scored. Windows still lie inside one replica.
+
+**106c — measured with the real eigenvalues, and the answer is NO.** `modes()` discards `w`, so
+λ_k came from the Rayleigh quotient `v_kᵀHv_k`, which is exact:
+
+| | value |
+|---|---|
+| pooled r(log predicted, log measured) | **+0.7300** over 512 mode-system pairs |
+| variance explained in log σ | **53%** |
+| slope | 0.913 (equipartition predicts 1.0) |
+| per-system r | 0.470 – 0.862 |
+
+**The form is right and the scatter is not.** So the ANM *basis* is zero-shot and **the whitening is
+not**: producing a trajectory for an unsimulated protein needs 64 numbers that equipartition
+determines to only half their variance. **The pipeline needs a short simulation of the target
+protein, which is a different product from the four-layer vision**, and it is written down here
+before any result is quoted against it.
+
+**106e — all six accepted.** The two of mine you corrected are corrected; the `nan` fix will report
+the count of systems lacking each residue type beside the enrichment rather than dropping them,
+per your instruction that a printed nan beats a silently absorbed one.
+
+**Three job outcomes to report, two of them my defects.**
+
+- **`latentvideo` OOM'd on GPU.** R=64 makes the temporal attention `B·H·R·T²` = **4.29 GB per
+  layer** at batch 32 — 64× the R=8 term, the cost you named, paid in memory. Batch is now **8**
+  (~8.1 GB across six layers), chosen by arithmetic rather than by halving until it ran. Rerunning
+  as `10345384`.
+- **`pretrain1m` FAILED in 28 s: `splits_afdb1m.json` not found.** When I re-pointed its dependency
+  at the new latentvideo job I **replaced** the prep1m dependency instead of adding to it, so it
+  became eligible before the data existed. My error, in the same action I described as avoiding the
+  tenth one-name-two-things.
+- **`rescomp` OUT_OF_MEMORY** at 118/125 — the largest systems. It is the same `(3N, 3N)`-class
+  allocation the 099 harness needed a frame-space route for.
