@@ -6583,3 +6583,58 @@ noise. **A slow→fast variance tilt lowers excess kurtosis**, which is the sign
 Six observations, one mechanism: `xcorr` low, `trans` high, `iat` short (7/24, −2.2269), `kurt`
 light (5/24, p = 0.0066), CA spacing long, `std` flat (blind to a tilt *and* 5.6× underpowered).
 `10351118` confirms or kills it; **flat blocks mean all six need separate explanations.**
+
+---
+
+## ⬛ 116.1: the generated-trajectory metric — COVERAGE and FIDELITY, not RMSD
+
+**109c compared a floor to a floor.** Both 3.009 Å and 3.537 Å are the *same* rank-64 reconstruction
+of TRUE frames under two σ's. That is exactly what 109c asked and the σ conclusion is untouched — but
+**no atom-level number for a GENERATED trajectory existed on this record**, and milestones 3 and 4
+both need one.
+
+**RMSD is the wrong instrument for it.** A sample from a distribution is not an estimate of a
+particular frame; a model drawing exactly from equilibrium would score terribly on "how far is
+generated frame *t* from reference frame *t*". The two-sided nearest-neighbour pair instead:
+
+| | definition | what a bad score means |
+|---|---|---|
+| **coverage** | per REFERENCE frame, min RMSD to **any** generated frame | **mode collapse** |
+| **fidelity** | per GENERATED frame, min RMSD to **any** reference frame | **hallucinated structure** |
+
+**The FLOOR arm runs the identical nearest-neighbour code** on the rank-64 *reconstruction* of the
+reference frames, so the decode is separated from the model and the model's own contribution is the
+gap. Without it a 3 Å coverage would be indistinguishable from a decode that cannot beat 3 Å on true
+frames — which 115d showed is the case.
+
+### These metrics are blind to time BY CONSTRUCTION, and that is measured here rather than argued
+
+Both are functions of the frame **set**, so any permutation of time leaves them exactly unchanged.
+The SHUFFLE arm is included so the number is on the page: **max 3.69e-06 Å**, i.e. a perfect score
+for a model with **no dynamics at all**. Coverage and fidelity answer milestone 3/4's **geometry**
+question and say nothing whatever about dynamics — `trans` and `iat` (115a) are the instruments for
+that. Reading good coverage as a dynamics result would be the eleventh instance of one name, two
+things.
+
+### One-system, 10-step smoke — the instrument discriminates, and the two sides already disagree
+
+| arm | coverage | fidelity | cov CA | fid CA |
+|---|---|---|---|---|
+| FLOOR | 3.912 Å | 3.876 Å | 2.96 | 2.95 |
+| SHUFFLE | 0.000 Å | 0.000 Å | 0.00 | 0.00 |
+| OU | 7.911 Å | 7.941 Å | 6.80 | 6.46 |
+| **JOINT** | **8.898 Å** | **6.716 Å** | 8.22 | 5.56 |
+
+**JOINT's fidelity beats OU's (6.72 vs 7.94) while its coverage is WORSE than OU's (8.90 vs 7.91).**
+Its frames look more like real conformations, and it reaches fewer of the ones the protein visits —
+plausible but narrow. **A single RMSD number would have averaged those into one figure**, which is
+the whole reason 116.1 asks for the pair. *(`4ued_B` only, at 10 sampling steps against the run's
+50 — this validates the instrument, it is not the result. `10352187` runs 24 systems at 50 steps.)*
+
+### A rescue found while locating the checkpoint
+
+`CKPT` was `latent_video_ckpt_{ARM}.pt` with **no R in it**, while `RES` was overridden per-arm.
+`10350959` is the R=64 joint run and **was about to overwrite the R=8 checkpoint behind the `lv_r8`
+headline.** Copied to `latent_video_ckpt_joint_r8.pt` — verified genuinely R=8, `net.inp.weight` is
+(256, 8) — and `CKPT` now carries `_r{RGRP}`. The same "one name, two things", this time in a
+filename.
