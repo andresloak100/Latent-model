@@ -9461,3 +9461,146 @@ Written after the primary lands, that same sentence is a choice among outcomes.
   it fired.
 - **Not claiming the A/B.** "This is joint-vs-OU, not joint-vs-one-step" is the sentence that keeps
   the result worth having.
+
+---
+
+## 113. `iat` carries the entire temporal signal and cannot resolve the timescale — a 3.7x-wrong model passes on 23 of 24 systems
+
+Pre-registering the token axis at 09:00 elapsed, before any number existed, and committing it
+separately is the single most valuable thing done this cycle. The SHUFFLE arm earned its place on the
+first smoke run. And cancelling `10350867` at 12:37 because it had loaded the pre-SHUFFLE script was
+right — a run that cannot express the controls is not cheaper than one that does not exist.
+
+**The SHUFFLE result is more consequential than it reads, and it is bad news.** It scored 10/11,
+failing only `iat`. So `trans` does not discriminate either, and **one statistic out of eleven carries
+the whole temporal claim.** That statistic cannot do the job.
+
+### 113a. `iat` at T=256 recovers 13% of the collective timescale
+
+The corrected collective-mode IAT is 5.88 ns = **147 frames**. A T=256 segment spans 10.24 ns, which
+is **1.74 correlation times**. Feeding `iat_series` a process with a known correlation time:
+
+    true tau       T   T/tau   median est          IQR   % of truth
+         147     256    1.74         37.1   [ 27,  59]         13%
+         147     512    3.48         85.0   [ 66, 111]         29%
+         147    1470   10.00        144.5   [109, 204]         49%
+         147    2501   17.01        209.2   [156, 262]         71%
+          40     256    6.40         32.3   [ 22,  42]         41%
+          10     256   25.60         13.6   [ 11,  17]         72%
+
+At T=256 the estimate is **13% of the truth** for the modes the experiment is about. It is not
+measuring the process; it is measuring the window. Both arms share the bias, so 77a still holds — but
+shared bias is not discrimination.
+
+### 113b. And the verdict lets a badly wrong model through. Measured
+
+Reference at tau=147, model at tau=40 — a **3.7x** error in correlation time — T=256, 18 windows,
+interval overlap exactly as `consistent()` applies it:
+
+    iat    ref [39.21, 53.02]    model [32.96, 42.19]    OVERLAP -> model PASSES
+
+Across 24 systems, **1 of 24** is caught at 3.7x wrong and **0 of 24** at 2x wrong.
+
+**So milestone 2 — "beat one-step on meaningful dynamical properties" — currently has no working
+instrument.** JOINT passing `iat` is not evidence it got the dynamics right; a model with a
+four-times-wrong timescale would pass identically.
+
+### 113c. I tried the obvious replacement and it does not work — withdrawn before proposing it
+
+A fixed-lag ACF looked right: it is an average over `T-k` products rather than an integral over the
+ACF tail, so it should be far better conditioned at T=256. On one seed, lag 5 separated cleanly where
+`iat` did not, and I nearly sent that. Over **12 independent replications** it collapses:
+
+    caught-rate, ref tau=147, T=256, 18 windows
+    lag      tau=40 (3.7x)   tau=74 (2x)   tau=100 (1.5x)   tau=120 (1.2x)
+      1              17%           0%             0%               0%
+      5               8%           0%             0%               0%
+     12              17%           0%             0%               0%
+     20              17%           0%             0%               0%
+     30               0%           0%             0%               0%
+
+No lag catches a 2x error at all. **The problem is not the choice of statistic.** 18 windows of 256
+frames against a 147-frame correlation time contain roughly 31 effective samples of the slow process,
+and no function of them will separate these hypotheses.
+
+### 113d. The fix is the VERDICT RULE, not the statistic — and it works
+
+The per-system interval-overlap verdict was designed in 77a/77b for **one system with many windows**,
+where the point was that both sides share estimator bias. That design is still right for what it was
+built for. But there are now **24 held-out systems**, and asking "does this system's band overlap"
+24 separate times **discards the pairing**. Compare the same data under a paired test on the
+per-system difference `median(generated) - median(reference)`:
+
+    model tau   x wrong   per-system overlap caught   paired sign test p
+           40       3.7                      1 / 24               0.0000
+           74       2.0                      0 / 24               0.0000
+          100       1.5                      0 / 24               0.0000
+          120       1.2                      0 / 24               0.3075
+          147       1.0                      0 / 24               0.1516
+
+**A 1.5x timescale error is detected at p < 0.0001 where the current rule catches none of 24.** And
+the null row matters: at tau=147 against tau=147 the paired test gives p = 0.15 and does **not** fire,
+so this is added power rather than a looser threshold.
+
+Nothing about 77a is given up: each system's difference is still between two same-length series
+through one estimator, so the bias still cancels. What is added is the between-system replication that
+already exists in the data and is currently thrown away.
+
+**Report both.** Per-system overlap stays as the conservative per-system verdict; the paired test
+across held-out systems becomes the statistic the dynamical claim rests on, with the sign test's
+`n_positive / n` printed so the direction is visible. The same applies to `trans` and to every metric
+— the pairing is free everywhere.
+
+### 113e. The CA reference at 3.56 A is itself 6% below the truth, so the check is relative, not absolute
+
+Fixing `bond_stats` to select CA by name was right and the numbers say something immediately: **3.69 A
+generated against a 3.56 A reference, when the true consecutive-CA distance is 3.80 +/- 0.03 A.** The
+*reference* is 6% low, which is a 0.24 A compression — chemically large.
+
+That is almost certainly the decode, not the data. `X = (C * sd) @ V.T + mu`:
+
+- **`mu` is a trajectory mean**, and averaging fluctuating coordinates **contracts** distances — the
+  mean structure of an MD run is not itself a valid conformation;
+- **rank-64 truncation** cannot hold 3N local constraints, so what the modes fail to restore stays
+  contracted.
+
+So the guard now measures the right quantity but against a **reconstruction ceiling**, not against
+chemistry. Three numbers separate it, all cheap: consecutive-CA on **true frames** (expect ~3.80), on
+**`mu` alone**, and on the **rank-64 reconstruction of true frames** (should land near 3.56 and thereby
+explain it). Then "acceptable geometry" can be stated against the right baseline instead of implied
+against the wrong one.
+
+**And explain the direction.** Generated 3.69 is *closer to the truth* than the reconstructed
+reference at 3.56. A generated trajectory should not have better bond geometry than the reconstruction
+it is imitating; that wants an explanation rather than a celebration. Larger generated amplitude in
+the modes that extend bonds would do it — which would also show up as a `std` mismatch, so check
+whether it does.
+
+### 113f. Where this leaves the milestone path
+
+    1  one valid latent-video result          DONE, on the ablation arm; primary re-running as 10350959
+    2a generalisation to held-out proteins    DONE -- 24 held-out systems, generator saw none of them
+    2b beat OU                                DONE, but on a STATIC property (112a)
+    2c beat one-step on DYNAMICAL properties  NO WORKING INSTRUMENT until 113d. This is the gate.
+    3  decode to atoms, acceptable geometry   check now measures the right thing; needs 113e's ceiling
+    4  one compelling demo                    blocked on sigma not being zero-shot; 109c's Angstrom
+                                              error under predicted sigma is still owed and decides it
+    5  SEM channel                            correctly last
+
+The path is right and shorter than it looks — but **2c is the whole thing**, and it is currently
+unmeasurable rather than unmeasured. 113d is the cheapest route to making it measurable, and it should
+land before `onestep_diff` runs, or that comparison will return "indistinguishable" from a test that
+could not have told the difference.
+
+### 113g. Accepted
+
+- **Item 5 written at 09:00 elapsed and committed separately.** Pre-registration that costs something
+  is the only kind that counts, and this one did.
+- **Item 1 verified independently**, with the claim restated at its true size rather than defended.
+- **The SHUFFLE arm at 10/11 on its first run.** It cost one line and it changed what the headline
+  means — `trans` not discriminating is a finding nobody had.
+- **Item 3's circularity fixed**, with OU quoted over all systems and JOINT at 12/12, 95% CI
+  [75%, 100%].
+- **Item 4, CA by atom name.** See 113e for what the new numbers now say.
+- **`10350867` cancelled at 12:37 for loading the pre-SHUFFLE script.** Sixth cancellation, and the
+  first one where the run would have completed successfully and still been worth killing.
