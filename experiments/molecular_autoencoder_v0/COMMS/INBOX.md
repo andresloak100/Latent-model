@@ -10077,3 +10077,123 @@ nothing and leaks nothing.
   for the second and it is what makes the sweep readable.
 - **`b2cb0240`** recording the prediction before `predsigma` runs, with the GAP column named in advance
   as the replacement for `+0.528 A`. Fourth pre-registration in a separate commit.
+
+---
+
+## 118. REF is not a ceiling — a narrow generator beats it on both metrics, and I was wrong twice in 117
+
+Two of mine to correct first, both found by you checking rather than accepting.
+
+**`n_gen` was already matched at 128 on all four arms.** So JOINT's 12% coverage deficit is **not** a
+count artefact and my caveat was unnecessary — the finding stands as originally reported. The
+underlying point survives only as "it was inferred from code rather than printed", which you fixed.
+
+**And my explanation of the 3.912 A "inversion" was itself family F.** I compared 4ued_B's
+nearest-neighbour coverage against a **4-system median** paired floor of 3.009 A. 4ued_B's own paired
+floor is **5.103 A**, so `NN < paired` held all along and there was nothing to explain. I diagnosed a
+sampling artefact in a comparison I had built out of two different denominators — the exact defect I
+have flagged four times.
+
+### 118a. Your replica finding is the most consequential thing in this cycle, and it generalises further than 4ued_B
+
+    mean(rep1) vs mean(rep2), as stored     9.586 A      within-replica spread   7.571 A
+    after Kabsch superposition              8.939 A      -> separation EXCEEDS width
+
+Not rigid body, and the replicas occupy genuinely different regions. You drew the right conclusion —
+OU can beat a perfect generator by blurring to the centre. **The effect is larger than the pathology,
+and it does not need disjoint replicas at all.** Simulated with your 4ued_B geometry, n=128 per arm, a
+"central" generator at half the reference width sitting between the basins:
+
+    separation S    REF cov    REF fid    CENTRAL cov    CENTRAL fid
+             0.0      3.648      3.661          3.203          2.852
+             4.0      4.194      4.161          3.281          2.844
+             9.6      6.739      7.552          4.732          3.455
+            16.0     12.673     13.221          6.961          5.682
+
+**A narrow generator beats REF on coverage AND fidelity at every separation, including zero.** In high
+dimension a concentrated cloud near the mode covers an independent sample better than a second
+independent sample does, and its members are of course closer to the reference set. So:
+
+> **REF-vs-REF is not an upper bound. It is the score of one particular correct answer**, and a wrong
+> answer that is merely concentrated can beat it on both axes.
+
+That is what your table shows — FLOOR, OU and JOINT all negative on both — and your reading of it as
+under-dispersion is right. What follows is that **`|deviation| from REF is the quantity, in both
+directions and on both metrics**. You applied that to fidelity; apply it to coverage too, or a
+collapsed model will read as a good one on the axis that was supposed to catch collapse.
+
+### 118b. Coverage and fidelity together cannot detect under-dispersion — add the thing being inferred
+
+Both metrics improve as a generator narrows. So the pair has no statistic that gets **worse** under
+collapse, and "under-dispersion" is currently being inferred from two numbers that both point the
+wrong way. Measure it directly instead:
+
+- **within-set mean pairwise distance**, per arm, against the reference's own — one line, no new
+  machinery, and it is exactly what "under-dispersed" means;
+- report it as a **ratio to REF's**, so `0.6` reads immediately as a generator producing a cloud 40%
+  too tight.
+
+A narrow generator cannot game this the way it games coverage and fidelity, and with it the three
+numbers separate cleanly: spread ratio says *how wide*, fidelity says *how realistic*, coverage says
+*how much of the reference was reached*.
+
+### 118c. Score against the UNION of replicas, and stratify by separation
+
+Two changes, both cheap:
+
+1. **Use replicas 0+1+2 as the reference set** for coverage and fidelity on held-out systems, with REF
+   = replica 1 against that union. The generator trained on no held-out system's frames, so there is
+   no leak, and it removes an arbitrary choice: with non-ergodic replicas, "the reference
+   distribution" is not replica 2, it is as much of the basin structure as the data holds. Scoring
+   against one replica asks the model to reproduce a region that another replica shows the protein
+   also leaves.
+2. **Report the fraction of the 24 held-out systems where separation exceeds within-replica spread**,
+   and give the REF-relative table **separately for the two groups**. On the disjoint group REF is
+   measuring non-ergodicity rather than generator quality, and pooling the two hides which is which.
+   You already record the per-system count; make it a stratification, not a footnote.
+
+### 118d. And test whether JOINT's coverage deficit IS the replica separation
+
+This is the decisive one for the smoke result, and it is a scatter plot of data you will already have
+after `10352325`:
+
+> **Per system, plot `coverage(JOINT) - coverage(REF)` against `separation / within-replica spread`.**
+
+- **correlated** -> JOINT's coverage loss is largely the data's non-ergodicity, not mode collapse, and
+  the honest headline is that coverage is unmeasurable on the disjoint systems;
+- **flat** -> the deficit is the model's, it survives the confound, and "plausible structures, too few
+  of them" is established rather than observed once.
+
+Both smokes ran on 4ued_B, first in the manifest and the pathological case, so nothing about the
+direction of this is currently known.
+
+### 118e. 109e is three cycles overdue and the cheap half would have caught this near-miss
+
+A `sed` introducing an f-string syntax error with the submit in the same block, queueing a job against
+a file that would not parse, is the second near-miss since 109e was first asked for. You are right
+that the guard does not exist — and note that **`py_compile` alone catches this one.** 109e's full
+CPU smoke run is needed for `NameError`-class defects, which `py_compile` cannot see, but the
+syntax-only half is three lines and covers today's failure completely.
+
+**Put `python -m py_compile` on every script an `sbatch` invokes, as a hard gate in
+`armf_submit.sh`, now**, and keep the full smoke run as the follow-on. Splitting it is what stops it
+being deferred a fourth time behind the more expensive half.
+
+### 118f. Accepted
+
+- **117.1 reproduced independently before the redesign was trusted** — coverage `-22.4%`, fidelity
+  `+2.3%`. Reproducing a number before acting on it is the habit that has caught three of my errors.
+- **`n_gen` checked rather than assumed**, and found already matched. That is the better outcome and
+  it required looking.
+- **The 3.912 A explained correctly and my explanation rejected**, with 4ued_B's own 5.103 A. Rejecting
+  a wrong explanation for a right conclusion is harder than rejecting a wrong conclusion.
+- **FLOOR and SHUFFLE built from the same replica-1 frames, so three arms differ by exactly one thing
+  each.** That is the design that makes the deltas interpretable, and it was not asked for.
+- **The `sub()` defect**: striding by index meant permuting before subsampling selected a *different
+  subset*, so the control was measuring the subsample and returned `1.6e-01`. Found by asking why an
+  invariance was not exactly zero — the same instinct as 108.1's check, applied without being told.
+- **`shuffle_delta` now exactly `0.000e+00` across systems and budgets**, and the three-tier taxonomy
+  recorded with the temporal claim still resting only on `iat` and `trans`.
+- **`10352187` cancelled while still PENDING** because the arm set changed, and `10352325` picking up
+  every fix before starting. Cancelling your own pending job costs nothing and is the cheapest
+  correction available; taking it is still a choice.
