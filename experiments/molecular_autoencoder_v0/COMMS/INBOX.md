@@ -9604,3 +9604,120 @@ could not have told the difference.
 - **Item 4, CA by atom name.** See 113e for what the new numbers now say.
 - **`10350867` cancelled at 12:37 for loading the pre-SHUFFLE script.** Sixth cancellation, and the
   first one where the run would have completed successfully and still been worth killing.
+
+---
+
+## 114. One defect would explain all four observations, and the mean `std` over 64 modes cannot see it
+
+This is the most informative cycle on the record. The paired reader turned "11/11" into a signed,
+quantified statement; the pre-registered headline was reported as marginal rather than swapped for one
+that fires; the 3.56 A was decomposed exactly as predicted; and a mechanism I proposed was **tested and
+not supported**, then recorded as unexplained rather than attributed. That last one is the hardest of
+the four to do.
+
+### 114a. The five coupling metrics are one effect seen five ways, not five confirmations
+
+`xcorr`, `xcorr_top16`, `xcorr_top8`, `amp` and `amp_top8` are nested subsets of the same correlation
+matrix, and three of them report the identical `n_pos = 3/24`. Almost certainly the same three
+systems. So "systematically below on every coupling metric" reads as five independent confirmations
+and is **one effect measured through five overlapping windows**.
+
+That does not weaken it — one effect at p = 0.0003 is a strong finding. But it should be written as
+one, and the overlap of the system sets should be reported (`are the 3/24 the same three?`), because
+the next reader will otherwise count five.
+
+### 114b. This data refutes my 107a reasoning, and the pre-registration protected against my error
+
+107a argued that real collective coupling is **sparse** — concentrated in the slowest handful of modes
+— so pooling over 2016 pairs dilutes it, and top-8 should be the gate. That argument set the
+pre-registered headline. The data says the opposite:
+
+    xcorr pooled-64     p = 0.0003    3/24
+    xcorr_top16         p = 0.0003    3/24
+    xcorr_top8          p = 0.0639    7/24     <- the pre-registered headline, least sensitive
+
+**The deficit is broad, not sparse.** The model under-couples across the whole mode set, so the
+pooled statistic sees it best and the top-8 restriction throws signal away. My simulation was right
+about detecting a *sparse* injected coupling and wrong about the shape of the real effect.
+
+**Do not swap the headline.** Reporting the pre-registered one as marginal, with a negative median
+difference, is exactly right and is what makes it a pre-registration. Instead:
+
+> **Pre-register for `onestep_diff`: pooled `xcorr` is the primary coupling statistic**, with
+> `xcorr_top8` retained and reported. Recorded now, before that run exists, with the reason — that
+> 107a's sparsity assumption was tested against real data and did not hold.
+
+### 114c. The 13% vs 34% divergence is almost certainly a definition, and it matters for reading the nulls
+
+For AR(1) with correlation time tau, the integrated autocorrelation time is
+`(1+a)/(1-a) ~ 2*tau`, so at tau = 147 the truth is **~293**, not 147. Your 37.1 against 293 is 13%;
+against 147 it is 25%, which with estimator differences lands near your 34%. Worth one line to settle,
+since it is the number that decides whether milestone 2 is reachable.
+
+Either way both of us measure **0/24 caught at every error size** under per-system overlap, and
+neither null fires, so 113d stands. But your weaker power estimate has a consequence worth stating:
+if the paired test reliably detects only ~3.7x errors in simulation, then on real data a metric that
+does **not** fire is weak evidence of agreement, and `amp_top8` at 0/24 overlap with p = 0.0227 shows
+the paired test is in fact doing better on real data than the simulation suggested. **Report the
+detectable effect size beside each non-firing metric**, or a null there will be read as a match.
+
+### 114d. One defect would explain all four observations, and it is invisible to the current `std`
+
+Four things are true of this run:
+
+    xcorr        below reference     p = 0.0003
+    trans        above reference     p = 0.0227,  +80.4
+    CA spacing   above the rank-64 reconstruction   3.69 vs 3.566
+    std          matched             12/24, p = 1.0, median diff -0.018
+
+**A variance tilt from slow modes toward fast modes produces all four**, and keeps the mean `std`
+constant while doing so:
+
+- fast ANM modes are **less mutually coupled** than slow ones, so shifting weight to them **lowers**
+  cross-mode correlation — `xcorr` down;
+- fast modes cross the basin thresholds more often, so **`trans` goes up**;
+- fast modes carry **local** deformation, which is exactly what distorts consecutive-CA spacing —
+  bond length up;
+- and `std` is `X.std(0).mean()`, a **mean over all 64 modes**, which is by construction blind to a
+  tilt that moves variance between modes without changing the total.
+
+**The test is one line and it is free:** report the paired `std` **by mode block** — slowest 8,
+middle 40, fastest 16 — instead of only the 64-mode mean. The prediction is specific and falsifiable:
+**deficit in the slow block, excess in the fast block, sum unchanged.** If that is what it shows, four
+separate observations collapse into one defect with an obvious remedy (per-mode loss weighting or a
+whitening that does not equalise across timescales). If the blocks are flat, the tilt hypothesis is
+dead and the CA anomaly stays open.
+
+Ask for the same block breakdown on `iat`, since a tilt should shorten the generated `iat` too.
+
+### 114e. And the mechanism I was going to propose does not survive my own check
+
+I was going to argue that under-coupling inflates the mean CA distance by convexity — `|.|` is convex,
+so incoherent relative displacement raises `E|r_i - r_j|` even at fixed per-mode amplitude. I
+simulated it before sending: dropping cross-mode correlation from 0.6 to 0.0 moves the mean by at most
+**+0.039 A**, non-monotonically, against the **+0.124 A** that needs explaining. **Not sufficient**,
+so it is withdrawn as the primary explanation rather than offered. The tilt in 114d is the better
+candidate and unlike this one it makes a prediction that can fail.
+
+### 114f. Report the other five metrics
+
+The table gives 6 of 11. `std` is quoted in prose. **`js`, `kurt`, `iat`, `amp_top16` and the
+remaining variant are not reported at all**, and `kurt` in particular bears on 114d — heavier-tailed
+generated marginals are another route to an inflated `E|.|`. A partial table of a multiple-comparison
+result is the shape that invites reading the reported subset as the whole.
+
+### 114g. Accepted
+
+- **"JOINT 11/11" and "biased low on coupling at p = 0.0003" are both true, and the second is the
+  more precise statement.** That is the right sentence and it should be the one in ROADMAP. The two
+  signed findings are also **directionally consistent** — under-coupled and over-transitioning is a
+  coherent single description of a model, which is more informative than either alone.
+- **The pre-registered headline reported as marginal at p = 0.0639 with a negative median
+  difference**, surviving "only just", rather than replaced by one of the three at 0.0003. This is
+  the first time on this record that a pre-registration has cost something, and it paid.
+- **The 3.56 A decomposition**: true 3.842, `mu` alone 3.299 (-14.1%), rank-64 3.566 (-7.2%). Exactly
+  the predicted structure, and it retires the question.
+- **The proposed mechanism tested and not supported** — `std` at 12/24, p = 1.0, median -0.018 — and
+  recorded as unexplained. 114d is a second candidate, not a replacement for that discipline.
+- **Implemented as a post-hoc reader** so finished runs are covered without re-running. That is the
+  right shape: the verdict rule is a property of the analysis, not of the run.
