@@ -9186,3 +9186,130 @@ grows with the span, and going from a 2.2x span to something like 20x is worth f
 - **109f answered against your own result**, with a KS test rather than an assertion.
 - **The smoke gate catching a wording bug on its first use.** Still owed: folding it into
   `armf_submit.sh` as a hard gate. It has now paid for itself once before being made mandatory.
+
+---
+
+## 111. The 106d timescales are 6x too small, and the collective-mode IAT sits at 61% of its own resolution ceiling
+
+The 106d conclusion may well survive both of these. But the numbers as published in ROADMAP are wrong
+in absolute terms, and the ratio that carries the argument is biased in the direction that flatters
+it. Both are checkable from the source and neither needs a GPU.
+
+### 111a. `RC_NFRAME=400` subsamples with a stride of 6, so an "IAT frame" is 240 ps, not 40 ps
+
+`armf_residual_composition.py:89-90`:
+
+    step = max(1, d["F"] // NFRAME)          # 2501 // 400 = 6
+    idx  = np.arange(0, d["F"], step)[:NFRAME]
+    X    = np.asarray(a[2][idx])...
+
+Every IAT is therefore measured on a **400-point series at stride 6**, and one unit of that series is
+**6 original frames = 240 ps**. The ROADMAP table multiplies by 40 ps.
+
+    quantity                        IAT units   published    ACTUAL
+    exposed side chain (residual)       15.19     0.61 ns    3.65 ns
+    side chain (residual)               13.48     0.54 ns    3.24 ns
+    backbone (residual)                 17.83     0.71 ns    4.28 ns
+    collective ANM modes                24.52     0.98 ns    5.88 ns
+    collective, IQR high                36.48     1.46 ns    8.76 ns
+
+**The ratio 0.679 is unaffected** — both sides share the stride — so the qualitative conclusion
+stands. The absolute column is wrong by 6x and is published in ROADMAP and in `e5c8fae2`'s message.
+
+**One thing worth noticing about the corrected number**: 5.88 ns for a collective mode is much closer
+to 100e's independently measured ITS of 12–220 ns than 0.98 ns was. A correction that moves a number
+*toward* an independent measurement of the same physical quantity is evidence the correction is right
+— and the remaining gap is 111b.
+
+### 111b. Family B. The collective-mode IAT is pinned near its own resolution ceiling; the residual is not
+
+`armf_propagator.py`'s own docstring, from 77a: *"An integrated autocorrelation time cannot be
+resolved much above a tenth of the series it is measured on."* The series is 400 points, so the
+ceiling is **~40 units**.
+
+    quantity                       IAT units   % of the 40-unit ceiling
+    collective ANM modes (median)      24.52                     61.3%
+    collective, IQR high               36.48                     91.2%
+    exposed side chain residual        15.19                     38.0%
+    exposed residual, IQR high         19.64                     49.1%
+
+**The collective side is compressed against the ceiling and the residual side is not.** The upper
+quartile of systems is at 91% of what the estimator can resolve, which means the true collective IAT
+is larger than measured for a substantial fraction of the corpus, while the residual's 15.19 is
+comfortably inside the resolvable range and is therefore roughly unbiased.
+
+So the true ratio is **smaller than 0.679**, and smaller means the residual is *relatively faster*
+than reported — the direction that weakens "not jitter". This is the project's own stated rule
+applied to a number the project just published, and it is the third time a ceiling has appeared on
+the flattering side.
+
+It is also aggravated by `armf_residual_composition.py:158` taking the collective reference as
+`min(16, ...)` — the **slowest 16 modes**, which are exactly the ones most likely to hit the ceiling.
+That is the right choice of reference and the wrong series length for it.
+
+**Two things, both cheap and CPU-only:**
+
+1. **Report the fraction of systems whose collective IAT exceeds `NFRAME/10`**, and re-report the
+   ratio with those systems excluded. If the ratio barely moves, 106d is safe and now demonstrably
+   so.
+2. **Re-run a subset at `RC_NFRAME=2501`** — stride 1, the full replica, ceiling ~250 units. Twenty
+   systems is enough to see whether the collective IAT rises while the residual's does not. If both
+   rise proportionally the ratio holds; if only the collective rises, 0.679 was an artefact of the
+   window.
+
+**And 110d's residual-PCA IAT inherits exactly this.** Whatever series length you settle on here must
+be the one used there, or the collective-vs-collective comparison 110d asked for will be built on the
+same ceiling.
+
+### 111c. `latentvideo` and `lv_onestep` left the queue with no outcome recorded
+
+`squeue` shows `rescompD`, `projanm`, `anmortho`, `prep1m`, `lv_r8` running and `pretrain1m` pending.
+`10346121` and `10346189` are **gone, and nothing in the record says what happened to them.** That is
+the fourth and fifth exit of this experiment without a recorded outcome, and one previous exit
+reported `COMPLETED` while holding a traceback.
+
+**Before anything else is queued:**
+
+    sacct -j 10346121,10346189 --format=JobID,JobName,State,ExitCode,Elapsed,MaxRSS,NodeList
+
+plus the last 40 lines of each log and whether `latent_video_joint.json` / `latent_video_onestep.json`
+exist and pass `armf_io.load_complete`. "Left the queue" is not evidence of success on this script.
+
+### 111d. `lv_r8` is running ahead of `onestep_diff`, which 110b put first
+
+The token-axis ablation is at 11:32 on a GPU. 110b asked for `onestep_diff` before it, because the
+diffusion-vs-Gaussian family confound decides whether the headline is readable at all — and an
+ablation of the joint arm is not interpretable until the joint arm has a recorded outcome, which per
+111c it does not.
+
+Let `lv_r8` finish if it is past the point the others died — that is itself informative, since it is
+the same script. But **the next GPU slot goes to `onestep_diff`**, not to another ablation.
+
+### 111e. Jobs leaving the queue should self-report, the way files already do
+
+`armf_io`'s completeness envelope solved this for files: a partial file announces itself. There is no
+equivalent for jobs, so the outcome of a run is discovered by someone thinking to ask `sacct`. Five
+exits, one silent `COMPLETED`, and a fix applied to one sbatch.
+
+**Add a `trap ... EXIT` handler to the shared sbatch preamble** that appends one line to a tracked
+`outputs/job_log.tsv`: job id, job name, arm, exit status, elapsed, host, and whether the expected
+results file exists. A `trap` on `EXIT` fires on crash and on `SIGTERM` from a time limit, which is
+exactly the two cases that currently vanish. Then "what happened to 10346121" is a `grep`, and a job
+that leaves the queue without a line is itself a visible anomaly.
+
+### 111f. `prep1m` has been running 7:30:59 with `pretrain1m` gated behind it
+
+Correctly gated — no complaint about the dependency. But a 7.5-hour job with no progress line in the
+record is the same unfalsifiable silence as 111c. One line on where it is against its total, so the
+difference between "slow" and "stuck" is visible without a query.
+
+### 111g. Accepted
+
+- **123/123 on the composition**, with the chunked neighbour count fixing an OOM that had removed the
+  seven largest systems — the fix that mattered most, since those were the systems the enrichment
+  claim was least tested on.
+- **101e's count fix working**: ARG 1.34x (n=120), LYS 1.19x (n=119), HIS 1.14x (n=115), GLN 1.14x
+  (n=116), with the denominators printed. Long, flexible, charged side chains is chemically coherent
+  and reads as a result rather than as a classing artefact.
+- **The IAT gate being answered at all**, before SEM was built rather than after. Whatever 111b does
+  to the ratio, running the gate first is the right order.
