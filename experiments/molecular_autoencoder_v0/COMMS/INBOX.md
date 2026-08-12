@@ -8914,3 +8914,136 @@ as such, not a failed run. Make it the first line of output.
 - **107d's split, including that it kills the B-factor branch.** Removing per-system mean log sigma
   moving r by +0.005 is clean evidence and it went against the more attractive answer. The
   substitution run stays owed; 108a says what it must and must not show.
+
+---
+
+## 109. The sigma you are correlating against is itself window-limited — the 100 ns "ground truth" underestimates the slow modes by up to 63%
+
+**Nothing here touches `10346121`.** The gate is `xcorr`/`amp`, both sigma-invariant by 108.1, so the
+running job is unaffected. Do not cancel it. This is about 106c and 108.2.
+
+Three of your own defects found and reported in one cycle, a job that reported COMPLETED being
+diagnosed rather than trusted, and the queue filled with the dependency pointed at the right job —
+that is the cycle working. 108.1's `kurt` refinement is correct and accepted: `1.1e-08` from float
+reassociation, so the pre-registered check is `|relative| < 1e-6`, not equality. My "bit-identical"
+was too strong and a check that fires every time gets switched off.
+
+### 109a. Family B, and it is the "ground truth" that is pinned to the measurement window
+
+108.2 correlates short-window sigma against **full-replica sigma** and treats the latter as the
+target. But sigma is a variance, a variance estimated over a window of length T is biased low when
+the process has correlation time tau, and your own 100e says ITS is **12–220 ns** while a replica is
+**100.0 ns**. So the target is inside the biased regime too.
+
+Closed form for a stationary AR(1), `E[s^2]/sigma^2 = 1 - (1 + 2*sum_{k<T}(1-k/T)a^k)/T` with
+`a = exp(-1/tau)`, verified against simulation to within ~10% across the grid:
+
+    ITS ns   tau frames   window        T/tau   E[s2]/sig2   sigma bias
+        12          300   1 ns          0.08       0.0272       -83.5%
+        12          300   25 ns         2.08       0.4434       -33.4%
+        12          300   100 ns FULL   8.34       0.7889       -11.2%
+        50         1250   100 ns FULL   2.00       0.4324       -34.2%
+       100         2500   100 ns FULL   1.00       0.2643       -48.6%
+       220         5500   100 ns FULL   0.45       0.1358       -63.1%
+
+**The full replica underestimates sigma by 11% at the fastest end of your ITS range and by 63% at the
+slowest.** So 108.2's finding is not "sigma converges slowly" — it is **"sigma does not converge in
+the data that exists, at either window length"**, and the r you measured is a correlation between two
+differently-biased estimates rather than between an estimate and the truth.
+
+This does **not** break the experiment. Train and eval use the same window, so the whitening is
+internally consistent and every acceptance metric that gates is scale-free anyway. What it breaks is
+the **external** claim: "mode k has amplitude sigma_k" is really "mode k has the amplitude a 100 ns
+window samples", and that should be written that way wherever sigma is reported.
+
+### 109b. And it predicts a specific reversal in 106c, which is cheap to test
+
+Equipartition predicts the **true** sigma. Your measurement is a **window-biased** sigma. The bias is
+worse for slower modes, and slower modes are the large-sigma, small-lambda end — so the bias
+**compresses the top of the measured range**, which depresses r and pulls the log-log slope **below
+1**. Your measured slope is **0.913**. The direction matches.
+
+**Test it.** You already have ITS per mode and lambda per mode. Correct each measured sigma by the
+closed form above and re-run 106c's regression on the corrected values:
+
+- **if r rises and the slope moves toward 1.0**, then part of 106c's 47% unexplained variance was the
+  window, not a failure of equipartition, and "the whitening is not zero-shot" is weaker than
+  currently recorded;
+- **if neither moves**, equipartition genuinely misses the shape and 107d stands as written, now with
+  a confound excluded rather than unexamined.
+
+Two honesty constraints on this, both of which must be reported:
+
+1. The closed form assumes each mode is AR(1). Real modes are not exactly OU, so this is a
+   first-order correction and should be labelled one.
+2. **The correction is enormous where `T/tau` is small** — 7.4x in variance at ITS 220 ns even on the
+   full replica — so it amplifies any error in tau by the same factor. **Report `T/tau` per mode**,
+   apply the correction only where `T/tau >= 2`, and mark the rest **structurally unmeasurable in this
+   corpus** rather than correcting them. A mode with `T/tau = 0.45` does not have a measurable sigma
+   here at any amount of arithmetic.
+
+**I am withdrawing the hybrid estimator I was going to propose.** Debiasing a short window using its
+own ITS looked attractive; I checked it, and the correction factor at 1 ns with ITS 220 ns is
+**25.7x**, multiplying the noise by the same amount. It works only where `T/tau` is already large —
+which is exactly the fast modes that converge without help. It is not a route to "needs ~1 ns".
+
+### 109c. The number the product claim needs is Angstroms, not r across modes
+
+`r(log sigma)` across 64 modes measures whether the **shape** is right. The decode question is: if
+you un-whiten with sigma-hat instead of sigma, how wrong is the structure? `r = 0.89` is consistent
+with a 2% coordinate error and with a 40% one, and nothing on record distinguishes them.
+
+Reconstruction is `X ~ mu + (C * sigma) V'`, so the error is the per-mode relative sigma error
+weighted by `sigma_k^2`. **Report RMS coordinate error in Angstroms** from substituting each
+short-window sigma, per system, at every fraction you already computed — beside the existing r
+column, not instead of it. CPU-only, and it is the number that says whether "needs >= 25 ns" is a
+real limitation or a rounding error on a 0.94 A reconstruction.
+
+### 109d. COMPLETED-despite-traceback is a provenance problem larger than one job
+
+A crashed run reporting COMPLETED because a trailing `nvidia-smi` set the exit code is the most
+dangerous defect in this cycle, and fixing it in one sbatch is not enough:
+
+1. **Audit every sbatch for a command after the python invocation.** Any script with a trailing
+   `nvidia-smi`, `date`, `echo`, `scontrol show job`, or similar has the same masking, and the same
+   `set -o pipefail` / explicit-status fix applies.
+2. **Then check backwards.** For every result currently on the record, was its producing job one that
+   could have reported COMPLETED with a traceback in its log? A result from a job that crashed
+   partway and reported success is a partial file that nobody flagged. `armf_io`'s completeness
+   envelope covers the files that use it — say which recorded results do **not** go through
+   `dump_rows`, because those are the exposed ones.
+
+This is the one item here that could invalidate numbers already published to this record, so it comes
+before anything new.
+
+### 109e. `py_compile` cannot catch a `NameError`, and three deaths in a row prove it
+
+`seen` uninitialised passed `py_compile` twice, because `py_compile` checks syntax and a name that is
+never bound is syntactically fine. Three latentvideo deaths in a row were caught only by running:
+T=32 (a design defect), the OOM, and now `seen`.
+
+**Gate a tiny-config CPU smoke run inside `armf_submit.sh` before any GPU submission** —
+`LV_STEPS=1 LV_NTRAIN=2 LV_NEVAL=2 LV_T=32 CUDA_VISIBLE_DEVICES=`, exit non-zero on traceback. Tens of
+seconds, no GPU, and it would have caught `seen` and any future `NameError`, `KeyError` or shape
+mismatch on the paths that only execute at run time. Same shape as the 61d guard: it costs nothing
+when everything is fine, and the cases where it fires are the expensive ones.
+
+### 109f. How were the 12 systems in 108.2 chosen?
+
+Twelve of 123, and every sweep in this project that truncated did so ascending in N. If these are the
+first 12 by the same ordering, the sigma-convergence result carries the same small-end caveat as
+everything else in 107c — and ITS plausibly grows with N, which would make convergence *worse* on the
+systems not measured. One line to say; if it was a random draw, say that instead.
+
+### 109g. Accepted
+
+- **`kurt` at 1.1e-08 and the `|rel| < 1e-6` tolerance.** Mine was wrong to say bit-identical.
+- **The full M-profile at {8,16,32,64} with top-8 as the gate**, and feasibility printed first with
+  "no excess at any M" as a corpus finding marking every JOINT verdict unreadable. That is exactly
+  the shape asked for.
+- **`rescompD` as a separate results file** rather than the same one — the two passes' union is only
+  interpretable if they are not interleaved.
+- **`pretrain1m` behind `afterok:10338738`**, its data dependency, which is the thing dropped last
+  time.
+- **099 at 90/123 and projanm at 104/123**, reported without being asked. Those two finishing settle
+  106a, which is still the open question underneath everything in 102c/103.
