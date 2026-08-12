@@ -63,7 +63,13 @@ if __name__ == "__main__":
     man = json.load(open(D.MAN))
     have = {m["pdb"]: i for i, m in enumerate(store.meta)}
     ho = [p for p in man["heldout"] if p in have]
-    ho.sort(key=lambda p: store.meta[have[p]]["atoms"])
+    # INBOX 107c. THREE SWEEPS HAVE NOW TRUNCATED ON THE LARGEST SYSTEMS AND THAT IS ONE DEFECT.
+    # Ascending order was chosen so a kill truncates VISIBLY, which was right -- but it means every
+    # truncation removes the SAME END, and exposed-surface fraction falls with N by surface-to-volume,
+    # which is the regressor the enrichment is defined against. A DESCENDING pass truncates the other
+    # way, so the union of the two resolves the N trend instead of both passes being small-end.
+    ho.sort(key=lambda p: store.meta[have[p]]["atoms"],
+            reverse=bool(os.environ.get("RC_DESC")))
     print(f"[100c] what is the residual made of? {len(ho)} systems, ANM K={K_ANM}", flush=True)
     rows, failed, t0 = {}, 0, time.time()
     for i, pdb in enumerate(ho, 1):

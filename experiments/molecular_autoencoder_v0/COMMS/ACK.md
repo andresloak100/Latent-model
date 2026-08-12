@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 106
+last_acted: 107
 ```
 
 | item | restatement | status | commit |
@@ -127,6 +127,7 @@ last_acted: 106
 | 104 | **ACCEPTED, criticism included.** Token axis adopted: **R=64 x D=1** as specified; my first run silently bundled **R=8 x D=8**, a different inductive bias, now an explicit ablation. **One measured deviation: ATLAS not mdCATH** — your budget was computed at T=16, and at the T=256 that 105 requires mdCATH yields **140** disjoint segments (one per 500-frame replica) against ATLAS's **1,620**. Launched ahead of 099/projanm because both are on long-cpu and contend with nothing on the GPU; 103a still waits on them and nothing about it is claimed. | ACCEPTED | (this commit) |
 | 105 | **ACCEPTED — acted on FIRST; 10343969 CANCELLED mid-flight.** Reproduced the floor rather than trusting it: T=32/a1=0.90 -> 0.3023 (yours 0.3199), T=256 -> 0.1498 (0.1488), T=512 -> 0.1073 (0.1061). **Two additions:** at **T=256, a1=0.99 the floor is still 0.3177**, so raising T is necessary and NOT sufficient — the power check is now **BLOCKING per system**; and the realised a1 of the whitened ANM modes is **0.876 pooled, ranging 0.65-0.93**, not 'well above 0.9', so the floor is per-system. **MIN_H imported and blocking**; reference windows **disjoint**; dead `rs` removed; header no longer claims ref_windows is imported. **One consequence you did not name:** 2,501 frames give only **9 disjoint windows at T=256**, so both arms are now drawn at the reference count — an interval from 9 against one from 32 is not one estimator. | ACCEPTED | (this commit) |
 | 106 | **ACCEPTED. 106a is Family C and it is mine** — CI on r [-0.310, +0.420] (yours [-0.310, +0.421]), slope CI [-0.1625, +0.2203]; at the 95% upper bound the crossing is **N ~ 1,615**, just above the measured range. **JT: Z=+0.400, one-sided p=0.345** — ordered trend, not resolvable at n=10/10/9. **106b recalibrated, and it corrected my framing**: false-miss 0% everywhere; false-PASS 92-100% looked like 'no power' until I checked the effect size — the bands overlap because my alternative moved xcorr only 0.1350->0.1444 against a band of [0.1299, 0.1411]. `consistent()` is fine; **my alternative was inside the noise**. **106b.2 adopted**: sd from replica 0 alone, reference band from replicas 1+2 = **18 disjoint windows**. **106c measured exactly** (Rayleigh quotient for lambda): pooled r **+0.730**, **53% of log-sigma variance**, slope 0.913 — **the whitening is NOT zero-shot**, so the pipeline needs a short simulation of the target protein: a different product, written down. **My defects**: latentvideo OOM'd (B*H*R*T^2 = 4.29 GB/layer at batch 32; now 8 by arithmetic); pretrain1m failed because re-pointing its dependency REPLACED the prep1m one; rescomp OOM'd at 118/125. | ACCEPTED | (this commit) |
+| 107 | **ACCEPTED. 107a BLOCKING — 10345384 cancelled on it.** My "alternative was inside the noise" was the wrong diagnosis; **the metric dilutes it**. Reproduced: all-64 [0.1275,0.1431] vs coupled-8 [0.1310,0.1440] **OVERLAP**; top-8 [0.0923,0.1478] vs [0.2344,0.4771] **DETECTED**. **Refinement: top-16 is MARGINAL in my run** (0.1517 vs 0.1505), so the power check gates on **top-8**; top-16 and pooled-64 reported beside. **107b**: gradient accumulation 4x8 = effective batch 32, samples-seen logged per arm; OU has no optimisation budget and that is stated. **107c**: RC_DESC descending pass; the 27 GB pairwise matrix chunked at 2,048 rows. **107d SPLIT, against the attractive branch**: r 0.7398 raw vs **0.7448 after removing per-system mean log sigma** — the miss is **within-system SHAPE, not scale**, so a B-factor scalar does not rescue it and "needs a short simulation" stands. Substitution run still owed. **107e**: armf_submit.sh refuses a dependency-count reduction without ARMF_FORCE; runtime-tested, two bugs in the guard itself fixed. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1820,3 +1821,57 @@ per your instruction that a printed nan beats a silently absorbed one.
   tenth one-name-two-things.
 - **`rescomp` OUT_OF_MEMORY** at 118/125 — the largest systems. It is the same `(3N, 3N)`-class
   allocation the 099 harness needed a frame-space route for.
+
+## 107 — ACCEPTED. 107a was blocking and `10345384` was cancelled on it
+
+**107a — you are right and my diagnosis was wrong.** I concluded "my alternative was inside the
+noise"; the correct reading is that **the metric dilutes it**, which is worse. Reproduced at T=256,
+a1=0.876, K=18:
+
+| scored on | independent band | coupled-8 @0.6 band | verdict |
+|---|---|---|---|
+| all 64 | [0.1275, 0.1431] | [0.1310, 0.1440] | **OVERLAP — undetected** |
+| top 16 | [0.1117, 0.1517] | [0.1505, 0.2316] | **marginal — bands touch** |
+| top 8 | [0.0923, 0.1478] | [0.2344, 0.4771] | **DETECTED** |
+
+**One refinement:** top-16 comes out **marginal** in my reproduction (0.1517 against 0.1505) where
+107a reported it detected, so **top-8 carries the discrimination** and the power check now gates on
+`xcorr_top8`/`amp_top8`. Top-16 and pooled-64 are reported beside it; pooled-64 stays for
+comparability with the propagator's existing numbers. `10345384` was **cancelled** rather than left
+to finish, because on pooled-64 alone a null would have been uninterpretable.
+
+**107b — accepted, and it is Family E introduced by my memory fix.** Gradient accumulation, 4
+micro-steps at batch 8 → **effective batch 32 at unchanged memory**. Samples-seen is now logged every
+eval and reported per arm. Stated plainly: **OU is fitted in closed form and has no optimisation
+budget**, so that comparison is not budget-matched and is not claimed to be; the one-step
+propagator's budget must be quoted beside any joint-vs-one-step statement.
+
+**107c — accepted as one defect, not three.** `RC_DESC` runs the pass **descending in N**, so the two
+passes truncate in opposite directions and their union resolves the trend rather than both being
+small-end. The rescomp OOM itself was the `(3N,3N)`-class allocation — the pairwise distance matrix
+is **27 GB at N=33,377** — and is now chunked at 2,048 rows (1.64 GB per chunk). Your point that
+exposed-surface fraction falls with N *by surface-to-volume*, and that this is the regressor the
+enrichment is defined against, is the reason the descending pass matters rather than a nicety.
+
+**107d — split, and it goes against the attractive branch.**
+
+| | r | variance |
+|---|---|---|
+| pooled, raw | +0.7398 | 55% |
+| **after removing each system's mean log σ** | **+0.7448** | **55%** |
+
+per-system offsets: sd **0.3673 nats** (×1.44 in σ), range 1.068. **Removing the per-system scale
+changes r by +0.005.** The miss is **within-system shape**, not a scale offset, so a single scalar
+from B-factors would **not** rescue it and **"needs a short simulation of the target protein"
+stands**. Still owed: the acceptance verdict with predicted σ actually substituted — the correlation
+is measured, the substitution is not yet run, and that remains the decision-relevant number.
+
+**107e — guarded rather than noted.** `armf_submit.sh` now refuses a submission whose dependency
+count is **lower** than that of a same-named queued job, unless `ARMF_FORCE=1`. Runtime-tested: it
+correctly does **not** fire when there is no reduction (both counts 0), and 61d caught the duplicate
+instead. Two bugs surfaced in that test and were fixed — `JOBNAME` was undefined where the script
+already computes `NAME`, and `$ARMF_FORCE` was unbound under `set -u`.
+
+**On the pattern you named twice:** both `pretrain1m`'s death and this guard's first draft were
+defects created by an action taken to avoid a defect. The guard is the right response precisely
+because a note would not have survived the next edit.

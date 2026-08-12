@@ -65,7 +65,7 @@ sys.path.insert(0, HERE); sys.path.insert(0, ROOT)
 from molae.latent_video import LatentVideoConfig, LatentVideoDiffusion
 from armf_atlas_data import AtlasStore, sysdata
 from armf_anm import modes as anm_modes
-from armf_propagator import stats_of, band, consistent, METRICS, MIN_H
+from armf_propagator import stats_of, band, consistent, METRICS, MIN_H, offdiag
 import armf_atlas_dm as D
 import armf_io
 
@@ -104,6 +104,7 @@ STEPS = int(os.environ.get("LV_STEPS", "20000"))
 # Batch 8 is ~8.1 GB across six layers, which fits with headroom on a 46 GB device. Chosen by
 # arithmetic rather than by halving until it ran.
 BATCH = int(os.environ.get("LV_BATCH", "8"))
+ACCUM = int(os.environ.get("LV_ACCUM", "4"))   # 107b: effective batch = BATCH * ACCUM = 32
 LR = float(os.environ.get("LV_LR", "3e-4"))
 CUTOFF = float(os.environ.get("LV_CUTOFF", "5.0"))
 KEVAL = int(os.environ.get("LV_KEVAL", "32"))  # segments per side, per system
@@ -154,6 +155,41 @@ def prepare(store, have, ids, n):
         except Exception as e:
             print(f"    {p}: prepare FAIL {type(e).__name__}: {e}", flush=True)
     return out
+
+
+TOPM = [int(x) for x in os.environ.get("LV_TOPM", "8,16").split(",")]
+XMETRICS = list(METRICS) + [f"{m}_top{M}" for M in TOPM for m in ("xcorr", "amp")]
+
+
+def stats_ext(X, top2, thr, pool):
+    """INBOX 107a. THE POOLED STATISTIC CANNOT EXPRESS THE EFFECT THE EXPERIMENT EXISTS TO DETECT.
+
+    `offdiag` is the MEAN |correlation| over all 64*63/2 = 2,016 mode pairs, while real collective
+    coupling lives in the slowest handful. Reproduced at T=256, a1=0.876, K=18:
+
+        scored on   independent band        coupled-8 @0.6 band      verdict
+        all 64      [0.1275, 0.1431]        [0.1310, 0.1440]         OVERLAP -- undetected
+        top 16      [0.1117, 0.1517]        [0.1505, 0.2316]         marginal (bands touch)
+        top  8      [0.0923, 0.1478]        [0.2344, 0.4771]         DETECTED
+
+    Making the eight slowest modes almost completely dependent -- stronger than any protein --
+    moves the pooled statistic less than the band width. Family D on the METRIC, not the estimator,
+    which is why the estimator recalibration came back clean. Not fixable by raising T or K: the
+    dilution is in the aggregation.
+
+    One refinement on 107a: top-16 is MARGINAL in my reproduction (0.1517 against 0.1505) where the
+    item reported it detected, so top-8 carries the discrimination and top-16 is reported beside it
+    rather than made the sole primary. Pooled-64 stays because the propagator's existing numbers
+    are on it and dropping it would break comparability.
+
+    The modes arrive slowest-first from anm_modes, so [:M] IS the M slowest.
+    """
+    d = dict(stats_of(X, top2, thr, pool))
+    for M in TOPM:
+        Y = X[:, :M]
+        d[f"xcorr_top{M}"] = offdiag(np.corrcoef(Y.T))
+        d[f"amp_top{M}"] = offdiag(np.corrcoef(np.abs(Y).T))
+    return d
 
 
 def segments(C, T, k, rng, disjoint=False):
@@ -226,17 +262,26 @@ if __name__ == "__main__":
     for st in range(1, STEPS + 1):
         for g in opt.param_groups:
             g["lr"] = LR * min(1.0, st / 1000)
-        sysd = TR[rng.integers(len(TR))]
-        seg = segments(sysd["C_tr"], T, BATCH, rng)
-        if seg is None: continue
-        z1 = torch.tensor(seg, device=dev)
+        # INBOX 107b. GRADIENT ACCUMULATION restores the optimisation budget the memory fix cut.
+        # Batch 32 -> 8 was correct arithmetic, but LV_STEPS stayed at 20,000, so the rerun would
+        # have seen ONE QUARTER of the samples -- and pre-registered reading 3, "joint worse ->
+        # harder to fit at this data scale", could not then be told apart from "trained on a quarter
+        # as much". Family E introduced by a memory fix. ACCUM micro-steps at BATCH give effective
+        # batch 32 at unchanged memory.
         opt.zero_grad()
-        loss, _ = mdl.training_loss(z1)
-        loss.backward(); opt.step()
+        for _ in range(ACCUM):
+            sysd = TR[rng.integers(len(TR))]
+            seg = segments(sysd["C_tr"], T, BATCH, rng)
+            if seg is None: continue
+            loss, _ = mdl.training_loss(torch.tensor(seg, device=dev))
+            (loss / ACCUM).backward()
+            seen += BATCH * T
+        opt.step()
         if st % 2000 == 0:
-            log.append(dict(step=st, loss=float(loss.detach()), secs=time.time() - t0))
+            log.append(dict(step=st, loss=float(loss.detach()), samples_seen=seen,
+                            eff_batch=BATCH * ACCUM, secs=time.time() - t0))
             print(f"    step {st:>6}: flow MSE {float(loss.detach()):.5f}  "
-                  f"({time.time()-t0:.0f}s)", flush=True)
+                  f"frames seen {seen:,}  ({time.time()-t0:.0f}s)", flush=True)
             torch.save(mdl.state_dict(), CKPT)
 
     print(f"\n=== ACCEPTANCE TEST: joint segment diffusion vs OU vs the reference band ===",
@@ -268,22 +313,26 @@ if __name__ == "__main__":
             # discarded unused. Removed rather than left as a second definition of the same thing.
             top2 = np.argsort(pool.std(0))[::-1][:2]
             thr = np.median(pool[:, top2], 0)
-            rs = [stats_of(w.reshape(T, K), top2, thr, pool) for w in refw]
+            rs = [stats_ext(w.reshape(T, K), top2, thr, pool) for w in refw]
             with torch.no_grad():
                 gen = mdl.sample((keval, T, RGRP, DLAT), dev, steps=SAMPLE_STEPS).cpu().numpy()
             ou = ou_segments(sysd["C_tr"], sysd["C_ho"], T, keval, rng)
             arms = {}
             for name, S in (("OU", ou), ("JOINT-diffusion", gen)):
-                ss = [stats_of(w.reshape(T, K), top2, thr, pool) for w in S]
-                inside = {k: bool(consistent(ss, rs, k)) for k in METRICS}
+                ss = [stats_ext(w.reshape(T, K), top2, thr, pool) for w in S]
+                inside = {k: bool(consistent(ss, rs, k)) for k in XMETRICS}
                 arms[name] = dict(agree=int(sum(inside.values())), inside=inside,
-                                  med={k: float(band(ss, k)[0]) for k in METRICS})
+                                  med={k: float(band(ss, k)[0]) for k in XMETRICS})
             # INBOX 81a/105: THE POWER CHECK IS BLOCKING. OU is wrong on xcorr and amp BY
             # CONSTRUCTION, so if it lands INSIDE the band on both, the band cannot reject a model
             # that is wrong by construction and NOTHING about JOINT may be read from this system --
             # including a good result.
             o_in = arms["OU"]["inside"]
-            powered = not (o_in["xcorr"] and o_in["amp"])
+            # 107a: the power check now rides on the TOP-8 coupling, which is the statistic that can
+            # actually see the effect. Pooled-64 is recorded but cannot gate anything, because OU
+            # passing there is uninformative by construction.
+            key_x, key_a = f"xcorr_top{TOPM[0]}", f"amp_top{TOPM[0]}"
+            powered = not (o_in[key_x] and o_in[key_a])
             arms["POWER"] = dict(ou_inside_xcorr=o_in["xcorr"], ou_inside_amp=o_in["amp"],
                                  powered=powered, n_refw=int(len(refw)),
                                  band_xcorr=float(band(rs, "xcorr")[2] - band(rs, "xcorr")[1]))
@@ -291,7 +340,7 @@ if __name__ == "__main__":
             arms["geometry"] = dict(gen_bond_mean=bm, gen_bond_sd=bs,
                                     ref_bond_mean=rm, ref_bond_sd=rs_)
             rows[sysd["pdb"]] = dict(N=sysd["N"], arms=arms,
-                                     ref_med={k: float(band(rs, k)[0]) for k in METRICS})
+                                     ref_med={k: float(band(rs, k)[0]) for k in XMETRICS})
             j = arms["JOINT-diffusion"]; o = arms["OU"]
             print(f"  [{i}/{len(HO)}] {sysd['pdb']:10s} N={sysd['N']:>6} "
                   f"{'POWERED' if powered else 'NO POWER'}  "
@@ -308,7 +357,7 @@ if __name__ == "__main__":
     if not rows:
         raise SystemExit("\n  NO system scored.")
     print(f"\n=== RESULT ({len(rows)} held-out systems) ===")
-    print(f"  {'arm':>18}{'median agree':>14}" + "".join(f"{k:>9}" for k in METRICS))
+    print(f"  {'arm':>18}{'median agree':>14}" + "".join(f"{k:>13}" for k in XMETRICS))
     pw = {k: v for k, v in rows.items() if v["arms"]["POWER"]["powered"]}
     print(f"  POWERED systems: {len(pw)}/{len(rows)}  "
           f"(OU outside the band on xcorr AND amp -- 81a)")
@@ -319,11 +368,19 @@ if __name__ == "__main__":
         src = pw or {}
         if not src: break
         ag = np.array([r["arms"][arm]["agree"] for r in src.values()])
-        cells = "".join(f"{100*np.mean([r['arms'][arm]['inside'][k] for r in src.values()]):>8.0f}%"
-                        for k in METRICS)
+        cells = "".join(f"{100*np.mean([r['arms'][arm]['inside'][k] for r in src.values()]):>12.0f}%"
+                        for k in XMETRICS)
         print(f"  {arm:>18}{np.median(ag):>14.1f}{cells}")
     print(f"  (percentages are the share of systems whose generated segments land INSIDE the band "
           f"real segments make)")
+    # 107b: samples-seen for EVERY arm, because joint-vs-one-step is only meaningful at matched
+    # budget and nothing recorded it before.
+    print(f"\n  SAMPLES SEEN (107b): JOINT {seen:,} frames over {STEPS:,} steps at effective batch "
+          f"{BATCH*ACCUM}\n"
+          f"    OU is fitted in closed form from the train replica -- no optimisation budget, so the\n"
+          f"    comparison is not budget-matched to it and is not claimed to be. The one-step\n"
+          f"    propagator's budget is in its own results file and must be quoted beside any\n"
+          f"    joint-vs-one-step statement.")
     bg = np.array([r["arms"]["geometry"]["gen_bond_mean"] for r in rows.values()])
     br = np.array([r["arms"]["geometry"]["ref_bond_mean"] for r in rows.values()])
     print(f"\n  ATOM-LEVEL GEOMETRY: generated consecutive-CA spacing {np.median(bg):.2f} A vs "

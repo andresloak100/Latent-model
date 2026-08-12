@@ -26,6 +26,31 @@ EXISTING=$(squeue -u "$USER" -h -n "$NAME" -o "%i %T" 2>/dev/null)
 # atlas_dm2 jobs were queued at once as a result. The tight predicate is that the dependency must NAME
 # a job id that is itself queued under this same job name -- i.e. this submission is genuinely behind
 # the thing it would otherwise duplicate, not merely behind something.
+# INBOX 107e. `scontrol update Dependency=` REPLACES the list; it does not append. That is what
+# killed pretrain1m in 28 s -- re-pointing it at the new latentvideo job dropped its prep1m
+# dependency, so it became eligible before its data existed. Second time an action taken TO AVOID a
+# defect created one. This refuses a submission whose dependency list is SHORTER than that of a
+# same-named job already queued, unless ARMF_FORCE=1 -- the same shape as the 61d guard that fired
+# correctly on the 100c resubmission.
+NDEP=0
+for a in "$@"; do
+  case "$a" in
+    --dependency=*) NDEP=$(printf '%s' "$a" | sed 's/^--dependency=//' | tr ',' '\n' | grep -c .) ;;
+  esac
+done
+PRIOR=$(printf '%s\n' "$EXISTING" | awk 'NF{print $1; exit}')
+if [ -n "$PRIOR" ] && [ -z "${ARMF_FORCE:-}" ]; then
+  PN=$(scontrol show job "$PRIOR" 2>/dev/null | grep -oE 'Dependency=[^ ]*' | sed 's/Dependency=//' \
+       | tr ',' '\n' | grep -vc '^(null)$' 2>/dev/null || echo 0)
+  if [ "$NDEP" -lt "$PN" ] 2>/dev/null; then
+    echo "[armf_submit] REFUSING: job $PRIOR ($NAME) has $PN dependencies and this submission has"
+    echo "  $NDEP. scontrol/sbatch REPLACE the dependency list rather than appending, and dropping one"
+    echo "  is how pretrain1m became eligible before its data existed. Re-run with ARMF_FORCE=1 if"
+    echo "  the reduction is deliberate."
+    exit 1
+  fi
+fi
+
 CHAINED=""
 for a in "$@"; do
   case "$a" in
