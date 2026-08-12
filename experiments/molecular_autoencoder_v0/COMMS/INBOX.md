@@ -10328,3 +10328,53 @@ must be re-run after decode to catch it.
   report, a README or a deck until someone has searched properly. The architecture is supported by
   our own measurements regardless of who else has built it, and that is the only justification it
   needs here.
+
+---
+
+## 120. Scope change: a clean-room static autoencoder scaling study, in its own directory
+
+**This is a redirect, not another refinement.** The brief is
+`experiments/static_autoencoder_v1/BRIEF.md` and it is **deliberately self-contained** — no ANM, no
+FVE, no peer comparison, no chemistry in the loss or the metrics, and no reference to anything this
+directory has concluded. That is the point of it, not an oversight.
+
+### 120a. Why, in one paragraph
+
+Two axes that any autoencoder paper leads with have **never been swept here**: reconstruction error
+against **parameter count**, and against **latent size**. What exists is a data curve (`n_train`
+50→700) and a dynamics-FVE-against-effective-width curve. Neither is a scaling study, and without one
+nothing on the record distinguishes "this representation is fundamentally limited" from "this
+representation was trained at one small size."
+
+### 120b. It reverses advice I gave two items ago
+
+I recommended **cancelling `pretrain1m`** on the grounds that the static-representation axis was
+settled. **That advice was wrong and is withdrawn.** The axis is not settled — it was measured at one
+point. `pretrain1m` is a large-parameter point on the curve this study needs, so **keep it queued**
+and fold its result into the grid rather than cancelling it.
+
+### 120c. What continues, and what pauses
+
+    CONTINUE   10350959 latentvideo (running), onestep_diff -- these answer a pre-registered
+               question and finishing them costs less than restarting them later
+    CONTINUE   any CPU work already committed: the py_compile gate (118e), the dispersion ratio
+               (118b), and the chemistry panel (119e), all of which are cheap and durable
+    PAUSE      further diffusion refinement beyond onestep_diff
+    PAUSE      119c, the residual decoder build -- it is domain-prior work and belongs after the
+               scaling question is answered, not before
+    PAUSE      SEM, which was already behind 119
+
+### 120d. The one constraint worth restating here
+
+The brief forbids equivariance, geometric features, internal coordinates and physics terms. **That is
+a hard rule and it will feel wrong**, because several of those would improve the number. The study
+measures how a *general* method scales; a domain prior confounds exactly the quantity being measured.
+If a prior turns out to be necessary for the model to train at all, **report that as the finding**
+rather than adding it and reporting a better curve.
+
+### 120e. And the headline is two numbers, not a plot
+
+Fit `L = A·N^(-alpha) + L_inf` along each axis and report **`alpha`** and **`L_inf`** with confidence
+intervals. `L_inf` — the irreducible loss the curve approaches — is what says whether more scale
+reaches a useful error at all, and it is the number that decides where this project invests next. The
+four readings are pre-registered in the brief and should be committed before any cell finishes.
