@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 112
+last_acted: 113
 ```
 
 | item | restatement | status | commit |
@@ -133,6 +133,7 @@ last_acted: 112
 | 110 | **ACCEPTED — the A/B is confounded twice and I am not claiming it.** JOINT 10,009,864 params vs ONESTEP 181,120 = **55.3x**, and different model families: rectified-flow diffusion vs a single-shot conditional Gaussian that **cannot represent a multi-modal transition density**. The Gaussian MLP is now described as a **nonlinear OU**; `onestep_diff` (one-step DDPM, same family) is what the headline needs. What IS readable is joint-vs-OU, since OU is a clean physics null. | ACCEPTED | (this commit) |
 | 111 | **ACCEPTED. 111c forensics: root cause found and it was mine.** 10346121 **FAILED 1:0** on **cn-b005 = volta** with 'no kernel image available'; 10346189/10346190 **COMPLETED 0:0** on **cn-a003 = turing**. The standing `turing\|ampere\|lovelace` constraint exists for exactly this and I removed it entirely when told not to EXPORT it globally — now in **all 23 GPU sbatch**. joint.json ABSENT, onestep/r8 both 24 rows complete=True. **Item 5**: `trap _armf_log EXIT` in 21 sbatch -> tracked outputs/job_log.tsv, fires on crash and SIGTERM. **Item 2**: ns column **6x too small** (step=2501//400=6, so 240 ps/unit) — exposed residual **3.65 ns**, collective **5.88 ns**; ratio unaffected; corrected in ROADMAP, and 5.88 ns is far closer to 100e's 12-220 ns ITS. **Item 3**: ceiling confirmed (collective 61.3% of ceiling, p75 91.2%, **19% above it**) but excluding pinned systems moves the ratio **0.679 -> 0.713, UP** — opposite to both our expectations; rescompFULL at RC_NFRAME=2501 queued. **First positive generative result**: JOINT 11/11 vs OU 4/11, **xcorr_top8 100% vs 8%**. | ACCEPTED | (this commit) |
 | 112 | **ACCEPTED. Item 5 written at 09:00 elapsed of 10350867**, before any number existed: R=64xD=1 PRIMARY, R=8xD=8 ABLATION, disagreement is itself a finding. **Item 1 verified independently: 9 of 11 metrics are TIME-BLIND**, including xcorr_top8 (0.00% change under row permutation); only iat (92.57%) and trans (269.81%) see time. Claim restated as **instantaneous cross-mode covariance**, not trajectory modelling; and pre-registered that onestep_diff should also hit ~100% on xcorr_top8, in which case the question falls entirely to iat/trans. **Item 2 SHUFFLE arm added** — on the smoke it scores 10/11 failing only `iat`, so **trans does not discriminate either** and iat carries the whole temporal signal. **Item 3**: OU's 8% was the selection restated (powered *because* OU failed); OU now quoted over ALL systems, JOINT reported as 12/12 with rule-of-three CI [75%, 100%]. **Item 4**: bond_stats measured every N//200-th ATOM, a different physical distance per system (Family F) that cannot detect broken chemistry; now CA by atom name — smoke gives **3.69 A vs 3.56 A ref** against the true 3.80 A, so 2.70 A was the artefact. 10350867 cancelled at 12:37 and resubmitted as 10350959 so items 1-2 are IN the run. | ACCEPTED | (this commit) |
+| 113 | **ACCEPTED — 113d immediately qualifies the joint result.** Applied to lv_r8: the model is **systematically BELOW the reference on every coupling metric** — xcorr, amp, xcorr_top16 all at **p=0.0003** where interval overlap passed — and **above on trans (18/24, p=0.0227, +80.4)**. The pre-registered headline **xcorr_top8 does NOT fire (p=0.0639) but is marginal with a negative median diff**, so it survives only just and is recorded that way. **Verified 113.1/113.2**: per-system overlap catches **0/24 at every error size** (3.7x, 2x, 1.5x, 1.2x); my iat recovers 34% of truth at T=256 vs 113's 13%, and my paired power is weaker at 2x/1.5x though identical at 3.7x — null does not fire either way. **113.4 implemented as a post-hoc reader** so finished runs are covered without re-running. **113.5**: true frames **3.842 A**, mu alone **3.299 (-14.1%)**, rank-64 recon **3.566 (-7.2%)** — the 3.56 A reference is the DECODE, not the data. The proposed mechanism for generated>reconstruction is **not supported**: std is 12/24, p=1.0, median diff -0.018, so no amplitude excess; recorded as unexplained. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -2106,3 +2107,64 @@ the true consecutive-CA 3.80 ± 0.03 Å — the old 2.70 Å was the artefact.
 
 **`10350867` was cancelled at 12:37 and resubmitted as `10350959`**, because it had already loaded
 the pre-SHUFFLE script and items 1–2 had to be in the run rather than beside it.
+
+## 113 — ACCEPTED. 113d immediately qualifies the joint result
+
+**113d applied to `lv_r8`, and it changes what that run says.**
+
+| metric | n_pos/n | sign p | median diff | overlap caught |
+|---|---|---|---|---|
+| xcorr | 3/24 | **0.0003** | **−0.0646** | 4/24 |
+| amp | 3/24 | **0.0003** | −0.0480 | 9/24 |
+| xcorr_top16 | 3/24 | **0.0003** | −0.0557 | 2/24 |
+| kurt | 5/24 | **0.0066** | −0.0351 | **0/24** |
+| amp_top16 | 5/24 | 0.0066 | −0.0433 | 4/24 |
+| amp_top8 | 6/24 | **0.0227** | −0.0492 | **0/24** |
+| **trans** | 18/24 | **0.0227** | **+80.39** | **0/24** |
+| **xcorr_top8** (headline) | 7/24 | 0.0639 | −0.0592 | 0/24 |
+| iat | 7/24 | 0.0639 | −2.2269 | 0/24 |
+
+**The joint model is systematically BELOW the reference on every coupling metric** — p=0.0003 on
+three of them, where interval overlap passed — **and systematically ABOVE on transitions**. So
+"JOINT 11/11 inside the band" and "the joint model is biased low on coupling at p=0.0003" are both
+true of the same run, and the second is the more precise statement. **The pre-registered headline
+`xcorr_top8` does not fire (p=0.0639), but it is marginal and its median difference is negative** —
+so the headline survives the stronger test only just, and I am recording it that way rather than as a
+clean pass.
+
+**113.1 and 113.2 — verified, with one divergence stated.** At T=256 my `iat_series` recovers **34%**
+of a 147-frame truth where 113 measured 13%; the shape and conclusion are identical (it measures the
+window, not the process). And **per-system overlap caught 0/24 at every error size I tested** —
+3.7×, 2×, 1.5×, 1.2× — confirming the instrument has no power. My paired-test power is **weaker**
+than 113d's at 2× (p=0.31) and 1.5× (p=0.064) though identical at 3.7× (p<0.0001); the likely cause
+is that a less-biased estimator compresses the paired difference. **The null row does not fire**, so
+this is added power, not a looser threshold.
+
+**113.4 implemented as a post-hoc reader** (`armf_paired_verdict.py`) over the persisted per-system
+results, so it applies to runs already finished and does not require a re-run — the same division as
+`armf_propagator_report.py` for 82a. `n_pos/n` prints beside every p so a fire is read as directional
+rather than taken on the p-value. Nothing in 77a is given up: each system's difference is still two
+same-length series through one estimator; only the across-system aggregation changes.
+
+**113.5 — the three numbers, and they fully explain the 3.56 Å:**
+
+| | median | vs true frames |
+|---|---|---|
+| true frames | **3.842 Å** | — |
+| mu alone | 3.299 Å | **−14.1%** |
+| rank-64 reconstruction | **3.566 Å** | **−7.2%** |
+
+True consecutive-CA is 3.80 ± 0.03 Å and the frames give 3.842 Å, so **the data is fine and the
+compression is the decode.** The mean structure is contracted by 14% — averaging fluctuating
+coordinates does contract distances, and mu is not a valid conformation — and rank-64 recovers most
+but not all of it, landing at **3.566 Å, which is the 3.56 Å reference value almost exactly**.
+
+**The direction you flagged is real and my measurement does NOT support the proposed mechanism.**
+Generated 3.69 Å is closer to truth than the 3.566 Å reconstruction it imitates. Larger amplitude in
+bond-extending modes would explain it and would show as a std excess — but the paired test gives
+`std` **12/24, p=1.0000, median diff −0.0181**, i.e. no systematic amplitude excess and if anything a
+slight deficit. So the mechanism is **not** global amplitude inflation, and it is recorded as
+unexplained rather than attributed.
+
+**Still owed, unchanged:** 109c's Ångström error under predicted sigma — the number that decides
+whether a zero-shot demo is possible at all.
