@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 114
+last_acted: 115
 ```
 
 | item | restatement | status | commit |
@@ -135,6 +135,7 @@ last_acted: 114
 | 112 | **ACCEPTED. Item 5 written at 09:00 elapsed of 10350867**, before any number existed: R=64xD=1 PRIMARY, R=8xD=8 ABLATION, disagreement is itself a finding. **Item 1 verified independently: 9 of 11 metrics are TIME-BLIND**, including xcorr_top8 (0.00% change under row permutation); only iat (92.57%) and trans (269.81%) see time. Claim restated as **instantaneous cross-mode covariance**, not trajectory modelling; and pre-registered that onestep_diff should also hit ~100% on xcorr_top8, in which case the question falls entirely to iat/trans. **Item 2 SHUFFLE arm added** — on the smoke it scores 10/11 failing only `iat`, so **trans does not discriminate either** and iat carries the whole temporal signal. **Item 3**: OU's 8% was the selection restated (powered *because* OU failed); OU now quoted over ALL systems, JOINT reported as 12/12 with rule-of-three CI [75%, 100%]. **Item 4**: bond_stats measured every N//200-th ATOM, a different physical distance per system (Family F) that cannot detect broken chemistry; now CA by atom name — smoke gives **3.69 A vs 3.56 A ref** against the true 3.80 A, so 2.70 A was the artefact. 10350867 cancelled at 12:37 and resubmitted as 10350959 so items 1-2 are IN the run. | ACCEPTED | (this commit) |
 | 113 | **ACCEPTED — 113d immediately qualifies the joint result.** Applied to lv_r8: the model is **systematically BELOW the reference on every coupling metric** — xcorr, amp, xcorr_top16 all at **p=0.0003** where interval overlap passed — and **above on trans (18/24, p=0.0227, +80.4)**. The pre-registered headline **xcorr_top8 does NOT fire (p=0.0639) but is marginal with a negative median diff**, so it survives only just and is recorded that way. **Verified 113.1/113.2**: per-system overlap catches **0/24 at every error size** (3.7x, 2x, 1.5x, 1.2x); my iat recovers 34% of truth at T=256 vs 113's 13%, and my paired power is weaker at 2x/1.5x though identical at 3.7x — null does not fire either way. **113.4 implemented as a post-hoc reader** so finished runs are covered without re-running. **113.5**: true frames **3.842 A**, mu alone **3.299 (-14.1%)**, rank-64 recon **3.566 (-7.2%)** — the 3.56 A reference is the DECODE, not the data. The proposed mechanism for generated>reconstruction is **not supported**: std is 12/24, p=1.0, median diff -0.018, so no amplitude excess; recorded as unexplained. | ACCEPTED | (this commit) |
 | 114 | **ACCEPTED — the data refutes the 107a reasoning that set the headline.** Deficit is **broad, not sparse**: pooled-64 p=0.0003 vs top-8 p=0.0639. **Headline NOT swapped** (that is what makes it a pre-registration); pooled xcorr pre-registered as PRIMARY for onestep_diff, committed before that run exists. **Item 4**: NOT identical — xcorr/amp share 3 systems, xcorr_top16 swaps one; intersection 2, union 4; one effect, count it once. **Item 6**: all eleven reported — **iat negative (tilt's prediction)**, **kurt negative and fires (rules OUT the heavy-tail route)**. **Item 5 MDE**: xcorr_top8's \|diff\|=0.0592 **exceeds** its MDE 0.0510 yet does not fire — a near-miss, not agreement; std's MDE is **5.6x** its difference, so 'matched' is weak and std fails twice (blind AND underpowered). **Item 2 submitted (10351118)** with the prediction written first. **109c DONE**: predicted sigma costs **+0.528 A, +15.5%, worse on 100%** — 'needs a short simulation' is now established, not inferred. **108.1's bug check caught a defect in my own harness**: trans flagged as LEAK because I applied an unwhitened threshold to a whitened series; fixed, all seven now behave as predicted. | ACCEPTED | (this commit) |
+| 115 | **ACCEPTED — your correction holds, and the run that confirmed it broke the rule that confirmed it.** **115a**: prediction exact — SHUFFLE **9/11** with **trans firing 23/23, median +205.88, wilcoxon p=0.0000**, independently recovering 112a's +208%; overlap catches **0/24**. 113f's 'no working instrument' **corrected in ROADMAP.md**: 2c is under-powered, not instrument-less, and there are **two** temporal statistics. **DEFECT FOUND IN THE PAIRED RULE**: `(d>0).sum()` counts an exact zero as negative, so 24 identical numbers give p=1.2e-07 — nine metrics 'fired' at differences of 1e-16. Fixed at **108.1's own \|rel\|<1e-6**, not a new knob. **Audited: lv_r8 has ZERO ties, nothing on the record is invalidated**; onestep trans 0.0227→0.0106, same verdict. **115c pre-registered in 4e57beac before onestep_diff exists**, --wilcoxon OFF by default, skew>1 → sign test governs; lv_r8 stands as reported. **Wilcoxon was immune to the tie defect** — the more powerful test is also the safer one. **115d**: the floor **was** the baseline and my label was wrong — renamed rmsd_floor, identity asserted. Floor sweep **3.873→2.318 Å over K=8..256, no plateau**, so 3 Å is a choice of K; and **predicted sigma at rank 64 (3.537 Å) is worse than the measured-sigma floor at rank 32 (3.456 Å)**. **115b** accepted as the better reading: kurt is a fourth confirmation of the tilt. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -2235,3 +2236,66 @@ a LEAK — `trans` must move under a per-mode rescale and did not. Cause: I comp
 basin and `trans` was identically zero on both arms. Fixed; `trans` now moves at 1.0e-01 and all
 seven behave as 108.1 predicted — std 4.3e-02 and js 4.9e+00 move, kurt 1.3e-08, xcorr 7.1e-17, amp
 and iat exactly 0.0.
+
+## 115 — ACCEPTED. Your correction holds, and the run that confirmed it broke the rule that confirmed it
+
+**115a — the prediction held exactly, and `trans` fires.** All 24 held-out systems, paired rule:
+
+| metric | n_pos/n | ties | sign p | wilcoxon p | median diff | overlap caught |
+|---|---|---|---|---|---|---|
+| **trans** | **23/23** | 1 | **0.0000** | **0.0000** | **+205.88** | **0/24** |
+| iat | 0/24 | 0 | 0.0000 | 0.0000 | −18.67 | 24/24 |
+| the other nine | 0/0 | **24** | 1.0000 | 1.0000 | 0.0000 | 0/24 |
+
+**SHUFFLE passes 9/11 — exactly what you predicted — with `trans` firing.** The +205.9 independently
+recovers 112a's `231.37 → 713.73`, +208%. Interval overlap catches it **0/24**. Your sentence is
+right: the metric was never the problem, **the rule was**, and it is the rule 113d replaced.
+**113f's "2c has no working instrument" is corrected in `ROADMAP.md`** — 2c is **under-powered, not
+instrument-less**, and there are **two** working temporal statistics, not one.
+
+**And the run that confirmed your correction found a defect in the rule that confirmed it.**
+`(d > 0).sum()` counts an **exact zero as a negative**, so 24 identical numbers give `n_pos = 0` and
+`binomtest(0, 24, 0.5) = 1.2e-07` — the most extreme p obtainable. Before the fix, **nine of eleven
+metrics "fired" against the shuffle**:
+
+    js      all 24 differences EXACTLY 0.0                sign p 0.0000
+    xcorr   max |diff| 1.1e-16 vs reference value 0.229   sign p 0.0066
+    amp     max |diff| 2.8e-17 vs reference value 0.137   sign p 0.0000
+
+Fixed by dropping ties at **108.1's own `|rel| < 1e-6`** — this project's existing meaning of "did not
+move" rather than a new knob — and reporting the tie count.
+
+**Audited against everything already reported: nothing is invalidated.** `lv_r8` has **zero ties on
+all eleven metrics**; `latent_video_onestep`'s `trans` has one tie and moves p 0.0227 → 0.0106, same
+verdict. The defect can **only** bite where the true difference is zero, which is why the SHUFFLE —
+the first arm whose metrics are invariant *by construction* — exposed it and no model arm could have.
+
+**115c — pre-registered in `4e57beac`, before `onestep_diff` exists**, with no results in that commit:
+Wilcoxon primary, sign test beside it, overlap third, and **|skew| > 1 → the sign test governs**,
+fixed in advance. `--wilcoxon` is **off by default** so the default path cannot silently restate a
+headline. **`lv_r8` stands as reported**: sign test, `xcorr_top8` p = 0.0639, marginal.
+**Unplanned bonus, and it argues your case further than power does:** Wilcoxon was **immune** to the
+tie defect throughout (0.30, 0.18, nan on the three above) because `zero_method="wilcox"` drops exact
+zeros. The more powerful test is also the safer one — not why it was chosen.
+
+**115d — the floor was already the baseline, and my label was wrong.**
+`rec_meas = ((C/sd)*sd) @ V.T + mu` is algebraically `C @ V.T + mu`: **the rank-64 projection of true
+frames, no generative model in it.** Renamed `rmsd_floor`, identity asserted in code. So the floor is
+**100% of the 3.009 Å**, and milestone 4 is capped near 3 Å by truncation whatever the generator does.
+That raises what neither of your two readings covers — **is the floor buyable?**
+
+| K | 8 | 16 | 32 | **64** | 128 | 256 |
+|---|---|---|---|---|---|---|
+| median floor RMSD | 3.873 Å | 3.655 Å | 3.456 Å | **3.009 Å** | 2.678 Å | 2.318 Å |
+
+**It does not plateau** — 3 Å is a *choice of K*, not a limit of the linear subspace. Which gives the
+sharpest reading of the σ penalty in the project's own units: **predicted σ at rank 64 (3.537 Å) is
+worse than the measured-σ floor at rank 32 (3.456 Å).** The σ error costs more than halving the rank.
+
+**115b — accepted as the better reading.** `kurt` is a **fourth confirmation**, not only a
+ruling-out: 98c found metastable states on **40/40** systems, the **slow** modes are what visit them,
+so their marginals are bimodal and heavy-tailed while fast modes are near-Gaussian. A slow→fast tilt
+**lowers** excess kurtosis — the sign measured. Six observations, one mechanism; `10351118` can kill
+all six at once.
+
+**GPU while this CPU work ran:** `10350959` latentvideo on cn-c005 at **99%** utilisation, 46 min in.
