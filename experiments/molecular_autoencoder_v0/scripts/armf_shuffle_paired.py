@@ -37,7 +37,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 from armf_latent_video_run import (prepare, segments, stats_ext, XMETRICS, K, T, RGRP, DLAT,
                                    KEVAL, NEVAL)
 from armf_propagator import band, consistent, MIN_H
-from armf_paired_verdict import paired
+from armf_paired_verdict import paired, fires, pfmt, MIN_EFF
 from armf_atlas_data import AtlasStore
 import armf_atlas_dm as D
 import armf_io
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     print(f"  Ties are dropped at 108.1's own |rel| < 1e-6 -- see armf_paired_verdict.paired(). The")
     print(f"  UNFIXED sign test fired on nine of these metrics at differences of 1e-16, because it")
     print(f"  counted an exact zero as a negative. This arm is what exposed that.")
-    print(f"  {'metric':>13}{'n_pos/n':>10}{'ties':>6}{'sign p':>10}{'wilcoxon p':>12}{'skew':>8}"
+    print(f"  {'metric':>13}{'n_pos/n_eff':>12}{'ties':>6}{'sign p':>12}{'wilcoxon p':>12}{'skew':>8}"
           f"{'median diff':>14}{'overlap caught':>16}  time?")
     fired_paired = 0
     for m in XMETRICS:
@@ -102,11 +102,13 @@ if __name__ == "__main__":
         npos, nk, p_sign, p_wil, sk, skewed, nt = paired(d, ref)
         # 115c's rule, fixed in advance: |skew| > 1 and the sign test governs.
         p = p_sign if skewed else p_wil
-        if p < 0.05: fired_paired += 1
-        note = "  <-- PAIRED FIRES, overlap did not" if (p < 0.05 and caught == 0) else ""
+        if fires(p): fired_paired += 1
+        note = "  <-- PAIRED FIRES, overlap did not" if (fires(p) and caught == 0) else ""
         if skewed: note += "  [SKEWED: sign test governs]"
         if nt == len(d): note += "  [ALL TIED: invariant by construction]"
-        print(f"  {m:>13}{f'{npos}/{nk}':>10}{nt:>6}{p_sign:>10.4f}{p_wil:>12.4f}{sk:>8.2f}"
+        elif fires(p) and nk < MIN_EFF:
+            note += f"  [SMALL n_eff={nk} of {len(d)}: {nt} ties dropped]"
+        print(f"  {m:>13}{f'{npos}/{nk}':>12}{nt:>6}{pfmt(p_sign, 12)}{pfmt(p_wil, 12)}{sk:>8.2f}"
               f"{np.median(d):>14.4f}{f'{caught}/{len(d)}':>16}  "
               f"{'TIME' if m in TIME_AWARE else 'static'}{note}")
     print(f"\n  SHUFFLE passes {len(XMETRICS)-fired_paired}/{len(XMETRICS)} under the PAIRED rule")

@@ -117,7 +117,11 @@ CUTOFF = float(os.environ.get("LV_CUTOFF", "5.0"))
 KEVAL = int(os.environ.get("LV_KEVAL", "32"))  # segments per side, per system
 SAMPLE_STEPS = int(os.environ.get("LV_SAMPLE_STEPS", "50"))
 RES = os.environ.get("LV_RES", f"{WR}/latent_video_{os.environ.get('LV_ARM','joint')}.json")
-CKPT = f"{WR}/latent_video_ckpt_{os.environ.get('LV_ARM','joint')}.pt"
+# 116: THE CHECKPOINT NAME DID NOT ENCODE R, so the R=64 run was about to overwrite lv_r8's --
+# the checkpoint behind the headline result. RES was overridden per-arm and CKPT was not, which
+# is the same "one name, two things" in a filename. R is in the name now, and the rescued
+# lv_r8 file is saved as latent_video_ckpt_joint_r8.pt.
+CKPT = f"{WR}/latent_video_ckpt_{os.environ.get('LV_ARM','joint')}_r{RGRP}.pt"
 dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 

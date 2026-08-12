@@ -57,6 +57,8 @@ from scipy import stats as st
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 
 WR = os.environ["WR"]
+UNEVAL = "UNEVALUABLE"      # 116.4: not a p-value, and must not sort as one
+MIN_EFF = int(os.environ.get("PV_MIN_EFF", "12"))   # half of n=24; below this a fire is small-n
 XMETRICS = ["std", "js", "kurt", "xcorr", "amp", "iat", "trans",
             "xcorr_top8", "amp_top8", "xcorr_top16", "amp_top16"]
 TIME_AWARE = {"iat", "trans"}
@@ -87,22 +89,44 @@ def paired(d, ref=None):
     AUDITED AGAINST EVERYTHING ALREADY REPORTED: lv_r8 has ZERO ties on all eleven metrics, so no
     headline number changes. latent_video_onestep's `trans` has one tie and moves p 0.0227 -> 0.0106,
     the same verdict. Nothing on the record is invalidated by this fix.
+
+    116.4 ADDS TWO THINGS THE TIE FIX MADE NECESSARY.
+      n_effective IS RETURNED AND PRINTED BESIDE EVERY p. Dropping ties shrinks n silently, and a
+      metric with 18 ties and 6/6 positive returns p = 0.031 on SIX systems -- a number that reads
+      like the 24-system result next to it. n_eff is now the denominator in every printed n_pos/n,
+      and rows below MIN_EFF are marked so a small-n fire cannot be mistaken for a large-n one.
+      UNEVALUABLE REPLACES nan. Wilcoxon returns nan when every difference is a tie, and a nan p
+      reads as "not significant" to anything that sorts or filters -- it would be silently ranked
+      as the safest row in the table. UNEVALUABLE is returned instead, and it is not a p-value.
     """
     d = np.asarray(d, dtype=float)
     scale = np.maximum(np.abs(np.asarray(ref, dtype=float)), 1e-12) if ref is not None else 1.0
     keep = np.abs(d) > 1e-6 * scale
     nt = int((~keep).sum())
     k = d[keep]
-    if len(k) == 0:                        # every difference is a tie: invariant, not significant
-        return 0, 0, 1.0, 1.0, float("nan"), False, nt
+    if len(k) == 0:      # every difference is a tie: invariant by construction, NOT "not significant"
+        return 0, 0, UNEVAL, UNEVAL, float("nan"), False, nt
     npos = int((k > 0).sum())
     p_sign = st.binomtest(npos, len(k), 0.5).pvalue
     try:
         p_wil = float(st.wilcoxon(k, zero_method="wilcox").pvalue)
     except ValueError:
-        p_wil = 1.0
+        p_wil = UNEVAL
+    # `p_wil == p_wil` is already False for a nan, so that guard could never fire. scipy returns
+    # nan when the signed-rank statistic has no variance left, and nan must not reach the table.
+    if isinstance(p_wil, float) and np.isnan(p_wil):
+        p_wil = UNEVAL
     sk = float(st.skew(k)) if len(k) > 2 else float("nan")
     return npos, len(k), p_sign, p_wil, sk, (abs(sk) > 1.0 if sk == sk else False), nt
+
+
+def fires(p):
+    """UNEVALUABLE is not a p-value and must never satisfy a `< 0.05` test."""
+    return isinstance(p, float) and p == p and p < 0.05
+
+
+def pfmt(p, w=10):
+    return f"{'UNEVALUABLE':>{w}}" if not isinstance(p, float) or p != p else f"{p:>{w}.4f}"
 
 
 if __name__ == "__main__":
@@ -123,7 +147,7 @@ if __name__ == "__main__":
         print(f"  PRIMARY VERDICT: {'WILCOXON signed-rank (115c)' if WIL else 'SIGN TEST'}"
               f"{'; sign test beside it as the conservative check' if WIL else ''}")
         head = f"{'wilcoxon p':>12}{'skew':>8}" if WIL else ""
-        print(f"  {'arm':>10}{'metric':>13}{'n_pos/n':>10}{'ties':>6}{'sign p':>10}{head}"
+        print(f"  {'arm':>10}{'metric':>13}{'n_pos/n_eff':>12}{'ties':>6}{'sign p':>12}{head}"
               f"{'median diff':>14}{'overlap caught':>16}  time?")
         for arm in arms:
             if arm == "OU": continue
@@ -142,11 +166,14 @@ if __name__ == "__main__":
                 p = p_wil if (WIL and not skewed) else p_sign
                 flag = "TIME" if m in TIME_AWARE else "static"
                 star = " <-- paired test fires where overlap did not" \
-                    if (p < 0.05 and caught == 0) else ""
+                    if (fires(p) and caught == 0) else ""
                 if WIL and skewed: star += " [SKEWED: sign test governs]"
                 if nt == len(d): star += " [ALL TIED: invariant, not significant]"
-                extra = f"{p_wil:>12.4f}{sk:>8.2f}" if WIL else ""
-                print(f"  {arm:>10}{m:>13}{f'{npos}/{nk}':>10}{nt:>6}{p_sign:>10.4f}{extra}"
+                # 116.4: a fire on a shrunken n reads like a fire on the full n unless it is said.
+                elif fires(p) and nk < MIN_EFF:
+                    star += f" [SMALL n_eff={nk} of {len(d)}: {nt} ties dropped]"
+                extra = f"{pfmt(p_wil, 12)}{sk:>8.2f}" if WIL else ""
+                print(f"  {arm:>10}{m:>13}{f'{npos}/{nk}':>12}{nt:>6}{pfmt(p_sign, 12)}{extra}"
                       f"{np.median(d):>14.4f}{f'{caught}/{len(d)}':>16}  {flag}{star}")
         print(f"\n  The paired test uses each system's DIFFERENCE from its own reference, so 77a's"
               f"\n  same-length one-estimator discipline is untouched; only the ACROSS-SYSTEM"
