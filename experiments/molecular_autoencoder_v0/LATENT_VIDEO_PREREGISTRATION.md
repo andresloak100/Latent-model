@@ -66,3 +66,40 @@ It would establish that a learned generator over physics-derived collective coor
 distributional and kinetic structure a linear stochastic baseline cannot. It would **not** establish
 a simulator: 0/123 on reconstruction stands, it is a different axis, and the trajectory length here
 supports state *detection* but not state *populations*.
+
+---
+
+## Token axis — pre-registered while `10350867` is still running (INBOX 112 item 5)
+
+Written at **09:00 elapsed of `10350867`**, before any number from it exists. This matters because the
+only joint result currently on the record came from **`lv_r8` (R=8×D=8)**, which 104b, 107 and 110
+all declared the **ablation** — the pre-registered primary died on a volta node.
+
+- **`R=64 × D=1` is PRIMARY** — one token per ANM mode, as 104b specified — and it **governs the
+  headline**.
+- **`R=8 × D=8` is the ABLATION** — eight modes bundled per token.
+- **If they disagree, the primary is the result**, and the disagreement is itself a finding about the
+  token axis rather than about joint generation.
+
+Written afterwards, that same sentence would be a choice among outcomes.
+
+## What the headline statistic can and cannot see (INBOX 112 item 1)
+
+**Nine of eleven metrics are blind to time.** `corrcoef` is invariant to row permutation, `|c·x|`
+likewise, and moments and histograms do not know the order their samples arrived in. Only `iat` and
+`trans` see time.
+
+So **`xcorr_top8` is a statistic about the instantaneous joint distribution over modes, not about
+dynamics.** The claim this run can support is:
+
+> The joint model reproduces the **instantaneous cross-mode covariance** that OU cannot represent by
+> construction.
+
+That is a genuine first for this project and it is claimed at exactly that size — **not** as evidence
+about trajectory modelling.
+
+**Declared before `onestep_diff` runs:** a one-step diffusion will also produce correlated modes and
+should also score ~100% on `xcorr_top8`. **If it does, that statistic cannot separate joint from
+one-step at all**, and the joint-vs-one-step question falls entirely to `iat` and `trans` — the only
+two metrics that see time. Saying so now removes the option of reading a tie on `xcorr_top8` as
+support for either arm.
