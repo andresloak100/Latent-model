@@ -9721,3 +9721,130 @@ result is the shape that invites reading the reported subset as the whole.
   recorded as unexplained. 114d is a second candidate, not a replacement for that discipline.
 - **Implemented as a post-hoc reader** so finished runs are covered without re-running. That is the
   right shape: the verdict rule is a property of the analysis, not of the run.
+
+---
+
+## 115. "`trans` doesn't discriminate" was a statement about the verdict rule, not the metric — and it fires under pairing
+
+Item 1 held in the direction that cost something, item 2 was submitted with its prediction written
+before the numbers existed, all eleven metrics were reported rather than the flattering six, the MDE
+column turned "matched" into "underpowered", 109c came back against us and was recorded that way, and
+108.1's pre-registered check found a defect in the harness that ran it. Every one of those is the
+hard version.
+
+**And one conclusion of mine now looks wrong, in the project's favour.**
+
+### 115a. `trans` is a working temporal discriminator. 112b's reading of the SHUFFLE was about `consistent()`
+
+112b concluded from `SHUFFLE 10/11, failing only iat` that **"`trans` does not discriminate either, and
+`iat` carries the entire temporal signal."** Set that beside two things now on the record:
+
+    trans under a time shuffle (112a, measured)      231.37 -> 713.73    +208%
+    trans under the PAIRED test on lv_r8              18/24, p = 0.0227, median +80.4
+
+`trans` is **massively** time-sensitive — it more than triples when time order is destroyed — and it
+**fires** under the paired rule. It failed to flag the shuffle because the *verdict* was per-system
+interval overlap, which 113d showed catches 0/24 at a 3.7x error. **The metric was never the problem.
+The rule was**, and it is the same rule 113d already replaced.
+
+So my sentence should have been: *the shuffle passes `trans` under interval overlap*, which is a
+statement about power, not about the statistic.
+
+**Two consequences, and the second is the one that matters:**
+
+1. **Re-run the SHUFFLE arm through the paired reader.** Prediction, stated now: `trans` fires against
+   the shuffle, the shuffle scores **9/11 rather than 10/11**, and that recovers exactly the result
+   112b predicted before the verdict rule was known to be weak. If `trans` still does not fire against
+   a +208% shift, something is wrong with the pairing and that is worth more than the run.
+2. **113f's line "2c has no working instrument" is too pessimistic and should be corrected.** Under
+   the paired rule there is **at least one** time-sensitive statistic that fires on real data, and
+   possibly two once `iat` is read with its MDE. Milestone 2c is under-powered, not instrument-less —
+   a materially different position.
+
+### 115b. `kurt` is a FOURTH confirmation of the tilt, not a ruling-out
+
+You read `kurt` at p = 0.0066, median **−0.0351** — generated marginals **lighter**-tailed — as ruling
+out the heavy-tail route to an inflated `E|.|`. It does rule that out. But it is also **positive
+evidence for 114d**, and that is the more useful reading.
+
+Slow ANM modes are the ones that visit **multiple metastable states** — 98c found real ones on 40/40
+systems — so their marginals are bimodal and **heavy**-tailed. Fast modes are close to independent
+thermal noise and therefore near-Gaussian. **A variance tilt from slow toward fast modes lowers excess
+kurtosis**, which is exactly the sign measured.
+
+The tilt now predicts, and matches, six observations:
+
+    xcorr   low        fast modes couple less
+    trans   high       fast modes cross thresholds more often
+    iat     short      7/24, median -2.2269 -- yours, and it is the tilt's own prediction
+    kurt    light      slow modes are the multi-basin, heavy-tailed ones
+    CA      long       fast modes carry local deformation
+    std     flat       a mean over 64 modes cannot see a tilt, and is 5.6x underpowered anyway
+
+Six consistent signs from one mechanism is a much stronger claim than the four in 114d, and `10351118`
+will confirm or kill it outright. If the blocks come back flat, all six need separate explanations.
+
+### 115c. The sign test throws away magnitude, and Wilcoxon roughly doubles the power
+
+Your MDE column exposed it precisely: `xcorr_top8` has `|diff| = 0.0592` against `MDE = 0.0510` — the
+difference **exceeds** the minimum detectable effect and the test still does not fire. That is the
+sign test discarding every magnitude and keeping only the sign.
+
+A Wilcoxon signed-rank test uses the same paired differences and their magnitudes. Simulated at
+n = 24, 4,000 replications:
+
+    shift (in sd)   sign test   Wilcoxon    gain
+            0.000        1.8%       4.9%   (null: sign test is CONSERVATIVE, Wilcoxon calibrated)
+            0.300       12.6%      27.2%   +14.6
+            0.500       34.5%      62.1%   +27.5
+            0.674       60.7%      87.4%   +26.7    <- the sign test's own MDE
+            0.800       77.1%      96.1%   +19.0
+
+**Power roughly doubles across the whole relevant range**, and `xcorr_top8`'s near-miss sits right in
+the middle of it. The sign test's 1.8% under the null shows where the loss comes from: discreteness
+at n=24 makes it conservative, and conservative means under-powered.
+
+**Two constraints on adopting it, and the first is not optional:**
+
+- **Do not apply Wilcoxon to `lv_r8`'s pre-registered headline.** `xcorr_top8` at p = 0.0639 is a
+  reported result; switching to a more powerful test *after seeing that it nearly fired* is exactly
+  the move item 1 refused. Report `lv_r8` as it stands.
+- **Pre-register for `onestep_diff`** — in the same separate-commit-before-the-run form as `b1e2d73a`:
+  Wilcoxon signed-rank is the primary verdict, sign test reported beside it as the distribution-free
+  conservative check, per-system overlap reported third. Wilcoxon assumes roughly symmetric
+  differences, so report the skew of the per-system differences alongside; where it is badly skewed,
+  the sign test governs.
+
+### 115d. 3.009 A needs its floor, the same way 3.566 A did
+
+109c is the right measurement and the conclusion holds. But `+0.528 A` is quoted against a baseline of
+`3.009 A`, and nothing on the record says what **3.009 A** is relative to. The rank-64 ANM decode has
+its own error floor — 113e established exactly this for CA spacing, where the reference itself sat
+7.2% low because of `mu` contraction plus truncation.
+
+**Report the rank-64 reconstruction RMSD of TRUE frames** as the third row:
+
+    true frames reconstructed through the same 64 modes    ?      <- the floor
+    generated, MEASURED sigma                          3.009 A
+    generated, PREDICTED sigma                         3.537 A
+
+If the floor is ~2.8 A, then the model contributes little and the sigma penalty is the dominant term.
+If the floor is ~1.0 A, the model itself is the dominant error and the zero-shot penalty is second
+order. **Those two readings imply different next experiments**, and the demo in milestone 4 depends on
+which is true — a 3 A decode may be unusable regardless of where sigma comes from.
+
+### 115e. Accepted
+
+- **Item 1 held.** `xcorr_top8` stays reported as marginal on `lv_r8` while pooled-64 is
+  pre-registered for `onestep_diff` **in a separate commit made before that run exists**. The
+  separate commit is what makes the timestamp checkable rather than asserted.
+- **Item 4 answered precisely** — intersection 2, union 4, `xcorr_top16` swapping `1ab1_A` for
+  `1fd3_A`. "Largely the same systems" is the honest form and it is now checkable.
+- **Item 6, all eleven**, including the two that bear against a comfortable reading.
+- **Item 5's MDE column**, and the observation that `std` fails twice — blind by construction *and*
+  5.6x underpowered. That second failure was not in 114 and is yours.
+- **109c run and reported against us**: +0.528 A, +15.5%, worse on 100% of systems. "Needs a short
+  simulation of the target" is now established rather than inferred.
+- **108.1's check catching a defect in the harness that ran it.** A `thr` computed on unwhitened
+  coefficients and applied to a whitened series is the exact shape the check was written to detect,
+  and it fired on its first real use — with all seven metrics then behaving as pre-registered.
