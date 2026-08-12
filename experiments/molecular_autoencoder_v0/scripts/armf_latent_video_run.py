@@ -105,12 +105,19 @@ STEPS = int(os.environ.get("LV_STEPS", "20000"))
 # arithmetic rather than by halving until it ran.
 BATCH = int(os.environ.get("LV_BATCH", "8"))
 ACCUM = int(os.environ.get("LV_ACCUM", "4"))   # 107b: effective batch = BATCH * ACCUM = 32
+# INBOX 109. THE MATCHED-BUDGET ONE-STEP ARM LIVES IN THIS FILE, not a second one. The
+# pre-registered question is joint vs one-step; 107b established samples-seen must match; and the
+# existing propagator numbers were trained at an UNRECORDED budget, so they cannot answer it. Putting
+# the one-step arm behind an env var rather than in its own script means both arms get the identical
+# acceptance test, the identical top-8 M-gate, the identical feasibility-first output and the
+# identical samples-seen accounting -- one instrument, which is what 77a is about.
+ARM = os.environ.get("LV_ARM", "joint")        # joint | onestep
 LR = float(os.environ.get("LV_LR", "3e-4"))
 CUTOFF = float(os.environ.get("LV_CUTOFF", "5.0"))
 KEVAL = int(os.environ.get("LV_KEVAL", "32"))  # segments per side, per system
 SAMPLE_STEPS = int(os.environ.get("LV_SAMPLE_STEPS", "50"))
-RES = os.environ.get("LV_RES", f"{WR}/latent_video.json")
-CKPT = f"{WR}/latent_video_ckpt.pt"
+RES = os.environ.get("LV_RES", f"{WR}/latent_video_{os.environ.get('LV_ARM','joint')}.json")
+CKPT = f"{WR}/latent_video_ckpt_{os.environ.get('LV_ARM','joint')}.pt"
 dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -254,8 +261,38 @@ if __name__ == "__main__":
         raise SystemExit("  nothing prepared")
 
     cfg = LatentVideoConfig(latent_dim=DLAT, d_model=256, depth=6, max_frames_hint=T)
-    mdl = LatentVideoDiffusion(cfg).to(dev)
-    print(f"  SegmentDiT parameters: {mdl.num_parameters():,}", flush=True)
+    if ARM == "onestep":
+        # A one-step conditional propagator on the SAME coordinates: predict z_{t+1} from z_t, then
+        # roll out T frames autoregressively. Width matched to the segment model's d_model so the
+        # comparison is of the MODELLING CHOICE (whole segment vs one step) rather than of capacity.
+        class OneStep(torch.nn.Module):
+            def __init__(self, k, d=256):
+                super().__init__()
+                self.net = torch.nn.Sequential(
+                    torch.nn.Linear(k, d), torch.nn.SiLU(),
+                    torch.nn.Linear(d, d), torch.nn.SiLU(),
+                    torch.nn.Linear(d, d), torch.nn.SiLU(),
+                    torch.nn.Linear(d, 2 * k))
+                self.k = k
+            def forward(self, z):
+                h = self.net(z)
+                return h[..., :self.k], h[..., self.k:]        # mean, log-sigma of the step
+            def loss(self, seg):
+                x = seg.reshape(seg.shape[0], seg.shape[1], -1)
+                mu, ls = self(x[:, :-1])
+                ls = ls.clamp(-6, 3)
+                return (((x[:, 1:] - mu) ** 2) / (2 * ls.exp() ** 2) + ls).mean()
+            @torch.no_grad()
+            def rollout(self, z0, T):
+                out = [z0]
+                for _ in range(T - 1):
+                    mu, ls = self(out[-1])
+                    out.append(mu + ls.clamp(-6, 3).exp() * torch.randn_like(mu))
+                return torch.stack(out, 1)
+        mdl = OneStep(K).to(dev)
+    else:
+        mdl = LatentVideoDiffusion(cfg).to(dev)
+    print(f"  ARM={ARM}  parameters: {sum(p.numel() for p in mdl.parameters()):,}", flush=True)
     opt = torch.optim.Adam(mdl.parameters(), LR)
     rng = np.random.default_rng(0)
     t0, log, seen = time.time(), [], 0   # 108: `seen` was never initialised -- the run died on it
@@ -273,7 +310,8 @@ if __name__ == "__main__":
             sysd = TR[rng.integers(len(TR))]
             seg = segments(sysd["C_tr"], T, BATCH, rng)
             if seg is None: continue
-            loss, _ = mdl.training_loss(torch.tensor(seg, device=dev))
+            z1 = torch.tensor(seg, device=dev)
+            loss = mdl.loss(z1) if ARM == "onestep" else mdl.training_loss(z1)[0]
             (loss / ACCUM).backward()
             seen += BATCH * T
         opt.step()
@@ -315,10 +353,17 @@ if __name__ == "__main__":
             thr = np.median(pool[:, top2], 0)
             rs = [stats_ext(w.reshape(T, K), top2, thr, pool) for w in refw]
             with torch.no_grad():
-                gen = mdl.sample((keval, T, RGRP, DLAT), dev, steps=SAMPLE_STEPS).cpu().numpy()
+                if ARM == "onestep":
+                    st0 = torch.tensor(np.stack([pool[rng.integers(len(pool) - 1)]
+                                                 for _ in range(keval)]), device=dev,
+                                       dtype=torch.float32)
+                    gen = mdl.rollout(st0, T).cpu().numpy().reshape(keval, T, RGRP, DLAT)
+                else:
+                    gen = mdl.sample((keval, T, RGRP, DLAT), dev,
+                                     steps=SAMPLE_STEPS).cpu().numpy()
             ou = ou_segments(sysd["C_tr"], sysd["C_ho"], T, keval, rng)
             arms = {}
-            for name, S in (("OU", ou), ("JOINT-diffusion", gen)):
+            for name, S in (("OU", ou), (ARM.upper(), gen)):
                 ss = [stats_ext(w.reshape(T, K), top2, thr, pool) for w in S]
                 inside = {k: bool(consistent(ss, rs, k)) for k in XMETRICS}
                 arms[name] = dict(agree=int(sum(inside.values())), inside=inside,
@@ -341,7 +386,7 @@ if __name__ == "__main__":
                                     ref_bond_mean=rm, ref_bond_sd=rs_)
             rows[sysd["pdb"]] = dict(N=sysd["N"], arms=arms,
                                      ref_med={k: float(band(rs, k)[0]) for k in XMETRICS})
-            j = arms["JOINT-diffusion"]; o = arms["OU"]
+            j = arms[ARM.upper()]; o = arms["OU"]
             print(f"  [{i}/{len(HO)}] {sysd['pdb']:10s} N={sysd['N']:>6} "
                   f"{'POWERED' if powered else 'NO POWER'}  "
                   f"JOINT {j['agree']}/7  OU {o['agree']}/7   "
@@ -364,7 +409,7 @@ if __name__ == "__main__":
     if not pw:
         print(f"  -> NO SYSTEM IS POWERED. Nothing about JOINT is readable from this run, including\n"
               f"     a good result. The honest output is the band width, not a table.")
-    for arm in ("OU", "JOINT-diffusion"):
+    for arm in ("OU", ARM.upper()):
         src = pw or {}
         if not src: break
         ag = np.array([r["arms"][arm]["agree"] for r in src.values()])
@@ -375,7 +420,7 @@ if __name__ == "__main__":
           f"real segments make)")
     # 107b: samples-seen for EVERY arm, because joint-vs-one-step is only meaningful at matched
     # budget and nothing recorded it before.
-    print(f"\n  SAMPLES SEEN (107b): JOINT {seen:,} frames over {STEPS:,} steps at effective batch "
+    print(f"\n  SAMPLES SEEN (107b): {ARM.upper()} {seen:,} frames over {STEPS:,} steps at effective batch "
           f"{BATCH*ACCUM}\n"
           f"    OU is fitted in closed form from the train replica -- no optimisation budget, so the\n"
           f"    comparison is not budget-matched to it and is not claimed to be. The one-step\n"
@@ -385,8 +430,8 @@ if __name__ == "__main__":
     br = np.array([r["arms"]["geometry"]["ref_bond_mean"] for r in rows.values()])
     print(f"\n  ATOM-LEVEL GEOMETRY: generated consecutive-CA spacing {np.median(bg):.2f} A vs "
           f"reference {np.median(br):.2f} A  ({100*abs(np.median(bg)-np.median(br))/np.median(br):.1f}% off)")
-    jo = np.array([r["arms"]["JOINT-diffusion"]["agree"] for r in rows.values()])
+    jo = np.array([r["arms"][ARM.upper()]["agree"] for r in rows.values()])
     ou_ = np.array([r["arms"]["OU"]["agree"] for r in rows.values()])
-    print(f"\n  joint beats OU on {100*(jo>ou_).mean():.0f}% of systems, ties {100*(jo==ou_).mean():.0f}%")
+    print(f"\n  {ARM} beats OU on {100*(jo>ou_).mean():.0f}% of systems, ties {100*(jo==ou_).mean():.0f}%")
     print(f"  NOTE (101d): `trans` is a transition RATE and this corpus determines occupancy to only\n"
           f"  ~61% at the median, so it is reported as band-membership and never as a rate claim.")

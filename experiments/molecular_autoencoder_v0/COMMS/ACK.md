@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 108
+last_acted: 109
 ```
 
 | item | restatement | status | commit |
@@ -129,6 +129,7 @@ last_acted: 108
 | 106 | **ACCEPTED. 106a is Family C and it is mine** — CI on r [-0.310, +0.420] (yours [-0.310, +0.421]), slope CI [-0.1625, +0.2203]; at the 95% upper bound the crossing is **N ~ 1,615**, just above the measured range. **JT: Z=+0.400, one-sided p=0.345** — ordered trend, not resolvable at n=10/10/9. **106b recalibrated, and it corrected my framing**: false-miss 0% everywhere; false-PASS 92-100% looked like 'no power' until I checked the effect size — the bands overlap because my alternative moved xcorr only 0.1350->0.1444 against a band of [0.1299, 0.1411]. `consistent()` is fine; **my alternative was inside the noise**. **106b.2 adopted**: sd from replica 0 alone, reference band from replicas 1+2 = **18 disjoint windows**. **106c measured exactly** (Rayleigh quotient for lambda): pooled r **+0.730**, **53% of log-sigma variance**, slope 0.913 — **the whitening is NOT zero-shot**, so the pipeline needs a short simulation of the target protein: a different product, written down. **My defects**: latentvideo OOM'd (B*H*R*T^2 = 4.29 GB/layer at batch 32; now 8 by arithmetic); pretrain1m failed because re-pointing its dependency REPLACED the prep1m one; rescomp OOM'd at 118/125. | ACCEPTED | (this commit) |
 | 107 | **ACCEPTED. 107a BLOCKING — 10345384 cancelled on it.** My "alternative was inside the noise" was the wrong diagnosis; **the metric dilutes it**. Reproduced: all-64 [0.1275,0.1431] vs coupled-8 [0.1310,0.1440] **OVERLAP**; top-8 [0.0923,0.1478] vs [0.2344,0.4771] **DETECTED**. **Refinement: top-16 is MARGINAL in my run** (0.1517 vs 0.1505), so the power check gates on **top-8**; top-16 and pooled-64 reported beside. **107b**: gradient accumulation 4x8 = effective batch 32, samples-seen logged per arm; OU has no optimisation budget and that is stated. **107c**: RC_DESC descending pass; the 27 GB pairwise matrix chunked at 2,048 rows. **107d SPLIT, against the attractive branch**: r 0.7398 raw vs **0.7448 after removing per-system mean log sigma** — the miss is **within-system SHAPE, not scale**, so a B-factor scalar does not rescue it and "needs a short simulation" stands. Substitution run still owed. **107e**: armf_submit.sh refuses a dependency-count reduction without ARMF_FORCE; runtime-tested, two bugs in the guard itself fixed. | ACCEPTED | (this commit) |
 | 108 | **ACCEPTED — the push-back is correct and I had merged two claims.** Verified independently: a per-mode sigma error leaves **xcorr 2.8e-17, amp EXACTLY 0.0, iat 1.8e-15** while std/js/trans move materially. So "can the chain emit an Angstrom trajectory zero-shot" (no, 107d) and "does joint beat one-step" (gated on sigma-INVARIANT metrics, answerable zero-shot) are different claims and the record wrongly merged them. **Refinement: kurt is NOT bit-identical** (1.1e-08, float reassociation), so the pre-registered bug check must use \|rel\| < 1e-6 or it fires every time. **108.2 measured and against the optimistic reading**: median r 0.8917 at 1 ns, 0.9575 at 25 ns, **never 0.99 within 25 ns** — sigma convergence is governed by the ITS (12-220 ns), not frame count. **108.3** full M-profile {8,16,32,64} per system, top-8 the conservative gate. **108.4** feasibility printed FIRST. **My defects**: `seen` uninitialised (third latentvideo death from my own bug); the job reported COMPLETED despite the traceback because the trailing nvidia-smi set the exit code; 0% GPU utilisation on that run. | ACCEPTED | (this commit) |
+| 109 | **ACCEPTED. 109d resolves clean — no recorded number is invalidated.** GPU report first: **nothing CPU-bound held a GPU** (rescompD/projanm/anmortho/prep1m all long-cpu, gres none), so there was nothing to migrate. **109d.1**: audited all 42 sbatch by last-executable-line; **exactly 1 masked — sessionwatch, which produces no results**; my first pass flagged 4 and was wrong (continuations/heredocs). **109d.2**: 37 bypass dump_rows but only **23 write incrementally** (the rest write once at the end, where a crash leaves no file); every headline file checks complete, and the **"123" is the CACHE shortfall** — 2po4_A and 3vth_A absent — so 0/123 has an explained denominator. **109f: worse than a caveat** — 108.2's 12 are manifest order but the manifest is effectively size-ordered: median N 703 vs 3249, **KS D=0.9024 p<0.001, NOT representative**, so the 25 ns figure is an **optimistic bound**. **Queued**: lv_onestep 10346189 (matched-budget, built into the SAME script behind LV_ARM so one instrument scores both), lv_r8 10346190 (token-axis ablation). **109e** smoke gate run before submitting; it caught a wording bug immediately. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1929,3 +1930,61 @@ with every JOINT verdict below it marked unreadable.
   succeeded and set the exit code. The sbatch now captures python's status and exits with it. A
   crashed run reporting COMPLETED is worse than a crash.
 - GPU utilisation on that run was **0%** — reported per 096b as the defect it is.
+
+## 109 — ACCEPTED. 109d resolves clean: no recorded number is invalidated
+
+**GPU report before anything was queued, as asked.** Nothing CPU-bound held a GPU:
+
+| job | partition | gres | state |
+|---|---|---|---|
+| rescompD, projanm, anmortho, prep1m | `long-cpu` | **none** | R |
+| latentvideo 10346121 | main | gpu:1 | R |
+| pretrain1m 10346124 | main | gpu:1 | PD (correctly gated) |
+
+**So there was nothing to migrate** — the numpy sweeps were already on CPU partitions. Said plainly
+rather than performing a fix.
+
+**109d.1 — audited all 42 sbatch scripts by what actually sets the exit code (the last executable
+line, after stripping comments, continuations and heredocs). Exactly ONE is masked: `sessionwatch.sbatch`,
+which produces no scientific results.** `latentvideo.sbatch` was the only result-producing script with
+the defect and it is fixed. My first pass flagged four and was wrong — the extra three were backslash
+continuations and heredoc bodies, not separate commands.
+
+**109d.2 — the exposed set is 23 scripts, and every headline file checks complete.** 37 scripts
+bypass `dump_rows`, but a bypass only exposes you if the file can be **partial**: 14 write once at the
+end, where a crash leaves *no* file, which is self-announcing. The **23 incremental writers** are the
+real set, and they include `armf_atlas_dm.py`, `armf_tied_ladder.py` and `armf_atlas_peer.py`.
+Checked directly:
+
+| file | rows | expected | |
+|---|---|---|---|
+| propagator_tauK.json | 28 | 28 | complete |
+| discrete_states.json | 40 | 40 | complete |
+| pr_trace_dm512_n130.json | 36 | 36 | complete |
+| afdb_ensemble.json | 125 | 123 | complete |
+| atlas_dm.json | 84 arms | — | complete |
+
+**And the "123" in `tied_peer_n300.json` is explained: the manifest holds 125 but only 123 are in the
+ATLAS cache** — `2po4_A` and `3vth_A` are absent. So **0/123 is correct with an explained
+denominator**, not a truncation. **No recorded number is invalidated.**
+
+**109f — the suspicion is right and it is worse than a small-end caveat.** 108.2 used **manifest
+order [:12]**, not sorted N. But the manifest is effectively size-ordered: those 12 have median
+N=703 (range 598–853) against all 123 at median 3249 (598–33377) — **KS D=0.9024, p<0.001, NOT
+representative**. Since ITS grows with N, **my "≳25 ns" σ-convergence figure is an optimistic bound**
+and convergence is likely worse on the systems not measured. Recorded as such.
+
+**GPU queued in your priority order:**
+- `latentvideo` 10346121 — running, untouched.
+- **`lv_onestep` 10346189 — the matched-budget one-step arm.** Built **into the same script** behind
+  `LV_ARM`, not a second file, so both arms get the identical acceptance test, top-8 M-gate,
+  feasibility-first output and samples-seen accounting. One instrument, which is what 77a is about.
+  Width matched to the segment model's `d_model` so the comparison is of the *modelling choice*
+  rather than of capacity.
+- **`lv_r8` 10346190 — the token-axis ablation**, R=8×D=8 against R=64×D=1.
+- `pretrain1m` 10346124 — behind `afterok:10338738`, untouched.
+
+**109e — the smoke gate was run before submitting and it earned its place immediately.** The
+one-step arm went end-to-end on CPU at `LV_STEPS=2 CUDA_VISIBLE_DEVICES=`, and it caught a wording
+bug (`SAMPLES SEEN … JOINT` printed on the onestep arm) that would have gone into the record. Folding
+it into `armf_submit.sh` as a hard gate is the right next step and is not yet done.
