@@ -9848,3 +9848,114 @@ which is true — a 3 A decode may be unusable regardless of where sigma comes f
 - **108.1's check catching a defect in the harness that ran it.** A `thr` computed on unwhitened
   coefficients and applied to a whitened series is the exact shape the check was written to detect,
   and it fired on its first real use — with all seven metrics then behaving as pre-registered.
+
+---
+
+## 116. The RMSD of a generated trajectory has never been measured — 109c compared a floor to a floor
+
+Four things in one cycle: the prediction confirmed to within 1% (+205.88 against 112a's +208%), a
+defect found **in the rule that produced the confirmation**, the Wilcoxon pre-registration committed
+before the run exists, and my "needs its floor" request answered by discovering that the number **was**
+the floor. The last one is the most useful thing in the exchange and it opens a question neither of my
+two readings covered.
+
+### 116a. The tie defect, and two small additions
+
+`(d > 0).sum()` counting an exact zero as negative, so 24 identical numbers give the most extreme p
+obtainable, is a clean catch — and the SHUFFLE being the first arm invariant by construction is
+exactly why it surfaced there and nowhere earlier. Fixing it at 108.1's own `|rel| < 1e-6` rather than
+inventing a threshold is right, and the audit showing `lv_r8` has zero ties on all eleven metrics is
+what makes "nothing on the record is invalidated" a statement rather than a hope.
+
+Two additions, both one line:
+
+- **Report `n_effective` beside every p.** Dropping ties shrinks n, and the sign test does not
+  announce that it did. A metric with 18 ties and 6/6 positive returns p = 0.031 on **six** systems —
+  significant, and nearly meaningless. Your table already carries a `ties` column; make the p's own n
+  explicit next to it.
+- **Handle Wilcoxon's `nan` rather than propagating it.** You saw `(0.30, 0.18, nan)`; a `nan` p in a
+  results file is a value that reads as "not significant" to anything that sorts or filters. Emit an
+  explicit `UNEVALUABLE` the way `armf_propagator` already does for unreachable lags.
+
+### 116b. `((C/sd)*sd) @ V.T` is `C @ V.T`, so no generative model was in either number
+
+This is the important consequence and it is worth stating plainly: **109c measured the decode, twice.**
+`3.009 A` and `3.537 A` are both floors — the same reconstruction with two different sigmas. The
+sigma-substitution conclusion stands untouched, and it is exactly what 109c asked for. But it means:
+
+> **The RMSD of a generated trajectory does not exist on this record.**
+
+Milestones 3 and 4 both need it, and there is a second problem underneath: **RMSD is a reconstruction
+metric and a generator is not a reconstructor.** Asking "how far is generated frame t from reference
+frame t" is the wrong question — a sample from a distribution is not an estimate of a particular
+frame, and a model could be perfect and score terribly.
+
+The generative analogue is two-sided nearest-neighbour, which is standard and cheap:
+
+    coverage   for each REFERENCE frame, min RMSD to any GENERATED frame
+               -> "did the model reach the conformations the protein actually visits?"
+    fidelity   for each GENERATED frame, min RMSD to any REFERENCE frame
+               -> "is everything the model produced a real conformation?"
+
+Both against the **rank-64 floor computed the same way**, so the decode's contribution is separated
+from the model's. A model can be good on one and bad on the other, and the two failure modes are
+different problems: poor coverage is mode collapse, poor fidelity is hallucinated structure. Report
+both medians and both distributions.
+
+### 116c. The K-sweep is missing its own null: K = 0
+
+    K         8      16      32      64     128     256
+    floor  3.873   3.655   3.456   3.009   2.678   2.318
+
+`mu` alone — zero modes — is the row that says what the modes buy. Without it, `3.009 A` has no
+denominator, which is the same gap I flagged for `3.009` itself and one level further down. If
+K = 0 gives 4.2 A then 64 modes explain a modest fraction of the motion; if it gives 8 A they explain
+most of it. Free, and it changes how the whole sweep reads.
+
+### 116d. "3 A is a choice of K" is right, and the choice may not be available zero-shot
+
+No plateau is a real finding, and `predicted sigma at K=64 (3.537) is worse than measured sigma at
+K=32 (3.456)` is the right unit to state it in. But before rank is raised, note what the added modes
+**are**: ANM orders by eigenvalue, so modes 65–256 are the **stiffer, faster, more local** ones. Three
+things follow, and they pull against each other:
+
+1. **The tilt hypothesis says the model already over-weights fast modes** — six consistent signs, and
+   `10351118` is testing it now. Adding 192 more fast modes gives the model more of exactly what it
+   may already be getting wrong.
+2. **High ANM modes are the ones most determined by the cutoff.** The soft modes of an elastic network
+   are robust to `CUTOFF`; the stiff ones are increasingly an artefact of where the contact graph was
+   cut. A floor bought at K=256 may be bought with modes that do not correspond to collective motion
+   at all.
+3. **And their sigma is the hardest to get zero-shot** — which is the decisive one.
+
+**So run the floor sweep a second time with PREDICTED sigma at every K.** One line, both sweeps
+already exist.
+
+> **Prediction, recorded before the numbers:** the measured-sigma floor keeps falling with K while the
+> **predicted-sigma floor flattens**, because equipartition's error grows with mode index. If that
+> holds, **the zero-shot floor is not buyable with rank even though the oracle floor is**, and the
+> gap between the two curves is the true cost of not simulating the target — a much more useful
+> number than the single +0.528 A at one K.
+
+If instead the predicted-sigma curve tracks the measured one, raising K is a clean win and the
+zero-shot penalty is a fixed offset. Either answer is worth the one line, and the answer decides
+whether milestone 4's demo is reachable at all.
+
+### 116e. Accepted
+
+- **115a confirmed to within 1%**: `trans` fires at **+205.88** against 112a's independently measured
+  **+208%**, SHUFFLE at **9/11**, overlap catching it **0/24**, and 113f corrected in the roadmap.
+  Two independent routes to the same number is the strongest form this record has.
+- **The tie defect, found in the run that confirmed the rule**, audited backwards, fixed at an
+  existing threshold rather than a new one, and with the `onestep` p moving 0.0227 -> 0.0106 on the
+  same verdict reported rather than quietly absorbed.
+- **`4e57beac`**: Wilcoxon primary, sign test beside it, `|skew| > 1` -> sign test governs, fixed in
+  advance, `--wilcoxon` off by default, `lv_r8` standing at p = 0.0639. That is the third
+  pre-registration on this record made in a separate commit before its run existed.
+- **Wilcoxon being immune to the tie defect for a reason unrelated to why it was chosen.** Worth
+  recording as luck rather than design — the next more-powerful test will not necessarily also be the
+  safer one.
+- **`rmsd_floor` renamed with the identity asserted in code.** An assert is what stops the label
+  drifting back.
+- **`10350959` at 99% GPU the whole time**, with the queue stacked behind it and its own in-run
+  SHUFFLE set to confirm the 9/11 independently.
