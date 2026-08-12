@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 107
+last_acted: 108
 ```
 
 | item | restatement | status | commit |
@@ -128,6 +128,7 @@ last_acted: 107
 | 105 | **ACCEPTED — acted on FIRST; 10343969 CANCELLED mid-flight.** Reproduced the floor rather than trusting it: T=32/a1=0.90 -> 0.3023 (yours 0.3199), T=256 -> 0.1498 (0.1488), T=512 -> 0.1073 (0.1061). **Two additions:** at **T=256, a1=0.99 the floor is still 0.3177**, so raising T is necessary and NOT sufficient — the power check is now **BLOCKING per system**; and the realised a1 of the whitened ANM modes is **0.876 pooled, ranging 0.65-0.93**, not 'well above 0.9', so the floor is per-system. **MIN_H imported and blocking**; reference windows **disjoint**; dead `rs` removed; header no longer claims ref_windows is imported. **One consequence you did not name:** 2,501 frames give only **9 disjoint windows at T=256**, so both arms are now drawn at the reference count — an interval from 9 against one from 32 is not one estimator. | ACCEPTED | (this commit) |
 | 106 | **ACCEPTED. 106a is Family C and it is mine** — CI on r [-0.310, +0.420] (yours [-0.310, +0.421]), slope CI [-0.1625, +0.2203]; at the 95% upper bound the crossing is **N ~ 1,615**, just above the measured range. **JT: Z=+0.400, one-sided p=0.345** — ordered trend, not resolvable at n=10/10/9. **106b recalibrated, and it corrected my framing**: false-miss 0% everywhere; false-PASS 92-100% looked like 'no power' until I checked the effect size — the bands overlap because my alternative moved xcorr only 0.1350->0.1444 against a band of [0.1299, 0.1411]. `consistent()` is fine; **my alternative was inside the noise**. **106b.2 adopted**: sd from replica 0 alone, reference band from replicas 1+2 = **18 disjoint windows**. **106c measured exactly** (Rayleigh quotient for lambda): pooled r **+0.730**, **53% of log-sigma variance**, slope 0.913 — **the whitening is NOT zero-shot**, so the pipeline needs a short simulation of the target protein: a different product, written down. **My defects**: latentvideo OOM'd (B*H*R*T^2 = 4.29 GB/layer at batch 32; now 8 by arithmetic); pretrain1m failed because re-pointing its dependency REPLACED the prep1m one; rescomp OOM'd at 118/125. | ACCEPTED | (this commit) |
 | 107 | **ACCEPTED. 107a BLOCKING — 10345384 cancelled on it.** My "alternative was inside the noise" was the wrong diagnosis; **the metric dilutes it**. Reproduced: all-64 [0.1275,0.1431] vs coupled-8 [0.1310,0.1440] **OVERLAP**; top-8 [0.0923,0.1478] vs [0.2344,0.4771] **DETECTED**. **Refinement: top-16 is MARGINAL in my run** (0.1517 vs 0.1505), so the power check gates on **top-8**; top-16 and pooled-64 reported beside. **107b**: gradient accumulation 4x8 = effective batch 32, samples-seen logged per arm; OU has no optimisation budget and that is stated. **107c**: RC_DESC descending pass; the 27 GB pairwise matrix chunked at 2,048 rows. **107d SPLIT, against the attractive branch**: r 0.7398 raw vs **0.7448 after removing per-system mean log sigma** — the miss is **within-system SHAPE, not scale**, so a B-factor scalar does not rescue it and "needs a short simulation" stands. Substitution run still owed. **107e**: armf_submit.sh refuses a dependency-count reduction without ARMF_FORCE; runtime-tested, two bugs in the guard itself fixed. | ACCEPTED | (this commit) |
+| 108 | **ACCEPTED — the push-back is correct and I had merged two claims.** Verified independently: a per-mode sigma error leaves **xcorr 2.8e-17, amp EXACTLY 0.0, iat 1.8e-15** while std/js/trans move materially. So "can the chain emit an Angstrom trajectory zero-shot" (no, 107d) and "does joint beat one-step" (gated on sigma-INVARIANT metrics, answerable zero-shot) are different claims and the record wrongly merged them. **Refinement: kurt is NOT bit-identical** (1.1e-08, float reassociation), so the pre-registered bug check must use \|rel\| < 1e-6 or it fires every time. **108.2 measured and against the optimistic reading**: median r 0.8917 at 1 ns, 0.9575 at 25 ns, **never 0.99 within 25 ns** — sigma convergence is governed by the ITS (12-220 ns), not frame count. **108.3** full M-profile {8,16,32,64} per system, top-8 the conservative gate. **108.4** feasibility printed FIRST. **My defects**: `seen` uninitialised (third latentvideo death from my own bug); the job reported COMPLETED despite the traceback because the trailing nvidia-smi set the exit code; 0% GPU utilisation on that run. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -1875,3 +1876,56 @@ already computes `NAME`, and `$ARMF_FORCE` was unbound under `set -u`.
 **On the pattern you named twice:** both `pretrain1m`'s death and this guard's first draft were
 defects created by an action taken to avoid a defect. The guard is the right response precisely
 because a note would not have survived the next edit.
+
+## 108 — ACCEPTED. The push-back is correct and I had merged two claims
+
+**108.1 — verified independently, and it is right.** A per-mode σ error is a per-mode SCALE, and the
+coupling metrics are scale-free. Measured with `c = exp(N(0, 0.45))`, T=256, K=64:
+
+| metric | \|B−A\| | relative | |
+|---|---|---|---|
+| **xcorr** | **2.8e-17** | 2.0e-16 | machine precision |
+| **amp** | **0.0** | 0.0 | **exactly bit-identical** |
+| **iat** | 1.8e-15 | 1.3e-16 | machine precision |
+| kurt | 1.6e-09 | 1.1e-08 | float reassociation |
+| std | 7.1e-02 | 7.4e-02 | REAL |
+| js | 6.1e-02 | — | REAL |
+| trans | 3.9e+00 | 1.9e-02 | REAL |
+
+**So I merged two claims and the record reads wrongly.** "Can the chain emit a physical Ångström
+trajectory for an unsimulated protein" — **no**, and 107d is why. "Does joint segment modelling beat
+one-step propagation" — gated on `xcorr`/`amp`, **exactly σ-invariant, answerable zero-shot**. The
+second does not inherit the first's verdict. Wording fixed.
+
+**One refinement to the pre-registered bug check:** `kurt` is **not** bit-identical — it sits at
+1.1e-08 from float reassociation, not machine precision. So the check must be **|relative| < 1e-6**,
+not `== 0`, or it will fire on `kurt` every time and be switched off.
+
+**108.2 — measured, and it goes against the optimistic reading.** σ does **not** converge fast:
+
+| fraction | frames | ns | median r | min r | systems r≥0.99 |
+|---|---|---|---|---|---|
+| 1% | 25 | **1.0** | **0.8917** | 0.7270 | **0/12** |
+| 10% | 250 | 10.0 | 0.9299 | 0.7691 | 1/12 |
+| 25% | 625 | **25.0** | 0.9575 | 0.7909 | 1/12 |
+
+**median r crosses 0.95 only at 25 ns and never reaches 0.99 within 25 ns.** So "needs ~1 ns" is not
+available: at 1 ns r = 0.89. The mechanism ties to 100e — σ of a slow mode needs many correlation
+times, and measured ITS is 12–220 ns, so σ convergence is governed by the ITS rather than by frame
+count. "Needs a short simulation" is now quantified at **≳25 ns and still short of r = 0.99**.
+
+**108.3 — adopted, and your point about a single M is the one that matters.** The full profile
+M ∈ {8, 16, 32, 64} is now computed per held-out system, with reference-vs-OU separation reported at
+each. Top-8 remains the conservative gate.
+
+**108.4 — adopted, and it is now the FIRST thing printed.** Reference-vs-OU excess at the best M is
+the experiment's own feasibility number, and no excess at any M prints as a finding about the corpus
+with every JOINT verdict below it marked unreadable.
+
+**Three of my own defects in this cycle, all mine:**
+- `seen` was never initialised — the third latentvideo death from my own bug. `py_compile` passed;
+  only running it caught it, twice now.
+- **The job reported COMPLETED despite the traceback**, because the sbatch's trailing `nvidia-smi`
+  succeeded and set the exit code. The sbatch now captures python's status and exits with it. A
+  crashed run reporting COMPLETED is worse than a crash.
+- GPU utilisation on that run was **0%** — reported per 096b as the defect it is.

@@ -258,7 +258,7 @@ if __name__ == "__main__":
     print(f"  SegmentDiT parameters: {mdl.num_parameters():,}", flush=True)
     opt = torch.optim.Adam(mdl.parameters(), LR)
     rng = np.random.default_rng(0)
-    t0, log = time.time(), []
+    t0, log, seen = time.time(), [], 0   # 108: `seen` was never initialised -- the run died on it
     for st in range(1, STEPS + 1):
         for g in opt.param_groups:
             g["lr"] = LR * min(1.0, st / 1000)
