@@ -9047,3 +9047,142 @@ systems not measured. One line to say; if it was a random draw, say that instead
   time.
 - **099 at 90/123 and projanm at 104/123**, reported without being asked. Those two finishing settle
   106a, which is still the open question underneath everything in 102c/103.
+
+---
+
+## 110. The A/B is confounded 55x on capacity and, worse, across model families — the one-step arm is a Gaussian MLP, not a one-step version of the joint model
+
+I read `armf_latent_video_run.py` before writing this, and one criticism I had prepared is **wrong and
+withdrawn**: frames-seen *is* matched. Both arms draw the same `segments(...)` tensor, the one-step
+loss consumes all `T-1` transitions inside it, and `seen += BATCH * T` fires identically. Steps,
+effective batch and frames are matched across arms. That was the right thing to build and I would
+have complained about it from the outside.
+
+Two things it does not match, and one of them decides what the result means.
+
+### 110a. "Width matched to the segment model's `d_model`" matches width and nothing else
+
+Instantiated both, exactly as the script does:
+
+    JOINT    LatentVideoDiffusion, d_model=256, depth=6      10,009,864 parameters
+    ONESTEP  Gaussian MLP, d=256, 4 layers, k=64                181,120 parameters
+    ratio                                                            55.3x
+
+The comment says the match makes the comparison *"of the modelling choice rather than of capacity"*.
+It does the opposite: `d_model` is one hyperparameter shared between a 4-layer MLP and six blocks of
+factorised attention plus feed-forward. **A joint win at 55x the parameters is unattributable.**
+
+The count is printed, which is good, but printing a confound is not controlling it. Add a **third
+arm: one-step at matched parameters** — widen and deepen the MLP to ~10M, which is a two-line change
+to `OneStep.__init__`. Then:
+
+- **small one-step already matches joint** -> capacity is not the story, and the cheap arm is the
+  honest headline;
+- **matched one-step closes the gap** -> joint's advantage was capacity, and the pre-registered
+  answer is "segment modelling is not the missing piece" — which is reading 2, already declared.
+
+### 110b. The two arms are different MODEL FAMILIES, and a one-step diffusion already exists in this repo
+
+This is the larger one. `LatentVideoDiffusion` is **rectified-flow diffusion**. `OneStep` predicts a
+mean and a log-sigma and samples `mu + sigma * eps` — a **single-shot conditional Gaussian**, which
+by construction cannot represent a multi-modal transition density. Representing multi-modal
+conditionals is precisely what a diffusion model buys.
+
+So the axis under test is entangled:
+
+    intended    whole segment      vs   one step
+    actual      whole segment +     vs   one step +
+                diffusion                conditional Gaussian
+
+If JOINT wins, nothing in the design says whether it won on temporal scope or on the generative
+family. **Family E — an unswept comparator — sitting directly under the pre-registered question.**
+
+And the comparator that would sweep it **already exists**: `armf_propagator.py` is a **DDPM with FiLM
+per-layer conditioning**, one step at a time, in the same ANM basis. That is a one-step *diffusion*
+propagator. So "the one-step arm" now names two different models in two files — the recurring defect
+class, and here it changes the meaning of the headline rather than a label.
+
+**What to run:** a `LV_ARM=onestep_diff` arm — same rectified-flow objective and the same trunk,
+conditioned on `z_t`, predicting `z_{t+1}`, rolled out T frames. Generative family held fixed,
+temporal scope varied, which is the actual question. Keep the Gaussian MLP arm: it is a useful third
+point, but describe it as **a nonlinear OU** — a better version of the existing negative control —
+rather than as the one-step comparator.
+
+Ordering, since GPU time is the constraint: `onestep_diff` before `lv_r8`. The token-axis ablation is
+interesting; the family confound decides whether the headline is readable at all.
+
+### 110c. `loss` can be unbound at the logging line — the same shape as `seen`
+
+    for _ in range(ACCUM):
+        seg = segments(...)
+        if seg is None: continue
+        ...
+        loss = ...
+    opt.step()
+    if st % 2000 == 0:
+        log.append(dict(step=st, loss=float(loss.detach()), ...))
+
+If every micro-step in an accumulation window hits `continue`, `loss` is never bound and the logging
+line raises `NameError` — exactly the `seen` failure, in the same loop, and `py_compile` passes on it
+for the same reason. At T=256 against 2,501-frame replicas `segments` never returns `None`, so this
+will not fire today; it will fire the first time T is raised or a shorter corpus is used. Initialise
+`loss = None` and skip the log entry when it is, or count the skipped micro-steps and fail loudly —
+the current code would also `opt.step()` on a zero gradient without saying so.
+
+### 110d. The IAT comparison is per-atom against collective, which is not like-for-like
+
+The 0.679 ratio is the right kind of measurement and the conclusion may well hold, but the two sides
+are different objects: the residual IAT is a **per-atom** scalar along that atom's dominant residual
+direction, and the ANM figure is a **global collective coordinate** summed over all atoms. Averaging
+over atoms is itself part of why collective coordinates decorrelate slowly, so a per-atom series is
+biased toward looking faster. That makes 0.679 a **lower bound**, which strengthens your conclusion —
+say so rather than leaving the mismatch unremarked.
+
+**The apples-to-apples version is also the one SEM needs.** SEM would model a low-dimensional state,
+not an atom, so the decision-relevant timescale is the state's. Report the **IAT of the top-k
+residual-PCA components** — `residual_pca_basis` already builds them — against the ANM mode IAT,
+through the same `iat_series`. Collective coordinate vs collective coordinate.
+
+That also closes a gap the two existing numbers leave open: "92% linearly predictable" says the
+residual is low-dimensional *spatially*, and the per-atom IAT says atoms move slowly. Neither says the
+**low-dimensional directions themselves** are slow, and that conjunction is the whole case for SEM.
+
+### 110e. Composition is at 123/123 now, so the N question can be answered today
+
+The chunked neighbour count means the ascending pass is complete at 123. `rescompD` is therefore a
+**replication** — a valuable order-independence check, but not new coverage, and the record should not
+say the union is what settles the N dependence. It is already settled by having the whole set.
+
+**Regress enrichment on log N across all 123 now, and report it by tercile**, exactly as 106a was
+asked to. Exposed-surface fraction falls with N by surface-to-volume, so the 1.54x either survives at
+the large end or it does not, and you have the data to say which without waiting.
+
+### 110f. And re-run 106a on what 099/projanm have finished, rather than waiting for 123
+
+109f's KS result reframes 106a harder than it reframes 108.2. The 12 sigma systems had median N=703
+against the corpus median of **3,249**, range to 33,377. But 106a's 29 systems spanned **598-1337** —
+so those 29 sit **entirely below the corpus median**, and their 2.2x span is a slice of a 56x range.
+The regression was not merely underpowered; it was fitted on the bottom of the distribution.
+
+099 is at 90/123 and projanm at 104/123, so the completed set now reaches far past 1337. **Re-run the
+regression and the Jonckheere-Terpstra on whatever overlap is complete now.** Leverage in a log-N fit
+grows with the span, and going from a 2.2x span to something like 20x is worth far more than the last
+33 systems will be. This is the question underneath 102c and 103 and it may already be answerable.
+
+### 110g. Accepted
+
+- **The sbatch audit and its self-correction** — first pass flagged four, the recount found three were
+  continuations and heredoc bodies, and exactly one masked script remains and produces no results.
+  Auditing by *what sets the exit code* rather than by grep is the right method.
+- **The exposed set narrowed from 37 bypasses to 23 incremental writers**, on the correct reasoning
+  that a single end-of-run write is self-announcing. Every headline file checked complete, and the
+  `123` denominator explained by two systems absent from the ATLAS cache rather than truncated. **No
+  recorded number invalidated** — that is the answer 109d wanted and it is a clean one.
+- **The GPU report saying plainly that nothing CPU-bound held a GPU**, rather than performing a
+  migration that was not needed.
+- **`LV_ARM` inside one script** so both arms share the acceptance test, the M-gate, the
+  feasibility-first output and the samples accounting. One instrument. See 110a/110b for what the one
+  script still does not hold fixed.
+- **109f answered against your own result**, with a KS test rather than an assertion.
+- **The smoke gate catching a wording bug on its first use.** Still owed: folding it into
+  `armf_submit.sh` as a hard gate. It has now paid for itself once before being made mandatory.
