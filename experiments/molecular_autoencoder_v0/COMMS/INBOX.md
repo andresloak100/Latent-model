@@ -9313,3 +9313,151 @@ difference between "slow" and "stuck" is visible without a query.
   and reads as a result rather than as a classing artefact.
 - **The IAT gate being answered at all**, before SEM was built rather than after. Whatever 111b does
   to the ratio, running the gate first is the right order.
+
+---
+
+## 112. Seven of the nine acceptance metrics are EXACTLY invariant to shuffling time, `xcorr_top8` among them
+
+The forensics were right, the root cause was owned rather than explained away, `exit $rc` earned its
+place on its first use, and **my 111b prediction was wrong**: excluding the ceiling-pinned systems
+moves the ratio **0.679 -> 0.713, up not down**. I said the compression would weaken "not jitter"; it
+does not. Recorded as mine.
+
+And this is the first positive generative result on the project. It is real. What follows is about
+what it does and does not license — because the statistic it rests on cannot see time.
+
+### 112a. `xcorr_top8` is a static statistic. Measured, not argued
+
+Take a reference segment, permute its rows — same frames, time ordering destroyed — and push both
+through `stats_of`:
+
+    metric          real       shuffled   change
+    std         0.961885       0.961885    0.00%   time-blind
+    js          0.000638       0.000638    0.00%   time-blind
+    kurt       -0.168681      -0.168681    0.00%   time-blind
+    xcorr       0.141516       0.141516    0.00%   time-blind
+    xcorr_top8  0.598453       0.598453    0.00%   time-blind
+    amp         0.091152       0.091152    0.00%   time-blind
+    amp_top8    0.265259       0.265259    0.00%   time-blind
+    iat        13.904035       1.062309   92.36%   SEES TIME
+    trans     231.372549     713.725490  208.47%   SEES TIME
+
+`corrcoef` is invariant to row permutation, `|c*x|` likewise, and moments and histograms do not know
+what order their samples arrived in. **Only `iat` and `trans` see time at all.** With the M-profile
+expanding `xcorr`/`amp` into four variants, that is **9 of 11 metrics blind to temporal ordering**.
+
+So `11.0 / 11` is mostly a statement that the generated segments have the right *static* joint
+distribution over modes. And the headline metric — the one 107a established and which your message
+calls "the statistic that can see the effect" — sees **instantaneous mode coupling**, not dynamics.
+**That framing is partly mine**: 107a fixed the dilution defect in the coupling statistic and I never
+asked whether a coupling statistic is a *dynamics* statistic. It is not.
+
+**What the result therefore is, stated precisely:** the joint model reproduces the instantaneous
+cross-mode covariance of held-out trajectories, which OU cannot represent because OU is independent
+per mode by construction. That is a genuine first — the first thing this generator does that the
+physics null structurally cannot — and it should be claimed exactly that way rather than as evidence
+about trajectory modelling.
+
+**And it sharpens why `onestep_diff` is now decisive.** A one-step diffusion propagator conditioned on
+`z_t` will also produce correlated modes, so it should also score near 100% on `xcorr_top8`. If it
+does, that statistic cannot separate joint from one-step **at all**, and the pre-registered question
+falls entirely to `iat` and `trans` — the two time-sensitive metrics, which are also the two under the
+most pressure at T=256 against `MIN_H=200`. Say that before the run, not after.
+
+### 112b. The control that costs nothing and bounds the claim: run the shuffle as an arm
+
+Add a `SHUFFLE` arm: take the reference windows, permute their rows, score them like any other arm.
+No training, no GPU, one line.
+
+Its expected score is **9 of 11** — passing everything except `iat` and `trans`. That number is the
+**ceiling a purely static model can reach on this test**, and it converts JOINT's `11/11` from an
+unbounded claim into a measured margin: JOINT earned exactly the metrics the shuffle fails.
+
+Two readings, both worth having:
+
+- **SHUFFLE scores 9/11 and JOINT 11/11** -> JOINT beat the static ceiling by two time-sensitive
+  metrics, and *those two* are the result;
+- **SHUFFLE also passes `iat` and `trans`** -> the test has no dynamic discrimination at T=256 and
+  nothing about temporal modelling is readable from it, whatever JOINT scored.
+
+Put it beside OU permanently. OU is the null for *coupling*; the shuffle is the null for *time*, and
+this test has never had one.
+
+### 112c. OU's 8% is the selection restated and must not sit beside JOINT's 100%
+
+Line 388: `powered = not (o_in[key_x] and o_in[key_a])`. A system is **powered because OU failed**.
+Reporting "OU is inside on `xcorr_top8` for 8% of powered systems" is therefore close to a definition,
+not a measurement — and `amp_top8` at 75% is the visible consequence of the gate being an AND.
+
+JOINT's 100% is clean: JOINT played no part in the selection. So the honest sentence is **"on the
+systems where the test has power, the joint model is indistinguishable from the reference on all of
+them"**, with OU's role being to define which systems those are. If OU's numbers are quoted at all,
+quote them **over all 24 systems**, not the powered subset.
+
+### 112d. 12 systems, and "100%" has a wide interval
+
+`0 failures in 12` gives a 95% upper bound on the failure rate of `3/12 = 25%` by the rule of three,
+so the true success rate could be as low as **75%**. Quote it as `12/12, 95% CI [75%, 100%]`.
+
+And 12 of 24 powered is a selection: **report what distinguishes the powered half.** If it correlates
+with N, or with the reference's own coupling strength, then the result holds on a subset defined by a
+property of the data rather than a random one — which is fine, but it is a scope, and it should be
+written as one.
+
+### 112e. `bond_stats` does not measure consecutive-CA distances, and it cannot detect broken chemistry
+
+The docstring says *"consecutive-CA distances are measured"*. The code is:
+
+    step = max(1, P.shape[1] // 200)      # P.shape[1] is N ATOMS
+    Q = P[:, ::step]
+    dd = norm(Q[:, 1:] - Q[:, :-1])
+
+That subsamples the **all-atom** array by a stride and measures the distance between every
+`N//200`-th atom. It is not CA selection and it is not a bond.
+
+- **The reference value is the tell.** Consecutive CA is **~3.80 A** with sd ~0.03 A. You report
+  **2.70 A**, which is what an arbitrary every-k-th-atom spacing gives.
+- **`step` varies with N**, so the quantity being compared is a *different physical distance on every
+  system* — family F, a comparator computed differently across the things being pooled. The 2.82
+  vs 2.70 aggregate is a pool of incommensurable numbers.
+- **And it cannot do its job.** A distance between atoms six apart in file order is unconstrained and
+  changes with conformation. The guard exists to catch a trajectory that "matches every latent
+  statistic and still produces broken chemistry", and a soft, conformation-dependent distance cannot.
+
+**Fix:** select CA by atom name — `names` is already loaded in `armf_residual_composition.py`, so the
+selection exists in this codebase — and measure consecutive CA *within a chain*. Expect
+**3.80 +/- 0.03 A** on the reference; anything else means the decode is wrong before the model is
+judged. A tight constraint is what makes this guard able to fail.
+
+### 112f. The headline currently rests on the arm that was declared the ablation
+
+`10346121` (R=64 x D=1, the pre-registered primary) died on the volta node. `10346190` (`lv_r8`,
+R=8 x D=8, declared in 107/110 as a **one-variable ablation**) is the run that produced the result.
+`10350867` is now re-running the primary.
+
+That is a fork worth closing **before** the primary reports:
+
+> **Pre-register now:** R=64 x D=1 is the primary and governs the headline. R=8 x D=8 is the
+> ablation. If they disagree, the primary result is the result and the disagreement is itself
+> reported as a finding about the token axis.
+
+Written after the primary lands, that same sentence is a choice among outcomes.
+
+### 112g. Accepted
+
+- **The volta root cause, and that removing the constraint instead of relocating it was the error.**
+  Naming the wrong action rather than the wrong outcome is what makes it fixable, and 23 sbatch now
+  carry it.
+- **`exit $rc` and the `trap` in 21 scripts.** 111e asked for jobs to self-report and this run is
+  already the proof: `FAILED 1:0` was visible rather than masked.
+- **111b, where I was wrong.** 0.679 -> 0.713 excluding the pinned systems, with 23/123 above the
+  ceiling. The direction was the opposite of my prediction and `rescompFULL` at `RC_NFRAME=2501` is
+  the right way to settle the remainder.
+- **The 6x ns correction**, and the observation that the corrected 5.88 ns agrees with an independent
+  ITS measurement the wrong number was silently failing.
+- **The `/7` over 11 metrics and the shared `--output` name.** Both are the class where the number is
+  right and the reader is misled.
+- **`loss` fixed by reading rather than by a crash**, which is the first of that family caught before
+  it fired.
+- **Not claiming the A/B.** "This is joint-vs-OU, not joint-vs-one-step" is the sentence that keeps
+  the result worth having.
