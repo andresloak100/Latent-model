@@ -234,14 +234,34 @@ def ou_segments(C_tr, C0, T, k, rng):
     return np.stack(out).reshape(k, T, RGRP, DLAT)
 
 
-def bond_stats(sysd, C_seg):
-    """ATOM-LEVEL GEOMETRY, which no latent-space metric can express. Coefficients are decoded to
-    coordinates through the same ANM basis and consecutive-CA distances are measured -- a generated
-    trajectory can match every latent statistic and still produce broken chemistry."""
+def ca_index(sysd):
+    """CA atom indices from ATLAS's own published topology, by ATOM NAME.
+
+    INBOX 112 item 4. The previous version took `step = P.shape[1] // 200` over the ALL-ATOM array
+    and measured every N//200-th atom. Two defects, and the reference value was the tell: consecutive
+    CA is 3.80 +/- 0.03 A and it was reporting 2.70 A, which is what an arbitrary every-k-th-atom
+    spacing gives. `step` varies with N, so it was a DIFFERENT PHYSICAL DISTANCE on every system --
+    Family F -- and a distance between atoms six apart in file order is conformation-dependent and
+    cannot detect broken chemistry, which is the one job the guard exists for.
+    """
+    p = f"{WR}/atlas_topo/{sysd['pdb']}.pdb"
+    if not os.path.exists(p):
+        return None
+    at = [l for l in open(p, errors="ignore").read().splitlines()
+          if l.startswith(("ATOM", "HETATM"))]
+    if len(at) != sysd["N"]:
+        return None                      # refuse rather than reindex
+    return np.array([i for i, l in enumerate(at) if l[12:16].strip() == "CA"])
+
+
+def bond_stats(sysd, C_seg, ca=None):
+    """Consecutive-CA distance. A generated trajectory can match every latent statistic and still
+    produce broken chemistry, so this is the geometry guard -- and it only works on real CA pairs."""
     X = (C_seg.reshape(-1, K) * sysd["sd"]) @ sysd["V"].T + sysd["mu"]
     P = X.reshape(len(X), -1, 3)
-    step = max(1, P.shape[1] // 200)
-    Q = P[:, ::step]
+    if ca is None or len(ca) < 2:
+        return float("nan"), float("nan")
+    Q = P[:, ca]
     dd = np.linalg.norm(Q[:, 1:] - Q[:, :-1], axis=-1)
     return float(dd.mean()), float(dd.std())
 
@@ -371,7 +391,20 @@ if __name__ == "__main__":
                                      steps=SAMPLE_STEPS).cpu().numpy()
             ou = ou_segments(sysd["C_tr"], sysd["C_ho"], T, keval, rng)
             arms = {}
-            for name, S in (("OU", ou), (ARM.upper(), gen)):
+            # INBOX 112 item 2. THE SHUFFLE ARM: reference windows with their ROWS PERMUTED.
+            # Same frames, same marginals, same instantaneous mode covariance -- time destroyed. It
+            # is the ceiling a purely STATIC model reaches, and this test has never had one: OU is
+            # the null for coupling, the shuffle is the null for TIME. Expected 9/11, failing only
+            # iat and trans, because 9 of 11 metrics are invariant to row permutation (verified:
+            # corrcoef, |c*x|, moments and histograms are all order-blind).
+            #   SHUFFLE fails iat/trans -> the test HAS dynamic discrimination and JOINT's margin
+            #                              over it is the real temporal result
+            #   SHUFFLE PASSES iat/trans -> the test has NO dynamic discrimination at T=256 and
+            #                              nothing about temporal modelling is readable, whatever
+            #                              JOINT scored
+            shuf = np.stack([w.reshape(T, K)[rng.permutation(T)].reshape(T, RGRP, DLAT)
+                             for w in refw])
+            for name, S in (("OU", ou), ("SHUFFLE", shuf), (ARM.upper(), gen)):
                 ss = [stats_ext(w.reshape(T, K), top2, thr, pool) for w in S]
                 inside = {k: bool(consistent(ss, rs, k)) for k in XMETRICS}
                 arms[name] = dict(agree=int(sum(inside.values())), inside=inside,
@@ -389,9 +422,12 @@ if __name__ == "__main__":
             arms["POWER"] = dict(ou_inside_xcorr=o_in["xcorr"], ou_inside_amp=o_in["amp"],
                                  powered=powered, n_refw=int(len(refw)),
                                  band_xcorr=float(band(rs, "xcorr")[2] - band(rs, "xcorr")[1]))
-            bm, bs = bond_stats(sysd, gen); rm, rs_ = bond_stats(sysd, refw)
+            cai = ca_index(sysd)
+            bm, bs = bond_stats(sysd, gen, cai)
+            rm, rs_ = bond_stats(sysd, refw, cai)
             arms["geometry"] = dict(gen_bond_mean=bm, gen_bond_sd=bs,
-                                    ref_bond_mean=rm, ref_bond_sd=rs_)
+                                    ref_bond_mean=rm, ref_bond_sd=rs_,
+                                    n_ca=int(len(cai)) if cai is not None else 0)
             rows[sysd["pdb"]] = dict(N=sysd["N"], arms=arms,
                                      ref_med={k: float(band(rs, k)[0]) for k in XMETRICS})
             j = arms[ARM.upper()]; o = arms["OU"]
@@ -412,12 +448,27 @@ if __name__ == "__main__":
     print(f"\n=== RESULT ({len(rows)} held-out systems) ===")
     print(f"  {'arm':>18}{'median agree':>14}" + "".join(f"{k:>13}" for k in XMETRICS))
     pw = {k: v for k, v in rows.items() if v["arms"]["POWER"]["powered"]}
+    # INBOX 112 item 3. OU's number on the POWERED subset is the SELECTION RESTATED: a system is
+    # powered BECAUSE OU failed there. So OU is quoted over ALL systems, and only JOINT and SHUFFLE
+    # are quoted on the powered subset, where the question is whether the test could discriminate.
+    print(f"\n  OU over ALL {len(rows)} systems (the powered subset is a selection ON OU and quoting"
+          f" it there\n  would be circular):")
+    for k in ("xcorr", "xcorr_top8", "amp_top8", "iat", "trans"):
+        v = 100 * np.mean([r["arms"]["OU"]["inside"][k] for r in rows.values()])
+        print(f"    {k:>12}: inside on {v:5.1f}% of all systems")
     print(f"  POWERED systems: {len(pw)}/{len(rows)}  "
-          f"(OU outside the band on xcorr AND amp -- 81a)")
+          f"(OU outside the band on xcorr_top8 AND amp_top8 -- 81a)")
+    if pw:
+        # 112 item 3: 0 failures in n gives a 95% upper bound of 3/n by the rule of three.
+        j_all = sum(1 for r in pw.values()
+                    if r["arms"][ARM.upper()]["inside"][f"xcorr_top{TOPM[0]}"])
+        lo = 100 * max(0.0, 1 - 3.0 / len(pw)) if j_all == len(pw) else 100 * j_all / len(pw)
+        print(f"  {ARM.upper()} inside on xcorr_top{TOPM[0]}: {j_all}/{len(pw)} powered systems"
+              + (f", 95% CI [{lo:.0f}%, 100%] by the rule of three" if j_all == len(pw) else ""))
     if not pw:
         print(f"  -> NO SYSTEM IS POWERED. Nothing about JOINT is readable from this run, including\n"
               f"     a good result. The honest output is the band width, not a table.")
-    for arm in ("OU", ARM.upper()):
+    for arm in ("OU", "SHUFFLE", ARM.upper()):
         src = pw or {}
         if not src: break
         ag = np.array([r["arms"][arm]["agree"] for r in src.values()])

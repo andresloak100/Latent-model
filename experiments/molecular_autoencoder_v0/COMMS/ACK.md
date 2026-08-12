@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 111
+last_acted: 112
 ```
 
 | item | restatement | status | commit |
@@ -132,6 +132,7 @@ last_acted: 111
 | 109 | **ACCEPTED. 109d resolves clean — no recorded number is invalidated.** GPU report first: **nothing CPU-bound held a GPU** (rescompD/projanm/anmortho/prep1m all long-cpu, gres none), so there was nothing to migrate. **109d.1**: audited all 42 sbatch by last-executable-line; **exactly 1 masked — sessionwatch, which produces no results**; my first pass flagged 4 and was wrong (continuations/heredocs). **109d.2**: 37 bypass dump_rows but only **23 write incrementally** (the rest write once at the end, where a crash leaves no file); every headline file checks complete, and the **"123" is the CACHE shortfall** — 2po4_A and 3vth_A absent — so 0/123 has an explained denominator. **109f: worse than a caveat** — 108.2's 12 are manifest order but the manifest is effectively size-ordered: median N 703 vs 3249, **KS D=0.9024 p<0.001, NOT representative**, so the 25 ns figure is an **optimistic bound**. **Queued**: lv_onestep 10346189 (matched-budget, built into the SAME script behind LV_ARM so one instrument scores both), lv_r8 10346190 (token-axis ablation). **109e** smoke gate run before submitting; it caught a wording bug immediately. | ACCEPTED | (this commit) |
 | 110 | **ACCEPTED — the A/B is confounded twice and I am not claiming it.** JOINT 10,009,864 params vs ONESTEP 181,120 = **55.3x**, and different model families: rectified-flow diffusion vs a single-shot conditional Gaussian that **cannot represent a multi-modal transition density**. The Gaussian MLP is now described as a **nonlinear OU**; `onestep_diff` (one-step DDPM, same family) is what the headline needs. What IS readable is joint-vs-OU, since OU is a clean physics null. | ACCEPTED | (this commit) |
 | 111 | **ACCEPTED. 111c forensics: root cause found and it was mine.** 10346121 **FAILED 1:0** on **cn-b005 = volta** with 'no kernel image available'; 10346189/10346190 **COMPLETED 0:0** on **cn-a003 = turing**. The standing `turing\|ampere\|lovelace` constraint exists for exactly this and I removed it entirely when told not to EXPORT it globally — now in **all 23 GPU sbatch**. joint.json ABSENT, onestep/r8 both 24 rows complete=True. **Item 5**: `trap _armf_log EXIT` in 21 sbatch -> tracked outputs/job_log.tsv, fires on crash and SIGTERM. **Item 2**: ns column **6x too small** (step=2501//400=6, so 240 ps/unit) — exposed residual **3.65 ns**, collective **5.88 ns**; ratio unaffected; corrected in ROADMAP, and 5.88 ns is far closer to 100e's 12-220 ns ITS. **Item 3**: ceiling confirmed (collective 61.3% of ceiling, p75 91.2%, **19% above it**) but excluding pinned systems moves the ratio **0.679 -> 0.713, UP** — opposite to both our expectations; rescompFULL at RC_NFRAME=2501 queued. **First positive generative result**: JOINT 11/11 vs OU 4/11, **xcorr_top8 100% vs 8%**. | ACCEPTED | (this commit) |
+| 112 | **ACCEPTED. Item 5 written at 09:00 elapsed of 10350867**, before any number existed: R=64xD=1 PRIMARY, R=8xD=8 ABLATION, disagreement is itself a finding. **Item 1 verified independently: 9 of 11 metrics are TIME-BLIND**, including xcorr_top8 (0.00% change under row permutation); only iat (92.57%) and trans (269.81%) see time. Claim restated as **instantaneous cross-mode covariance**, not trajectory modelling; and pre-registered that onestep_diff should also hit ~100% on xcorr_top8, in which case the question falls entirely to iat/trans. **Item 2 SHUFFLE arm added** — on the smoke it scores 10/11 failing only `iat`, so **trans does not discriminate either** and iat carries the whole temporal signal. **Item 3**: OU's 8% was the selection restated (powered *because* OU failed); OU now quoted over ALL systems, JOINT reported as 12/12 with rule-of-three CI [75%, 100%]. **Item 4**: bond_stats measured every N//200-th ATOM, a different physical distance per system (Family F) that cannot detect broken chemistry; now CA by atom name — smoke gives **3.69 A vs 3.56 A ref** against the true 3.80 A, so 2.70 A was the artefact. 10350867 cancelled at 12:37 and resubmitted as 10350959 so items 1-2 are IN the run. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -2055,3 +2056,53 @@ over 11 metrics (so "11/7" meant 11 of 11), and the derived sbatch files kept
 logging line; every `continue` leaves it unbound. Dormant at T=256 because `segments()` never returns
 None there, live the moment T rises past a replica length. Same shape as `seen`, caught by reading
 rather than by running.
+
+## 112 — ACCEPTED. The headline statistic cannot see time, and item 5 was written while the run was still going
+
+**Item 5 first, because it was the only time-critical one.** Written at **09:00 elapsed of
+`10350867`**, before any number from it existed: **R=64×D=1 is PRIMARY and governs the headline;
+R=8×D=8 is the ABLATION; if they disagree the primary is the result and the disagreement is a finding
+about the token axis.** Committed before the run reported. Written afterwards it would have been a
+choice among outcomes, and the only joint result on the record came from the ablation precisely
+because the primary died on volta.
+
+**Item 1 — verified independently, and it is right.** Same frames, rows permuted:
+
+| metric | real | shuffled | change | |
+|---|---|---|---|---|
+| std, js, kurt, xcorr, amp | — | — | **0.00%** | time-blind |
+| **xcorr_top8** | 0.100668 | 0.100668 | **0.00%** | **time-blind** |
+| amp_top8, xcorr_top16, amp_top16 | — | — | 0.00% | time-blind |
+| **iat** | 13.877226 | 1.030625 | **92.57%** | **SEES TIME** |
+| **trans** | 207.843137 | 768.627451 | **269.81%** | **SEES TIME** |
+
+**9 of 11 are blind to time, including the headline statistic.** So "11/11" is largely a statement
+about the static joint distribution over modes. The claim is now stated as: **the joint model
+reproduces the instantaneous cross-mode covariance OU cannot represent by construction** — a genuine
+first, claimed at that size and not as evidence about trajectory modelling. And pre-registered before
+`onestep_diff`: a one-step diffusion should also score ~100% on `xcorr_top8`, in which case **that
+statistic cannot separate joint from one-step at all** and the question falls entirely to `iat` and
+`trans`.
+
+**Item 2 — the SHUFFLE arm is in, and it earned its place on the first smoke run.** Reference windows
+with rows permuted, scored like any other arm. Measured: **10/11, failing only `iat`** — so on that
+sample **`trans` does not discriminate either**, and `iat` is carrying the entire temporal signal.
+That is exactly the diagnostic the test has never had: OU is the null for coupling, the shuffle is
+the null for time.
+
+**Item 3 — accepted, and it was circular as stated.** A system is powered *because* OU failed there,
+so OU's 8% on the powered subset is the selection restated, and `amp_top8` at 75% is the AND showing
+through. OU is now quoted **over all systems**; only JOINT and SHUFFLE are quoted on the powered
+subset. And 0 failures in 12 is reported as **12/12 with a rule-of-three 95% CI [75%, 100%]**, not as
+a bare 100%.
+
+**Item 4 — the geometry guard was measuring nothing, and the reference value was the tell.** It took
+`step = P.shape[1] // 200` over the **all-atom** array, so it measured every N//200-th atom: `step`
+varies with N, making it a **different physical distance on every system** (Family F), and a distance
+between atoms six apart in file order is conformation-dependent and cannot detect broken chemistry —
+the one job the guard exists for. Now selects **CA by atom name** from ATLAS's own topology, refusing
+on a count mismatch rather than reindexing. Smoke: **3.69 Å generated vs 3.56 Å reference**, against
+the true consecutive-CA 3.80 ± 0.03 Å — the old 2.70 Å was the artefact.
+
+**`10350867` was cancelled at 12:37 and resubmitted as `10350959`**, because it had already loaded
+the pre-SHUFFLE script and items 1–2 had to be in the run rather than beside it.
