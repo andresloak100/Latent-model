@@ -3,7 +3,7 @@
 Append-only. One block per INBOX item. See `PROTOCOL.md`.
 
 ```
-last_acted: 117
+last_acted: 120
 ```
 
 | item | restatement | status | commit |
@@ -138,6 +138,9 @@ last_acted: 117
 | 115 | **ACCEPTED — your correction holds, and the run that confirmed it broke the rule that confirmed it.** **115a**: prediction exact — SHUFFLE **9/11** with **trans firing 23/23, median +205.88, wilcoxon p=0.0000**, independently recovering 112a's +208%; overlap catches **0/24**. 113f's 'no working instrument' **corrected in ROADMAP.md**: 2c is under-powered, not instrument-less, and there are **two** temporal statistics. **DEFECT FOUND IN THE PAIRED RULE**: `(d>0).sum()` counts an exact zero as negative, so 24 identical numbers give p=1.2e-07 — nine metrics 'fired' at differences of 1e-16. Fixed at **108.1's own \|rel\|<1e-6**, not a new knob. **Audited: lv_r8 has ZERO ties, nothing on the record is invalidated**; onestep trans 0.0227→0.0106, same verdict. **115c pre-registered in 4e57beac before onestep_diff exists**, --wilcoxon OFF by default, skew>1 → sign test governs; lv_r8 stands as reported. **Wilcoxon was immune to the tie defect** — the more powerful test is also the safer one. **115d**: the floor **was** the baseline and my label was wrong — renamed rmsd_floor, identity asserted. Floor sweep **3.873→2.318 Å over K=8..256, no plateau**, so 3 Å is a choice of K; and **predicted sigma at rank 64 (3.537 Å) is worse than the measured-sigma floor at rank 32 (3.456 Å)**. **115b** accepted as the better reading: kurt is a fourth confirmation of the tilt. | ACCEPTED | (this commit) |
 | 116 | **ACCEPTED — all four, and item 1's reframing found a rescue.** **116.1**: coverage/fidelity pair built and submitted (`10352187`, 24 systems). 1-system smoke: FLOOR 3.91/3.88, OU 7.91/7.94, **JOINT 8.90 cov / 6.72 fid — better fidelity than OU, WORSE coverage**, exactly the asymmetry one RMSD would have merged. Added a **SHUFFLE arm scoring 0.000 A** so the time-blindness is measured, not caveated. **RESCUE**: CKPT had no R in the name, so the running R=64 job was about to overwrite the **lv_r8 headline checkpoint** — preserved and the name fixed. **116.2**: K=0 (`mu` alone) is now the first row, so 3.009 A has a denominator. **116.3**: predicted-sigma swept at every K with the scale match applied **within** each rank; **your prediction committed in b2cb0240 before predsigma runs**. **116.4**: n_eff is now the denominator of every n_pos/n_eff with a SMALL-n_eff flag, and UNEVALUABLE replaces nan — which does not merely read as null but **sorts as the safest row**, so fires() refuses non-floats. 115a re-run under all of it: unchanged, 9/11 and trans 23/23. | ACCEPTED | (this commit) |
 | 117 | **ACCEPTED — the count effect is real, and my SHUFFLE control was measuring the wrong thing.** **117.1** reproduced independently: coverage **−22.4%** on n_gen alone, fidelity +2.3%. But **checked rather than assumed — n_gen WAS already matched at 128 across all four arms**, so the 12% coverage gap is not a count artefact; it was inferred from code rather than reported, which is now fixed. **3.912 A was never an inversion**: 4ued_B's own paired floor is **5.103 A** (3.009 was a 4-system median), so NN < paired holds. **117.2**: all arms emit exactly n_gen; coverage at n_gen and 4n_gen with slope read against **REF's own slope**. **117.3**: REF arm added — and it needs a guard, because **4ued_B's replicas are 8.94 A apart AFTER Kabsch** vs a 7.57 A within-replica spread, so OU beats a perfect generator by **centre-blur**; recorded per system. **REF is a TWO-SIDED target and my summary line got it wrong** — OU's fidelity landed BELOW REF's, giving JOINT a meaningless 130%; replaced with signed deviation, where FLOOR is under-dispersed too (−0.340 A) so **JOINT's −0.645 A means the model adds ~0.31 A of collapse beyond the decode**. **117.4**: shuffle_delta now **exactly 0.000e+00** — permuting before subsampling had selected a different subset (1.6e-01); three tiers recorded, **the temporal claim rests entirely on iat and trans**. | ACCEPTED | (this commit) |
+| 118 | **ACCEPTED.** REF is not a ceiling — your simulation shows a narrow generator beats it on **both** metrics at **every** separation including zero, so `|deviation|` must apply to **coverage as well as fidelity**, or a collapsed model reads as good on the axis meant to catch collapse. **118e DONE and adversarially tested**: armf_submit.sh runs py_compile on every .py an sbatch references and REFUSES to submit on failure — verified against a deliberately broken file (non-zero, no job id). 109e's full smoke run still owed. **118b/c/d accepted and NOT done** — dispersion ratio, union reference with stratification, and the coverage-deficit vs separation scatter all need 10352325, which is PENDING on QOSMaxMemoryPerUser. | ACCEPTED | (this commit) |
+| 119 | **ACCEPTED and PAUSED by 120c.** 119c is domain-prior work and belongs after the scaling question; recorded, not started. 119a's correction noted: a rank-64 subspace can **approximate** bond constraints but cannot **enforce** them, which is what makes 'raise K' the wrong answer. | ACCEPTED | (this commit) |
+| 120 | **ACCEPTED — and I had already built the wrong directory.** I wrote experiments/static_ae_v1/ against my own spec **without looking for BRIEF.md, which was already in the repo**; code moved into static_autoencoder_v1/, the rest deleted. **My two jobs build the wrong thing and are cancelled** — most seriously they use a **random split, the exact leak the brief forbids**; also atom tokens not residue, wrong parameter/latent points, and missing effective rank, interpolation, linear probe, isoflop and the alpha/L_inf fit that IS the headline. **I cancelled pretrain1m one item before 120b withdrew that advice — resubmitted as 10361491.** **PREREGISTRATION.md committed with no results in the repo**, carrying the four outcomes, the five open choices recorded at the point of making them, and the baselines — including that **CENTROID 12.407 A and MEAN_SHAPE 12.402 A agree to 0.005 A**, because without alignment a per-index mean collapses to the centroid. | ACCEPTED | (this commit) |
 
 ## Notes on 035
 
@@ -2414,3 +2417,56 @@ does not, and **109e's smoke gate is still owed.**
 
 **GPU while this CPU work ran:** `10350959` on cn-c005 at **100%**, left running as you asked.
 `10352187` cancelled (my own job, PENDING) because the arm set changed; `10352325` replaces it.
+
+## 118–120 — ACCEPTED. 120 is a redirect and I had already built the wrong directory
+
+**Two errors of mine, both material, both corrected in this commit.**
+
+**I built `experiments/static_ae_v1/` against a spec I wrote myself, without looking for
+`BRIEF.md` — which was already in the repository.** `model.py` and `data_prep.py` are moved into
+`experiments/static_autoencoder_v1/`; the rest is deleted. **And my two submitted jobs build the
+wrong thing, so they are cancelled** (`10361485`, `10361486`). Against the brief they are wrong in
+four ways and the first is disqualifying:
+
+- **random split.** The brief requires a homology split and says exactly why — near-duplicates land
+  on both sides and held-out error reads far better than it is. **That is the leak the brief
+  forbids, and I shipped it.**
+- tokens are **atoms**; the granularity axis is per residue / 2 / 4
+- parameter points are not `{0.5M, 2M, 8M, 32M}`; latents are not `{32…1024}`
+- missing effective rank, the variance spectrum, interpolation error, the linear probe, the isoflop
+  frontier, and the `alpha`/`L_inf` fit that **is** the headline
+
+**And I cancelled `pretrain1m` one item before 120b withdrew that advice — resubmitted as
+`10361491`.**
+
+**`PREREGISTRATION.md` is committed with no results in the repository**, as the brief requires: the
+four outcomes verbatim, the five choices the brief leaves open each recorded at the point of making
+it, and the two baselines. **One baseline measurement is already in, and it is a property of the
+task rather than of any model:** `CENTROID` **12.407 Å** and `MEAN_SHAPE` **12.402 Å** agree to
+within **0.005 Å**, because with structures in arbitrary orientations a per-index mean averages over
+rotations and collapses to the centroid. Under "centre but do not align", `MEAN_SHAPE` carries no
+information and the bar is a single figure.
+
+**118e — done, and adversarially tested rather than merely installed.** `armf_submit.sh` now runs
+`py_compile` on every `.py` an sbatch references and **refuses to submit** on failure. Verified by
+feeding it a deliberately broken file: it printed `REFUSING to submit` and returned non-zero with no
+job id. **109e's full CPU smoke run is still owed** — `py_compile` cannot see `NameError`-class
+defects, which is the half that needs it.
+
+**118a accepted, and it is stronger than I had it.** Your simulation shows a narrow generator beats
+REF on **both** metrics at **every** separation **including zero** — so REF-vs-REF is not an upper
+bound, it is the score of one particular correct answer. I applied `|deviation|` to fidelity only;
+**applying it to coverage too is the fix**, or a collapsed model reads as a good one on the axis that
+exists to catch collapse.
+
+**118b, 118c, 118d — accepted and NOT yet done.** The dispersion ratio, the union reference with
+stratification by separation, and the `coverage(JOINT) − coverage(REF)` vs `separation/spread`
+scatter all need `10352325`, which is **PENDING on `QOSMaxMemoryPerUser`** — my own queue is over
+quota. Listed here as owed rather than described as planned.
+
+**119 — ACCEPTED and PAUSED by your own 120c.** 119c is domain-prior work and belongs after the
+scaling question. Recorded, not started. 119a's correction is noted: a rank-64 subspace **can
+approximate** bond constraints and cannot **enforce** them, which is the distinction that makes
+"raise K" the wrong answer.
+
+**GPU:** `10350959` still running on cn-c005; `vartilt` and `covfid` blocked on memory quota.

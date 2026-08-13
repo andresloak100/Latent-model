@@ -73,5 +73,28 @@ elif [ -n "$EXISTING" ] && [ -z "${ARMF_FORCE:-}" ]; then
   echo "  If this second chain is deliberate, re-run with ARMF_FORCE=1." >&2
   exit 1
 fi
+# INBOX 118e: THE CHEAP HALF OF 109e, SPLIT OUT SO IT STOPS BEING DEFERRED BEHIND THE EXPENSIVE
+# HALF. Every python script this sbatch invokes must COMPILE before the job is queued. A sed
+# introducing an f-string syntax error, with the submit in the same block, queued 10352325 against a
+# file that would not parse -- the second near-miss of exactly this shape. py_compile catches that
+# one completely. It does NOT catch NameError-class defects, which is what 109e's full CPU smoke run
+# is for, and that remains owed.
+PYBIN="${ARMF_PY:-$WR/venv/bin/python}"
+[ -x "$PYBIN" ] || PYBIN=python3
+NCHK=0
+for f in $(grep -oE '[^ ]+\.py' "$SB" | sort -u); do
+  ff="$f"
+  case "$ff" in
+    *'$'*) ff=$(eval echo "$ff" 2>/dev/null) ;;
+  esac
+  [ -f "$ff" ] || continue
+  if ! "$PYBIN" -m py_compile "$ff" 2>&1; then
+    echo "armf_submit: REFUSING to submit -- $ff does not compile" >&2
+    exit 3
+  fi
+  NCHK=$((NCHK+1))
+done
+echo "armf_submit: py_compile OK on $NCHK script(s) referenced by $(basename "$SB")"
+
 JID=$(sbatch --parsable "$@" "$SB") || exit $?
 echo "$JID"
