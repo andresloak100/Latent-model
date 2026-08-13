@@ -12,8 +12,20 @@ of these would confound exactly that measurement:
 WHAT IS PRESENT is the standard transformer kit: learned embeddings, multi-head attention,
 learned positional embedding on the atom index, pre-norm residual blocks.
 
-ARCHITECTURE (Perceiver-style, chosen because it handles variable-length inputs without
-padding waste and gives the two sweep axes as clean independent knobs):
+BOTTLENECK: TWO OPTIONS, AND `mean_pool` IS THE DEFAULT.
+
+`mean_pool` -- masked mean over atom tokens, one linear map to L numbers, one vector per
+structure. Simpler and more generic, and the default for exactly that reason: a mean is not an
+architectural opinion, whereas learned latent queries are. Taken from the parallel implementation
+in `c41e20fa` and kept over the alternative below on the brief's own grounds.
+
+`latent_queries` -- Perceiver-style cross-attention into `n_latent_tokens` learned queries. Kept
+because the brief's SECONDARY axis varies granularity, which needs a bottleneck that can have
+more than one token. An option, not the default.
+
+Both take padding masks, so structures may differ in atom count.
+
+ARCHITECTURE:
 
     atoms -> embed -> self-attention stack -> cross-attention into LATENT QUERIES
           -> bottleneck of shape (n_latent_tokens, latent_width)
@@ -45,12 +57,20 @@ class AEConfig:
     n_enc_layers: int = 2
     n_dec_layers: int = 2
     ffn_mult: int = 4
+    bottleneck: str = "mean_pool"          # "mean_pool" | "latent_queries"
     n_latent_tokens: int = 1
     latent_width: int = 64
     max_atoms: int = 1024
     n_elements: int = 16
     predict_composition: bool = False
     dropout: float = 0.0
+
+    def __post_init__(self):
+        if self.bottleneck not in ("mean_pool", "latent_queries"):
+            raise ValueError(f"unknown bottleneck {self.bottleneck!r}")
+        if self.bottleneck == "mean_pool" and self.n_latent_tokens != 1:
+            raise ValueError("mean_pool produces exactly one latent token; use latent_queries "
+                             "for the granularity axis")
 
     @property
     def latent_size(self) -> int:
@@ -114,6 +134,13 @@ class StaticAutoencoder(nn.Module):
         pad = ~mask
         for blk in self.enc:
             h = blk(h, key_padding_mask=pad)
+        if self.cfg.bottleneck == "mean_pool":
+            # Masked mean over REAL atoms only. A plain h.mean(1) would halve the latent of a
+            # half-padded structure, which reads as a smaller molecule rather than a shorter
+            # array -- and every structure in a real corpus has a different atom count.
+            w = mask[..., None].to(h.dtype)
+            pooled = (h * w).sum(1, keepdim=True) / w.sum(1, keepdim=True).clamp_min(1)
+            return self.to_latent(pooled)
         q = self.latent_q[None].expand(B, -1, -1)
         q = self.enc_cross(q, kv=h, key_padding_mask=pad)
         return self.to_latent(q)

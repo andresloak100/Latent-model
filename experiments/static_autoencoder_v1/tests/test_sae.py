@@ -21,7 +21,8 @@ from sae.train import TrainConfig, run
 # ---- model -----------------------------------------------------------------------------
 
 def test_shapes_and_masking():
-    cfg = AEConfig(d_model=32, n_heads=2, n_latent_tokens=2, latent_width=8, max_atoms=64)
+    cfg = AEConfig(d_model=32, n_heads=2, bottleneck="latent_queries",
+                   n_latent_tokens=2, latent_width=8, max_atoms=64)
     m = StaticAutoencoder(cfg)
     x, e = torch.randn(3, 20, 3), torch.randint(0, 16, (3, 20))
     mask = torch.ones(3, 20, dtype=torch.bool); mask[2, 15:] = False
@@ -157,3 +158,25 @@ def test_guard_separates_stuck_from_undertrained(steps, expected):
     r = run(cfg, TrainConfig(steps=steps, lr=1e-3, seed=0, eval_batches=3), ds)
     assert r.status == expected, (r.status, r.frac_var_explained, r.tail_improvement)
     assert not r.converged
+
+
+# ---- the merged bottleneck ---------------------------------------------------------------
+
+def test_mean_pool_is_the_default_and_ignores_padding():
+    """A plain h.mean(1) would halve the latent of a half-padded structure, which reads as a
+    smaller molecule rather than a shorter array."""
+    cfg = AEConfig(d_model=32, n_heads=2, latent_width=8, max_atoms=64)
+    assert cfg.bottleneck == "mean_pool"
+    m = StaticAutoencoder(cfg).eval()
+    x, e = torch.randn(1, 10, 3), torch.randint(0, 16, (1, 10))
+    full = torch.ones(1, 10, dtype=torch.bool)
+    xp = torch.cat([x, torch.randn(1, 6, 3) * 100], 1)
+    ep = torch.cat([e, torch.randint(0, 16, (1, 6))], 1)
+    part = torch.cat([full, torch.zeros(1, 6, dtype=torch.bool)], 1)
+    with torch.no_grad():
+        assert torch.allclose(m.encode(x, e, full), m.encode(xp, ep, part), atol=1e-5)
+
+
+def test_mean_pool_rejects_multiple_latent_tokens():
+    with pytest.raises(ValueError):
+        AEConfig(bottleneck="mean_pool", n_latent_tokens=4)
