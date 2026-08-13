@@ -1,2 +1,4 @@
 job_id	name	arm	exit	elapsed	host	result
 10350867	latentvideo		0	12:37	cn-c003	
+10351149	predsigma		0	NA	cn-h003	/network/scratch/j/jacob-junqi.tian/latent-model-workspace/predicted_sigma.json:present
+10350869	rescompFULL		0	1:13:30	cn-h001	
